@@ -47,24 +47,26 @@
     </div>
 
     <script>
-        // --- UPDATED CONFIGURATION FOR YOUR REPO ---
-        const owner = 'desanju2233'; 
-        const repo = 'OpenBioSet';            
-        // Pointing directly to the Dataset folder
-        const baseApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/Dataset`;
-        
         let allFolders = [];
 
         async function init() {
+            const searchBar = document.getElementById('search');
             try {
-                // Fetch the contents of the Dataset directory
-                const response = await fetch(baseApiUrl);
-                const data = await response.json();
+                // Fetching from the absolute root of the site
+                const response = await fetch('/Dataset/folders.json');
                 
-                // Ensure we only grab directories and sort them lexicographically
-                allFolders = data.filter(item => item.type === 'dir').map(item => item.name).sort();
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status} - folders.json not found`);
+                }
+                
+                allFolders = await response.json();
+                allFolders.sort();
+                searchBar.placeholder = `Search ${allFolders.length} folders...`;
+
             } catch (error) {
-                console.error("Error fetching repository contents:", error);
+                console.error("Error loading folders:", error);
+                searchBar.placeholder = "Error: folders.json not found! Check Console.";
+                searchBar.disabled = true; // Disable if broken
             }
         }
 
@@ -92,38 +94,38 @@
             document.getElementById('content-view').classList.remove('hidden');
             document.getElementById('folder-title').textContent = folderName;
             
-            document.getElementById('txt-content').textContent = 'Loading...';
+            document.getElementById('txt-content').textContent = 'Loading text...';
             document.getElementById('img-content').src = '';
-            document.getElementById('img-content').style.display = 'none'; // Hide broken image icon while loading
-            document.getElementById('ir-content').textContent = 'Loading...';
+            document.getElementById('img-content').style.display = 'none'; 
+            document.getElementById('ir-content').textContent = 'Loading routing...';
 
             try {
-                // Fetch the contents of the specific clicked folder inside /Dataset/
-                const folderApiUrl = `${baseApiUrl}/${folderName}`;
-                const response = await fetch(folderApiUrl);
-                const files = await response.json();
+                // Fetch Text File
+                const txtRes = await fetch(`/Dataset/${folderName}/description.txt`);
+                document.getElementById('txt-content').textContent = txtRes.ok 
+                    ? await txtRes.text() 
+                    : `Error: Could not find /Dataset/${folderName}/description.txt`;
 
-                files.forEach(async file => {
-                    if (file.name.endsWith('.txt')) {
-                        const txtRes = await fetch(file.download_url);
-                        document.getElementById('txt-content').textContent = await txtRes.text();
-                    } 
-                    else if (file.name.endsWith('.ir')) {
-                        const irRes = await fetch(file.download_url);
-                        document.getElementById('ir-content').textContent = await irRes.text();
-                    } 
-                    else if (file.name.match(/\.(jpg|jpeg|png|gif)$/i)) {
-                        document.getElementById('img-content').src = file.download_url;
-                        document.getElementById('img-content').style.display = 'block';
-                    }
-                });
+                // Fetch IR File
+                const irRes = await fetch(`/Dataset/${folderName}/routing.ir`);
+                document.getElementById('ir-content').textContent = irRes.ok 
+                    ? await irRes.text() 
+                    : `Error: Could not find /Dataset/${folderName}/routing.ir`;
+
+                // Load Image
+                const imgEl = document.getElementById('img-content');
+                // Ensure your image matches this exact name and extension!
+                imgEl.src = `/Dataset/${folderName}/layout.png`; 
+                imgEl.onload = () => { imgEl.style.display = 'block'; };
+                imgEl.onerror = () => { imgEl.style.display = 'none'; };
+
             } catch (error) {
-                console.error("Error fetching files:", error);
+                console.error("Error fetching local files:", error);
             }
         }
 
-        // Initialize the app on load
         init();
     </script>
+    
 </body>
 </html>

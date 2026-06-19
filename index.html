@@ -8,7 +8,7 @@
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans antialiased">
 
-    <div class="max-w-4xl mx-auto p-6">
+    <div class="max-w-7xl mx-auto p-6">
         <header class="mb-8">
             <h1 class="text-3xl font-extrabold tracking-tight text-blue-600">OpenBioSet</h1>
             <p class="text-sm text-gray-500 mt-1">Dataset Explorer</p>
@@ -25,23 +25,25 @@
         <main id="content-view" class="hidden space-y-6">
             <h2 id="folder-title" class="text-xl font-bold text-gray-800 border-b pb-2"></h2>
             
-            <div class="grid grid-cols-1 gap-6">
-                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                
+                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm w-full overflow-hidden">
                     <h3 class="text-sm font-semibold uppercase text-gray-400 mb-2">description (.txt)</h3>
                     <pre id="txt-content" class="bg-gray-50 p-4 rounded-lg overflow-x-auto text-sm text-gray-700 font-mono border border-gray-100 whitespace-pre-wrap">Loading...</pre>
                 </div>
 
-                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 class="text-sm font-semibold uppercase text-gray-400 mb-2">layout </h3>
+                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm w-full overflow-hidden">
+                    <h3 class="text-sm font-semibold uppercase text-gray-400 mb-2">layout</h3>
                     <div class="bg-gray-50 rounded-lg p-4 flex justify-center border border-gray-100">
                         <img id="img-content" class="max-h-96 w-auto rounded object-contain" alt="Folder visual representation" />
                     </div>
                 </div>
 
-                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm w-full overflow-hidden">
                     <h3 class="text-sm font-semibold uppercase text-gray-400 mb-2">output (.ir)</h3>
                     <pre id="ir-content" class="bg-gray-50 p-4 rounded-lg overflow-x-auto text-sm text-gray-700 font-mono border border-gray-100 whitespace-pre-wrap">Loading...</pre>
                 </div>
+                
             </div>
         </main>
     </div>
@@ -52,7 +54,6 @@
         async function init() {
             const searchBar = document.getElementById('search');
             try {
-                // Fetching from the absolute root of the site
                 const response = await fetch('/Dataset/folders.json');
                 
                 if (!response.ok) {
@@ -66,7 +67,7 @@
             } catch (error) {
                 console.error("Error loading folders:", error);
                 searchBar.placeholder = "Error: folders.json not found! Check Console.";
-                searchBar.disabled = true; // Disable if broken
+                searchBar.disabled = true; 
             }
         }
 
@@ -114,10 +115,20 @@
 
                 // Load Image
                 const imgEl = document.getElementById('img-content');
-                // Ensure your image matches this exact name and extension!
-                imgEl.src = `/Dataset/${folderName}/layout.png`; 
-                imgEl.onload = () => { imgEl.style.display = 'block'; };
-                imgEl.onerror = () => { imgEl.style.display = 'none'; };
+                const extensions = ['.jpg', '.png', '.jpeg'];
+                
+                const tryLoadImage = (index) => {
+                    if (index >= extensions.length) {
+                        imgEl.style.display = 'none';
+                        return;
+                    }
+                    
+                    imgEl.src = `/Dataset/${folderName}/layout${extensions[index]}`;
+                    imgEl.onload = () => { imgEl.style.display = 'block'; }; 
+                    imgEl.onerror = () => tryLoadImage(index + 1); 
+                };
+
+                tryLoadImage(0);
 
             } catch (error) {
                 console.error("Error fetching local files:", error);
@@ -126,6 +137,5 @@
 
         init();
     </script>
-    
 </body>
 </html>

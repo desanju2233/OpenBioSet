@@ -8,18 +8,52 @@
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans antialiased">
 
+    <div id="sidebar-backdrop" onclick="toggleSidebar(false)" 
+         class="fixed inset-0 bg-black/40 z-40 hidden opacity-0 transition-opacity duration-300"></div>
+
+    <aside id="sidebar-drawer" 
+           class="fixed inset-y-0 left-0 z-50 w-80 bg-white shadow-2xl transform -translate-x-full transition-transform duration-300 flex flex-col">
+        
+        <div class="p-5 border-b flex items-center justify-between bg-gray-50/50">
+            <div class="flex items-center gap-2">
+                <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Available Protocols</h2>
+                <span id="protocol-count" class="text-xs bg-blue-100 text-blue-600 font-bold px-2 py-0.5 rounded-full">0</span>
+            </div>
+            <button onclick="toggleSidebar(false)" class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <div class="p-4 flex-1 overflow-y-auto">
+            <ul id="sidebar-list" class="space-y-1">
+                <li class="text-sm text-gray-400 italic py-2">Loading protocols...</li>
+            </ul>
+        </div>
+    </aside>
     <div class="max-w-7xl mx-auto p-6">
+        
         <header class="mb-8">
             <h1 class="text-3xl font-extrabold tracking-tight text-blue-600">OpenBioSet</h1>
             <p class="text-sm text-gray-500 mt-1">Dataset Explorer</p>
         </header>
 
-        <div class="relative mb-6">
-            <input type="text" id="search" oninput="filterFolders()" autocomplete="off"
-                   placeholder="Search folders..." 
-                   class="w-full px-4 py-3 rounded-lg border border-gray-300 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+        <div class="flex items-center gap-3 mb-6">
             
-            <ul id="recommendations" class="absolute z-10 w-full bg-white mt-1 rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto empty:hidden"></ul>
+            <button onclick="toggleSidebar(true)" title="Open Protocols Menu"
+                    class="p-3 rounded-lg bg-white border border-gray-300 shadow-sm hover:bg-gray-50 text-gray-600 transition focus:outline-none focus:ring-2 focus:ring-blue-500 shrink-0">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                </svg>
+            </button>
+
+            <div class="relative flex-1">
+                <input type="text" id="search" oninput="filterFolders()" autocomplete="off"
+                       placeholder="Search folders..." 
+                       class="w-full px-4 py-3 rounded-lg border border-gray-300 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+                
+                <ul id="recommendations" class="absolute z-10 w-full bg-white mt-1 rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto empty:hidden"></ul>
+            </div>
+
         </div>
 
         <main id="content-view" class="hidden space-y-6">
@@ -46,6 +80,7 @@
                 
             </div>
         </main>
+
     </div>
 
     <script>
@@ -53,21 +88,47 @@
 
         async function init() {
             const searchBar = document.getElementById('search');
+            const sidebarList = document.getElementById('sidebar-list');
+            const countBadge = document.getElementById('protocol-count');
+
             try {
                 const response = await fetch('/Dataset/folders.json');
-                
-                if (!response.ok) {
-                    throw new Error(`Server returned ${response.status} - folders.json not found`);
-                }
+                if (!response.ok) throw new Error("folders.json not found");
                 
                 allFolders = await response.json();
                 allFolders.sort();
+                
                 searchBar.placeholder = `Search ${allFolders.length} folders...`;
+                countBadge.textContent = allFolders.length;
+
+                sidebarList.innerHTML = ''; 
+                allFolders.forEach(name => {
+                    const li = document.createElement('li');
+                    li.textContent = name;
+                    li.id = `drawer-${name}`;
+                    li.className = "drawer-item text-sm px-3 py-2.5 rounded-lg cursor-pointer hover:bg-blue-50 hover:text-blue-600 transition text-gray-700 block truncate";
+                    li.onclick = () => loadFiles(name);
+                    sidebarList.appendChild(li);
+                });
 
             } catch (error) {
                 console.error("Error loading folders:", error);
-                searchBar.placeholder = "Error: folders.json not found! Check Console.";
-                searchBar.disabled = true; 
+                searchBar.placeholder = "Error: folders.json not found!";
+            }
+        }
+
+        function toggleSidebar(show) {
+            const drawer = document.getElementById('sidebar-drawer');
+            const backdrop = document.getElementById('sidebar-backdrop');
+
+            if (show) {
+                backdrop.classList.remove('hidden');
+                setTimeout(() => backdrop.classList.remove('opacity-0'), 10);
+                drawer.classList.remove('-translate-x-full');
+            } else {
+                backdrop.classList.add('opacity-0');
+                drawer.classList.add('-translate-x-full');
+                setTimeout(() => backdrop.classList.add('hidden'), 300);
             }
         }
 
@@ -95,25 +156,32 @@
             document.getElementById('content-view').classList.remove('hidden');
             document.getElementById('folder-title').textContent = folderName;
             
+            toggleSidebar(false);
+
+            document.querySelectorAll('.drawer-item').forEach(item => {
+                item.className = "drawer-item text-sm px-3 py-2.5 rounded-lg cursor-pointer hover:bg-blue-50 hover:text-blue-600 transition text-gray-700 block truncate";
+            });
+            const activeDrawerItem = document.getElementById(`drawer-${folderName}`);
+            if (activeDrawerItem) {
+                activeDrawerItem.className = "drawer-item text-sm px-3 py-2.5 rounded-lg cursor-pointer bg-blue-600 text-white font-medium shadow-sm block truncate";
+            }
+
             document.getElementById('txt-content').textContent = 'Loading text...';
             document.getElementById('img-content').src = '';
             document.getElementById('img-content').style.display = 'none'; 
             document.getElementById('ir-content').textContent = 'Loading routing...';
 
             try {
-                // Fetch Text File
                 const txtRes = await fetch(`/Dataset/${folderName}/description.txt`);
                 document.getElementById('txt-content').textContent = txtRes.ok 
                     ? await txtRes.text() 
-                    : `Error: Could not find /Dataset/${folderName}/description.txt`;
+                    : `Error: Could not find description.txt`;
 
-                // Fetch IR File
                 const irRes = await fetch(`/Dataset/${folderName}/output.ir`);
                 document.getElementById('ir-content').textContent = irRes.ok 
                     ? await irRes.text() 
-                    : `Error: Could not find /Dataset/${folderName}/output.ir`;
+                    : `Error: Could not find output.ir`;
 
-                // Load Image
                 const imgEl = document.getElementById('img-content');
                 const extensions = ['.jpg', '.png', '.jpeg'];
                 
@@ -122,7 +190,6 @@
                         imgEl.style.display = 'none';
                         return;
                     }
-                    
                     imgEl.src = `/Dataset/${folderName}/layout${extensions[index]}`;
                     imgEl.onload = () => { imgEl.style.display = 'block'; }; 
                     imgEl.onerror = () => tryLoadImage(index + 1); 

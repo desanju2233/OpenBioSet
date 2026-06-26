@@ -1,0 +1,59 @@
+module electroporationAssay
+module cytokineDetection
+
+manifest mammalianCells
+manifest highConductivityBuffer
+manifest lowConductivityBuffer
+manifest plasmidPayload
+
+instructions:
+
+// STEP 1: Prepare cell droplet in low-conductivity electroporation buffer
+// Cell count: 20000 - 40000 cells per reaction (triDrop optimum)
+
+cellDrop      = dispense 1 units of mammalianCells
+epBuffer1     = dispense 1 units of lowConductivityBuffer
+cellsInBuffer = mix cellDrop with epBuffer1 for 2s
+
+// STEP 2: Prepare payload droplet (plasmid, mRNA, dextran, or Cas9 RNP)
+
+payloadDrop = dispense 1 units of plasmidPayload
+
+// STEP 3: triDrop three-droplet fusion
+// Two flanking high-conductivity droplets isolate cells from metal electrodes
+
+flank1 = dispense 1 units of highConductivityBuffer
+flank2 = dispense 1 units of highConductivityBuffer
+
+cellPayloadMix = mix cellsInBuffer with payloadDrop for 5s
+triDropStage1  = mix flank1 with cellPayloadMix for 3s
+triDropMerged  = mix triDropStage1 with flank2 for 3s
+
+// STEP 4: Electroporation pulse (3 x 200 VDC x 10 ms on DMF platform)
+// heat primitive maps to DMF energy delivery step
+
+heat triDropMerged at 37c for 10s
+
+// STEP 5: Off-chip transfer and recovery (within 20 min post-pulse)
+
+recoveredCells = mix triDropMerged with epBuffer1 for 5s
+
+// STEP 6: Post-electroporation incubation at 37c for 24h
+// triDrop achieves greater than 90 percent viability at 24h post-EP
+
+heat recoveredCells at 37c for 24h
+
+// STEP 7: Detect transfection efficiency and viability via flow cytometry
+
+transfectionSignal = detect electroporationAssay on recoveredCells for 30s
+viabilitySignal    = detect cytokineDetection on recoveredCells for 30s
+
+// STEP 8: Evaluate transfection efficiency threshold
+
+if (transfectionSignal >= 90) {
+    dispose recoveredCells
+}
+
+drain recoveredCells
+dispose transfectionSignal
+dispose viabilitySignal

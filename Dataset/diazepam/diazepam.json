@@ -1,0 +1,94 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "This is a competitive enzyme-linked immunosorbent assay (ELISA) for screening diazepam in urine, adapted for execution on a digital microfluidic biochip (DMFB). 1. Dispense 50 units of urine sample and a unit of diazepam-enzyme conjugate. Mix the two for 60 seconds. 2. Dispense 100 units of diazepam antibody. Mix it with the urine/enzyme mixture for 60 seconds, allowing competitive binding between free diazepam in the sample and the enzyme-labeled diazepam conjugate for a limited number of antibody binding sites. 3. Incubate the mixture at 23C (room temperature) for 30 minutes to allow the competitive binding reaction to reach equilibrium. Discard the post-incubation droplet. 4. Wash the reaction droplet three times: each wash cycle dispenses 250 units of distilled water, combines it with a fresh diazepam-enzyme droplet, mixes for 45 seconds, and discards the resulting droplet, to remove unbound conjugate before the detection stage. 5. Dispense 150 units of HRP (horseradish peroxidase) conjugate and a unit of diazepam-enzyme conjugate; mix them together. Incubate at 23C for 15 minutes to allow a secondary enzyme-conjugate binding/amplification stage. Discard the resulting droplet. 6. Repeat the three-cycle wash step (distilled water + diazepam-enzyme, mixed 45 seconds each, discarded) to remove unbound secondary conjugate. 7. Dispense 100 units of TMB substrate and a unit of diazepam-enzyme conjugate; mix them. Incubate at 23C for 15 minutes to allow the HRP-catalyzed colorimetric reaction to develop. 8. Dispense 100 units of acid stop reagent. Mix it with the developed substrate droplet for 60 seconds to halt the enzymatic reaction. 9. Measure the resulting signal over 30 minutes to obtain the negative/positive reading. Discard the final droplet."
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest diazepam_enzyme\n\nmanifest urinesample\nmanifest diazepam_antibody\nmanifest distilled_water\nmanifest stop_reagent\nmanifest hrp_conjugate\nmanifest tmb_substrate\n\ninstructions:\n\nurine = dispense 50 units of urinesample\ndpe = dispense diazepam_enzyme\na = mix urine with dpe for 60s\nanti = dispense 100 units of diazepam_antibody\nb = mix a with anti for 60s\nheat b at 23c for 30m\ndispose b\n\nrepeat 3 times {\n    water = dispense 250 units of distilled_water\n    dpe = dispense diazepam_enzyme\n    a = mix water with dpe for 45s\n    dispose a\n}\n\nhrpc = dispense 150 units of hrp_conjugate\ndpe = dispense diazepam_enzyme\ncc = mix hrpc with dpe\nheat cc at 23c for 15m\ndispose cc\n\nrepeat 3 times {\n    water = dispense 250 units of distilled_water\n    dpe = dispense diazepam_enzyme\n    a = mix water with dpe for 45s\n    dispose a\n}\n\ntmb = dispense 100 units of tmb_substrate\ndpe = dispense diazepam_enzyme\nd = mix tmb with dpe\nheat d at 23c for 15m\n\nstop = dispense 100 units of stop_reagent\n\nreagent = mix d with stop for 60s\nNegative_Reading = detect fluorescence on reagent for 30m\ndispose reagent\n"
+    }
+  ],
+  "metadata": {
+    "protocol_id": "assays_diazepam_001",
+    "bs_file": "tests/test_cases/assays/diazepam.bs",
+    "protocol_name": "Diazepam Competitive ELISA (Urine) - DMFB-adapted",
+    "source": "Neogen Corporation",
+    "url": "https://www.neogen.com/48e337/globalassets/pim/assets/original/10021/benzodiazepine-group_130119_130115_130118_insert_en-us.pdf",
+    "paper_doi": "N/A",
+    "category": "assays",
+    "chemicals": [
+      "urinesample",
+      "diazepam_enzyme",
+      "diazepam_antibody",
+      "distilled_water",
+      "hrp_conjugate",
+      "tmb_substrate",
+      "stop_reagent"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "dispose",
+      "repeat",
+      "detect"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "notes": "Source is a real, identifiable Neogen ELISA kit confirmed reactive to diazepam (434% cross-reactivity vs. oxazepam calibrant per kit insert), but the cited kit is a ONE-STEP competitive ELISA (single 45-min conjugate incubation, single 3x wash, single 30-min TMB incubation, single stop+read). The .bs file has TWO conjugate-incubation + wash cycles (23C/30m then 23C/15m with separate hrp_conjugate reagent), resembling a two-step/indirect ELISA structure not present in the cited source. Numeric mismatches vs. source: incubation times (30m and 15m+15m in .bs vs. 45m and 30m in source); extra wash cycle and extra conjugate stage not in source. Per mentor instruction (2026-06), since no exact published two-step diazepam ELISA matching this structure could be located, protocol.txt content was AUTHORED to describe what the .bs file does, using the cited Neogen kit only as the closest available real-world reference for reagent identity and competitive-immunoassay logic, not as a claim of exact provenance. detect module is 'fluorescence' due to BioScript's fixed module list, even though the real assay reads colorimetric absorbance at 450nm, not fluorescence -- known BioScript expressiveness limitation, not a transcription error. Requires re-scoring once the round-trip invariant validator (Method 2 + citation-required extraction) is built; current validated:false and validation_score:0.0 are placeholders, not negative judgments.",
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "diazepam_antibody / diazepam_enzyme",
+          "source_quote": "Diazepam 1.34 5.81 434",
+          "source_location": "Specificity / cross-reactivity table"
+        },
+        {
+          "bs_chemical": "hrp_conjugate",
+          "source_quote": "Drug-horseradish peroxidase conjugate",
+          "source_location": "Materials Provided, item 4"
+        },
+        {
+          "bs_chemical": "tmb_substrate",
+          "source_quote": "Stabilized 3,3',5,5' Tetramethylbenzidine (TMB) plus Hydrogen Peroxide (H2O2) in a single bottle",
+          "source_location": "Materials Provided, item 3"
+        },
+        {
+          "bs_chemical": "stop_reagent",
+          "source_quote": "1 N H2SO4 used to stop the enzyme reaction",
+          "source_location": "Materials Provided, item 6"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "mix (sample + conjugate), heat/incubate",
+          "source_quote": "the drug-enzyme conjugate is added and the mixture is incubated at room temperature",
+          "source_location": "Assay Principles"
+        },
+        {
+          "bs_operation": "repeat 3 times (wash)",
+          "source_quote": "the plate is washed 3 times to remove any unbound sample or drug-enzyme conjugate",
+          "source_location": "Assay Principles"
+        },
+        {
+          "bs_operation": "mix with stop reagent",
+          "source_quote": "the reaction is halted with the addition of an acid stop",
+          "source_location": "Assay Principles"
+        }
+      ],
+      "numeric_mismatches": [
+        {"bs_value": "23C for 30m (first incubation)", "source_value": "room temperature for 45 minutes", "matched": false},
+        {"bs_value": "23C for 15m (second conjugate incubation)", "source_value": "not present in source (single-step kit)", "matched": false},
+        {"bs_value": "23C for 15m (TMB incubation)", "source_value": "room temperature for 30 minutes", "matched": false},
+        {"bs_value": "repeat 3 times wash (x2 in .bs)", "source_value": "wash 3 times (x1 in source)", "matched": false}
+      ]
+    }
+  }
+}

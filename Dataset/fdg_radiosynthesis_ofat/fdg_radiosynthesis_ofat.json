@@ -1,0 +1,166 @@
+{
+  "protocol": {
+    "name": "FDG Radiosynthesis (OFAT-Optimized)",
+    "target": "[18F]FDG",
+    "platform": "Digital Microfluidics (EWOD/DMFB)",
+    "optimization_method": "One-Factor-At-A-Time (OFAT)",
+    "reagents": {
+      "F18Fluoride": {
+        "description": "No-carrier-added [18F]fluoride in [18O]-H2O",
+        "volume_ratio": 1.0
+      },
+      "MannoseTriflate": {
+        "description": "Mannose triflate in anhydrous MeCN",
+        "concentration_mM": 30,
+        "volume_ratio": 1.0
+      },
+      "KryptofixK222": {
+        "description": "K222 / K2CO3 activator complex"
+      },
+      "NaOH": {
+        "description": "Sodium hydroxide",
+        "concentration_M": 1.0
+      }
+    },
+    "ofat_optimal_parameters": {
+      "mannose_triflate_to_F18_volume_ratio": 1.0,
+      "mannose_triflate_concentration_mM": 30,
+      "radiolabeling_temperature_C": 100,
+      "radiolabeling_time_min": 5,
+      "NaOH_concentration_M": 1.0,
+      "deprotection_temperature_C": 50,
+      "deprotection_time_min": 5
+    },
+    "steps": [
+      {
+        "step": 1,
+        "name": "Deliver [18F]fluoride",
+        "action": "dispense",
+        "reagent": "F18Fluoride",
+        "quantity": 1,
+        "unit": "units",
+        "variable": "f18Drop"
+      },
+      {
+        "step": 2,
+        "name": "Activate [18F] - carrier evaporation",
+        "action": "heat",
+        "target": "f18Drop",
+        "temperature_C": 120,
+        "duration_min": 10,
+        "note": "Evaporates [18O]-H2O; driven by TEC/Peltier reaction-site heater"
+      },
+      {
+        "step": 3,
+        "name": "Resuspend with Kryptofix/K2CO3",
+        "actions": [
+          {
+            "action": "dispense",
+            "reagent": "KryptofixK222",
+            "quantity": 1,
+            "unit": "units",
+            "variable": "k222Drop"
+          },
+          {
+            "action": "mix",
+            "inputs": ["f18Drop", "k222Drop"],
+            "duration_s": 5,
+            "variable": "activatedF18"
+          },
+          {
+            "action": "heat",
+            "target": "activatedF18",
+            "temperature_C": 120,
+            "duration_min": 5,
+            "note": "MeCN azeotropic dry - removes residual water"
+          }
+        ]
+      },
+      {
+        "step": 4,
+        "name": "Merge mannose triflate with activated [18F]",
+        "actions": [
+          {
+            "action": "dispense",
+            "reagent": "MannoseTriflate",
+            "quantity": 1,
+            "unit": "units",
+            "variable": "mannoseTriflate"
+          },
+          {
+            "action": "mix",
+            "inputs": ["activatedF18", "mannoseTriflate"],
+            "duration_s": 10,
+            "variable": "reactionDroplet",
+            "note": "Volume ratio mannose triflate : [18F] = 1:1 (OFAT optimum)"
+          }
+        ]
+      },
+      {
+        "step": 5,
+        "name": "Fluorination (radiolabeling)",
+        "action": "heat",
+        "target": "reactionDroplet",
+        "temperature_C": 100,
+        "duration_min": 5,
+        "note": "OFAT optimal: 100 C for 5 min"
+      },
+      {
+        "step": 6,
+        "name": "Deprotection - NaOH hydrolysis",
+        "actions": [
+          {
+            "action": "dispense",
+            "reagent": "NaOH",
+            "quantity": 1,
+            "unit": "units",
+            "variable": "naohDrop"
+          },
+          {
+            "action": "mix",
+            "inputs": ["reactionDroplet", "naohDrop"],
+            "duration_s": 5,
+            "variable": "protected18F"
+          },
+          {
+            "action": "heat",
+            "target": "protected18F",
+            "temperature_C": 50,
+            "duration_min": 5,
+            "note": "OFAT optimal: 1.0 M NaOH, 50 C, 5 min. Product: crude [18F]FDG"
+          }
+        ]
+      },
+      {
+        "step": 7,
+        "name": "On-chip alumina disc purification",
+        "action": "incubate",
+        "target": "protected18F",
+        "temperature_C": 25,
+        "duration_min": 40,
+        "disc_diameter_mm": 6,
+        "note": "Removes Kryptofix K222 and unreacted [18F]/F-; achieves ~93% purity"
+      },
+      {
+        "step": 8,
+        "name": "Detect fluorination efficiency",
+        "action": "detect",
+        "module": "tlcScanner",
+        "target": "protected18F",
+        "duration_s": 30,
+        "variable": "fluorinationEfficiency",
+        "quality_gate": {
+          "condition": "fluorinationEfficiency >= 70",
+          "pass_action": "drain",
+          "note": "OFAT result: 70.82 +/- 1.54%; threshold set at 70%"
+        }
+      },
+      {
+        "step": 9,
+        "name": "Waste disposal",
+        "action": "dispose",
+        "targets": ["f18Drop", "k222Drop", "mannoseTriflate", "naohDrop"]
+      }
+    ]
+  }
+}

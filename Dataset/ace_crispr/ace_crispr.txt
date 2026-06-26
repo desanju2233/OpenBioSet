@@ -1,0 +1,96 @@
+source_link: https://pubs.rsc.org/en/content/articlepdf/2018/lc/c8lc00470f
+paper_doi: 10.1039/c8lc00470f
+
+protocol_name: ACE - Automated CRISPR Editing
+platform: Digital Microfluidics (DMF)
+application: Automated arrayed gene-editing in mammalian lung cancer cells
+
+device:
+  type: Two parallel-plate DMF device
+  spacer_thickness_um: 140
+  bottom_plate: Chromium-patterned electrodes with dielectric and hydrophobic layers
+  top_plate: ITO-coated glass with 6 hydrophilic culture sites (1.2 mm diameter)
+  electrode_size_mm: 1.6 x 1.6
+  unit_droplet_volume_nL: 690
+  passive_dispense_volume_nL: 160
+  reservoir_size_mm: 5.8 x 5
+  reservoir_volume_uL: 4
+  actuation_voltage_VRMS: 200
+  actuation_frequency_kHz: 10
+
+cell_line:
+  name: NCI-H1299
+  type: Human lung squamous cell carcinoma (dual-labeled stable)
+  culture_medium: RPMI 1640 + 10% FBS, no antibiotics
+  incubation: 37C, 5% CO2
+  seeding_density_cells_per_mL: 1750000
+  additive: 0.05% w/v Pluronics F-68
+
+reagents:
+  - lipofectamine: Lipofectamine 3000, 1 uL diluted in 25 uL Opti-MEM
+  - optiMEM: Opti-MEM reduced serum medium
+  - p3000Reagent: P3000 enhancer reagent, 1 uL diluted in 25 uL Opti-MEM
+  - plasmidDNA: All-in-one pCRISPR plasmid (Cas9 + sgRNA), 500-600 ng/uL
+  - cellSuspension: H1299 cells in complete media + Pluronics, 1.75e6 cells/mL
+  - completeMedia: RPMI 1640 + 10% FBS
+  - hoechst33342: Hoechst 33342 nuclear stain, 1 uM in liquid media
+  - calceinAM: Calcein-AM violet viability stain, 5 uM in serum-free media
+  - sorafenibTosylate: RAF1 inhibitor in complete media, concentrations 0/7.5/15/30/60/120 uM
+  - trypsinEDTA: 0.25% Trypsin-EDTA for cell detachment
+  - pbs: Phosphate buffered saline
+
+modules:
+  - fluorescenceImaging: CellProfiler 2.2.0 pipeline, channels UV/GFP/mCherry
+  - cellViabilityAssay: Calcein-AM fluorescence imaging, normalized to control
+
+protocol_steps:
+
+  day_0_cell_seeding:
+    - dispense cellSuspension into 690 nL unit droplets (x6)
+    - passively dispense onto each of 6 hydrophilic culture sites (160 nL per site)
+    - invert device and incubate at 37C overnight for cell adhesion
+
+  day_1_transfection:
+    step_1: dispense lipofectamine + optiMEM, premix
+    step_2: dispense plasmidDNA + p3000Reagent + optiMEM, premix
+    step_3: merge both reagents (360 nL each), mix on 2x2 electrode array, incubate 10 min to form lipid-DNA complex
+    step_4: dilute complex 1:1 with optiMEM unit droplet (690 nL)
+    step_5: split diluted complex for delivery to 6 culture sites
+    step_6: passively dispense complex to each cell site (6 x 160 nL), incubate 24h overnight
+    step_7: dispense hoechst33342 (6 x 160 nL) to each site, acquire fluorescence images
+
+  day_2_maintenance:
+    - drain lipid complexes from all 6 sites
+    - dispense completeMedia (6 x 160 nL) to each site
+    - incubate 24h
+
+  day_3_drug_treatment:
+    - dispense sorafenibTosylate stock as unit droplet (0.7 uL)
+    - perform serial dilution by split + mix with completeMedia to generate 6 concentrations: 0, 7.5, 15, 30, 60, 120 uM
+    - passively dispense one droplet of each concentration to respective cell site
+    - incubate 48h
+
+  day_5_staining_and_imaging:
+    - dispense hoechst33342 (6 x 160 nL) to each site, incubate 30 min
+    - acquire fluorescence images using CellProfiler pipeline (UV, GFP, mCherry channels)
+    - dispense calceinAM (6 x 160 nL) to each site, incubate 30 min
+    - detect cell viability, normalize to control (no drug)
+    - drain all sites
+
+control_flow:
+  loops:
+    - repeat 6 times: cell seeding (day 0)
+    - repeat 6 times: transfection delivery (day 1)
+    - repeat 6 times: media maintenance (day 2)
+    - repeat 5 times: serial drug dilution (day 3)
+    - repeat 6 times: staining and imaging (day 5)
+  conditionals:
+    - if viability > threshold: detect fluorescenceImaging
+    - else: drain site
+
+expected_outputs:
+  transfection_efficiency_48h_percent: 74.7
+  gfp_knockout_efficiency_on_chip_percent: 35
+  ic50_control_sorafenib_uM: 7.54
+  ic50_raf1_knockout_uM: 13.2
+  ic50_fold_reduction: 1.8

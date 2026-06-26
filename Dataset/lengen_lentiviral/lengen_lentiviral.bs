@@ -1,0 +1,276 @@
+module mCherryDetection
+module geneKnockdownDetection
+module geneKnockoutDetection
+
+manifest HEK293T_cells
+manifest TargetCells
+manifest CellMedium
+manifest PluronicF127
+manifest pMDLg_pRRE
+manifest pRSV_Rev
+manifest pMD2g
+manifest TransferPlasmid
+manifest Lipofectamine3000
+manifest P3000_Reagent
+manifest OptiMEM
+manifest DMEM_Polybrene
+manifest TrypsinEDTA
+manifest PBS
+manifest shRNA_Plasmid
+manifest sgRNA_Cas9_Plasmid
+
+instructions:
+
+// ============================================================
+// STEP 1: Seed HEK293T producer cells onto 1.6 mm hydrophilic
+//         production site via passive dispensing
+//         Cell density: ~2.5-3.0 x 10^6 cells/mL + 0.05% Pluronics F-127
+// ============================================================
+
+producerCells      = dispense 1 units of HEK293T_cells
+pluronic1          = dispense 1 units of PluronicF127
+producerSuspension = mix producerCells with pluronic1 for 2s
+
+// Seed cells onto 1.6 mm hydrophilic production spot and incubate
+heat producerSuspension at 37c for 24h
+
+// ============================================================
+// STEP 2: Prepare lipofectamine-DNA mastermix for co-transfection
+//         Plasmids: 0.75 ug pMDLg/pRRE, 0.75 ug pRSV-Rev,
+//                   1.5 ug pMD2.G, 3 ug transfer plasmid
+//         Reagents: 12.5 uL Lipofectamine3000 + 12 uL P3000 in OptiMEM
+// ============================================================
+
+packaging1    = dispense 1 units of pMDLg_pRRE
+packaging2    = dispense 1 units of pRSV_Rev
+envelope      = dispense 1 units of pMD2g
+transfer      = dispense 1 units of TransferPlasmid
+lipo          = dispense 1 units of Lipofectamine3000
+p3000         = dispense 1 units of P3000_Reagent
+optimem       = dispense 1 units of OptiMEM
+pluronic2     = dispense 1 units of PluronicF127
+
+// Build plasmid pool
+plasmidMix1   = mix packaging1 with packaging2 for 5s
+plasmidMix2   = mix plasmidMix1 with envelope for 5s
+plasmidMix3   = mix plasmidMix2 with transfer for 5s
+
+// Combine lipofection reagents with OptiMEM
+lipoReagent   = mix lipo with p3000 for 5s
+preMastermix  = mix plasmidMix3 with lipoReagent for 5s
+mastermix     = mix preMastermix with optimem for 5s
+
+// Add Pluronics F-127 for DMF actuation compatibility
+lipoMix       = mix mastermix with pluronic2 for 5s
+
+// Incubate 20 min for DNA-liposomal complex formation at room temp
+heat lipoMix at 25c for 20m
+
+// ============================================================
+// STEP 3: Transfect HEK293T cells using four-prong electrode
+//         array - 3 circulations x 1 min for uniform mixing
+// ============================================================
+
+transfectionMix = mix lipoMix with producerSuspension for 1m
+
+// ============================================================
+// STEP 4: Incubate for lentiviral particle production
+//         Viral particles accumulate in supernatant after 24h
+// ============================================================
+
+heat transfectionMix at 37c for 24h
+
+// ============================================================
+// STEP 5: Seed target breast cancer cells onto six 1.2 mm
+//         transduction sites via highway track passive dispensing
+//         Cell density: 1.0-1.5 x 10^6 cells/mL + 0.05% Pluronics
+// ============================================================
+
+targetCellDrop   = dispense 1 units of TargetCells
+pluronic3        = dispense 1 units of PluronicF127
+targetSuspension = mix targetCellDrop with pluronic3 for 2s
+
+heat targetSuspension at 37c for 24h
+
+// ============================================================
+// STEP 6: Generate serial dilutions of viral supernatant
+//         using highway track electrode actuation (~98% accuracy)
+//         DMEM + polybrene used as diluent
+// ============================================================
+
+// 1:3 dilution - 1 uL DMEM merged with 2 uL viral supernatant
+dmem1        = dispense 1 units of DMEM_Polybrene
+dilution_1_3 = mix dmem1 with transfectionMix for 5s
+
+// 1:6 dilution - merge equal volume DMEM with 1:3 product
+dmem2        = dispense 1 units of DMEM_Polybrene
+dilution_1_6 = mix dmem2 with dilution_1_3 for 5s
+
+// 1:12 dilution
+dmem3         = dispense 1 units of DMEM_Polybrene
+dilution_1_12 = mix dmem3 with dilution_1_6 for 5s
+
+// 1:24 dilution
+dmem4         = dispense 1 units of DMEM_Polybrene
+dilution_1_24 = mix dmem4 with dilution_1_12 for 5s
+
+// ============================================================
+// STEP 7: Deliver each dilution to separate target cell sites
+//         via highway track; device flipped for overnight incubation
+// ============================================================
+
+transduction_1_3  = mix dilution_1_3  with targetSuspension for 5s
+transduction_1_6  = mix dilution_1_6  with targetSuspension for 5s
+transduction_1_12 = mix dilution_1_12 with targetSuspension for 5s
+transduction_1_24 = mix dilution_1_24 with targetSuspension for 5s
+
+heat transduction_1_3  at 37c for 24h
+heat transduction_1_6  at 37c for 24h
+heat transduction_1_12 at 37c for 24h
+heat transduction_1_24 at 37c for 24h
+
+// ============================================================
+// STEP 8: Detect mCherry fluorescence to calculate viral titer
+//         TU/mL = (#transduced x % fluorescent x dilution) / volume
+//         Expected: ~1 x 10^7 TU/mL at 1:3 dilution after 48h
+// ============================================================
+
+signal_1_3  = detect mCherryDetection on transduction_1_3  for 30s
+signal_1_6  = detect mCherryDetection on transduction_1_6  for 30s
+signal_1_12 = detect mCherryDetection on transduction_1_12 for 30s
+signal_1_24 = detect mCherryDetection on transduction_1_24 for 30s
+
+if (signal_1_3 >= 2500) {
+    dispose transduction_1_3
+}
+
+if (signal_1_6 >= 2500) {
+    dispose transduction_1_6
+}
+
+if (signal_1_12 >= 2500) {
+    dispose transduction_1_12
+}
+
+if (signal_1_24 >= 2500) {
+    dispose transduction_1_24
+}
+
+// ============================================================
+// STEP 9 (OPTIONAL - shRNA knockdown): Replace transfer plasmid
+//         with MISSION shRNA plasmid targeting ESR1
+//         (TRCN00000003300); repeat Steps 2-8
+//         Cells retrieved by trypsinization for qRT-PCR analysis
+// ============================================================
+
+shrnaTransfer  = dispense 1 units of shRNA_Plasmid
+shrnaPkg1      = dispense 1 units of pMDLg_pRRE
+shrnaPkg2      = dispense 1 units of pRSV_Rev
+shrnaEnv       = dispense 1 units of pMD2g
+shrnaLipo      = dispense 1 units of Lipofectamine3000
+shrnaP3000     = dispense 1 units of P3000_Reagent
+shrnaOptiMEM   = dispense 1 units of OptiMEM
+shrnaPluronic  = dispense 1 units of PluronicF127
+
+shrnaPlasmids1 = mix shrnaPkg1 with shrnaPkg2 for 5s
+shrnaPlasmids2 = mix shrnaPlasmids1 with shrnaEnv for 5s
+shrnaPlasmids3 = mix shrnaPlasmids2 with shrnaTransfer for 5s
+
+shrnaLipoMix1  = mix shrnaLipo with shrnaP3000 for 5s
+shrnaPreMix    = mix shrnaPlasmids3 with shrnaLipoMix1 for 5s
+shrnaMastermix = mix shrnaPreMix with shrnaOptiMEM for 5s
+shrnaLipoFinal = mix shrnaMastermix with shrnaPluronic for 5s
+
+heat shrnaLipoFinal at 25c for 20m
+
+shrnaTxMix = mix shrnaLipoFinal with producerSuspension for 1m
+heat shrnaTxMix at 37c for 24h
+
+// Serial dilution of shRNA viral supernatant
+shrnaDMEM1        = dispense 1 units of DMEM_Polybrene
+shrnaTargetCells1 = dispense 1 units of TargetCells
+shrnaPluronic2    = dispense 1 units of PluronicF127
+shrnaTargetSusp   = mix shrnaTargetCells1 with shrnaPluronic2 for 2s
+
+heat shrnaTargetSusp at 37c for 24h
+
+shrnaDilution     = mix shrnaDMEM1 with shrnaTxMix for 5s
+shrnaTransduction = mix shrnaDilution with shrnaTargetSusp for 5s
+
+heat shrnaTransduction at 37c for 24h
+
+// Trypsinize and pool ~2800 cells for 7-day outgrowth then qRT-PCR
+shrnaTrypsin  = dispense 1 units of TrypsinEDTA
+shrnaPBS      = dispense 1 units of PBS
+shrnaWash     = mix shrnaPBS with shrnaTransduction for 5s
+shrnaCells    = mix shrnaTrypsin with shrnaWash for 2m
+
+shrnaSignal = detect geneKnockdownDetection on shrnaCells for 30s
+
+// ============================================================
+// STEP 10 (OPTIONAL - CRISPR-Cas9 knockout): Replace transfer
+//          plasmid with pLentiCRISPR-mCherry-NeoRv2 (LCMNv2)
+//          all-in-one Cas9 + sgRNA targeting ESR1
+//          Knockout confirmed by genomic cleavage assay at 7 days
+// ============================================================
+
+crisprTransfer  = dispense 1 units of sgRNA_Cas9_Plasmid
+crisprPkg1      = dispense 1 units of pMDLg_pRRE
+crisprPkg2      = dispense 1 units of pRSV_Rev
+crisprEnv       = dispense 1 units of pMD2g
+crisprLipo      = dispense 1 units of Lipofectamine3000
+crisprP3000     = dispense 1 units of P3000_Reagent
+crisprOptiMEM   = dispense 1 units of OptiMEM
+crisprPluronic  = dispense 1 units of PluronicF127
+
+crisprPlasmids1 = mix crisprPkg1 with crisprPkg2 for 5s
+crisprPlasmids2 = mix crisprPlasmids1 with crisprEnv for 5s
+crisprPlasmids3 = mix crisprPlasmids2 with crisprTransfer for 5s
+
+crisprLipoMix1  = mix crisprLipo with crisprP3000 for 5s
+crisprPreMix    = mix crisprPlasmids3 with crisprLipoMix1 for 5s
+crisprMastermix = mix crisprPreMix with crisprOptiMEM for 5s
+crisprLipoFinal = mix crisprMastermix with crisprPluronic for 5s
+
+heat crisprLipoFinal at 25c for 20m
+
+crisprTxMix = mix crisprLipoFinal with producerSuspension for 1m
+heat crisprTxMix at 37c for 24h
+
+// Serial dilution of CRISPR viral supernatant
+crisprDMEM1        = dispense 1 units of DMEM_Polybrene
+crisprTargetCells1 = dispense 1 units of TargetCells
+crisprPluronic2    = dispense 1 units of PluronicF127
+crisprTargetSusp   = mix crisprTargetCells1 with crisprPluronic2 for 2s
+
+heat crisprTargetSusp at 37c for 24h
+
+crisprDilution     = mix crisprDMEM1 with crisprTxMix for 5s
+crisprTransduction = mix crisprDilution with crisprTargetSusp for 5s
+
+heat crisprTransduction at 37c for 24h
+
+// Trypsinize and pool cells for cleavage assay
+crisprTrypsin  = dispense 1 units of TrypsinEDTA
+crisprPBS      = dispense 1 units of PBS
+crisprWash     = mix crisprPBS with crisprTransduction for 5s
+crisprCells    = mix crisprTrypsin with crisprWash for 2m
+
+// mCherry confirms transduction; cleavage assay confirms knockout
+crisprMCherry  = detect mCherryDetection on crisprCells for 30s
+crisprKnockout = detect geneKnockoutDetection on crisprCells for 30s
+
+// Dispose if knockout efficiency confirmed (~6.9% cleavage at 1:3 dilution)
+if (crisprKnockout >= 5) {
+    dispose crisprCells
+}
+
+drain shrnaTransduction
+drain crisprTransduction
+dispose signal_1_3
+dispose signal_1_6
+dispose signal_1_12
+dispose signal_1_24
+dispose shrnaSignal
+dispose crisprMCherry
+dispose crisprKnockout

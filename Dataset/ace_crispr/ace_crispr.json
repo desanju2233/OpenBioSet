@@ -1,0 +1,266 @@
+{
+  "protocol_name": "ACE - Automated CRISPR Editing",
+  "description": "Automated droplet-based CRISPR-Cas9 gene editing on a Digital Microfluidic (DMF) platform for culturing, transfecting, and analysing lung cancer cells",
+  "platform": "Digital Microfluidics (DMF)",
+  "device": {
+    "type": "Two parallel-plate DMF device",
+    "spacer_thickness_um": 140,
+    "bottom_plate": "Chromium-patterned electrodes with dielectric and hydrophobic layers",
+    "top_plate": "ITO-coated glass with 6 hydrophilic culture sites (1.2 mm diameter)",
+    "electrode_size_mm": "1.6 x 1.6",
+    "unit_droplet_volume_nL": 690,
+    "passive_dispense_volume_nL": 160,
+    "reservoir_volume_uL": 4,
+    "actuation_voltage_VRMS": 200,
+    "actuation_frequency_kHz": 10
+  },
+  "cell_line": {
+    "name": "NCI-H1299",
+    "type": "Human lung squamous cell carcinoma",
+    "label": "Dual-labeled stable (eGFP + mCherry)",
+    "culture_medium": "RPMI 1640 + 10% FBS",
+    "incubation": "37C, 5% CO2",
+    "seeding_density_cells_per_mL": 1750000
+  },
+  "reagents": [
+    { "name": "lipofectamine",  "description": "Lipofectamine 3000 transfection reagent" },
+    { "name": "optiMEM",        "description": "Opti-MEM reduced serum medium" },
+    { "name": "p3000Reagent",   "description": "P3000 enhancer reagent" },
+    { "name": "plasmidDNA",     "description": "All-in-one pCRISPR plasmid encoding Cas9 + sgRNA, 600 ng/uL" },
+    { "name": "cellSuspension", "description": "H1299 cells in complete media + 0.05% Pluronics F-68, ~1.5e6 cells/mL" },
+    { "name": "completeMedia",  "description": "RPMI 1640 + 10% FBS complete media" },
+    { "name": "hoechst",        "description": "Hoechst 33342 nuclear stain, 1 uM in liquid media" },
+    { "name": "calceinAM",      "description": "Calcein-AM violet viability stain, 5 uM" },
+    { "name": "sorafenib",      "description": "Sorafenib Tosylate RAF1 inhibitor in complete media" },
+    { "name": "trypsinEDTA",    "description": "0.25% Trypsin-EDTA for cell detachment" },
+    { "name": "pbs",            "description": "Phosphate buffered saline" }
+  ],
+  "modules": [
+    {
+      "name": "fluorescenceImaging",
+      "description": "CellProfiler 2.2.0 pipeline for counting transfected and knocked-out cells using Hoechst and GFP/mCherry fluorescence channels"
+    },
+    {
+      "name": "cellViabilityAssay",
+      "description": "Calcein-AM fluorescence well scan for measuring cell viability, normalized to control"
+    }
+  ],
+  "protocol_steps": [
+    {
+      "day": 0,
+      "step_name": "Cell Seeding",
+      "operations": [
+        {
+          "op": "dispense",
+          "reagent": "cellSuspension",
+          "volume_nL": 690,
+          "repeat": 6,
+          "output": "cellDrop[1-6]"
+        },
+        {
+          "op": "passive_dispense",
+          "description": "Deposit cells onto each of 6 hydrophilic culture sites (~160 nL per site)",
+          "volume_nL": 160
+        },
+        {
+          "op": "heat",
+          "input": "cellDrop[1-6]",
+          "temperature_C": 37,
+          "duration_h": 12,
+          "description": "Overnight incubation (device inverted) for cell adhesion to hydrophilic spots"
+        }
+      ]
+    },
+    {
+      "day": 1,
+      "step_name": "Lipid-DNA Complex Formation and Transfection",
+      "operations": [
+        {
+          "step": 1,
+          "op": "dispense_and_mix",
+          "inputs": ["lipofectamine (1 uL)", "optiMEM (25 uL)"],
+          "output": "lipidMix",
+          "duration_s": 30
+        },
+        {
+          "step": 2,
+          "op": "dispense_and_mix",
+          "inputs": ["plasmidDNA (500 ng/uL)", "p3000Reagent (1 uL)", "optiMEM (25 uL)"],
+          "output": "dnaMix",
+          "duration_s": 30
+        },
+        {
+          "step": 3,
+          "op": "mix",
+          "inputs": ["lipidMix (360 nL)", "dnaMix (360 nL)"],
+          "electrode_array": "2x2",
+          "output": "lipidDnaComplex",
+          "duration_min": 10,
+          "description": "Form lipid-DNA complexes on 2x2 electrode array"
+        },
+        {
+          "step": 4,
+          "op": "mix",
+          "inputs": ["lipidDnaComplex", "optiMEM (690 nL)"],
+          "ratio": "1:1",
+          "output": "dilutedComplex",
+          "duration_s": 30
+        },
+        {
+          "step": 5,
+          "op": "split",
+          "input": "dilutedComplex",
+          "into": 2,
+          "output": "deliveryDroplets",
+          "description": "Split for delivery to culture sites"
+        },
+        {
+          "step": 6,
+          "op": "passive_dispense",
+          "input": "deliveryDroplets",
+          "volume_per_site_nL": 960,
+          "passes": 6,
+          "volume_per_pass_nL": 160,
+          "repeat_sites": 6,
+          "output": "transfectSite[1-6]",
+          "duration_h": 24,
+          "description": "Deliver complex to cells, incubate overnight"
+        },
+        {
+          "step": 7,
+          "op": "dispense_and_detect",
+          "reagent": "hoechst",
+          "volume_nL": 960,
+          "output": "hoechstStainedSite[1-6]",
+          "description": "Stain with Hoechst and acquire fluorescence images to measure transfection efficiency"
+        }
+      ]
+    },
+    {
+      "day": 2,
+      "step_name": "Media Maintenance",
+      "operations": [
+        {
+          "op": "drain",
+          "input": "transfectSite[1-6]",
+          "description": "Remove lipid complexes by passive dispensing fresh media"
+        },
+        {
+          "op": "dispense_and_mix",
+          "reagent": "completeMedia",
+          "volume_per_site_nL": 960,
+          "repeat": 6,
+          "output": "maintainSite[1-6]",
+          "duration_h": 24
+        }
+      ]
+    },
+    {
+      "day": 3,
+      "step_name": "Drug Treatment - Sorafenib Tosylate Serial Dilution",
+      "description": "MAPK/ERK pathway experiment: Sorafenib at 6 concentrations delivered to each cell site",
+      "concentrations_uM": [0, 7.5, 15, 30, 60, 120],
+      "operations": [
+        {
+          "op": "dispense",
+          "reagent": "sorafenib",
+          "output": "drugStock",
+          "description": "Dispense Sorafenib stock (120 uM) as unit droplet (0.7 uL)"
+        },
+        {
+          "op": "serial_dilution",
+          "method": "split_and_mix",
+          "steps": 5,
+          "diluent": "completeMedia",
+          "dilution_factor": 2,
+          "output_concentrations_uM": [120, 60, 30, 15, 7.5, 0],
+          "mix_duration_s": 30
+        },
+        {
+          "op": "passive_dispense",
+          "description": "Deliver one droplet of each concentration to respective culture site",
+          "output": "drugSite[1-6]",
+          "incubation_h": 48
+        }
+      ]
+    },
+    {
+      "day": 5,
+      "step_name": "Staining, Imaging and Viability Assay",
+      "operations": [
+        {
+          "op": "dispense_and_mix",
+          "reagent": "hoechst",
+          "concentration_uM": 1,
+          "volume_nL": 960,
+          "passes": 6,
+          "volume_per_pass_nL": 160,
+          "input": "drugSite[1-6]",
+          "output": "stainSite[1-6]",
+          "duration_min": 30
+        },
+        {
+          "op": "detect",
+          "module": "fluorescenceImaging",
+          "input": "stainSite[1-6]",
+          "channels": ["UV (Hoechst)", "GFP", "mCherry"],
+          "exposure_times_ms": { "UV": 250, "GFP": 500, "mCherry": 1000 },
+          "output": "imgResult[1-6]",
+          "description": "CellProfiler pipeline: count nuclei, threshold fluorescence, calculate knockout/transfection efficiency"
+        },
+        {
+          "op": "dispense_and_mix",
+          "reagent": "calceinAM",
+          "concentration_uM": 5,
+          "volume_nL": 960,
+          "input": "stainSite[1-6]",
+          "output": "viabSite[1-6]",
+          "duration_min": 30
+        },
+        {
+          "op": "detect",
+          "module": "cellViabilityAssay",
+          "input": "viabSite[1-6]",
+          "excitation_nm": 408,
+          "emission_nm": 450,
+          "output": "viabResult[1-6]",
+          "description": "Measure cell viability normalized to control (no drug)"
+        }
+      ]
+    },
+    {
+      "day": 5,
+      "step_name": "Cleanup",
+      "operations": [
+        {
+          "op": "drain",
+          "input": "viabSite[1-6]"
+        }
+      ]
+    }
+  ],
+  "control_flow": {
+    "loops": [
+      { "type": "repeat", "iterations": 6, "body": "cell seeding (Day 0)" },
+      { "type": "repeat", "iterations": 6, "body": "transfection delivery (Day 1)" },
+      { "type": "repeat", "iterations": 6, "body": "media maintenance (Day 2)" },
+      { "type": "repeat", "iterations": 5, "body": "serial drug dilution (Day 3)" },
+      { "type": "repeat", "iterations": 6, "body": "staining and imaging (Day 5)" }
+    ],
+    "conditionals": [
+      {
+        "type": "if_else",
+        "condition": "viabResult == true",
+        "true_branch": "detect fluorescenceImaging",
+        "false_branch": "drain stainedSite"
+      }
+    ]
+  },
+  "expected_outputs": {
+    "transfection_efficiency_percent": "~74.7% at 48h post-transfection",
+    "gfp_knockout_efficiency_percent": "~35% on-chip",
+    "ic50_control_uM": 7.54,
+    "ic50_raf1_knockout_uM": 13.2,
+    "ic50_fold_reduction": 1.8
+  }
+}

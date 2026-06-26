@@ -1,0 +1,195 @@
+{
+  "protocol": {
+    "title": "DMF Ribozyme Cleavage Assay",
+    "platform": "Digital Microfluidics (DMF)",
+    "ribozyme_type": "Inducible cis-acting hammerhead ribozyme (HHR)",
+    "chip_layout": {
+      "reservoirs": 5,
+      "electrode_matrix": "3 x 17",
+      "detection_points": 8,
+      "interelectrode_spacing_um": 60,
+      "wiring_width_um": 30,
+      "electrode_edge_shape": "skewed-wave"
+    },
+    "reagents": {
+      "Ribozyme": {
+        "concentration_uM": 2.5,
+        "volume_loaded_per_reservoir_uL": 2.5,
+        "dispensed_droplet_volume_uL": 0.5
+      },
+      "CleavageBuffer": {
+        "concentration": "1.25x",
+        "composition": {
+          "NaCl_mM": 125,
+          "Tris_pH": 7.5,
+          "Tris_mM": 62.5,
+          "KCl_mM": 31.25,
+          "MgCl2_mM": 12.5,
+          "Tetronic304_percent": 0.0625,
+          "QuenchedProbe_uM": 2.5,
+          "InputStrand_ssDNA_uM": 6.25
+        },
+        "volume_per_detection_point_uL": 2.0
+      },
+      "QuenchedProbe": {
+        "F_strand_fluorophore": "Cy5",
+        "F_strand_concentration_uM": 0.625,
+        "Q_strand_quencher": "BHQ-3",
+        "Q_strand_concentration_uM": 0.7,
+        "annealing_protocol": {
+          "denaturation_temp_C": 95,
+          "denaturation_time_min": 3,
+          "annealing_step1_temp_C": 50,
+          "annealing_step1_time_min": 15,
+          "annealing_step2_temp_C": 37,
+          "annealing_step2_time_min": 15
+        }
+      }
+    },
+    "controls": {
+      "positive_control": {
+        "type": "Strand displacement reaction",
+        "description": "ssDNA equivalent to expected cleaved-off output RNA strand; directly displaces quencher from probe",
+        "expected_endpoint_fluorescence_units": 12250
+      },
+      "negative_control": {
+        "type": "Quenched probe only",
+        "description": "No input strand and no active ribozyme; probe remains quenched",
+        "expected_endpoint_fluorescence_units": 1530
+      }
+    },
+    "steps": [
+      {
+        "step": 1,
+        "name": "Dispense Ribozyme Droplets",
+        "description": "Dispense ~0.5 uL ribozyme droplets from reservoir by electrode splitting",
+        "actuation_frequency_kHz": 15,
+        "actuation_voltage_Vrms": 178,
+        "droplets": [
+          { "id": "rzDrop1", "reagent": "Ribozyme", "volume_uL": 0.5 },
+          { "id": "rzDrop2", "reagent": "Ribozyme", "volume_uL": 0.5 },
+          { "id": "rzDrop3", "reagent": "Ribozyme", "volume_uL": 0.5 },
+          { "id": "rzPC",    "reagent": "Ribozyme", "volume_uL": 0.5, "role": "positive_control" }
+        ]
+      },
+      {
+        "step": 2,
+        "name": "Dispense Cleavage Buffer Droplets",
+        "description": "Pipette 2 uL cleavage buffer (with input strand and quenched probe) directly at detection points",
+        "droplets": [
+          { "id": "cbDrop1", "reagent": "CleavageBuffer", "volume_uL": 2.0 },
+          { "id": "cbDrop2", "reagent": "CleavageBuffer", "volume_uL": 2.0 },
+          { "id": "cbDrop3", "reagent": "CleavageBuffer", "volume_uL": 2.0 },
+          { "id": "cbPC",    "reagent": "CleavageBuffer", "volume_uL": 2.0, "role": "positive_control" },
+          { "id": "ncProbe", "reagent": "QuenchedProbe",  "volume_uL": 2.0, "role": "negative_control" }
+        ]
+      },
+      {
+        "step": 3,
+        "name": "Merge and Mix Droplets",
+        "description": "Move ribozyme droplets to detection points and merge with cleavage buffer droplets; mix by actuating 4 electrodes back-and-forth",
+        "mix_duration_s": 10,
+        "reactions": [
+          { "id": "rxn1",  "inputs": ["rzDrop1", "cbDrop1"] },
+          { "id": "rxn2",  "inputs": ["rzDrop2", "cbDrop2"] },
+          { "id": "rxn3",  "inputs": ["rzDrop3", "cbDrop3"] },
+          { "id": "pcMix", "inputs": ["rzPC",    "cbPC"],    "role": "positive_control" },
+          { "id": "ncMix", "inputs": ["rzDrop3", "ncProbe"], "role": "negative_control" }
+        ]
+      },
+      {
+        "step": 4,
+        "name": "Incubation",
+        "description": "Incubate merged droplets at 37C. Ribozyme folds into active HHR upon binding to input strand, undergoes self-cleavage. Cleaved-off RNA strand displaces quencher via toehold-mediated strand displacement (TMSDR), allowing Cy5 probe to fluoresce.",
+        "temperature_C": 37,
+        "duration_min": 180,
+        "targets": ["rxn1", "rxn2", "rxn3", "pcMix", "ncMix"]
+      },
+      {
+        "step": 5,
+        "name": "Real-Time Fluorescence Monitoring",
+        "description": "Chip placed on Corning 384-well plate (black-sided, clear-bottom). Detection points aligned to wells. Five surrounding wells filled with 30 uL DI water to limit evaporation. Plate sealed with parafilm and inserted into ClarioSTAR plate reader.",
+        "reader": "ClarioSTAR (BMG Labtech)",
+        "reader_settings": {
+          "excitation_wavelength_nm": 647,
+          "emission_wavelength_nm": 665,
+          "temperature_C": 37,
+          "flashes_per_well": 8,
+          "focal_height_mm": 15.80,
+          "gain": 1800,
+          "scan_matrix_pixels": "30 x 30",
+          "pixel_area_mm2": 10
+        },
+        "readings": [
+          { "reading": 1,  "time_min": 0   },
+          { "reading": 2,  "time_min": 20  },
+          { "reading": 3,  "time_min": 40  },
+          { "reading": 4,  "time_min": 60  },
+          { "reading": 5,  "time_min": 80  },
+          { "reading": 6,  "time_min": 100 },
+          { "reading": 7,  "time_min": 120 },
+          { "reading": 8,  "time_min": 140 },
+          { "reading": 9,  "time_min": 160 },
+          { "reading": 10, "time_min": 180, "note": "endpoint" }
+        ],
+        "interval_min": 20,
+        "targets": ["rxn1", "rxn2", "rxn3", "pcMix", "ncMix"]
+      },
+      {
+        "step": 6,
+        "name": "Endpoint Threshold Evaluation",
+        "description": "Evaluate endpoint (t = 180 min) fluorescence signal against threshold. Signal above 2000 units indicates successful ribozyme cleavage.",
+        "threshold_fluorescence_units": 2000,
+        "expected_values": {
+          "positive_control_units": 12250,
+          "assay_ribozyme_units": 4900,
+          "negative_control_units": 1530
+        },
+        "action_if_above_threshold": "dispose reaction droplet",
+        "targets": ["rxn1", "rxn2", "rxn3"]
+      }
+    ],
+    "detection": {
+      "method": "Toehold-mediated strand displacement reaction (TMSDR)",
+      "fluorophore": "Cy5",
+      "quencher": "BHQ-3",
+      "principle": "Cleaved-off RNA output strand from HHR self-cleavage hybridizes to F-strand of quenched probe, displacing the Q-strand and restoring Cy5 fluorescence. Fluorescence intensity is proportional to the amount of cleaved ribozyme."
+    },
+    "biosensor_parameters": {
+      "limit_of_detection_DMF_units": 1475,
+      "limit_of_detection_wellplate_units": 1845,
+      "limit_of_quantification_DMF_uM": 0.025,
+      "limit_of_quantification_wellplate_uM": 0.31,
+      "SNR_DMF": 18.95,
+      "SNR_wellplate": 8.95,
+      "cleavage_rate_DMF_per_min": 0.026,
+      "cleavage_rate_wellplate_per_min": 0.01,
+      "input_concentration_range_uM": [0.01, 0.1, 0.25, 0.5, 0.75, 1.0, 5.0, 10.0]
+    },
+    "chip_fabrication": {
+      "photolithography_method": "standard",
+      "photomask_software": "AutoCAD 2018",
+      "photoresist": "S1811",
+      "UV_exposure_s": 8,
+      "dielectric": "Parylene-C, 7 um",
+      "hydrophobic_layer": "1% Teflon-AF (FC40)",
+      "top_plate": "ITO-precoated glass",
+      "spacer": "double-sided tape, 2 layers x 70 um each"
+    },
+    "automation": {
+      "software": "Python 2.7 (in-house)",
+      "microcontroller": "Arduino Uno",
+      "signal_generator": "Agilent Technologies (15 kHz sine wave)",
+      "amplifier": "PZD-700A (Trek Inc.)",
+      "driving_voltage_Vrms": 178,
+      "electrode_pulse_duration_s": 0.7
+    },
+    "data_analysis": {
+      "software": "Prism 8 (GraphPad)",
+      "image_analysis": "ImageJ 1.52p (Fiji)",
+      "kinetic_model": "one-phase decay equation: Y = (Y0 - Plateau) * e^(-KX) + Plateau",
+      "biosensor_curve_fit": "four-parameter logistic (4-PL) sigmoidal model",
+      "linear_range_uM": [0.1, 1.0]
+    }
+  }
+}

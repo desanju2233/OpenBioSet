@@ -1,0 +1,215 @@
+{
+  "protocol": {
+    "name": "LENGEN - Lentiviral Generation, Packaging and Transduction",
+    "platform": "Digital Microfluidic (DMF)",
+    "device": {
+      "bottom_plate_electrodes": 80,
+      "production_site_diameter_mm": 1.6,
+      "transduction_site_diameter_mm": 1.2,
+      "transduction_sites_per_set": 6,
+      "electrode_sets": 2,
+      "droplet_volume_production_uL": 3,
+      "droplet_volume_unit_uL": 1,
+      "actuation_voltage_V": 500,
+      "actuation_frequency_kHz": 15
+    },
+    "reagents": [
+      { "name": "HEK293T_cells",      "role": "Producer cell line for lentiviral packaging" },
+      { "name": "TargetCells",         "role": "Breast cancer cells for transduction (MCF-7 or T47DKB-Luc)" },
+      { "name": "PluronicF127",        "concentration": "0.05% w/v", "role": "DMF actuation additive" },
+      { "name": "pMDLg_pRRE",         "amount_ug": 0.75, "role": "Packaging plasmid" },
+      { "name": "pRSV_Rev",           "amount_ug": 0.75, "role": "Packaging plasmid" },
+      { "name": "pMD2g",              "amount_ug": 1.5,  "role": "Envelope plasmid" },
+      { "name": "TransferPlasmid",    "amount_ug": 3.0,  "role": "Transfer vector (e.g. pLv-mCherry)" },
+      { "name": "Lipofectamine3000",  "amount_uL": 12.5, "role": "Transfection reagent" },
+      { "name": "P3000_Reagent",      "amount_uL": 12.0, "role": "Transfection enhancer" },
+      { "name": "OptiMEM",            "amount_uL": 500,  "role": "Reduced-serum medium for transfection mix" },
+      { "name": "DMEM_Polybrene",     "polybrene_ug_mL": 8, "role": "Viral dilution buffer" },
+      { "name": "TrypsinEDTA",        "concentration": "0.25% w/v", "role": "Cell detachment reagent" },
+      { "name": "PBS",                "role": "Wash buffer" },
+      { "name": "shRNA_Plasmid",      "id": "TRCN00000003300", "role": "MISSION shRNA targeting ESR1 (optional)" },
+      { "name": "sgRNA_Cas9_Plasmid", "id": "LCMNv2",          "role": "All-in-one Cas9 + sgRNA targeting ESR1 (optional)" }
+    ],
+    "detection_modules": [
+      { "name": "mCherryDetection",        "wavelengths_nm": { "excitation": 585, "emission": 608 } },
+      { "name": "geneKnockdownDetection",  "method": "qRT-PCR (delta-delta-Cq)", "reference_gene": "ACTB (beta-actin)" },
+      { "name": "geneKnockoutDetection",   "method": "Genomic cleavage assay", "parental_band_bp": 409, "cleavage_bands_bp": [235, 174] }
+    ],
+    "steps": [
+      {
+        "step": 1,
+        "name": "Seed HEK293T Producer Cells",
+        "description": "Dispense HEK293T cells with Pluronics F-127 onto the 1.6 mm hydrophilic production site via passive dispensing.",
+        "cell_density_cells_per_mL": "2.5e6 - 3.0e6",
+        "pluronics_concentration": "0.05% w/v",
+        "dispensed_volume_uL": 1.5,
+        "target_confluency": "50-70%",
+        "incubation": { "temperature_C": 37, "duration": "24h" }
+      },
+      {
+        "step": 2,
+        "name": "Prepare Lipofectamine-DNA Mastermix",
+        "description": "Co-transfection mastermix containing all three plasmids combined with Lipofectamine 3000 and P3000 in Opti-MEM, then supplemented with Pluronics F-127 for DMF actuation.",
+        "plasmids": [
+          { "name": "pMDLg_pRRE",      "amount_ug": 0.75 },
+          { "name": "pRSV_Rev",        "amount_ug": 0.75 },
+          { "name": "pMD2g",           "amount_ug": 1.5  },
+          { "name": "TransferPlasmid", "amount_ug": 3.0  }
+        ],
+        "transfection_reagents": {
+          "Lipofectamine3000_uL": 12.5,
+          "P3000_uL": 12.0,
+          "OptiMEM_total_volume_uL": 500
+        },
+        "mixing_order": [
+          "Mix pMDLg_pRRE + pRSV_Rev (5s)",
+          "Add pMD2g (5s)",
+          "Add TransferPlasmid (5s)",
+          "Mix Lipofectamine3000 + P3000 (5s)",
+          "Combine plasmid pool with lipofection reagents (5s)",
+          "Add OptiMEM (5s)",
+          "Add Pluronics F-127 (5s)"
+        ],
+        "incubation": { "temperature_C": 25, "duration": "20m", "purpose": "DNA-liposomal complex formation" }
+      },
+      {
+        "step": 3,
+        "name": "Transfect HEK293T Cells",
+        "description": "Actuate lipofectamine mastermix onto seeded HEK293T cells using the four-prong electrode production area. Circulate droplet for uniform mixing to replicate reverse transfection.",
+        "electrode_configuration": "Four-prong production area",
+        "mixing_circulations": 3,
+        "mixing_duration": "1m"
+      },
+      {
+        "step": 4,
+        "name": "Lentiviral Particle Production",
+        "description": "Incubate transfected HEK293T cells to allow lentiviral particle accumulation in the supernatant.",
+        "incubation": { "temperature_C": 37, "duration": "24h" },
+        "expected_titer_TU_per_mL": "~1e7",
+        "expected_TU_per_cell": { "24h": 1.56, "48h": 2.65 }
+      },
+      {
+        "step": 5,
+        "name": "Seed Target Cells",
+        "description": "Dispense target breast cancer cells with Pluronics F-127 onto six 1.2 mm transduction sites via highway track passive dispensing.",
+        "cell_lines": ["MCF-7", "T47DKB-Luc", "H1299"],
+        "cell_density_cells_per_mL": "1.0e6 - 1.5e6",
+        "dispensed_volume_uL": 1.0,
+        "incubation": { "temperature_C": 37, "duration": "24h" }
+      },
+      {
+        "step": 6,
+        "name": "Serial Dilution of Viral Supernatant",
+        "description": "Generate four serial dilutions of the lentiviral supernatant using DMEM + polybrene as diluent via highway track electrode actuation.",
+        "diluent": "DMEM + 8 ug/mL polybrene + 0.05% Pluronics F-127",
+        "dilution_accuracy": "~98%",
+        "dilutions": [
+          { "ratio": "1:3",  "supernatant_uL": 2, "diluent_uL": 1 },
+          { "ratio": "1:6",  "supernatant_uL": 1, "diluent_uL": 1 },
+          { "ratio": "1:12", "supernatant_uL": 1, "diluent_uL": 1 },
+          { "ratio": "1:24", "supernatant_uL": 1, "diluent_uL": 1 }
+        ]
+      },
+      {
+        "step": 7,
+        "name": "Transduce Target Cells",
+        "description": "Deliver each dilution to a separate target cell site via the highway track electrodes. Flip device upside down for overnight incubation to maximize contact.",
+        "delivery_method": "Highway track one-directional electrode actuation",
+        "device_orientation": "Inverted (upside down)",
+        "incubation": { "temperature_C": 37, "duration": "24h" }
+      },
+      {
+        "step": 8,
+        "name": "mCherry Fluorescence Detection and Viral Titer Calculation",
+        "description": "Image hydrophilic spots using fluorescence microscopy. Count mCherry-positive cells and calculate viral titer using the formula below.",
+        "detection": {
+          "module": "mCherryDetection",
+          "excitation_nm": 585,
+          "emission_nm": 608,
+          "duration": "30s"
+        },
+        "titer_formula": "TU/mL = (# cells transduced x % fluorescent x dilution factor) / transduction volume (mL)",
+        "imaging_pipeline": [
+          "Split Hoechst and mCherry channels",
+          "Apply threshold to each channel",
+          "Count Hoechst nuclei (total cells)",
+          "Count mCherry-positive cells",
+          "Calculate % fluorescence = mCherry+ / Hoechst nuclei x 100"
+        ],
+        "disposal_threshold": "signal >= 2500 cells",
+        "expected_results": {
+          "optimal_dilution": "1:3",
+          "titer_range_TU_per_mL": "6.5e6 - 1.33e7",
+          "comparable_to_macroscale": true
+        }
+      },
+      {
+        "step": 9,
+        "name": "shRNA Knockdown Assay (Optional)",
+        "optional": true,
+        "target_gene": "ESR1 (Estrogen Receptor alpha)",
+        "description": "Replace transfer plasmid with MISSION shRNA plasmid targeting ESR1. Repeat Steps 2-8. Retrieve transduced cells by trypsinization and culture for 7 days with puromycin selection before qRT-PCR.",
+        "plasmid": { "name": "shRNA_Plasmid", "catalog_id": "TRCN00000003300" },
+        "selection": { "antibiotic": "Puromycin", "concentration_ug_mL": 1 },
+        "cell_harvest": {
+          "wash": "5 uL PBS aspirated with Pasteur pipette",
+          "detachment": "2 uL Trypsin-EDTA (0.25% w/v), 2 min at 37C with 5% CO2",
+          "pooling": "2 microwells per dilution resuspended in 10 uL complete medium",
+          "expansion": "96-well plate, 100 uL complete medium per well"
+        },
+        "analysis": {
+          "method": "qRT-PCR (delta-delta-Cq)",
+          "reference_gene": "ACTB (beta-actin)",
+          "outgrowth_days": 7
+        },
+        "expected_knockdown": {
+          "1:3_dilution": "89%",
+          "1:6_dilution": "79%",
+          "1:12_dilution": "48%",
+          "1:24_dilution": "18%"
+        }
+      },
+      {
+        "step": 10,
+        "name": "CRISPR-Cas9 Knockout Assay (Optional)",
+        "optional": true,
+        "target_gene": "ESR1 (Estrogen Receptor alpha)",
+        "description": "Replace transfer plasmid with pLentiCRISPR-mCherry-NeoRv2 (LCMNv2) all-in-one Cas9 + sgRNA plasmid. Repeat Steps 2-8. Retrieve cells and perform genomic cleavage assay to confirm knockout.",
+        "plasmid": { "name": "sgRNA_Cas9_Plasmid", "id": "LCMNv2", "size_kb": 15 },
+        "cell_harvest": {
+          "wash": "5 uL PBS aspirated with Pasteur pipette",
+          "detachment": "2 uL Trypsin-EDTA (0.25% w/v), 2 min at 37C with 5% CO2",
+          "pooling": "2 microwells per dilution resuspended in 10 uL complete medium",
+          "expansion": "96-well plate, 100 uL complete medium per well"
+        },
+        "analysis": {
+          "method": "Genomic cleavage assay",
+          "timepoint_days_post_transduction": 7,
+          "parental_band_bp": 409,
+          "cleavage_bands_bp": [235, 174]
+        },
+        "expected_knockout_cleavage": {
+          "1:3_dilution_LENGEN": "6.9%",
+          "MOI_0.5_well_plate": "5.8%",
+          "MOI_1_well_plate": "6.2%",
+          "MOI_2_well_plate": "6.4%",
+          "MOI_5_well_plate": "9.4%"
+        },
+        "disposal_threshold": "cleavage signal >= 5%"
+      }
+    ],
+    "performance_summary": {
+      "total_protocol_duration": "~2 days (vs ~2 weeks macroscale)",
+      "volume_savings": "100-fold reduction vs macroscale",
+      "cells_per_target_spot": "~1400",
+      "viral_titer_TU_per_mL": "1e6 - 1e7",
+      "transduction_efficiency_T47DKB_Luc": {
+        "48h": "~43%",
+        "96h": "~60%"
+      },
+      "multiplexing": "12-plex simultaneous transduction analysis",
+      "ultracentrifugation_required": false,
+      "manual_purification_required": false
+    }
+  }
+}

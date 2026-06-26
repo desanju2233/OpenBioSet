@@ -1,0 +1,71 @@
+module electroporationAssay
+module cytokineDetection
+
+manifest tCells
+manifest electroporationBuffer
+manifest mrnaPayload
+manifest recoveryBuffer
+manifest il2Media
+manifest rajiCells
+
+instructions:
+
+// STEP 1: Prepare cell droplet in electroporation buffer
+// Cell count: 0.5 x 10^5 per reaction (triDrop optimum)
+
+cellDrop       = dispense 1 units of tCells
+epBuffer1      = dispense 1 units of electroporationBuffer
+cellsInBuffer  = mix cellDrop with epBuffer1 for 2s
+
+// STEP 2: Prepare mRNA payload droplet (50 ng per reaction)
+
+payloadDrop    = dispense 1 units of mrnaPayload
+
+// STEP 3: triDrop three-droplet fusion
+// Flanking buffer droplet limits electrolytic byproduct exposure at electrodes
+
+bufferFlank    = dispense 1 units of electroporationBuffer
+cellPayloadMix = mix cellsInBuffer with payloadDrop for 5s
+triDropMerged  = mix cellPayloadMix with bufferFlank for 3s
+
+// STEP 4: Electroporation pulse (3 x 1600 V_DC x 10 ms on DMF platform)
+// heat primitive maps to DMF energy delivery step
+
+heat triDropMerged at 37c for 10s
+
+// STEP 5: Transfer to IL-2 recovery buffer within 15 min post-pulse
+
+recoveryDrop   = dispense 1 units of recoveryBuffer
+il2Drop        = dispense 1 units of il2Media
+recoveryMix    = mix recoveryDrop with il2Drop for 5s
+recoveredCells = mix triDropMerged with recoveryMix for 10s
+
+// STEP 6: Post-EP incubation at 37c for 18h
+// triDrop achieves 80-85% viability at 18h post-EP
+
+heat recoveredCells at 37c for 18h
+
+// STEP 7: CAR-T co-culture killing assay with Raji (CD19+) target cells
+// E:T ratio 1:1; supernatant collected at 24h and 48h for IFN-g / TNF-a
+
+rajiDrop     = dispense 1 units of rajiCells
+coculture24h = mix recoveredCells with rajiDrop for 24h
+
+// STEP 8: Detect cytokine secretion at 24h (IFN-g ELISA readout)
+
+result24h = detect cytokineDetection on coculture24h for 30s
+
+// STEP 9: Continue co-culture to 48h and detect again
+
+heat coculture24h at 37c for 24h
+result48h = detect cytokineDetection on coculture24h for 30s
+
+// STEP 10: Evaluate killing efficiency threshold
+
+if (result48h >= 85) {
+    dispose coculture24h
+}
+
+drain coculture24h
+dispose result24h
+dispose result48h

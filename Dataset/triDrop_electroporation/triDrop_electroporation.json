@@ -1,0 +1,252 @@
+{
+  "protocol": {
+    "name": "triDrop_electroporation",
+    "platform": "Digital Microfluidic (DMF)",
+    "method": "Droplet-based electroporation",
+    "target_cell": "Primary Human T Cells",
+    "application": "CAR-T cell therapy production",
+    "reagents": [
+      {
+        "id": "tCells",
+        "description": "Primary human T cells",
+        "quantity": 50000,
+        "quantity_unit": "cells per reaction"
+      },
+      {
+        "id": "electroporationBuffer",
+        "description": "Electroporation buffer",
+        "quantity": 1,
+        "quantity_unit": "units"
+      },
+      {
+        "id": "mrnaPayload",
+        "description": "mRNA payload",
+        "quantity": 50,
+        "quantity_unit": "ng per reaction"
+      },
+      {
+        "id": "recoveryBuffer",
+        "description": "Recovery buffer",
+        "quantity": 1,
+        "quantity_unit": "units"
+      },
+      {
+        "id": "il2Media",
+        "description": "Culture media with IL-2",
+        "concentration": 400,
+        "concentration_unit": "IU/mL",
+        "quantity": 1,
+        "quantity_unit": "units"
+      },
+      {
+        "id": "rajiCells",
+        "description": "Raji cells (CD19-positive target cells)",
+        "quantity": 1,
+        "quantity_unit": "units"
+      }
+    ],
+    "modules": [
+      {
+        "id": "electroporationAssay",
+        "description": "Handles electroporation procedure"
+      },
+      {
+        "id": "cytokineDetection",
+        "description": "Handles IFN-g and TNF-a ELISA detection"
+      }
+    ],
+    "steps": [
+      {
+        "step": 1,
+        "name": "Prepare cell droplet",
+        "operations": [
+          {
+            "op": "dispense",
+            "reagent": "tCells",
+            "output": "cellDrop"
+          },
+          {
+            "op": "dispense",
+            "reagent": "electroporationBuffer",
+            "output": "epBuffer1"
+          },
+          {
+            "op": "mix",
+            "inputs": ["cellDrop", "epBuffer1"],
+            "duration": "2s",
+            "output": "cellsInBuffer"
+          }
+        ]
+      },
+      {
+        "step": 2,
+        "name": "Prepare mRNA payload droplet",
+        "operations": [
+          {
+            "op": "dispense",
+            "reagent": "mrnaPayload",
+            "output": "payloadDrop"
+          }
+        ]
+      },
+      {
+        "step": 3,
+        "name": "triDrop three-droplet fusion",
+        "note": "Flanking buffer droplet limits electrolytic byproduct exposure at electrodes",
+        "operations": [
+          {
+            "op": "dispense",
+            "reagent": "electroporationBuffer",
+            "output": "bufferFlank"
+          },
+          {
+            "op": "mix",
+            "inputs": ["cellsInBuffer", "payloadDrop"],
+            "duration": "5s",
+            "output": "cellPayloadMix"
+          },
+          {
+            "op": "mix",
+            "inputs": ["cellPayloadMix", "bufferFlank"],
+            "duration": "3s",
+            "output": "triDropMerged"
+          }
+        ]
+      },
+      {
+        "step": 4,
+        "name": "Electroporation pulse",
+        "note": "3 x 1600 V_DC pulses, 10 ms each; heat primitive maps to DMF energy delivery",
+        "operations": [
+          {
+            "op": "heat",
+            "input": "triDropMerged",
+            "temperature": "37c",
+            "duration": "10s"
+          }
+        ]
+      },
+      {
+        "step": 5,
+        "name": "Transfer to recovery buffer",
+        "note": "Cells transferred within 15 min post-pulse",
+        "operations": [
+          {
+            "op": "dispense",
+            "reagent": "recoveryBuffer",
+            "output": "recoveryDrop"
+          },
+          {
+            "op": "dispense",
+            "reagent": "il2Media",
+            "output": "il2Drop"
+          },
+          {
+            "op": "mix",
+            "inputs": ["recoveryDrop", "il2Drop"],
+            "duration": "5s",
+            "output": "recoveryMix"
+          },
+          {
+            "op": "mix",
+            "inputs": ["triDropMerged", "recoveryMix"],
+            "duration": "10s",
+            "output": "recoveredCells"
+          }
+        ]
+      },
+      {
+        "step": 6,
+        "name": "Post-EP incubation",
+        "note": "triDrop achieves 80-85% viability at 18h post-EP",
+        "operations": [
+          {
+            "op": "heat",
+            "input": "recoveredCells",
+            "temperature": "37c",
+            "duration": "18h"
+          }
+        ]
+      },
+      {
+        "step": 7,
+        "name": "CAR-T co-culture killing assay",
+        "note": "E:T ratio 1:1 with CD19-positive Raji target cells",
+        "operations": [
+          {
+            "op": "dispense",
+            "reagent": "rajiCells",
+            "output": "rajiDrop"
+          },
+          {
+            "op": "mix",
+            "inputs": ["recoveredCells", "rajiDrop"],
+            "duration": "24h",
+            "output": "coculture24h"
+          }
+        ]
+      },
+      {
+        "step": 8,
+        "name": "Detect cytokine secretion at 24h",
+        "note": "IFN-g and TNF-a ELISA readout",
+        "operations": [
+          {
+            "op": "detect",
+            "module": "cytokineDetection",
+            "input": "coculture24h",
+            "duration": "30s",
+            "output": "result24h"
+          }
+        ]
+      },
+      {
+        "step": 9,
+        "name": "Continue co-culture and detect at 48h",
+        "operations": [
+          {
+            "op": "heat",
+            "input": "coculture24h",
+            "temperature": "37c",
+            "duration": "24h"
+          },
+          {
+            "op": "detect",
+            "module": "cytokineDetection",
+            "input": "coculture24h",
+            "duration": "30s",
+            "output": "result48h"
+          }
+        ]
+      },
+      {
+        "step": 10,
+        "name": "Evaluate killing efficiency and cleanup",
+        "operations": [
+          {
+            "op": "conditional",
+            "condition": "result48h >= 85",
+            "if_true": [
+              {
+                "op": "dispose",
+                "input": "coculture24h"
+              }
+            ]
+          },
+          {
+            "op": "drain",
+            "input": "coculture24h"
+          },
+          {
+            "op": "dispose",
+            "input": "result24h"
+          },
+          {
+            "op": "dispose",
+            "input": "result48h"
+          }
+        ]
+      }
+    ]
+  }
+}

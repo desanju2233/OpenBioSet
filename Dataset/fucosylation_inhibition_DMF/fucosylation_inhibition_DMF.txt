@@ -1,0 +1,364 @@
+================================================================================
+  PROTOCOL: FUCOSYLTRANSFERASE INHIBITION ASSAY USING IMAGE-ANALYSIS
+             AND DIGITAL MICROFLUIDICS (DMF)
+================================================================================
+
+  Source Link : https://www.shihmicrolab.ca/_files/ugd/f0a828_fb291b4dee6147cd9c47c11d6308710c.pdf
+  Paper DOI   : https://doi.org/10.1063/1.5088517
+  Journal     : Biomicrofluidics 13, 034106 (2019)
+
+================================================================================
+  OVERVIEW
+================================================================================
+
+This protocol describes a fluorescence-based inhibition assay for
+H. pylori alpha(1,3)-fucosyltransferase (FucT) performed on a digital
+microfluidic (DMF) device. The assay uses the labeled synthetic disaccharide
+4-methylumbelliferyl beta-N-acetyllactosaminide (MU-beta-LacNAc) as a
+substrate. When FucT is active, it fucosylates MU-beta-LacNAc, preventing
+its hydrolysis by glycoside hydrolases and resulting in low fluorescence.
+When FucT is inhibited (e.g., by GDP), the substrate remains unfucosylated,
+gets cleaved by BgaA and SpHex, and releases fluorescent 4-methylumbelliferone
+(4-MU). Inhibition curves spanning four orders of magnitude are generated
+on-device via serial dilution, with concentrations verified by an image-based
+"pixel count" method.
+
+================================================================================
+  PLATFORM & DEVICE SPECIFICATIONS
+================================================================================
+
+  Platform        : Two-plate digital microfluidic (DMF) chip
+  Chip dimensions : 3 x 2 in. (75 x 50 mm)
+  Electrodes      : 93 actuation electrodes (avg. width ~1 mm) +
+                    10 reservoir electrodes (4.1 x 3 mm^2 each) +
+                    1 waste collection electrode
+                    Total: 103 electrodes
+  Electrode shape : "Skewed-wave" (sinusoidal intercalating, ~4.0 x 0.87 mm^2)
+                    Minimum angles ~90 deg to prevent dielectric breakdown
+  Electrode gap   : 30 um (interelectrode average)
+  Plate gap       : ~140 um (two layers of double-sided tape)
+  Top plate       : ITO-coated glass (Rs = 15-25 ohm)
+  Bottom plate    : Chromium electrode-bearing glass with FluoroPel PFC1601V
+                    hydrophobic coating
+  Driving voltage : 120-160 VRMS at 15 kHz
+  Automation      : Arduino Uno + PCB relay board + PaseMaker software
+                    (Python 2.7, LLGUI.exe interface)
+                    GitHub: https://github.com/shihmicrolab/Automation
+  Imaging         : 3.0 MP CMOS USB camera (EO-3112C, Edmund Optics) +
+                    10x C-mount close focus zoom lens (54363, Edmund Optics)
+  Unit droplet    : ~500 nL
+
+================================================================================
+  REAGENTS & SOLUTION PREPARATION
+================================================================================
+
+  All solutions contain 0.05% Pluronics F-68 to prevent protein biofouling.
+  All solutions are covered with a thin layer of silicone oil (applied by
+  touching the droplet surface with an oil-coated pipette tip).
+
+  1. HEPES BUFFER
+     - 25 mM HEPES, pH 7.0
+     - 0.05% Pluronics F-68
+     - Use: diluent for serial dilutions and blank control
+
+  2. GDP INHIBITOR STOCK
+     - 80 mM GDP (guanosine 5'-diphosphate) in 25 mM HEPES pH 7.0
+     - 0.05% Pluronics F-68
+     - Use: inhibitor stock for serial dilution
+
+  3. FucT ENZYME SOLUTION
+     - 0.135 mg/mL H. pylori FucT stock
+     - Working concentration: 0.03 mg/mL (0.6 nM) after dilution on-chip
+     - Buffer: 25 mM HEPES pH 7.0, 0.05% Pluronics F-68
+     - Note: Recombinant FucT expression follows previously described
+       procedures (see supplementary material of source paper)
+
+  4. GLYCOSYLATION MIX (reaction-initiating solution)
+     Stock concentrations (2x, before on-chip dilution):
+     - 40 mM MgCl2
+     - 0.04 mM MU-beta-LacNAc
+     - 0.08 mM GDP-fucose
+     - 25 mM HEPES pH 7.0, 0.05% Pluronics F-68
+     Final on-chip concentrations (after 1:2 dilution):
+     - 10 mM MgCl2
+     - 0.01 mM MU-beta-LacNAc
+     - 0.02 mM GDP-fucose
+
+  5. HYDROLYSIS MIX (reaction-stopping solution)
+     Stock concentrations (5x, before on-chip dilution):
+     - 125 mM EDTA
+     - 0.25 mM BgaA (beta-galactosidase from S. pneumoniae, ~247 kDa)
+     - 0.25 mM SpHex (N-acetylhexosaminidase from S. plicatus)
+     - 25 mM HEPES pH 7.0, 0.05% Pluronics F-68
+     Final on-chip concentrations (after 1:5 dilution):
+     - 25 mM EDTA
+     - 0.05 mM BgaA
+     - 0.05 mM SpHex
+     Note: BgaA and SpHex sequentially cleave unfucosylated MU-beta-LacNAc
+     to release fluorescent 4-MU. Both enzymes must be present for signal.
+
+  6. GLYCINE SOLUTION (optional, for bell-curve correction)
+     - 1 M glycine, pH 10.4
+     - Use: 5-fold dilution of final reaction droplets if a bell-shaped
+       dose-response curve is observed (caused by GDP quenching of 4-MU)
+
+================================================================================
+  ASSAY PRINCIPLE
+================================================================================
+
+  UNINHIBITED (low/no GDP):
+    MU-beta-LacNAc --[FucT + GDP-fucose]--> Fucosylated-MU-beta-LacNAc
+    Fucosylated substrate is NOT cleaved by BgaA/SpHex --> LOW fluorescence
+
+  INHIBITED (high GDP):
+    GDP competes with GDP-fucose at FucT active site --> FucT blocked
+    MU-beta-LacNAc remains unfucosylated
+    Unfucosylated MU-beta-LacNAc --[BgaA then SpHex]--> 4-MU (fluorescent)
+    --> HIGH fluorescence
+
+  Fluorescence readout: lambda_ex = 365 nm, lambda_em = 460 nm
+
+================================================================================
+  ON-DEVICE PROTOCOL (42-STEP DMF PROCEDURE)
+================================================================================
+
+------------------------------------------------------------------------
+  STEP 1 — Prime HEPES Buffer Reservoirs
+------------------------------------------------------------------------
+  - Manually pipette five droplets (~2.7 uL each) of 25 mM HEPES buffer
+    onto five separate reservoirs on the DMF chip.
+  - Place the ITO top plate on top of the device.
+  - Apply silicone oil shell to each droplet using an oil-coated pipette tip.
+  - These reservoirs serve as diluents for the serial dilution (Steps 3-10).
+
+------------------------------------------------------------------------
+  STEP 2 — Load GDP Inhibitor Stock
+------------------------------------------------------------------------
+  - Pipette a ~3.1 uL droplet of 80 mM GDP solution to one of the five
+    pipetting inlet electrodes (aligned to the edge of the ITO).
+  - Apply a driving potential to the inlet electrode to pull the droplet
+    under the ITO into the reservoir gap.
+  - Apply silicone oil shell.
+  - This minimizes time on-chip before use, reducing biofouling risk.
+
+------------------------------------------------------------------------
+  STEPS 3-10 — Serial ~5.5-Fold Dilution of GDP (6 Concentrations)
+------------------------------------------------------------------------
+  Each dilution step:
+    a. Dispense one unit droplet (~500 nL) of the current GDP solution.
+    b. Move the unit droplet into the adjacent buffer-primed reservoir.
+    c. Mix by pulling the merged volume along the linear path and actuating
+       the reservoir electrode to pull it back (creates ~1:5 dilution).
+    d. Dispense one unit droplet of the resulting dilution for the next step.
+
+  Resulting GDP concentrations (calculated by pixel count method):
+    Concentration 1: 36.0 +/- 4.25 mM
+    Concentration 2:  6.2 +/- 0.40 mM
+    Concentration 3:  1.1 +/- 0.01 mM
+    Concentration 4:  0.22 +/- 0.01 mM
+    Concentration 5:  0.04 +/- 0.006 mM
+    Concentration 6:  0.006 +/- 0.001 mM
+
+------------------------------------------------------------------------
+  STEP 11 — Load Negative Control (Blank)
+------------------------------------------------------------------------
+  - Pipette a ~3.1 uL droplet of 25 mM HEPES buffer (no GDP) to an
+    empty reservoir via pipetting inlet (same method as Step 2).
+  - This serves as the 0 mM GDP blank control.
+
+------------------------------------------------------------------------
+  STEPS 12-19 — Prepare 1 uL Reaction Droplets for Each Concentration
+------------------------------------------------------------------------
+  For each of the 7 GDP concentrations (including blank):
+    a. Dispense two unit droplets (~500 nL each) from the reservoir.
+    b. Merge the two unit droplets into one ~1 uL droplet.
+    c. Actuate the merged droplet away from the reservoir path.
+    d. Actuate the remaining excess droplet in the reservoir to the waste
+       electrode and wick away using a paper strip.
+    e. Return the merged 1 uL droplet to its reservoir.
+
+------------------------------------------------------------------------
+  STEPS 20-26 — Add FucT Enzyme to Each GDP Droplet
+------------------------------------------------------------------------
+  - Pipette a ~3.1 uL droplet of 0.135 mg/mL FucT stock to a reservoir
+    inlet (as in Step 2).
+  - For each of the 7 GDP concentrations:
+    a. Dispense one unit droplet (~500 nL) of FucT from the reservoir.
+    b. Merge and mix the FucT droplet with the 1 uL GDP droplet
+       in its respective reservoir (mix time: 5 s).
+  - Incubate for 5 minutes at room temperature.
+    Purpose: GDP competitively binds to the FucT active site.
+
+------------------------------------------------------------------------
+  STEPS 27-33 — Add Glycosylation Mix (Initiate Fucosylation Reaction)
+------------------------------------------------------------------------
+  - For each of the 7 reaction droplets:
+    a. Dispense one unit droplet (~500 nL) of glycosylation mix.
+    b. Merge and mix with the FucT + GDP droplet (mix time: 5 s).
+  - Incubate for 10 minutes at room temperature.
+    Purpose: FucT transfers fucose from GDP-fucose onto MU-beta-LacNAc.
+    If GDP has inhibited FucT, MU-beta-LacNAc remains unfucosylated.
+
+------------------------------------------------------------------------
+  STEPS 34-41 — Add Hydrolysis Mix (Stop Reaction / Reveal Signal)
+------------------------------------------------------------------------
+  - For each of the 7 reaction droplets:
+    a. Dispense one unit droplet (~500 nL) of hydrolysis mix.
+    b. Merge and mix with the reaction droplet (mix time: 5 s).
+  - Incubate for 5 minutes at room temperature.
+    Purpose: BgaA cleaves galactose, then SpHex cleaves N-acetylglucosamine
+    from unfucosylated MU-beta-LacNAc, releasing fluorescent 4-MU.
+    Fucosylated substrate is sterically blocked and yields no signal.
+
+------------------------------------------------------------------------
+  STEP 42 — Fluorescence Detection
+------------------------------------------------------------------------
+  - Align and mount the DMF device onto a Nunc 384-well black polystyrene
+    microplate.
+  - Scan the device surface using a ClarioSTAR monochromator microplate
+    reader (BMG Labtech):
+      lambda_ex  : 360-365 nm
+      lambda_em  : 450-460 nm
+      Gain       : 750
+      Focal height: 15.80 mm
+      Flashes    : 40
+      Scan step  : 30 x 30 pixel increments (each pixel = 10 mm^2)
+  - Output: fluorescence heatmap of the entire chip surface.
+
+================================================================================
+  PIXEL COUNT (PC) — IMAGE-BASED CONCENTRATION METHOD
+================================================================================
+
+  The "pixel count" (PC) method calculates droplet volumes and inhibitor
+  concentrations directly from on-device images, without requiring external
+  detectors or plate readers at the dilution step.
+
+  Procedure:
+    1. Capture an image of the droplet using the on-board CMOS camera.
+    2. Binarize the image (convert to 1s and 0s) to enhance droplet boundaries.
+    3. Apply edge-finding algorithm to trace the droplet boundary.
+    4. Calculate droplet area from the traced boundary.
+    5. Calculate droplet volume:
+         Volume = droplet area x 140 um (plate gap height)
+    6. Apply C1V1 = C2V2 to calculate the concentration after each dilution.
+
+  Validation: PC volumes agree more closely with micropipette readings than
+  gravimetric (precision balance) measurements. Fluorescence deviation
+  between PC-calculated and direct fluorescence measurements is <0.05%.
+  Homogeneity of dispensed droplets from the same mixed source: <3% CV.
+
+================================================================================
+  OPTIONAL: GLYCINE DILUTION (Bell-Curve Correction)
+================================================================================
+
+  If the dose-response curve shows a bell-shaped (non-sigmoidal) profile
+  at the highest GDP concentrations (~40 mM), this is likely due to
+  GDP quenching of 4-MU fluorescence rather than a true inhibition effect.
+
+  Correction procedure:
+    - After the hydrolysis incubation (Step 41), dilute each reaction
+      droplet 5-fold into 1 M glycine, pH 10.4.
+    - This restores the sigmoidal curve shape and improves reproducibility
+      by reducing solution viscosity.
+    - Expected IC50 after glycine dilution:
+        DMF device  : 0.093 +/- 0.037 mM GDP
+        Well plate  : 0.114 +/- 0.086 mM GDP
+        (Not significantly different: p = 0.53, alpha = 0.05)
+
+================================================================================
+  DATA ANALYSIS — IC50 CALCULATION
+================================================================================
+
+  Fluorescence values are blank-corrected (subtract buffer-only signal).
+
+  GDP concentrations are determined using the pixel count method.
+
+  4-MU concentrations are calculated using a linear calibration curve
+  derived from 4-MU standards pipetted and measured on-device.
+
+  Dose-response curve fit (least squares):
+    y = b + ((a - b) / (1 + (x / c)^d))
+
+    where:
+      y = fluorescence signal
+      x = GDP concentration (mM)
+      a = maximum signal (top plateau)
+      b = minimum signal (bottom plateau)
+      c = IC50 value
+      d = Hill coefficient
+
+  Note: Exclude ~40 mM GDP data points if bell-shaped behavior is observed
+  before glycine dilution, as they represent artefactual signal quenching.
+
+================================================================================
+  ASSAY PERFORMANCE METRICS
+================================================================================
+
+  Z-factor (well-plate validation)   : 0.78  (n = 8)
+  Droplet dispensing variability     : ~9% CV
+  On-chip fluorescence homogeneity   : <3% CV
+  PC vs. fluorescence deviation      : <0.05%
+  Orders of magnitude of dilution    : 4 (10,000-fold range)
+  Silicone oil effect on 4-MU signal : Not significant (p = 0.143)
+
+================================================================================
+  CONTROLS
+================================================================================
+
+  Positive control (max signal):
+    - 0 nM FucT + full hydrolysis mix
+    - Expected: ~6 uM 4-MU released from 10 uM MU-beta-LacNAc
+
+  Negative control (min signal):
+    - 0.6 nM FucT, no hydrolysis mix
+    - Expected: minimal fluorescence (~1 uM 4-MU baseline)
+
+  Blank:
+    - 0 mM GDP + 0.6 nM FucT + full glycosylation and hydrolysis mix
+    - Expected: low fluorescence (FucT fully active, substrate fucosylated)
+
+================================================================================
+  CRITICAL NOTES
+================================================================================
+
+  1. BIOFOULING PREVENTION
+     - Add 0.05% Pluronics F-68 to ALL solutions containing proteins
+       (FucT, BgaA, SpHex).
+     - Apply silicone oil shell to all droplets; this is the single most
+       effective measure: it allows >24 consecutive droplet movements vs.
+       failure within 4-8 movements without oil.
+     - Use HEPES buffer (not Tris): Tris caused fouling after ~4 movements
+       even with Pluronics; HEPES lasted ~8 movements. With oil + HEPES +
+       Pluronics, >24 movements were achieved without slowing.
+     - Load protein solutions via pipetting inlet electrodes and use
+       immediately; avoid long dwell times on the reservoir surface.
+
+  2. ELECTRODE DESIGN
+     - Use "skewed-wave" shaped electrodes. Conventional square electrodes
+       of equivalent area require 9-13 electrodes to span the same distance
+       and require 27% larger minimum droplet volumes to avoid stranding.
+     - Sinusoidal curves with minimum ~90 deg angles prevent dielectric
+       breakdown (which occurs at >10^8 V/cm with pointed electrode shapes).
+
+  3. DROPLET VOLUME CONSISTENCY
+     - Consistent dispensing is critical for accurate inhibition curves.
+     - Verify all droplet volumes using the pixel count method at each
+       serial dilution step.
+
+  4. 4-MU FLUORESCENCE SENSITIVITY
+     - 4-MU fluorescence is sensitive to ionic conditions, pH, and water
+       content. Prepare all 4-MU standards in the same buffer and surfactant
+       conditions as the reaction samples.
+     - The reaction components (buffer + Pluronics) may enhance 4-MU
+       fluorescence above the theoretical maximum; account for this when
+       interpreting absolute signal values.
+
+  5. GDP QUENCHING ARTEFACT
+     - At GDP concentrations of ~40 mM, a false drop in fluorescence signal
+       may be observed. This is NOT inhibition reversal but rather
+       concentration-dependent quenching of 4-MU by GDP.
+     - Apply glycine dilution (see above) to correct this effect.
+
+================================================================================
+END OF PROTOCOL
+================================================================================

@@ -1,0 +1,190 @@
+{
+  "protocol": {
+    "title": "Fucosyltransferase Inhibition Assay on Digital Microfluidics",
+    "platform": "Digital Microfluidics (DMF)",
+    "assay_type": "Fluorescence-based enzyme inhibition",
+    "reagents": {
+      "buffer": {
+        "name": "HEPES Buffer",
+        "composition": "25 mM HEPES pH 7.0, 0.05% Pluronics F-68"
+      },
+      "inhibitor": {
+        "name": "GDP (guanosine 5'-diphosphate)",
+        "stock_concentration_mM": 80
+      },
+      "enzyme": {
+        "name": "FucT (H. pylori alpha(1,3)-fucosyltransferase)",
+        "working_concentration_mg_per_mL": 0.03,
+        "working_concentration_nM": 0.6
+      },
+      "glycosylation_mix": {
+        "composition": "10 mM MgCl2, 0.01 mM MU-beta-LacNAc, 0.02 mM GDP-fucose, 25 mM HEPES pH 7.0, 0.05% Pluronics F-68"
+      },
+      "hydrolysis_mix": {
+        "composition": "25 mM EDTA, 0.05 mM BgaA (beta-galactosidase, S. pneumoniae), 0.05 mM SpHex (N-acetylhexosaminidase, S. plicatus), 25 mM HEPES pH 7.0, 0.05% Pluronics F-68"
+      }
+    },
+    "droplet_volume_uL": 0.5,
+    "oil_shell": "silicone oil applied via coated pipette tip to all droplets",
+    "steps": [
+      {
+        "step": 1,
+        "name": "Prime buffer reservoirs",
+        "action": "dispense",
+        "reagent": "HEPESBuffer",
+        "droplets": 6,
+        "volume_per_droplet_uL": 0.5,
+        "note": "One reservoir per serial dilution step"
+      },
+      {
+        "step": 2,
+        "name": "Load GDP inhibitor stock",
+        "action": "dispense",
+        "reagent": "GDPInhibitor",
+        "droplets": 1,
+        "volume_per_droplet_uL": 0.5,
+        "concentration_mM": 80,
+        "note": "Loaded via pipetting inlet electrode; covered with silicone oil shell"
+      },
+      {
+        "step": 3,
+        "name": "Serial ~5.5-fold dilution of GDP",
+        "action": "mix",
+        "mix_time_s": 10,
+        "method": "Sequential mix of GDP droplet into successive buffer reservoirs",
+        "concentrations_mM": {
+          "gdpDrop1": 36.0,
+          "gdpDrop2": 6.2,
+          "gdpDrop3": 1.1,
+          "gdpDrop4": 0.22,
+          "gdpDrop5": 0.04,
+          "gdpDrop6": 0.006,
+          "gdpBlank": 0.0
+        },
+        "concentration_method": "Pixel count (PC) image-based method (C1V1 = C2V2)",
+        "note": "gdpBlank is a fresh HEPESBuffer dispense; serves as 0 mM GDP control. Six serial dilutions span ~4 orders of magnitude, matching the paper's reported range."
+      },
+      {
+        "step": 4,
+        "name": "Dispense FucT enzyme droplets",
+        "action": "dispense",
+        "reagent": "FucTEnzyme",
+        "droplets": 7,
+        "volume_per_droplet_uL": 0.5,
+        "concentration_mg_per_mL": 0.03,
+        "concentration_nM": 0.6,
+        "note": "One droplet per GDP concentration (6) plus one for blank = 7 total; all oil-shelled"
+      },
+      {
+        "step": 5,
+        "name": "Merge FucT with each GDP concentration",
+        "action": "mix",
+        "mix_time_s": 5,
+        "pairs": [
+          { "gdp": "gdpDrop1", "fuct": "fucT1", "result": "fucTgdp1" },
+          { "gdp": "gdpDrop2", "fuct": "fucT2", "result": "fucTgdp2" },
+          { "gdp": "gdpDrop3", "fuct": "fucT3", "result": "fucTgdp3" },
+          { "gdp": "gdpDrop4", "fuct": "fucT4", "result": "fucTgdp4" },
+          { "gdp": "gdpDrop5", "fuct": "fucT5", "result": "fucTgdp5" },
+          { "gdp": "gdpDrop6", "fuct": "fucT6", "result": "fucTgdp6" },
+          { "gdp": "gdpBlank",  "fuct": "fucT7", "result": "fucTgdp7" }
+        ],
+        "merged_volume_uL": 1.0
+      },
+      {
+        "step": 6,
+        "name": "Incubate FucT + GDP",
+        "action": "incubate",
+        "temperature_C": 25,
+        "duration_min": 5,
+        "purpose": "Competitive binding of GDP to FucT active site"
+      },
+      {
+        "step": 7,
+        "name": "Dispense and merge glycosylation mix",
+        "action": "dispense_and_mix",
+        "reagent": "GlycolysationMix",
+        "droplets": 7,
+        "volume_per_droplet_uL": 0.5,
+        "mix_time_s": 5,
+        "purpose": "Initiates fucosylation; FucT transfers fucose from GDP-fucose onto MU-beta-LacNAc"
+      },
+      {
+        "step": 8,
+        "name": "Incubate glycosylation reaction",
+        "action": "incubate",
+        "temperature_C": 25,
+        "duration_min": 10,
+        "purpose": "If GDP inhibits FucT, MU-beta-LacNAc remains unfucosylated and becomes cleavable"
+      },
+      {
+        "step": 9,
+        "name": "Dispense and merge hydrolysis mix",
+        "action": "dispense_and_mix",
+        "reagent": "HydrolysisMix",
+        "droplets": 7,
+        "volume_per_droplet_uL": 0.5,
+        "mix_time_s": 5,
+        "purpose": "BgaA and SpHex sequentially cleave unfucosylated MU-beta-LacNAc, releasing fluorescent 4-MU; fucosylated substrate is not cleaved"
+      },
+      {
+        "step": 10,
+        "name": "Incubate hydrolysis reaction",
+        "action": "incubate",
+        "temperature_C": 25,
+        "duration_min": 5,
+        "purpose": "Glycoside hydrolases release 4-MU from unfucosylated substrate"
+      },
+      {
+        "step": 10.5,
+        "name": "Glycine dilution (bell-curve correction)",
+        "action": "dispense_and_mix",
+        "reagent": "GlycineSolution",
+        "droplets": 7,
+        "volume_per_droplet_uL": 0.5,
+        "mix_time_s": 5,
+        "dilution_factor": 5,
+        "composition": "1 M glycine, pH 10.4",
+        "purpose": "Corrects bell-shaped dose-response artefact caused by GDP quenching of 4-MU fluorescence; restores sigmoidal curve and improves reproducibility",
+        "result_droplets": ["diluted1", "diluted2", "diluted3", "diluted4", "diluted5", "diluted6", "diluted7"]
+      },
+      {
+        "step": 11,
+        "name": "Fluorescence detection",
+        "action": "detect",
+        "module": "fluorescenceAssay",
+        "substrate": "4-methylumbelliferone (4-MU)",
+        "excitation_nm": 365,
+        "emission_nm": 460,
+        "gain": 750,
+        "flashes": 40,
+        "detection_duration_s": 30,
+        "platform": "Device mounted to 384-well plate; scanned by ClarioSTAR plate reader",
+        "targets": ["diluted1", "diluted2", "diluted3", "diluted4", "diluted5", "diluted6", "diluted7"]
+      },
+      {
+        "step": 12,
+        "name": "Pixel count volume verification",
+        "action": "detect",
+        "module": "pixelCount",
+        "detection_duration_s": 5,
+        "purpose": "Image-based droplet volume measurement to back-calculate inhibitor concentrations via C1V1 = C2V2",
+        "targets": ["diluted1", "diluted2", "diluted3", "diluted4", "diluted5", "diluted6", "diluted7"]
+      },
+      {
+        "step": 14,
+        "name": "Evaluate and dispose",
+        "action": "conditional_dispose",
+        "condition": "signal1 >= 15000 RFU",
+        "interpretation": {
+          "high_signal": "FucT inhibited by GDP; MU-beta-LacNAc unfucosylated; 4-MU released",
+          "low_signal": "FucT active; MU-beta-LacNAc fucosylated; no 4-MU released"
+        },
+        "ic50_fit_formula": "y = b + ((a - b) / (1 + (x / c)^d))",
+        "expected_ic50_mM": 0.093,
+        "expected_ic50_std_mM": 0.037,
+        "note": "Optional 5-fold glycine dilution (1M glycine, pH 10.4) corrects bell-shaped dose-response artefact caused by GDP quenching of 4-MU"
+      }
+    ]
+  }
+}

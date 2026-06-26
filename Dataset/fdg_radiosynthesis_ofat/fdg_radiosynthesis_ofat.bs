@@ -1,0 +1,94 @@
+module radiochemicalDetection
+module tlcScanner
+
+// Reagents - OFAT-optimal conditions (Ahmadi et al., Lab Chip 2023, 23, 81-91)
+// Mannose triflate / [18F] volume ratio : 1.0
+// Mannose triflate concentration        : 30 mM
+// Radiolabeling temperature             : 100 C
+// Radiolabeling time                    : 5 min
+// NaOH concentration                   : 1.0 M
+// Deprotection temperature              : 50 C
+// Deprotection time                     : 5 min
+
+manifest F18Fluoride         // no-carrier-added [18F]fluoride in [18O]-H2O
+manifest MannoseTriflate     // 30 mM mannose triflate in anhydrous MeCN
+manifest KryptofixK222       // K222 / K2CO3 activator complex
+manifest NaOH                // 1.0 M sodium hydroxide
+manifest AcetonitrileSolvent // anhydrous MeCN wash
+
+instructions:
+
+// -----------------------------------------------------------------------
+// STEP 1: Deliver [18F]fluoride to reaction site via syringe system
+// -----------------------------------------------------------------------
+
+f18Drop = dispense 1 units of F18Fluoride
+
+// -----------------------------------------------------------------------
+// STEP 2: Activate [18F] - evaporate [18O]-H2O carrier at 120 C (~10 min)
+// The heat primitive maps to the TEC/Peltier reaction-site heater
+// -----------------------------------------------------------------------
+
+heat f18Drop at 120c for 10m
+
+// -----------------------------------------------------------------------
+// STEP 3: Resuspend activated [18F] with Kryptofix/K2CO3 complex
+// -----------------------------------------------------------------------
+
+k222Drop      = dispense 1 units of KryptofixK222
+activatedF18  = mix f18Drop with k222Drop for 5s
+
+// MeCN azeotropic dry - evaporate residual water
+heat activatedF18 at 120c for 5m
+
+// -----------------------------------------------------------------------
+// STEP 4: Dispense mannose triflate and merge with activated [18F]
+// Volume ratio mannose triflate : [18F] = 1 : 1 (OFAT optimum)
+// -----------------------------------------------------------------------
+
+mannoseTriflate   = dispense 1 units of MannoseTriflate
+reactionDroplet   = mix activatedF18 with mannoseTriflate for 10s
+
+// -----------------------------------------------------------------------
+// STEP 5: Fluorination (radiolabeling) - 100 C for 5 min (OFAT optimum)
+// -----------------------------------------------------------------------
+
+heat reactionDroplet at 100c for 5m
+
+// -----------------------------------------------------------------------
+// STEP 6: Deprotection - hydrolyse intermediate with NaOH
+// 1.0 M NaOH, 50 C, 5 min (OFAT optimum)
+// -----------------------------------------------------------------------
+
+naohDrop      = dispense 1 units of NaOH
+protected18F  = mix reactionDroplet with naohDrop for 5s
+
+heat protected18F at 50c for 5m
+
+// The product at this point is crude [18F]FDG
+
+// -----------------------------------------------------------------------
+// STEP 7: On-chip purification over alumina disc (6 mm, 40 min incubation)
+// Removes Kryptofix K222 and unreacted [18F]/F-
+// Modelled as an extended heat/incubation step at room temperature
+// -----------------------------------------------------------------------
+
+heat protected18F at 25c for 40m
+
+// -----------------------------------------------------------------------
+// STEP 8: Detect fluorination efficiency via radioactive TLC readout
+// Threshold: >= 70% fluorination efficiency accepted (OFAT result: 70.82%)
+// -----------------------------------------------------------------------
+
+fluorinationEfficiency = detect tlcScanner on protected18F for 30s
+
+if (fluorinationEfficiency >= 70) {
+    // Product meets quality threshold - collect for downstream processing
+    drain protected18F
+}
+
+// Dispose of waste streams
+dispose f18Drop
+dispose k222Drop
+dispose mannoseTriflate
+dispose naohDrop

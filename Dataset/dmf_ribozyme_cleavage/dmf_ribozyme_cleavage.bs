@@ -1,0 +1,174 @@
+module fluorescenceDetection
+module ribozymeCleaveAssay
+
+manifest Ribozyme
+manifest CleavageBuffer
+manifest QuenchedProbe
+manifest DIWater
+
+instructions:
+
+// DMF Ribozyme Cleavage Assay
+// Based on: Davis et al., ACS Omega 2021, 6, 22514-22524
+// DOI: 10.1021/acsomega.1c00239
+//
+// Ribozyme: inducible cis-acting hammerhead ribozyme (HHR), 2.5 uM stock
+// Cleavage buffer (1.25x): 125 mM NaCl, 62.5 mM Tris pH 7.5,
+//   31.25 mM KCl, 12.5 mM MgCl2, 0.0625% Tetronic 304,
+//   2.5 uM quenched probe (QP), 6.25 uM input ssDNA (IP)
+// QP: F-strand (Cy5 fluorophore, 0.625 uM) + Q-strand (BHQ-3, 0.7 uM)
+// Detection: lex = 647 nm, lem = 665 nm (ClarioSTAR plate reader)
+//
+// Chip layout:
+//   - 5 reservoirs for reagent dispensing
+//   - 3 x 17 electrode matrix for droplet movement/merging/splitting
+//   - 8 detection points for up to 6 assays + PC + NC
+
+// STEP 1: Dispense ribozyme-containing droplets (~0.5 uL each)
+// from reservoir (2.5 uL of 2.5 uM ribozyme loaded into reservoir)
+// Dispensed by splitting at 15 kHz, 178 Vrms
+
+rzDrop1 = dispense 1 units of Ribozyme
+rzDrop2 = dispense 1 units of Ribozyme
+rzDrop3 = dispense 1 units of Ribozyme
+
+// Positive control ribozyme droplet (strand displacement rxn)
+rzPC    = dispense 1 units of Ribozyme
+
+// STEP 2: Dispense cleavage buffer droplets (2 uL) at detection points
+// Buffer contains: input strand (IP, 6.25 uM), quenched probe (QP, 2.5 uM),
+// MgCl2 (12.5 mM), and 0.05% Tetronic 304 surfactant
+
+cbDrop1 = dispense 2 units of CleavageBuffer
+cbDrop2 = dispense 2 units of CleavageBuffer
+cbDrop3 = dispense 2 units of CleavageBuffer
+
+// Positive control buffer (ssDNA equivalent to expected cleaved-off
+// output RNA strand displaces quencher from probe directly)
+cbPC    = dispense 2 units of CleavageBuffer
+
+// Negative control: quenched probe only (no input strand / no ribozyme)
+ncProbe = dispense 2 units of QuenchedProbe
+
+// STEP 3: Merge ribozyme droplets with cleavage buffer droplets
+// at each detection point (droplets moved across electrode array)
+
+rxn1  = mix rzDrop1 with cbDrop1 for 10s
+rxn2  = mix rzDrop2 with cbDrop2 for 10s
+rxn3  = mix rzDrop3 with cbDrop3 for 10s
+
+// Merge positive control droplets
+pcMix = mix rzPC with cbPC for 10s
+
+// Negative control: quenched probe only (probe stays quenched)
+ncMix = mix rzDrop3 with ncProbe for 10s
+
+// STEP 4: Incubate merged droplets at 37c
+// Ribozyme folds into active HHR upon binding to input strand (IP),
+// leading to self-cleavage. Cleaved-off RNA strand displaces quencher
+// via toehold-mediated strand displacement, allowing Cy5 probe to fluoresce.
+// Total monitoring period: 180 min (readings every 20 min)
+
+heat rxn1  at 37c for 180m
+heat rxn2  at 37c for 180m
+heat rxn3  at 37c for 180m
+heat pcMix at 37c for 180m
+heat ncMix at 37c for 180m
+
+// STEP 5: Real-time fluorescence monitoring
+// Chip placed on 384-well plate (black-sided, clear-bottom, Corning)
+// Detection points aligned to wells; 5 surrounding wells filled with
+// 30 uL DI water to reduce evaporation. Plate sealed with parafilm.
+// Well-scan: 30x30 pixel matrix, 10 mm2 per pixel, 8 flashes per well
+// lex = 647 nm, lem = 665 nm, focal height = 15.80 mm, gain = 1800
+
+// Reading 1 - t = 0 min (baseline)
+signal1_rxn1 = detect fluorescenceDetection on rxn1  for 20m
+signal1_rxn2 = detect fluorescenceDetection on rxn2  for 20m
+signal1_rxn3 = detect fluorescenceDetection on rxn3  for 20m
+signal1_pc   = detect fluorescenceDetection on pcMix for 20m
+signal1_nc   = detect fluorescenceDetection on ncMix for 20m
+
+// Reading 2 - t = 20 min
+signal2_rxn1 = detect fluorescenceDetection on rxn1  for 20m
+signal2_rxn2 = detect fluorescenceDetection on rxn2  for 20m
+signal2_rxn3 = detect fluorescenceDetection on rxn3  for 20m
+signal2_pc   = detect fluorescenceDetection on pcMix for 20m
+signal2_nc   = detect fluorescenceDetection on ncMix for 20m
+
+// Reading 3 - t = 40 min
+signal3_rxn1 = detect fluorescenceDetection on rxn1  for 20m
+signal3_rxn2 = detect fluorescenceDetection on rxn2  for 20m
+signal3_rxn3 = detect fluorescenceDetection on rxn3  for 20m
+signal3_pc   = detect fluorescenceDetection on pcMix for 20m
+signal3_nc   = detect fluorescenceDetection on ncMix for 20m
+
+// Reading 4 - t = 60 min
+signal4_rxn1 = detect fluorescenceDetection on rxn1  for 20m
+signal4_rxn2 = detect fluorescenceDetection on rxn2  for 20m
+signal4_rxn3 = detect fluorescenceDetection on rxn3  for 20m
+signal4_pc   = detect fluorescenceDetection on pcMix for 20m
+signal4_nc   = detect fluorescenceDetection on ncMix for 20m
+
+// Reading 5 - t = 80 min
+signal5_rxn1 = detect fluorescenceDetection on rxn1  for 20m
+signal5_rxn2 = detect fluorescenceDetection on rxn2  for 20m
+signal5_rxn3 = detect fluorescenceDetection on rxn3  for 20m
+signal5_pc   = detect fluorescenceDetection on pcMix for 20m
+signal5_nc   = detect fluorescenceDetection on ncMix for 20m
+
+// Reading 6 - t = 100 min
+signal6_rxn1 = detect fluorescenceDetection on rxn1  for 20m
+signal6_rxn2 = detect fluorescenceDetection on rxn2  for 20m
+signal6_rxn3 = detect fluorescenceDetection on rxn3  for 20m
+signal6_pc   = detect fluorescenceDetection on pcMix for 20m
+signal6_nc   = detect fluorescenceDetection on ncMix for 20m
+
+// Reading 7 - t = 120 min
+signal7_rxn1 = detect fluorescenceDetection on rxn1  for 20m
+signal7_rxn2 = detect fluorescenceDetection on rxn2  for 20m
+signal7_rxn3 = detect fluorescenceDetection on rxn3  for 20m
+signal7_pc   = detect fluorescenceDetection on pcMix for 20m
+signal7_nc   = detect fluorescenceDetection on ncMix for 20m
+
+// Reading 8 - t = 140 min
+signal8_rxn1 = detect fluorescenceDetection on rxn1  for 20m
+signal8_rxn2 = detect fluorescenceDetection on rxn2  for 20m
+signal8_rxn3 = detect fluorescenceDetection on rxn3  for 20m
+signal8_pc   = detect fluorescenceDetection on pcMix for 20m
+signal8_nc   = detect fluorescenceDetection on ncMix for 20m
+
+// Reading 9 - t = 160 min
+signal9_rxn1 = detect fluorescenceDetection on rxn1  for 20m
+signal9_rxn2 = detect fluorescenceDetection on rxn2  for 20m
+signal9_rxn3 = detect fluorescenceDetection on rxn3  for 20m
+signal9_pc   = detect fluorescenceDetection on pcMix for 20m
+signal9_nc   = detect fluorescenceDetection on ncMix for 20m
+
+// Reading 10 - t = 180 min (endpoint)
+signal10_rxn1 = detect fluorescenceDetection on rxn1  for 20m
+signal10_rxn2 = detect fluorescenceDetection on rxn2  for 20m
+signal10_rxn3 = detect fluorescenceDetection on rxn3  for 20m
+signal10_pc   = detect fluorescenceDetection on pcMix for 20m
+signal10_nc   = detect fluorescenceDetection on ncMix for 20m
+
+// STEP 6: Threshold check at endpoint (t = 180 min)
+// PC (strand displacement) expected ~12250 fluorescence units
+// Assay (RZ) expected ~4900 fluorescence units
+// NC (quenched probe) expected ~1530 fluorescence units
+// Signal above 2000 units indicates successful ribozyme cleavage
+
+if (signal10_rxn1 >= 2000) {
+    dispose rxn1
+}
+
+if (signal10_rxn2 >= 2000) {
+    dispose rxn2
+}
+
+if (signal10_rxn3 >= 2000) {
+    dispose rxn3
+}
+
+dispose pcMix
+dispose ncMix

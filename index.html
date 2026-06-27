@@ -26,7 +26,7 @@
 
         <div class="p-3 sm:p-4 flex-1 overflow-y-auto">
             <ul id="sidebar-list" class="space-y-1">
-                <li class="text-sm text-gray-400 italic py-2">Loading protocols...</li>
+                <li class="text-sm text-gray-400 italic py-2">Scanning repository...</li>
             </ul>
         </div>
     </aside>
@@ -34,7 +34,7 @@
         
         <header class="mb-6 sm:mb-8">
             <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-blue-600">OpenBioSet</h1>
-            <p class="text-xs sm:text-sm text-gray-500 mt-0.5">Dataset Explorer</p>
+            <p class="text-xs sm:text-sm text-gray-500 mt-0.5">Universal Dataset Explorer</p>
         </header>
 
         <div class="flex items-center gap-2 sm:gap-3 mb-6">
@@ -48,7 +48,7 @@
 
             <div class="relative flex-1">
                 <input type="text" id="search" oninput="filterFolders()" autocomplete="off"
-                       placeholder="Search folders..." 
+                       placeholder="Connecting to GitHub API..." 
                        class="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg border border-gray-300 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
                 
                 <ul id="recommendations" class="absolute z-10 w-full bg-white mt-1 rounded-lg shadow-lg border border-gray-200 max-h-48 sm:max-h-60 overflow-y-auto empty:hidden text-sm sm:text-base"></ul>
@@ -69,7 +69,7 @@
                 <div class="bg-white p-4 sm:p-5 rounded-xl border border-gray-200 shadow-sm w-full overflow-hidden">
                     <h3 class="text-xs sm:text-sm font-semibold uppercase text-gray-400 mb-2">layout</h3>
                     <div class="bg-gray-50 rounded-lg p-3 sm:p-4 flex justify-center border border-gray-100 min-h-[12rem] sm:min-h-[16rem] items-center">
-                        <img id="img-content" class="max-h-72 sm:max-h-96 w-auto rounded object-contain" alt="Folder visual representation" />
+                        <img id="img-content" class="max-h-72 sm:max-h-96 w-auto rounded object-contain" alt="Biochip layout" />
                     </div>
                 </div>
 
@@ -84,6 +84,11 @@
     </div>
 
     <script>
+        // --- RUNTIME GITHUB API CONFIGURATION ---
+        const owner = 'desanju2233'; 
+        const repo = 'OpenBioSet';            
+        const apiEndpoint = `https://api.github.com/repos/${owner}/${repo}/contents/Dataset`;
+        
         let allFolders = [];
 
         async function init() {
@@ -92,11 +97,16 @@
             const countBadge = document.getElementById('protocol-count');
 
             try {
-                const response = await fetch('./Dataset/folders.json');
-                if (!response.ok) throw new Error("folders.json not found");
+                const response = await fetch(apiEndpoint);
+                if (!response.ok) throw new Error("GitHub API request failed");
                 
-                allFolders = await response.json();
-                allFolders.sort();
+                const data = await response.json();
+                
+                // Filter exclusively for directories and sort lexicographically
+                allFolders = data
+                    .filter(item => item.type === 'dir')
+                    .map(item => item.name)
+                    .sort();
                 
                 searchBar.placeholder = `Search ${allFolders.length} folders...`;
                 countBadge.textContent = allFolders.length;
@@ -112,8 +122,9 @@
                 });
 
             } catch (error) {
-                console.error("Error loading folders:", error);
-                searchBar.placeholder = "Error: folders.json not found!";
+                console.error("Error connecting to repository:", error);
+                searchBar.placeholder = "Error reading repository. Rate limit exceeded?";
+                sidebarList.innerHTML = `<li class="text-xs text-red-500 py-2">Could not fetch directories from GitHub API.</li>`;
             }
         }
 
@@ -144,7 +155,7 @@
             matches.forEach(name => {
                 const li = document.createElement('li');
                 li.textContent = name;
-                li.className = "px-3 sm:px-4 py-2 cursor-pointer hover:bg-gray-100 border-b border-gray-100 last:border-none truncate";
+                li.className = "px-3 sm:px-4 py-2 cursor-pointer hover:bg-gray-100 border-b border-gray-100 last:border-none truncate text-sm sm:text-base";
                 li.onclick = () => loadFiles(name);
                 list.appendChild(li);
             });
@@ -166,42 +177,40 @@
                 activeDrawerItem.className = "drawer-item text-xs sm:text-sm px-3 py-2 sm:py-2.5 rounded-lg cursor-pointer bg-blue-600 text-white font-medium shadow-sm block truncate";
             }
 
-            document.getElementById('txt-content').textContent = 'Loading text...';
+            document.getElementById('txt-content').textContent = 'Fetching text...';
             document.getElementById('img-content').src = '';
             document.getElementById('img-content').style.display = 'none'; 
-            document.getElementById('ir-content').textContent = 'Loading routing...';
+            document.getElementById('ir-content').textContent = 'Fetching routing...';
 
             try {
-                const txtRes = await fetch(`./Dataset/${folderName}/description.txt`);
-                document.getElementById('txt-content').textContent = txtRes.ok 
-                    ? await txtRes.text() 
-                    : `Error: Could not find description.txt`;
+                // Inspect specific target directory via API
+                const folderEndpoint = `${apiEndpoint}/${folderName}`;
+                const response = await fetch(folderEndpoint);
+                const files = await response.json();
 
-                const irRes = await fetch(`./Dataset/${folderName}/output.ir`);
-                document.getElementById('ir-content').textContent = irRes.ok 
-                    ? await irRes.text() 
-                    : `Error: Could not find output.ir`;
-
-                const imgEl = document.getElementById('img-content');
-                const extensions = ['.jpg', '.png', '.jpeg'];
-                
-                const tryLoadImage = (index) => {
-                    if (index >= extensions.length) {
-                        imgEl.style.display = 'none';
-                        return;
+                files.forEach(async file => {
+                    if (file.name.endsWith('.txt')) {
+                        const res = await fetch(file.download_url);
+                        document.getElementById('txt-content').textContent = await res.text();
+                    } 
+                    else if (file.name.endsWith('.ir')) {
+                        const res = await fetch(file.download_url);
+                        document.getElementById('ir-content').textContent = await res.text();
+                    } 
+                    else if (file.name.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                        document.getElementById('img-content').src = file.download_url;
+                        document.getElementById('img-content').style.display = 'block';
                     }
-                    imgEl.src = `./Dataset/${folderName}/layout${extensions[index]}`;
-                    imgEl.onload = () => { imgEl.style.display = 'block'; }; 
-                    imgEl.onerror = () => tryLoadImage(index + 1); 
-                };
-
-                tryLoadImage(0);
+                });
 
             } catch (error) {
-                console.error("Error fetching local files:", error);
+                console.error("Error retrieving target files:", error);
+                document.getElementById('txt-content').textContent = "Error loading folder contents.";
+                document.getElementById('ir-content').textContent = "Error loading folder contents.";
             }
         }
 
+        // Initialize API connection
         init();
     </script>
 </body>

@@ -1,15 +1,61 @@
 main:
-	a1[0] = dispense(pcr_mixture)
-	heat(a1[0]) @ 95.0CELSIUS @ 5.0SECOND
+	rna1[0] = dispense(rna_template)
+	primers1[0] = dispense(random_primers)
+	dn1[0] = dispense(dntps)
+	w11[0] = dispense(rnase_free_water)
+	t11[0] = mix(rna1[0], primers1[0]) @ 5.0SECOND
+	t21[0] = mix(t11[0], dn1[0]) @ 5.0SECOND
+	anneal_mix1[0] = mix(t21[0], w11[0]) @ 5.0SECOND
+	heat(anneal_mix1[0]) @ 65.0CELSIUS @ 300.0SECOND
+	heat(anneal_mix1[0]) @ 4.0CELSIUS @ 60.0SECOND
+	cocktail1[0] = dispense(cdna_synthesis_cocktail)
+	reaction1[0] = mix(anneal_mix1[0], cocktail1[0]) @ 5.0SECOND
+	parts1[2] = split(reaction1[0], 2)
+	rt1[0] = dispense(reverse_transcriptase)
+	rt_reaction1[0] = mix(parts1[0], rt1[0]) @ 5.0SECOND
+	w21[0] = dispense(rnase_free_water)
+	control_reaction1[0] = mix(parts1[1], w21[0]) @ 5.0SECOND
+	heat(rt_reaction1[0]) @ 25.0CELSIUS @ 600.0SECOND
+	heat(rt_reaction1[0]) @ 50.0CELSIUS @ 3000.0SECOND
+	heat(rt_reaction1[0]) @ 85.0CELSIUS @ 300.0SECOND
+	heat(control_reaction1[0]) @ 25.0CELSIUS @ 600.0SECOND
+	heat(control_reaction1[0]) @ 50.0CELSIUS @ 3000.0SECOND
+	heat(control_reaction1[0]) @ 85.0CELSIUS @ 300.0SECOND
+	rnh11[0] = dispense(rnaseh)
+	rt_cdna1[0] = mix(rt_reaction1[0], rnh11[0]) @ 5.0SECOND
+	heat(rt_cdna1[0]) @ 37.0CELSIUS @ 1200.0SECOND
+	rnh21[0] = dispense(rnaseh)
+	control_cdna1[0] = mix(control_reaction1[0], rnh21[0]) @ 5.0SECOND
+	heat(control_cdna1[0]) @ 37.0CELSIUS @ 1200.0SECOND
+	rb1[0] = dispense(reaction_buffer)
+	fp1[0] = dispense(forward_primers)
+	rp1[0] = dispense(reverse_primers)
+	w31[0] = dispense(rnase_free_water)
+	m11[0] = mix(rb1[0], fp1[0]) @ 5.0SECOND
+	m21[0] = mix(m11[0], rp1[0]) @ 5.0SECOND
+	mastermix1[0] = mix(m21[0], w31[0]) @ 5.0SECOND
+	qpcr1[0] = mix(mastermix1[0], rt_cdna1[0]) @ 5.0SECOND
+	heat(qpcr1[0]) @ 94.0CELSIUS @ 180.0SECOND
 bsbbr_2_h:
-	PHI REPEAT_201 = {REPEAT_200,REPEAT_202}
-	PHI a2 = {a1,a2}
-	if REPEAT_201[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+	PHI REPEAT_351 = {REPEAT_350,REPEAT_352}
+	PHI plate_read1 = {plate_read0,plate_read2}
+	PHI qpcr2 = {qpcr1,qpcr2}
+	if REPEAT_351[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
 bsbbr_3_t:
-	heat(a2[0]) @ 53.0CELSIUS @ 15.0SECOND
-	heat(a2[0]) @ 72.0CELSIUS @ 10.0SECOND
-	REPEAT_202[0] = REPEAT_201[0] - 1
+	heat(qpcr2[0]) @ 94.0CELSIUS @ 15.0SECOND
+	heat(qpcr2[0]) @ 53.0CELSIUS @ 30.0SECOND
+	heat(qpcr2[0]) @ 72.0CELSIUS @ 30.0SECOND
+	plate_read2[0] = detect(fluorescence, qpcr2[0]) @ 1.0SECOND
+	REPEAT_352[0] = REPEAT_351[0] - 1
 bsbbr_4_f:
-	x1[0] = detect(fluorescence, a2[0]) @ 180.0SECOND
-	dispose(a2[0])
+	heat(qpcr2[0]) @ 65.0CELSIUS @ 10.0SECOND
+	melt_11[0] = detect(fluorescence, qpcr2[0]) @ 1.0SECOND
+	heat(qpcr2[0]) @ 75.0CELSIUS @ 10.0SECOND
+	melt_21[0] = detect(fluorescence, qpcr2[0]) @ 1.0SECOND
+	heat(qpcr2[0]) @ 85.0CELSIUS @ 10.0SECOND
+	melt_31[0] = detect(fluorescence, qpcr2[0]) @ 1.0SECOND
+	heat(qpcr2[0]) @ 95.0CELSIUS @ 10.0SECOND
+	melt_41[0] = detect(fluorescence, qpcr2[0]) @ 1.0SECOND
+	dispose(qpcr2[0])
+	dispose(control_cdna1[0])
 	NOP

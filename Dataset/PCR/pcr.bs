@@ -1,17 +1,86 @@
 module fluorescence
-manifest pcr_mixture
+
+manifest rna_template
+manifest random_primers
+manifest dntps
+manifest rnase_free_water
+manifest cdna_synthesis_cocktail
+manifest reverse_transcriptase
+manifest rnaseh
+manifest reaction_buffer
+manifest forward_primers
+manifest reverse_primers
 
 instructions:
 
-a = dispense pcr_mixture
+rna = dispense rna_template
+primers = dispense random_primers
+dn = dispense dntps
+w1 = dispense rnase_free_water
 
-heat a at 95c for 5s
+t1 = mix rna with primers for 5s
+t2 = mix t1 with dn for 5s
+anneal_mix = mix t2 with w1 for 5s
 
-repeat 20 times {
-    heat a at 53c for 15s
-    heat a at 72c for 10s
+heat anneal_mix at 65c for 5m
+heat anneal_mix at 4c for 1m
+
+cocktail = dispense cdna_synthesis_cocktail
+reaction = mix anneal_mix with cocktail for 5s
+
+parts = split reaction into 2
+
+rt = dispense reverse_transcriptase
+rt_reaction = mix parts[0] with rt for 5s
+
+w2 = dispense rnase_free_water
+control_reaction = mix parts[1] with w2 for 5s
+
+heat rt_reaction at 25c for 10m
+heat rt_reaction at 50c for 50m
+heat rt_reaction at 85c for 5m
+
+heat control_reaction at 25c for 10m
+heat control_reaction at 50c for 50m
+heat control_reaction at 85c for 5m
+
+rnh1 = dispense rnaseh
+rt_cdna = mix rt_reaction with rnh1 for 5s
+heat rt_cdna at 37c for 20m
+
+rnh2 = dispense rnaseh
+control_cdna = mix control_reaction with rnh2 for 5s
+heat control_cdna at 37c for 20m
+
+
+rb = dispense reaction_buffer
+fp = dispense forward_primers
+rp = dispense reverse_primers
+w3 = dispense rnase_free_water
+
+m1 = mix rb with fp for 5s
+m2 = mix m1 with rp for 5s
+mastermix = mix m2 with w3 for 5s
+
+qpcr = mix mastermix with rt_cdna for 5s
+
+heat qpcr at 94c for 3m
+
+repeat 35 times {
+    heat qpcr at 94c for 15s
+    heat qpcr at 53c for 30s
+    heat qpcr at 72c for 30s
+    plate_read = detect fluorescence on qpcr for 1s
 }
 
-x = detect fluorescence on a for 3m
+heat qpcr at 65c for 10s
+melt_1 = detect fluorescence on qpcr for 1s
+heat qpcr at 75c for 10s
+melt_2 = detect fluorescence on qpcr for 1s
+heat qpcr at 85c for 10s
+melt_3 = detect fluorescence on qpcr for 1s
+heat qpcr at 95c for 10s
+melt_4 = detect fluorescence on qpcr for 1s
 
-dispose a
+dispose qpcr
+dispose control_cdna

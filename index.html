@@ -81,7 +81,7 @@
                     <div class="w-1 h-16 rounded-full bg-gray-200 group-hover:bg-blue-500 group-hover:scale-x-150 transition-all duration-150"></div>
                 </div>
 
-                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm w-full lg:w-auto lg:max-w-[55vw] min-w-[200px] overflow-hidden flex flex-col h-[65vh] xl:h-[75vh] justify-self-center">
+                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm w-full min-w-[200px] overflow-hidden flex flex-col h-[65vh] xl:h-[75vh]">
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3 shrink-0">visual layout</h3>
                     <div class="bg-gray-50 rounded-lg p-4 flex justify-center items-center border border-gray-100 flex-1 overflow-hidden min-h-[16rem]">
                         <img id="img-content" class="max-h-full max-w-full w-auto h-auto object-contain mx-auto block" alt="Graph layout" />
@@ -184,7 +184,7 @@
             document.getElementById('content-view').classList.remove('hidden');
             document.getElementById('folder-title').textContent = folderName;
             
-            // RESET MECHANIC: Clear manually dragged inline grid widths so new images auto-fit
+            // RESET MECHANIC: Clear inline styles so new images auto-fit naturally
             document.getElementById('resizable-grid').style.gridTemplateColumns = '';
 
             toggleSidebar(false);
@@ -229,7 +229,7 @@
             }
         }
 
-        // --- DRAGGABLE RESIZE ENGINE ---
+        // --- DRAGGABLE RESIZE ENGINE (FLUID FRACTIONS) ---
         function initResizers() {
             const grid = document.getElementById('resizable-grid');
             const resizerLeft = document.getElementById('resizer-left');
@@ -240,7 +240,6 @@
 
             const startResize = (e, resizer) => {
                 if (window.innerWidth < 1024) return;
-                
                 isResizing = true;
                 currentResizer = resizer;
                 document.body.classList.add('resizing');
@@ -254,24 +253,36 @@
                 if (!isResizing) return;
 
                 const cols = window.getComputedStyle(grid).gridTemplateColumns.split(' ');
+                const totalWidth = grid.clientWidth - 24; // Total usable width minus the two 12px handles
 
-                let leftWidth = parseFloat(cols[0]);
-                let centerWidth = parseFloat(cols[2]);
-                let rightWidth = parseFloat(cols[4]);
+                let leftPx = parseFloat(cols[0]);
+                let centerPx = parseFloat(cols[2]);
+                let rightPx = parseFloat(cols[4]);
 
-                const movementX = e.movementX;
+                const dx = e.movementX;
 
                 if (currentResizer === 'left') {
-                    const newLeft = leftWidth + movementX;
-                    const newCenter = centerWidth - movementX;
-                    if (newLeft > 180 && newCenter > 200) {
-                        grid.style.gridTemplateColumns = `${newLeft}px 12px ${newCenter}px 12px ${rightWidth}px`;
+                    let newLeftPx = leftPx + dx;
+                    let newCenterPx = centerPx - dx;
+
+                    if (newLeftPx > 180 && newCenterPx > 200) {
+                        // Convert live pixels into fluid fr ratios
+                        const leftFr = (newLeftPx / totalWidth) * 10;
+                        const centerFr = (newCenterPx / totalWidth) * 10;
+                        const rightFr = (rightPx / totalWidth) * 10;
+                        
+                        grid.style.gridTemplateColumns = `${leftFr}fr 12px ${centerFr}fr 12px ${rightFr}fr`;
                     }
                 } else if (currentResizer === 'right') {
-                    const newCenter = centerWidth + movementX;
-                    const newRight = rightWidth - movementX;
-                    if (newCenter > 200 && newRight > 180) {
-                        grid.style.gridTemplateColumns = `${leftWidth}px 12px ${newCenter}px 12px ${newRight}px`;
+                    let newCenterPx = centerPx + dx;
+                    let newRightPx = rightPx - dx;
+
+                    if (newCenterPx > 200 && newRightPx > 180) {
+                        const leftFr = (leftPx / totalWidth) * 10;
+                        const centerFr = (newCenterPx / totalWidth) * 10;
+                        const rightFr = (newRightPx / totalWidth) * 10;
+
+                        grid.style.gridTemplateColumns = `${leftFr}fr 12px ${centerFr}fr 12px ${rightFr}fr`;
                     }
                 }
             });

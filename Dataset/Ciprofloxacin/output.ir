@@ -1,0 +1,36 @@
+main:
+	s1[0] = dispense(sample)
+	ab1[0] = dispense(primary_antibody)
+	rxn_primary1[0] = mix(s1[0], ab1[0]) @ 60.0SECOND
+	heat(rxn_primary1[0]) @ 37.0CELSIUS @ 3600.0SECOND
+bsbbr_2_h:
+	PHI w11 = {w10,w12}
+	PHI REPEAT_31 = {REPEAT_30,REPEAT_32}
+	PHI rxn_primary2 = {rxn_primary1,rxn_primary3}
+	if REPEAT_31[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	w12[0] = dispense(wash_buffer)
+	rxn_primary3[0] = mix(rxn_primary2[0], w12[0]) @ 45.0SECOND
+	REPEAT_32[0] = REPEAT_31[0] - 1
+bsbbr_4_f:
+	sec1[0] = dispense(secondary_conjugate)
+	rxn_secondary1[0] = mix(rxn_primary2[0], sec1[0]) @ 60.0SECOND
+	heat(rxn_secondary1[0]) @ 37.0CELSIUS @ 1800.0SECOND
+bsbbr_5_h:
+	PHI w21 = {w20,w22}
+	PHI rxn_secondary2 = {rxn_secondary1,rxn_secondary3}
+	PHI REPEAT_33 = {REPEAT_31,REPEAT_34}
+	if REPEAT_33[0] > 0	|	true: jump bsbbr_6_t	|	false: jump bsbbr_7_f
+bsbbr_6_t:
+	w22[0] = dispense(wash_buffer)
+	rxn_secondary3[0] = mix(rxn_secondary2[0], w22[0]) @ 45.0SECOND
+	REPEAT_34[0] = REPEAT_33[0] - 1
+bsbbr_7_f:
+	tmb1[0] = dispense(tmb_substrate)
+	rxn_sub1[0] = mix(rxn_secondary2[0], tmb1[0]) @ 60.0SECOND
+	heat(rxn_sub1[0]) @ 23.0CELSIUS @ 600.0SECOND
+	stop1[0] = dispense(stop_solution)
+	rxn_final1[0] = mix(rxn_sub1[0], stop1[0]) @ 10.0SECOND
+	ciprofloxacin_reading1[0] = detect(absorbance, rxn_final1[0]) @ 60.0SECOND
+	dispose(rxn_final1[0])
+	NOP

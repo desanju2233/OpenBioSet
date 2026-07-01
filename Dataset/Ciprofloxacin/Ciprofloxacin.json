@@ -1,0 +1,56 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Indirect Competitive Enzyme-Linked Immunosorbent Assay (ci-ELISA) for Ciprofloxacin Detection\n\nREAGENTS USED:\n  - Sample (e.g., extracted animal tissue or fluid)\n  - Primary Antibody (Monoclonal antibody against Ciprofloxacin)\n  - Wash Buffer (PBST)\n  - Secondary Conjugate (HRP-conjugated goat anti-mouse serum)\n  - TMB Substrate\n  - Stop Solution (2M H2SO4)\n\nSTEPS:\n1. Primary Incubation: Add 50 units of the sample and 50 units of the primary antibody to the reaction zone. Mix for 60 seconds, then incubate at 37°C for 60 minutes. During this time, free ciprofloxacin in the sample competes with the immobilized plate antigen for the primary antibody.\n2. First Wash Cycle: Wash the reaction zone three times to remove unbound ciprofloxacin and unbound primary antibody. For each wash, add 300 units of wash buffer, mix for 45 seconds, and discard the wash supernatant.\n3. Secondary Incubation: Add 100 units of the secondary conjugate (enzyme-linked antibody) to the well. Mix for 60 seconds and incubate at 37°C for 30 minutes to allow it to bind to the retained primary antibodies.\n4. Second Wash Cycle: Wash the reaction zone three times with 300 units of wash buffer (mixing for 45 seconds each time) to remove any unbound secondary conjugate.\n5. Substrate Development: Add 100 units of TMB substrate to the retained mixture. Mix for 60 seconds and incubate at 23°C for 10 minutes to allow the colorimetric reaction to develop.\n6. Stop Reaction and Detection: Add 50 units of acid stop solution and mix for 10 seconds to halt the enzymatic reaction. Measure the resulting optical signal (absorbance) over 1 minute. Discard the final reaction mixture.\n\nINTERPRETATION: The final signal intensity (absorbance) is inversely proportional to the concentration of ciprofloxacin in the sample. A lower signal indicates a higher presence of ciprofloxacin, while a higher signal indicates little to no ciprofloxacin." },
+    { "role": "assistant", "content": "module absorbance\n\nmanifest sample\nmanifest primary_antibody\nmanifest wash_buffer\nmanifest secondary_conjugate\nmanifest tmb_substrate\nmanifest stop_solution\n\ninstructions:\n\n// Step 1: Competitive binding phase (Sample + Mab)\ns = dispense 50 units of sample\nab = dispense 50 units of primary_antibody\nrxn_primary = mix s with ab for 60s\nheat rxn_primary at 37c for 60m\n\n// Step 2: First wash cycle to remove unbound free CPFX and unbound Mab\nrepeat 3 times {\n    w1 = dispense 300 units of wash_buffer\n    rxn_primary = mix rxn_primary with w1 for 45s\n}\n\n// Step 3: Secondary antibody incubation (HRP-conjugated goat anti-mouse)\nsec = dispense 100 units of secondary_conjugate\nrxn_secondary = mix rxn_primary with sec for 60s\nheat rxn_secondary at 37c for 30m\n\n// Step 4: Second wash cycle to remove unbound secondary conjugate\nrepeat 3 times {\n    w2 = dispense 300 units of wash_buffer\n    rxn_secondary = mix rxn_secondary with w2 for 45s\n}\n\n// Step 5: Substrate development\ntmb = dispense 100 units of tmb_substrate\nrxn_sub = mix rxn_secondary with tmb for 60s\nheat rxn_sub at 23c for 10m\n\n// Step 6: Stop reaction and detection\nstop = dispense 50 units of stop_solution\nrxn_final = mix rxn_sub with stop for 10s\n\nciprofloxacin_reading = detect absorbance on rxn_final for 1m\ndispose rxn_final" }
+  ],
+  "metadata": {
+    "protocol_id": "elisa_ciprofloxacin_absorbance_001",
+    "bs_file": "tests/test_cases/elisa/ciprofloxacin.bs",
+    "protocol_name": "Ciprofloxacin ci-ELISA (Jiang et al. 2011)",
+    "category": "elisa",
+    "chemicals": [
+      "sample",
+      "primary_antibody",
+      "wash_buffer",
+      "secondary_conjugate",
+      "tmb_substrate",
+      "stop_solution"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "repeat",
+      "detect",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "original_protocol", "title": "Production and characterization of monoclonal antibodies against small hapten-ciprofloxacin", "publisher": "African Journal of Biotechnology", "url": "https://academicjournals.org/journal/AJB/article-abstract/7154E8335025", "doi": "10.5897/AJB11.1546" },
+      { "type": "demonstration_video", "title": "Ciprofloxacin ELISA Assay Demonstration", "url": "https://1drv.ms/v/s!AqwZF7jQGx_IgahKrD6EDWPbsy9G0g", "doi": "N/A" }
+    ],
+    "notes": "The authored BioScript code replaces the unverified, biochemically broken original .bs code. The new script is a valid translation of the ci-ELISA protocol by Jiang et al. (2011). It implements the 2-step indirect competitive architecture (sample + primary Mab -> wash -> secondary conjugate -> wash -> substrate). Reagent volumes (50 units sample, 50 units Mab), incubation parameters (37C for 60m, 37C for 30m), and the final absorbance detection method physically match the cited scientific methodology.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "primary_antibody", "source_quote": "50 µl of Mab... were added", "source_location": "MATERIALS AND METHODS: Characterization of antibody" },
+        { "bs_chemical": "sample", "source_quote": "and 50 µl CPFX... were further added", "source_location": "MATERIALS AND METHODS: Characterization of antibody" },
+        { "bs_chemical": "wash_buffer", "source_quote": "After three washes with PBST", "source_location": "MATERIALS AND METHODS: Indirect ELISA" },
+        { "bs_chemical": "secondary_conjugate", "source_quote": "incubated in the horseradish peroxidase conjugated goat anti-mouse serum", "source_location": "MATERIALS AND METHODS: Indirect ELISA" },
+        { "bs_chemical": "tmb_substrate", "source_quote": "developed in a substrate solution of TMB/H2O2", "source_location": "MATERIALS AND METHODS: Indirect ELISA" },
+        { "bs_chemical": "stop_solution", "source_quote": "stopped by the addition of 2 M H2SO4", "source_location": "MATERIALS AND METHODS: Indirect ELISA" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "heat rxn_primary at 37c for 60m", "source_quote": "for 1 h at 37°C", "source_location": "MATERIALS AND METHODS: Indirect ELISA" },
+        { "bs_operation": "repeat 3 times", "source_quote": "After three washes with PBST", "source_location": "MATERIALS AND METHODS: Indirect ELISA" },
+        { "bs_operation": "heat rxn_secondary at 37c for 30m", "source_quote": "for 0.5 h at 37°C", "source_location": "MATERIALS AND METHODS: Indirect ELISA" },
+        { "bs_operation": "heat rxn_sub at 23c for 10m", "source_quote": "for 10 min", "source_location": "MATERIALS AND METHODS: Indirect ELISA" },
+        { "bs_operation": "detect absorbance", "source_quote": "absorbance values were measured at 450 nm", "source_location": "MATERIALS AND METHODS: Indirect ELISA" }
+      ],
+      "numeric_mismatches": []
+    }
+  }
+}

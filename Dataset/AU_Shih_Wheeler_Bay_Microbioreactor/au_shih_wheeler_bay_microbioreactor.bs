@@ -1,0 +1,320 @@
+module densityDetection
+module viabilityDetection
+module transformationQC
+
+manifest E_coli
+manifest S_cerevisiae
+manifest C_cryptica
+manifest LB_Broth
+manifest YPD_Broth
+manifest F2_Media
+manifest EthidiumHomodimer1
+manifest TritonX100
+manifest pTriEx_YFP_Plasmid
+manifest CaCl2_Solution
+
+instructions:
+
+// ============================================================
+// Integrated Microbioreactor for Culture and Analysis of
+// Bacteria, Algae and Yeast ("BAY" microbioreactor).
+// Au, Shih, Wheeler - Biomed Microdevices (2011) 13:41-50
+// DOI: 10.1007/s10544-010-9469-3
+//
+// Protocol: automated digital-microfluidic (DMF) culture of
+// three microorganism types (E. coli, S. cerevisiae,
+// C. cryptica) in a ~70 uL "mother drop", with periodic
+// semi-continuous circular-path mixing, absorbance-based
+// density monitoring, an on-chip fluorescent viability assay
+// (EthD-1 +/- Triton X-100) for yeast, and on-chip genetic
+// transformation of E. coli with a YFP reporter plasmid.
+//
+// NOTE ON DAUGHTER-DROPLET ABSTRACTION: The paper dispenses
+// ~7 uL daughter droplets from the ~70 uL mother drop for
+// absorbance measurement, then returns them to the mother
+// drop afterward (Section 2.5, Fig. 2b). lilott8/BioScript
+// does not reliably support split/re-merge of a single mother
+// droplet without stranding fragments (see array/split
+// limitations noted in reference protocols). Absorbance
+// detection is therefore modelled directly on the culture
+// droplet itself (non-consumptive `detect`), which is
+// functionally equivalent to the daughter-droplet round trip
+// for CFG purposes.
+//
+// NOTE ON MIXING/INCUBATION ABSTRACTION: Semi-continuous
+// circular-path mixing (Fig. 2a, ~1.5 s actuation per cycle,
+// repeated at Table 1 intervals) is modelled as a single
+// short `mix` step (inoculation) followed by a `heat` step
+// at the culture temperature for the duration of one
+// absorbance-measurement interval (Table 1: bacteria 1 h,
+// yeast 2 h, algae 24 h), representing one representative
+// growth/measurement cycle rather than the full multi-day
+// unrolled loop (BioScript has no loop construct).
+//
+// CFG STRUCTURE:
+//   BB1  main            -- entry: bacteria culture + density check
+//   BB2  bactPass         -- bactGrowthSignal > 0: culture continues
+//   BB3  bactFail         -- bactGrowthSignal <= 0: contamination, drain
+//   BB4  bactJoin         -- join: yeast culture arm begins
+//   BB5  yeastPass        -- yeastGrowthSignal > 0: culture continues
+//   BB6  yeastFail        -- yeastGrowthSignal <= 0: contamination, drain
+//   BB7  yeastJoin        -- join: algae culture arm begins
+//   BB8  algaePass        -- algaeGrowthSignal > 0: culture continues
+//   BB9  algaeFail        -- algaeGrowthSignal <= 0: contamination, drain
+//   BB10 algaeJoin        -- join: yeast viability assay begins
+//   BB11 viabilityPass    -- viabilitySignal > 0: viable cells, dispose
+//   BB12 viabilityFail    -- viabilitySignal <= 0: non-viable, drain
+//   BB13 viabilityJoin    -- join: E. coli transformation begins
+//   BB14 transformPass    -- transformSignal > 0: colonies formed, dispose
+//   BB15 transformFail    -- transformSignal <= 0: no colonies, drain
+//   BB16 finalCleanup     -- terminal: dispose transformation QC signal
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// BACTERIA ARM (Section 2.2/2.5, Table 1): E. coli DH5alpha
+//   grown in LB broth at 37 C. Mother drop mixed in a circular
+//   pattern every 2.5 min; absorbance (600 nm) measured every
+//   1 h and used as the growth/contamination QC signal.
+// ------------------------------------------------------------
+
+motherDropBact  = dispense 1 units of E_coli
+lbMedia         = dispense 1 units of LB_Broth
+bactCulture     = mix motherDropBact with lbMedia for 5s
+
+// Represents one 1-h inter-measurement incubation interval
+// (Table 1: absorbance measurement frequency, bacteria = 1 h)
+// under semi-continuous circular mixing at 37 C.
+heat bactCulture at 37c for 60m
+
+bactGrowthSignal = detect densityDetection on bactCulture for 1s
+
+// ============================================================
+// BB2 / BB3: Bacteria growth QC gate
+// Pass (BB2): bactGrowthSignal > 0 -> absorbance increasing,
+//             culture proceeding normally; dispose (continue
+//             represented by disposal of this cycle's droplet).
+// Fail (BB3): bactGrowthSignal <= 0 -> no growth/contamination;
+//             drain.
+// Both branches converge at BB4 (bactJoin).
+// ============================================================
+
+if (bactGrowthSignal > 0) {
+    dispose bactCulture
+} else {
+    drain bactCulture
+}
+
+// ============================================================
+// BB4: bactJoin
+// Dispose bacteria growth QC signal. Control falls into the
+// yeast culture arm (BB5/BB6).
+// ============================================================
+
+dispose bactGrowthSignal
+
+// ------------------------------------------------------------
+// YEAST ARM (Section 2.2/2.5, Table 1): S. cerevisiae BY4741
+//   grown in YPD broth at 30 C. Mother drop mixed every
+//   2.5 min; absorbance (600 nm) measured every 2 h.
+// ------------------------------------------------------------
+
+motherDropYeast   = dispense 1 units of S_cerevisiae
+ypdMedia          = dispense 1 units of YPD_Broth
+yeastCulture      = mix motherDropYeast with ypdMedia for 5s
+
+// Represents one 2-h inter-measurement incubation interval
+// (Table 1: absorbance measurement frequency, yeast = 2 h).
+heat yeastCulture at 30c for 120m
+
+yeastGrowthSignal = detect densityDetection on yeastCulture for 1s
+
+// ============================================================
+// BB5 / BB6: Yeast growth QC gate
+// Pass (BB5): yeastGrowthSignal > 0 -> culture proceeding
+//             normally; dispose.
+// Fail (BB6): yeastGrowthSignal <= 0 -> no growth/contamination;
+//             drain.
+// Both branches converge at BB7 (yeastJoin).
+// ============================================================
+
+if (yeastGrowthSignal > 0) {
+    dispose yeastCulture
+} else {
+    drain yeastCulture
+}
+
+// ============================================================
+// BB7: yeastJoin
+// Dispose yeast growth QC signal. Control falls into the
+// algae culture arm (BB8/BB9).
+// ============================================================
+
+dispose yeastGrowthSignal
+
+// ------------------------------------------------------------
+// ALGAE ARM (Section 2.2/2.5, Table 1): C. cryptica grown in
+//   f/2 medium (+ biotin/cyanocobalamin) at 14 C under
+//   continuous illumination. Mother drop mixed every 120 min;
+//   absorbance (660 nm) measured every 24 h.
+// ------------------------------------------------------------
+
+motherDropAlgae   = dispense 1 units of C_cryptica
+f2Media           = dispense 1 units of F2_Media
+algaeCulture      = mix motherDropAlgae with f2Media for 5s
+
+// Represents one 24-h inter-measurement incubation interval
+// (Table 1: absorbance measurement frequency, algae = 24 h).
+heat algaeCulture at 14c for 1440m
+
+algaeGrowthSignal = detect densityDetection on algaeCulture for 1s
+
+// ============================================================
+// BB8 / BB9: Algae growth QC gate
+// Pass (BB8): algaeGrowthSignal > 0 -> culture proceeding
+//             normally; dispose.
+// Fail (BB9): algaeGrowthSignal <= 0 -> no growth/contamination;
+//             drain.
+// Both branches converge at BB10 (algaeJoin).
+// ============================================================
+
+if (algaeGrowthSignal > 0) {
+    dispose algaeCulture
+} else {
+    drain algaeCulture
+}
+
+// ============================================================
+// BB10: algaeJoin
+// Dispose algae growth QC signal. Control falls into the
+// yeast viability assay branch (BB11/BB12).
+// ============================================================
+
+dispose algaeGrowthSignal
+
+// ------------------------------------------------------------
+// VIABILITY ASSAY (Section 2.7): S. cerevisiae grown 4 h at
+//   30 C with automated mixing, then merged with a dispensed
+//   droplet containing 2 uM Ethidium homodimer-1 (EthD-1) and,
+//   for the lytic-control condition, 0.05% (v/v) Triton X-100.
+//   Combined droplet mixed along the linear path (~10
+//   actuations), incubated 30 C for 1 h, and read out by
+//   fluorescence (EthD-1 stains dead/compromised cells).
+// ------------------------------------------------------------
+
+yeastForAssay   = dispense 1 units of S_cerevisiae
+ypdMedia2       = dispense 1 units of YPD_Broth
+assayCulture    = mix yeastForAssay with ypdMedia2 for 5s
+
+// 4-h pre-assay incubation at 30 C with automated mixing.
+heat assayCulture at 30c for 240m
+
+ethd1Dye        = dispense 1 units of EthidiumHomodimer1
+tritonReagent   = dispense 1 units of TritonX100
+dyeTritonMix    = mix ethd1Dye with tritonReagent for 5s
+
+// Merge and mix along the linear path (~10 actuations).
+stainedYeast    = mix assayCulture with dyeTritonMix for 10s
+
+// Incubation at 30 C for 1 h prior to fluorescence readout.
+heat stainedYeast at 30c for 60m
+
+viabilitySignal = detect viabilityDetection on stainedYeast for 30s
+
+// ============================================================
+// BB11 / BB12: Viability QC gate
+// Pass (BB11): viabilitySignal > 0 -> viable cell population
+//              detected; dispose.
+// Fail (BB12): viabilitySignal <= 0 -> non-viable/compromised
+//              population (e.g. Triton X-100 lytic condition,
+//              >99% non-viable per Fig. 5); drain.
+// Both branches converge at BB13 (viabilityJoin).
+// ============================================================
+
+if (viabilitySignal > 0) {
+    dispose stainedYeast
+} else {
+    drain stainedYeast
+}
+
+// ============================================================
+// BB13: viabilityJoin
+// Dispose viability QC signal. Control falls into the E. coli
+// transformation branch (BB14/BB15).
+// ============================================================
+
+dispose viabilitySignal
+
+// ------------------------------------------------------------
+// TRANSFORMATION (Section 2.8): E. coli (without ampicillin
+//   resistance) grown 1 h at 37 C to early/mid-log phase, then
+//   chilled on ice 5 min. A droplet of pTriEx-YFP plasmid DNA
+//   (200 ng) in 0.20 M CaCl2 is merged with the culture droplet
+//   and mixed (~10 actuations). The combined droplet is chilled
+//   on ice 1 h, heat-shocked at 42 C for 50 s, cooled on ice for
+//   1 min, then incubated at 37 C for 1 h with automated mixing
+//   before being spread on an ampicillin LB agar plate
+//   (off-chip) to confirm successful transformation (Fig. 5d).
+// ------------------------------------------------------------
+
+competentEcoli  = dispense 1 units of E_coli
+lbMedia3        = dispense 1 units of LB_Broth
+transformCulture = mix competentEcoli with lbMedia3 for 5s
+
+// 1-h growth to early/mid-log phase at 37 C with mixing.
+heat transformCulture at 37c for 60m
+
+// Pre-chill on ice for 5 min prior to plasmid addition.
+heat transformCulture at 4c for 300s
+
+plasmidDrop      = dispense 1 units of pTriEx_YFP_Plasmid
+cacl2Drop        = dispense 1 units of CaCl2_Solution
+plasmidCacl2Mix  = mix plasmidDrop with cacl2Drop for 5s
+
+// Merge culture with plasmid/CaCl2 droplet, mixed along the
+// sample region path (~10 actuations).
+transformMix     = mix transformCulture with plasmidCacl2Mix for 10s
+
+// Chill on ice for 1 h.
+heat transformMix at 4c for 60m
+
+// Heat shock: 42 C for 50 s.
+heat transformMix at 42c for 50s
+
+// Cool on ice for an additional 1 min.
+heat transformMix at 4c for 60s
+
+// Recovery incubation: 37 C for 1 h with automated mixing.
+heat transformMix at 37c for 60m
+
+// Off-chip readout: droplet spread on ampicillin LB agar plate
+// and incubated overnight at 37 C; transformationQC abstracts
+// the resulting colony-formation observation (Fig. 5d).
+transformSignal  = detect transformationQC on transformMix for 30s
+
+// ============================================================
+// BB14 / BB15: Transformation QC gate
+// Pass (BB14): transformSignal > 0 -> ampicillin-resistant,
+//              YFP-expressing colonies observed; dispose.
+// Fail (BB15): transformSignal <= 0 -> no colonies (failed
+//              transformation); drain.
+// Both branches converge at BB16 (finalCleanup).
+// ============================================================
+
+if (transformSignal > 0) {
+    dispose transformMix
+} else {
+    drain transformMix
+}
+
+// ============================================================
+// BB16: finalCleanup (terminal)
+// Dispose transformation QC signal droplet; experiment ends.
+// ============================================================
+
+dispose transformSignal
+
+// [terminal -- no further instructions; exit node for CFG]

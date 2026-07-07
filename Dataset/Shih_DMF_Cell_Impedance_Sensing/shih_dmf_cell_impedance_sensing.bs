@@ -1,0 +1,968 @@
+module impedanceSensing
+module cellCountDetection
+
+manifest HeLa_Cells
+manifest CHO_K1_Cells
+manifest NIH3T3_Cells
+manifest CompleteMedia_DMEM
+manifest CompleteMedia_F12DMEM
+manifest SucroseBuffer
+manifest FCS_Stock
+manifest TrypsinEDTA
+manifest PluronicF68
+
+// ============================================================
+// Digital Microfluidics with Impedance Sensing for
+// Integrated Cell Culture and Analysis.
+// Shih, Barbulovic-Nad, Yang, Fobel, Wheeler.
+// Biosensors and Bioelectronics 42 (2013) 314-320.
+// DOI: 10.1016/j.bios.2012.10.035
+//
+// DMF device: 66 bottom-plate electrodes, ITO top plate with
+// 6 patterned 1 mm dia. hydrophilic cell-culture sites.
+// Unit droplet: ~1 uL. Virtual microwell: ~0.2 uL.
+// Cell media: DMEM + 10% FCS + pen/strep + 0.05% Pluronic F68.
+// Impedance sensing voltage (Vsense): 100 Vrms AC, 15 kHz.
+// Low-conductivity measurement medium: 500 mM aqueous sucrose
+//   (10 mM HEPES, 0.05% Pluronic F68, pH 7.4).
+// Passive dispensing (S1-S3): unit droplet translated across
+//   hydrophilic site -> spontaneous virtual microwell formation.
+// Reagent exchange (E1-E3): three-droplet sequential wash
+//   sequence to replace microwell contents without disturbing
+//   the cell monolayer.
+// All cell suspensions supplemented with 0.05% Pluronic F68
+//   (w/v) to prevent biofouling during DMF manipulation.
+//
+// THREE ASSAYS ENCODED IN SEQUENCE:
+//   ASSAY 1: Calibration -- three cell lines (HeLa, CHO-K1,
+//     NIH-3T3) seeded at three volumetric densities (0.5, 1.0,
+//     2.0 x 10^6 cells/mL). Vsense measured at 15 kHz after
+//     sucrose exchange. Regression: R2 >= 0.99 for all lines.
+//     LOD: 20-25 cells/mm2.
+//   ASSAY 2: Proliferation -- three cell lines seeded at
+//     0.25 x 10^6 cells/mL; Vsense measured at 24h intervals
+//     over 4 days. Vsense translated to surface density via
+//     calibration regression curves.
+//   ASSAY 3: Serum screening -- NIH-3T3 cells in dilution
+//     series of FCS (0.63%, 1.25%, 2.5%, 5%, 10%) generated
+//     on-chip; Vsense measured every 24h over 4 days.
+//     At 5% and 10% FCS, sigmoidal growth profiles observed.
+//
+// NOTE ON VIRTUAL MICROWELL ABSTRACTION:
+//   `mix` steps labelled "seeding" abstract the passive
+//   dispensing event (S1-S3): a unit droplet is driven over
+//   the hydrophilic ITO site, leaving a 0.2 uL virtual
+//   microwell containing cells. This is not reagent mixing
+//   in the DMF electrode sense.
+//
+// NOTE ON SUCROSE EXCHANGE ABSTRACTION:
+//   `mix` steps labelled "exchange" abstract the E1-E3
+//   three-droplet wash sequence. The sucrose buffer replaces
+//   the cell media immediately before impedance measurement;
+//   low-conductivity sucrose resolves density-dependent
+//   impedance differences that are undetectable in full media.
+//   Cells are exposed to sucrose for ~10 min (no viability
+//   impact for any cell type tested).
+//
+// NOTE ON INCUBATION:
+//   All cell culture incubations are at 37C / 5% CO2.
+//   BioScript `heat` abstracts closed incubator conditions.
+//   24h = 1440m; 6h = 360m.
+//
+// NOTE ON IMPEDANCE DETECTION:
+//   `detect impedanceSensing` abstracts applying 100 Vrms
+//   at 15 kHz to the cell-sensor electrode (bottom plate)
+//   relative to the ITO top plate, and recording Vsense.
+//   The feedback-control impedance circuit (Fig S1) is the
+//   same hardware repurposed for cell density measurement.
+//   `detect cellCountDetection` abstracts the microscopy-
+//   based cell count used to validate Vsense regression
+//   (ImageJ cell counting of surface density images).
+//
+// NOTE ON SERUM DILUTION (ASSAY 3):
+//   Five FCS concentrations (0.63%, 1.25%, 2.5%, 5%, 10%)
+//   are generated on-chip by the D1-D9 dilution program
+//   using 20% FCS as "reagent" and serum-free DMEM as
+//   "diluent". In BioScript, serial dilution is represented
+//   as explicit dispense + mix chains (compiler does not
+//   support parametric dilution loops). Each concentration
+//   is a separate named droplet variable.
+//
+// CFG STRUCTURE:
+//   BB1  main             -- entry: calibration assay
+//                           (3 cell lines x 3 densities)
+//   BB2  calibPass        -- calibSignal > 0: valid Vsense;
+//                           dispose; proceed to proliferation
+//   BB3  calibFail        -- calibSignal <= 0: no signal; drain
+//   BB4  calibJoin        -- join: proliferation assay begins
+//   BB5  prolifPass       -- prolifSignal > 0: growth detected;
+//                           dispose; proceed to serum assay
+//   BB6  prolifFail       -- prolifSignal <= 0: no growth; drain
+//   BB7  prolifJoin       -- join: serum screening assay begins
+//   BB8  serumPass        -- serumSignal > 0: valid growth curve;
+//                           dispose all serum droplets
+//   BB9  serumFail        -- serumSignal <= 0: no growth signal;
+//                           drain all serum droplets
+//   BB10 finalCleanup     -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// ASSAY 1 (CALIBRATION) -- STEP 1: Seed HeLa cells (low
+//   density, 0.5 x 10^6 cells/mL) onto virtual microwell 1.
+//   Passive dispensing (S1-S3) modelled as `mix` of cell
+//   suspension with complete DMEM over hydrophilic site.
+//   24h incubation at 37C to allow cell attachment and spread.
+// ------------------------------------------------------------
+
+helaLow_Media    = dispense 1 units of CompleteMedia_DMEM
+helaLow_Cells    = dispense 1 units of HeLa_Cells
+helaLow_Seeded   = mix helaLow_Cells with helaLow_Media for 5s
+
+heat helaLow_Seeded at 37c for 1440m
+
+// ------------------------------------------------------------
+// ASSAY 1 -- STEP 2: Exchange HeLa low-density microwell
+//   with sucrose buffer (E1-E3) prior to Vsense measurement.
+//   Three-droplet sequential wash modelled as single mix step.
+// ------------------------------------------------------------
+
+sucrose_helaLow     = dispense 1 units of SucroseBuffer
+helaLow_Exchanged   = mix helaLow_Seeded with sucrose_helaLow for 10s
+
+// Vsense at 15 kHz: 100 Vrms pulse, 1s duration.
+helaLow_Vsense      = detect impedanceSensing on helaLow_Exchanged for 1s
+
+// Microscopy QC: ImageJ cell count to validate surface density.
+helaLow_Count       = detect cellCountDetection on helaLow_Exchanged for 30s
+
+// ------------------------------------------------------------
+// ASSAY 1 -- STEP 3: Seed HeLa cells (mid density,
+//   1.0 x 10^6 cells/mL) onto virtual microwell 2.
+// ------------------------------------------------------------
+
+helaMid_Media    = dispense 1 units of CompleteMedia_DMEM
+helaMid_Cells    = dispense 1 units of HeLa_Cells
+helaMid_Seeded   = mix helaMid_Cells with helaMid_Media for 5s
+
+heat helaMid_Seeded at 37c for 1440m
+
+sucrose_helaMid     = dispense 1 units of SucroseBuffer
+helaMid_Exchanged   = mix helaMid_Seeded with sucrose_helaMid for 10s
+
+helaMid_Vsense      = detect impedanceSensing on helaMid_Exchanged for 1s
+helaMid_Count       = detect cellCountDetection on helaMid_Exchanged for 30s
+
+// ------------------------------------------------------------
+// ASSAY 1 -- STEP 4: Seed HeLa cells (high density,
+//   2.0 x 10^6 cells/mL) onto virtual microwell 3.
+// ------------------------------------------------------------
+
+helaHigh_Media   = dispense 1 units of CompleteMedia_DMEM
+helaHigh_Cells   = dispense 1 units of HeLa_Cells
+helaHigh_Seeded  = mix helaHigh_Cells with helaHigh_Media for 5s
+
+heat helaHigh_Seeded at 37c for 1440m
+
+sucrose_helaHigh    = dispense 1 units of SucroseBuffer
+helaHigh_Exchanged  = mix helaHigh_Seeded with sucrose_helaHigh for 10s
+
+helaHigh_Vsense     = detect impedanceSensing on helaHigh_Exchanged for 1s
+helaHigh_Count      = detect cellCountDetection on helaHigh_Exchanged for 30s
+
+// ------------------------------------------------------------
+// ASSAY 1 -- STEP 5: Seed NIH-3T3 cells (low density,
+//   0.5 x 10^6 cells/mL) onto virtual microwell 4.
+// ------------------------------------------------------------
+
+nih3t3Low_Media  = dispense 1 units of CompleteMedia_DMEM
+nih3t3Low_Cells  = dispense 1 units of NIH3T3_Cells
+nih3t3Low_Seeded = mix nih3t3Low_Cells with nih3t3Low_Media for 5s
+
+heat nih3t3Low_Seeded at 37c for 1440m
+
+sucrose_nih3t3Low     = dispense 1 units of SucroseBuffer
+nih3t3Low_Exchanged   = mix nih3t3Low_Seeded with sucrose_nih3t3Low for 10s
+
+nih3t3Low_Vsense      = detect impedanceSensing on nih3t3Low_Exchanged for 1s
+nih3t3Low_Count       = detect cellCountDetection on nih3t3Low_Exchanged for 30s
+
+// ------------------------------------------------------------
+// ASSAY 1 -- STEP 6: Seed NIH-3T3 cells (mid density,
+//   1.0 x 10^6 cells/mL) onto virtual microwell 5.
+// ------------------------------------------------------------
+
+nih3t3Mid_Media  = dispense 1 units of CompleteMedia_DMEM
+nih3t3Mid_Cells  = dispense 1 units of NIH3T3_Cells
+nih3t3Mid_Seeded = mix nih3t3Mid_Cells with nih3t3Mid_Media for 5s
+
+heat nih3t3Mid_Seeded at 37c for 1440m
+
+sucrose_nih3t3Mid     = dispense 1 units of SucroseBuffer
+nih3t3Mid_Exchanged   = mix nih3t3Mid_Seeded with sucrose_nih3t3Mid for 10s
+
+nih3t3Mid_Vsense      = detect impedanceSensing on nih3t3Mid_Exchanged for 1s
+nih3t3Mid_Count       = detect cellCountDetection on nih3t3Mid_Exchanged for 30s
+
+// ------------------------------------------------------------
+// ASSAY 1 -- STEP 7: Seed NIH-3T3 cells (high density,
+//   2.0 x 10^6 cells/mL) onto virtual microwell 6.
+// ------------------------------------------------------------
+
+nih3t3High_Media  = dispense 1 units of CompleteMedia_DMEM
+nih3t3High_Cells  = dispense 1 units of NIH3T3_Cells
+nih3t3High_Seeded = mix nih3t3High_Cells with nih3t3High_Media for 5s
+
+heat nih3t3High_Seeded at 37c for 1440m
+
+sucrose_nih3t3High    = dispense 1 units of SucroseBuffer
+nih3t3High_Exchanged  = mix nih3t3High_Seeded with sucrose_nih3t3High for 10s
+
+nih3t3High_Vsense     = detect impedanceSensing on nih3t3High_Exchanged for 1s
+nih3t3High_Count      = detect cellCountDetection on nih3t3High_Exchanged for 30s
+
+// ------------------------------------------------------------
+// ASSAY 1 -- STEP 8: Seed CHO-K1 cells (low density,
+//   0.5 x 10^6 cells/mL). Media: 50/50 v/v F-12/DMEM + 10%
+//   FCS + pen/strep + 0.05% Pluronic F68.
+// ------------------------------------------------------------
+
+choLow_Media   = dispense 1 units of CompleteMedia_F12DMEM
+choLow_Cells   = dispense 1 units of CHO_K1_Cells
+choLow_Seeded  = mix choLow_Cells with choLow_Media for 5s
+
+heat choLow_Seeded at 37c for 1440m
+
+sucrose_choLow    = dispense 1 units of SucroseBuffer
+choLow_Exchanged  = mix choLow_Seeded with sucrose_choLow for 10s
+
+choLow_Vsense     = detect impedanceSensing on choLow_Exchanged for 1s
+choLow_Count      = detect cellCountDetection on choLow_Exchanged for 30s
+
+// ------------------------------------------------------------
+// ASSAY 1 -- STEP 9: Seed CHO-K1 cells (mid density,
+//   1.0 x 10^6 cells/mL).
+// ------------------------------------------------------------
+
+choMid_Media   = dispense 1 units of CompleteMedia_F12DMEM
+choMid_Cells   = dispense 1 units of CHO_K1_Cells
+choMid_Seeded  = mix choMid_Cells with choMid_Media for 5s
+
+heat choMid_Seeded at 37c for 1440m
+
+sucrose_choMid    = dispense 1 units of SucroseBuffer
+choMid_Exchanged  = mix choMid_Seeded with sucrose_choMid for 10s
+
+choMid_Vsense     = detect impedanceSensing on choMid_Exchanged for 1s
+choMid_Count      = detect cellCountDetection on choMid_Exchanged for 30s
+
+// ------------------------------------------------------------
+// ASSAY 1 -- STEP 10: Seed CHO-K1 cells (high density,
+//   2.0 x 10^6 cells/mL).
+//   QC gate uses NIH-3T3 high-density signal as representative
+//   calibration signal (highest Vsense, clearest separation;
+//   paper Fig. 4b regression R2=0.9935 for NIH-3T3).
+// ------------------------------------------------------------
+
+choHigh_Media   = dispense 1 units of CompleteMedia_F12DMEM
+choHigh_Cells   = dispense 1 units of CHO_K1_Cells
+choHigh_Seeded  = mix choHigh_Cells with choHigh_Media for 5s
+
+heat choHigh_Seeded at 37c for 1440m
+
+sucrose_choHigh    = dispense 1 units of SucroseBuffer
+choHigh_Exchanged  = mix choHigh_Seeded with sucrose_choHigh for 10s
+
+choHigh_Vsense     = detect impedanceSensing on choHigh_Exchanged for 1s
+choHigh_Count      = detect cellCountDetection on choHigh_Exchanged for 30s
+
+// ============================================================
+// BB2 / BB3: Calibration QC gate
+// Pass (BB2): nih3t3High_Vsense > 0 -> valid Vsense detected
+//             (density-dependent impedance difference confirmed
+//             in sucrose; p < 0.001 for high vs low density);
+//             dispose all calibration droplets.
+// Fail (BB3): nih3t3High_Vsense <= 0 -> no impedance signal
+//             (possible: cell loss, electrode fouling, sucrose
+//             exchange failure); drain all.
+// Both branches converge at BB4 (calibJoin).
+// ============================================================
+
+if (nih3t3High_Vsense > 0) {
+    dispose helaLow_Exchanged
+    dispose helaMid_Exchanged
+    dispose helaHigh_Exchanged
+    dispose nih3t3Low_Exchanged
+    dispose nih3t3Mid_Exchanged
+    dispose nih3t3High_Exchanged
+    dispose choLow_Exchanged
+    dispose choMid_Exchanged
+    dispose choHigh_Exchanged
+} else {
+    drain helaLow_Exchanged
+    drain helaMid_Exchanged
+    drain helaHigh_Exchanged
+    drain nih3t3Low_Exchanged
+    drain nih3t3Mid_Exchanged
+    drain nih3t3High_Exchanged
+    drain choLow_Exchanged
+    drain choMid_Exchanged
+    drain choHigh_Exchanged
+}
+
+// ============================================================
+// BB4: calibJoin
+// Dispose all calibration Vsense and cell count signals.
+// Control falls into proliferation assay (BB5/BB6).
+// ============================================================
+
+dispose helaLow_Vsense
+dispose helaMid_Vsense
+dispose helaHigh_Vsense
+dispose nih3t3Low_Vsense
+dispose nih3t3Mid_Vsense
+// nih3t3High_Vsense consumed by QC gate if-condition above; do not re-dispose
+dispose choLow_Vsense
+dispose choMid_Vsense
+dispose choHigh_Vsense
+
+dispose helaLow_Count
+dispose helaMid_Count
+dispose helaHigh_Count
+dispose nih3t3Low_Count
+dispose nih3t3Mid_Count
+dispose nih3t3High_Count
+dispose choLow_Count
+dispose choMid_Count
+dispose choHigh_Count
+
+// ============================================================
+// ASSAY 2 (PROLIFERATION)
+// Three cell lines seeded at 0.25 x 10^6 cells/mL in virtual
+// microwells. Vsense measured at 24h, 48h, 72h, 96h.
+// Between each measurement: sucrose exchange -> measure ->
+// fresh media exchange -> 24h culture.
+// Paper result (Fig. 5a): NIH-3T3 and HeLa proliferate faster
+// than CHO-K1; consistent with standard macroscale culture.
+// Day 1: all cell lines below LOD (~20-25 cells/mm2).
+// Days 2-4: measurable surface densities obtained.
+// ============================================================
+
+// ------------------------------------------------------------
+// ASSAY 2 -- DAY 0: Seed all three cell lines at
+//   0.25 x 10^6 cells/mL. 24h incubation (1440m).
+// ------------------------------------------------------------
+
+prolif_HeLa_Media   = dispense 1 units of CompleteMedia_DMEM
+prolif_HeLa_Cells   = dispense 1 units of HeLa_Cells
+prolif_HeLa_Seeded  = mix prolif_HeLa_Cells with prolif_HeLa_Media for 5s
+
+heat prolif_HeLa_Seeded at 37c for 1440m
+
+prolif_NIH_Media   = dispense 1 units of CompleteMedia_DMEM
+prolif_NIH_Cells   = dispense 1 units of NIH3T3_Cells
+prolif_NIH_Seeded  = mix prolif_NIH_Cells with prolif_NIH_Media for 5s
+
+heat prolif_NIH_Seeded at 37c for 1440m
+
+prolif_CHO_Media   = dispense 1 units of CompleteMedia_F12DMEM
+prolif_CHO_Cells   = dispense 1 units of CHO_K1_Cells
+prolif_CHO_Seeded  = mix prolif_CHO_Cells with prolif_CHO_Media for 5s
+
+heat prolif_CHO_Seeded at 37c for 1440m
+
+// ------------------------------------------------------------
+// ASSAY 2 -- DAY 1 MEASUREMENT (24h): Sucrose exchange,
+//   Vsense at 15 kHz, then fresh media exchange, then 24h.
+// ------------------------------------------------------------
+
+suc_hela_d1    = dispense 1 units of SucroseBuffer
+hela_suc_d1    = mix prolif_HeLa_Seeded with suc_hela_d1 for 10s
+hela_vsense_d1 = detect impedanceSensing on hela_suc_d1 for 1s
+
+media_hela_d1   = dispense 1 units of CompleteMedia_DMEM
+hela_refresh_d1 = mix hela_suc_d1 with media_hela_d1 for 10s
+
+heat hela_refresh_d1 at 37c for 1440m
+
+suc_nih_d1    = dispense 1 units of SucroseBuffer
+nih_suc_d1    = mix prolif_NIH_Seeded with suc_nih_d1 for 10s
+nih_vsense_d1 = detect impedanceSensing on nih_suc_d1 for 1s
+
+media_nih_d1   = dispense 1 units of CompleteMedia_DMEM
+nih_refresh_d1 = mix nih_suc_d1 with media_nih_d1 for 10s
+
+heat nih_refresh_d1 at 37c for 1440m
+
+suc_cho_d1    = dispense 1 units of SucroseBuffer
+cho_suc_d1    = mix prolif_CHO_Seeded with suc_cho_d1 for 10s
+cho_vsense_d1 = detect impedanceSensing on cho_suc_d1 for 1s
+
+media_cho_d1   = dispense 1 units of CompleteMedia_F12DMEM
+cho_refresh_d1 = mix cho_suc_d1 with media_cho_d1 for 10s
+
+heat cho_refresh_d1 at 37c for 1440m
+
+// ------------------------------------------------------------
+// ASSAY 2 -- DAY 2 MEASUREMENT (48h): Sucrose exchange,
+//   Vsense, fresh media exchange, then 24h culture.
+// ------------------------------------------------------------
+
+suc_hela_d2    = dispense 1 units of SucroseBuffer
+hela_suc_d2    = mix hela_refresh_d1 with suc_hela_d2 for 10s
+hela_vsense_d2 = detect impedanceSensing on hela_suc_d2 for 1s
+
+media_hela_d2   = dispense 1 units of CompleteMedia_DMEM
+hela_refresh_d2 = mix hela_suc_d2 with media_hela_d2 for 10s
+
+heat hela_refresh_d2 at 37c for 1440m
+
+suc_nih_d2    = dispense 1 units of SucroseBuffer
+nih_suc_d2    = mix nih_refresh_d1 with suc_nih_d2 for 10s
+nih_vsense_d2 = detect impedanceSensing on nih_suc_d2 for 1s
+
+media_nih_d2   = dispense 1 units of CompleteMedia_DMEM
+nih_refresh_d2 = mix nih_suc_d2 with media_nih_d2 for 10s
+
+heat nih_refresh_d2 at 37c for 1440m
+
+suc_cho_d2    = dispense 1 units of SucroseBuffer
+cho_suc_d2    = mix cho_refresh_d1 with suc_cho_d2 for 10s
+cho_vsense_d2 = detect impedanceSensing on cho_suc_d2 for 1s
+
+media_cho_d2   = dispense 1 units of CompleteMedia_F12DMEM
+cho_refresh_d2 = mix cho_suc_d2 with media_cho_d2 for 10s
+
+heat cho_refresh_d2 at 37c for 1440m
+
+// ------------------------------------------------------------
+// ASSAY 2 -- DAY 3 MEASUREMENT (72h): Sucrose exchange,
+//   Vsense, fresh media exchange, then 24h culture.
+// ------------------------------------------------------------
+
+suc_hela_d3    = dispense 1 units of SucroseBuffer
+hela_suc_d3    = mix hela_refresh_d2 with suc_hela_d3 for 10s
+hela_vsense_d3 = detect impedanceSensing on hela_suc_d3 for 1s
+
+media_hela_d3   = dispense 1 units of CompleteMedia_DMEM
+hela_refresh_d3 = mix hela_suc_d3 with media_hela_d3 for 10s
+
+heat hela_refresh_d3 at 37c for 1440m
+
+suc_nih_d3    = dispense 1 units of SucroseBuffer
+nih_suc_d3    = mix nih_refresh_d2 with suc_nih_d3 for 10s
+nih_vsense_d3 = detect impedanceSensing on nih_suc_d3 for 1s
+
+media_nih_d3   = dispense 1 units of CompleteMedia_DMEM
+nih_refresh_d3 = mix nih_suc_d3 with media_nih_d3 for 10s
+
+heat nih_refresh_d3 at 37c for 1440m
+
+suc_cho_d3    = dispense 1 units of SucroseBuffer
+cho_suc_d3    = mix cho_refresh_d2 with suc_cho_d3 for 10s
+cho_vsense_d3 = detect impedanceSensing on cho_suc_d3 for 1s
+
+media_cho_d3   = dispense 1 units of CompleteMedia_F12DMEM
+cho_refresh_d3 = mix cho_suc_d3 with media_cho_d3 for 10s
+
+heat cho_refresh_d3 at 37c for 1440m
+
+// ------------------------------------------------------------
+// ASSAY 2 -- DAY 4 MEASUREMENT (96h): Final Vsense.
+//   No further media refresh needed; experiment ends.
+//   QC gate uses NIH-3T3 Day 4 signal (highest expected
+//   surface density; paper Fig. 5a: NIH-3T3 fastest growth).
+// ------------------------------------------------------------
+
+suc_hela_d4    = dispense 1 units of SucroseBuffer
+hela_suc_d4    = mix hela_refresh_d3 with suc_hela_d4 for 10s
+hela_vsense_d4 = detect impedanceSensing on hela_suc_d4 for 1s
+
+suc_nih_d4    = dispense 1 units of SucroseBuffer
+nih_suc_d4    = mix nih_refresh_d3 with suc_nih_d4 for 10s
+nih_vsense_d4 = detect impedanceSensing on nih_suc_d4 for 1s
+
+suc_cho_d4    = dispense 1 units of SucroseBuffer
+cho_suc_d4    = mix cho_refresh_d3 with suc_cho_d4 for 10s
+cho_vsense_d4 = detect impedanceSensing on cho_suc_d4 for 1s
+
+// ============================================================
+// BB5 / BB6: Proliferation QC gate
+// Pass (BB5): nih_vsense_d4 > 0 -> measurable cell density
+//             at Day 4; growth curves confirmed; dispose.
+// Fail (BB6): nih_vsense_d4 <= 0 -> no measurable growth
+//             (below LOD at Day 4; possible contamination
+//             or excessive cell loss); drain.
+// Both branches converge at BB7 (prolifJoin).
+// ============================================================
+
+if (nih_vsense_d4 > 0) {
+    dispose hela_suc_d4
+    dispose nih_suc_d4
+    dispose cho_suc_d4
+} else {
+    drain hela_suc_d4
+    drain nih_suc_d4
+    drain cho_suc_d4
+}
+
+// ============================================================
+// BB7: prolifJoin
+// Dispose all proliferation Vsense signals.
+// Control falls into serum screening assay (BB8/BB9).
+// ============================================================
+
+dispose hela_vsense_d1
+dispose hela_vsense_d2
+dispose hela_vsense_d3
+dispose hela_vsense_d4
+
+dispose nih_vsense_d1
+dispose nih_vsense_d2
+dispose nih_vsense_d3
+// nih_vsense_d4 consumed by QC gate if-condition above; do not re-dispose
+
+dispose cho_vsense_d1
+dispose cho_vsense_d2
+dispose cho_vsense_d3
+dispose cho_vsense_d4
+
+// ============================================================
+// ASSAY 3 (SERUM SCREENING)
+// NIH-3T3 cells seeded at 0.25 x 10^5 cells/mL in complete
+// media, cultured 6h (initial attachment), then five FCS
+// concentrations generated on-chip by D1-D9 dilution program
+// (20% FCS stock as "reagent", serum-free DMEM as "diluent").
+// In BioScript: serial dilution encoded as explicit chains.
+//
+// Target concentrations: 10%, 5%, 2.5%, 1.25%, 0.625% FCS.
+// Generation scheme (from 20% FCS stock + serum-free diluent):
+//   10%  FCS: 1 part FCS_Stock (20%) + 1 part diluent = 10%
+//   5%   FCS: 1 part 10% mix + 1 part diluent = 5%
+//   2.5% FCS: 1 part 5% mix + 1 part diluent = 2.5%
+//   1.25% FCS: 1 part 2.5% mix + 1 part diluent = 1.25%
+//   0.625% FCS: 1 part 1.25% mix + 1 part diluent = 0.625%
+//   (FCS_Stock here represents 20% FCS in serum-free DMEM.)
+//
+// Vsense measured at 24h, 48h, 72h, 96h post-serum-exchange.
+// Paper result (Fig. 6a): 5% and 10% FCS -> sigmoidal growth;
+// 0.625%-2.5% -> flat/declining profiles (poor proliferation).
+// QC gate uses 10% FCS condition (highest expected Vsense).
+// ============================================================
+
+// ------------------------------------------------------------
+// ASSAY 3 -- STEP 1: Seed NIH-3T3 cells (0.25 x 10^5
+//   cells/mL) and allow 6h attachment in complete DMEM.
+//   NOTE: 0.25 x 10^5 cells/mL (serum screening) is 10x lower
+//   than the proliferation assay density (0.25 x 10^6);
+//   paper Section 2.4 specifies 0.25 x 10^5 for this assay.
+// ------------------------------------------------------------
+
+serum_NIH_Media   = dispense 1 units of CompleteMedia_DMEM
+serum_NIH_Cells   = dispense 1 units of NIH3T3_Cells
+serum_NIH_Seeded  = mix serum_NIH_Cells with serum_NIH_Media for 5s
+
+// 6h attachment incubation (360m).
+heat serum_NIH_Seeded at 37c for 360m
+
+// ------------------------------------------------------------
+// ASSAY 3 -- STEP 2: Generate five FCS concentrations on-chip
+//   via serial dilution (D1-D9 program abstraction).
+//   Each named droplet represents a unique assay microwell.
+// ------------------------------------------------------------
+
+// 10% FCS: 1 unit FCS_Stock (20%) + 1 unit serum-free DMEM.
+fcs_stock_1     = dispense 1 units of FCS_Stock
+diluent_for10   = dispense 1 units of CompleteMedia_DMEM
+fcs10_drop      = mix fcs_stock_1 with diluent_for10 for 5s
+
+// 5% FCS: 1 unit 10% mix + 1 unit diluent.
+fcs_stock_2     = dispense 1 units of FCS_Stock
+diluent_a1      = dispense 1 units of CompleteMedia_DMEM
+fcs10_for5      = mix fcs_stock_2 with diluent_a1 for 5s
+diluent_b1      = dispense 1 units of CompleteMedia_DMEM
+fcs5_drop       = mix fcs10_for5 with diluent_b1 for 5s
+
+// 2.5% FCS: serial dilution from 5%.
+fcs_stock_3     = dispense 1 units of FCS_Stock
+diluent_a2      = dispense 1 units of CompleteMedia_DMEM
+fcs10_for25     = mix fcs_stock_3 with diluent_a2 for 5s
+diluent_b2      = dispense 1 units of CompleteMedia_DMEM
+fcs5_for25      = mix fcs10_for25 with diluent_b2 for 5s
+diluent_c1      = dispense 1 units of CompleteMedia_DMEM
+fcs25_drop      = mix fcs5_for25 with diluent_c1 for 5s
+
+// 1.25% FCS: serial dilution from 2.5%.
+fcs_stock_4     = dispense 1 units of FCS_Stock
+diluent_a3      = dispense 1 units of CompleteMedia_DMEM
+fcs10_for125    = mix fcs_stock_4 with diluent_a3 for 5s
+diluent_b3      = dispense 1 units of CompleteMedia_DMEM
+fcs5_for125     = mix fcs10_for125 with diluent_b3 for 5s
+diluent_c2      = dispense 1 units of CompleteMedia_DMEM
+fcs25_for125    = mix fcs5_for125 with diluent_c2 for 5s
+diluent_d1      = dispense 1 units of CompleteMedia_DMEM
+fcs125_drop     = mix fcs25_for125 with diluent_d1 for 5s
+
+// 0.625% FCS: serial dilution from 1.25%.
+fcs_stock_5     = dispense 1 units of FCS_Stock
+diluent_a4      = dispense 1 units of CompleteMedia_DMEM
+fcs10_for0625   = mix fcs_stock_5 with diluent_a4 for 5s
+diluent_b4      = dispense 1 units of CompleteMedia_DMEM
+fcs5_for0625    = mix fcs10_for0625 with diluent_b4 for 5s
+diluent_c3      = dispense 1 units of CompleteMedia_DMEM
+fcs25_for0625   = mix fcs5_for0625 with diluent_c3 for 5s
+diluent_d2      = dispense 1 units of CompleteMedia_DMEM
+fcs125_for0625  = mix fcs25_for0625 with diluent_d2 for 5s
+diluent_e1      = dispense 1 units of CompleteMedia_DMEM
+fcs0625_drop    = mix fcs125_for0625 with diluent_e1 for 5s
+
+// ------------------------------------------------------------
+// ASSAY 3 -- STEP 3: Exchange each seeded microwell with its
+//   respective FCS concentration droplet (D1-D9 abstraction).
+//   Each microwell now contains NIH-3T3 cells in its assigned
+//   serum concentration. Incubate 24h (first culture period).
+// ------------------------------------------------------------
+
+// Replicate seeded cells for each concentration channel.
+// (Paper: 5-plex; seeded cells split to 5 virtual microwells.)
+// BioScript: each channel uses the same initial seed droplet
+// reference (serum_NIH_Seeded) mixed with its media droplet,
+// representing independent virtual microwells on the device.
+
+serum_NIH_2    = dispense 1 units of NIH3T3_Cells
+serum_NIH_3    = dispense 1 units of NIH3T3_Cells
+serum_NIH_4    = dispense 1 units of NIH3T3_Cells
+serum_NIH_5    = dispense 1 units of NIH3T3_Cells
+
+well10_d0   = mix serum_NIH_Seeded with fcs10_drop for 5s
+well5_d0    = mix serum_NIH_2 with fcs5_drop for 5s
+well25_d0   = mix serum_NIH_3 with fcs25_drop for 5s
+well125_d0  = mix serum_NIH_4 with fcs125_drop for 5s
+well0625_d0 = mix serum_NIH_5 with fcs0625_drop for 5s
+
+heat well10_d0 at 37c for 1440m
+heat well5_d0 at 37c for 1440m
+heat well25_d0 at 37c for 1440m
+heat well125_d0 at 37c for 1440m
+heat well0625_d0 at 37c for 1440m
+
+// ------------------------------------------------------------
+// ASSAY 3 -- DAY 1 MEASUREMENT (24h post-serum-exchange):
+//   Sucrose exchange, Vsense, regenerate FCS droplets on-chip,
+//   exchange back, 24h culture.
+// ------------------------------------------------------------
+
+suc_10_d1    = dispense 1 units of SucroseBuffer
+well10_suc_d1  = mix well10_d0 with suc_10_d1 for 10s
+vsense_10_d1   = detect impedanceSensing on well10_suc_d1 for 1s
+
+suc_5_d1     = dispense 1 units of SucroseBuffer
+well5_suc_d1   = mix well5_d0 with suc_5_d1 for 10s
+vsense_5_d1    = detect impedanceSensing on well5_suc_d1 for 1s
+
+suc_25_d1    = dispense 1 units of SucroseBuffer
+well25_suc_d1  = mix well25_d0 with suc_25_d1 for 10s
+vsense_25_d1   = detect impedanceSensing on well25_suc_d1 for 1s
+
+suc_125_d1   = dispense 1 units of SucroseBuffer
+well125_suc_d1 = mix well125_d0 with suc_125_d1 for 10s
+vsense_125_d1  = detect impedanceSensing on well125_suc_d1 for 1s
+
+suc_0625_d1  = dispense 1 units of SucroseBuffer
+well0625_suc_d1 = mix well0625_d0 with suc_0625_d1 for 10s
+vsense_0625_d1  = detect impedanceSensing on well0625_suc_d1 for 1s
+
+// Regenerate FCS media droplets for Day 1 refresh.
+rfcs10_d1   = dispense 1 units of FCS_Stock
+rdil10_d1   = dispense 1 units of CompleteMedia_DMEM
+rfcs10_drop_d1 = mix rfcs10_d1 with rdil10_d1 for 5s
+
+rfcs5_a_d1  = dispense 1 units of FCS_Stock
+rfcs5_b_d1  = dispense 1 units of CompleteMedia_DMEM
+rfcs10_5_d1 = mix rfcs5_a_d1 with rfcs5_b_d1 for 5s
+rfcs5_c_d1  = dispense 1 units of CompleteMedia_DMEM
+rfcs5_drop_d1  = mix rfcs10_5_d1 with rfcs5_c_d1 for 5s
+
+rfcs25_a_d1 = dispense 1 units of FCS_Stock
+rfcs25_b_d1 = dispense 1 units of CompleteMedia_DMEM
+rfcs25_10_d1 = mix rfcs25_a_d1 with rfcs25_b_d1 for 5s
+rfcs25_c_d1 = dispense 1 units of CompleteMedia_DMEM
+rfcs25_5_d1 = mix rfcs25_10_d1 with rfcs25_c_d1 for 5s
+rfcs25_d_d1 = dispense 1 units of CompleteMedia_DMEM
+rfcs25_drop_d1 = mix rfcs25_5_d1 with rfcs25_d_d1 for 5s
+
+rfcs125_a_d1 = dispense 1 units of FCS_Stock
+rfcs125_b_d1 = dispense 1 units of CompleteMedia_DMEM
+r10_125_d1   = mix rfcs125_a_d1 with rfcs125_b_d1 for 5s
+rfcs125_c_d1 = dispense 1 units of CompleteMedia_DMEM
+r5_125_d1    = mix r10_125_d1 with rfcs125_c_d1 for 5s
+rfcs125_d_d1 = dispense 1 units of CompleteMedia_DMEM
+r25_125_d1   = mix r5_125_d1 with rfcs125_d_d1 for 5s
+rfcs125_e_d1 = dispense 1 units of CompleteMedia_DMEM
+rfcs125_drop_d1 = mix r25_125_d1 with rfcs125_e_d1 for 5s
+
+rfcs0625_a_d1 = dispense 1 units of FCS_Stock
+rfcs0625_b_d1 = dispense 1 units of CompleteMedia_DMEM
+r10_0625_d1   = mix rfcs0625_a_d1 with rfcs0625_b_d1 for 5s
+rfcs0625_c_d1 = dispense 1 units of CompleteMedia_DMEM
+r5_0625_d1    = mix r10_0625_d1 with rfcs0625_c_d1 for 5s
+rfcs0625_d_d1 = dispense 1 units of CompleteMedia_DMEM
+r25_0625_d1   = mix r5_0625_d1 with rfcs0625_d_d1 for 5s
+rfcs0625_e_d1 = dispense 1 units of CompleteMedia_DMEM
+r125_0625_d1  = mix r25_0625_d1 with rfcs0625_e_d1 for 5s
+rfcs0625_f_d1 = dispense 1 units of CompleteMedia_DMEM
+rfcs0625_drop_d1 = mix r125_0625_d1 with rfcs0625_f_d1 for 5s
+
+well10_d1   = mix well10_suc_d1 with rfcs10_drop_d1 for 10s
+well5_d1    = mix well5_suc_d1 with rfcs5_drop_d1 for 10s
+well25_d1   = mix well25_suc_d1 with rfcs25_drop_d1 for 10s
+well125_d1  = mix well125_suc_d1 with rfcs125_drop_d1 for 10s
+well0625_d1 = mix well0625_suc_d1 with rfcs0625_drop_d1 for 10s
+
+heat well10_d1 at 37c for 1440m
+heat well5_d1 at 37c for 1440m
+heat well25_d1 at 37c for 1440m
+heat well125_d1 at 37c for 1440m
+heat well0625_d1 at 37c for 1440m
+
+// ------------------------------------------------------------
+// ASSAY 3 -- DAY 2 MEASUREMENT (48h): Sucrose, Vsense,
+//   regenerate FCS media, refresh, 24h culture.
+// ------------------------------------------------------------
+
+suc_10_d2    = dispense 1 units of SucroseBuffer
+well10_suc_d2  = mix well10_d1 with suc_10_d2 for 10s
+vsense_10_d2   = detect impedanceSensing on well10_suc_d2 for 1s
+
+suc_5_d2     = dispense 1 units of SucroseBuffer
+well5_suc_d2   = mix well5_d1 with suc_5_d2 for 10s
+vsense_5_d2    = detect impedanceSensing on well5_suc_d2 for 1s
+
+suc_25_d2    = dispense 1 units of SucroseBuffer
+well25_suc_d2  = mix well25_d1 with suc_25_d2 for 10s
+vsense_25_d2   = detect impedanceSensing on well25_suc_d2 for 1s
+
+suc_125_d2   = dispense 1 units of SucroseBuffer
+well125_suc_d2 = mix well125_d1 with suc_125_d2 for 10s
+vsense_125_d2  = detect impedanceSensing on well125_suc_d2 for 1s
+
+suc_0625_d2  = dispense 1 units of SucroseBuffer
+well0625_suc_d2 = mix well0625_d1 with suc_0625_d2 for 10s
+vsense_0625_d2  = detect impedanceSensing on well0625_suc_d2 for 1s
+
+rfcs10_d2   = dispense 1 units of FCS_Stock
+rdil10_d2   = dispense 1 units of CompleteMedia_DMEM
+rfcs10_drop_d2 = mix rfcs10_d2 with rdil10_d2 for 5s
+
+rfcs5_a_d2  = dispense 1 units of FCS_Stock
+rfcs5_b_d2  = dispense 1 units of CompleteMedia_DMEM
+rfcs10_5_d2 = mix rfcs5_a_d2 with rfcs5_b_d2 for 5s
+rfcs5_c_d2  = dispense 1 units of CompleteMedia_DMEM
+rfcs5_drop_d2  = mix rfcs10_5_d2 with rfcs5_c_d2 for 5s
+
+rfcs25_a_d2 = dispense 1 units of FCS_Stock
+rfcs25_b_d2 = dispense 1 units of CompleteMedia_DMEM
+rfcs25_10_d2 = mix rfcs25_a_d2 with rfcs25_b_d2 for 5s
+rfcs25_c_d2 = dispense 1 units of CompleteMedia_DMEM
+rfcs25_5_d2 = mix rfcs25_10_d2 with rfcs25_c_d2 for 5s
+rfcs25_d_d2 = dispense 1 units of CompleteMedia_DMEM
+rfcs25_drop_d2 = mix rfcs25_5_d2 with rfcs25_d_d2 for 5s
+
+rfcs125_a_d2 = dispense 1 units of FCS_Stock
+rfcs125_b_d2 = dispense 1 units of CompleteMedia_DMEM
+r10_125_d2   = mix rfcs125_a_d2 with rfcs125_b_d2 for 5s
+rfcs125_c_d2 = dispense 1 units of CompleteMedia_DMEM
+r5_125_d2    = mix r10_125_d2 with rfcs125_c_d2 for 5s
+rfcs125_d_d2 = dispense 1 units of CompleteMedia_DMEM
+r25_125_d2   = mix r5_125_d2 with rfcs125_d_d2 for 5s
+rfcs125_e_d2 = dispense 1 units of CompleteMedia_DMEM
+rfcs125_drop_d2 = mix r25_125_d2 with rfcs125_e_d2 for 5s
+
+rfcs0625_a_d2 = dispense 1 units of FCS_Stock
+rfcs0625_b_d2 = dispense 1 units of CompleteMedia_DMEM
+r10_0625_d2   = mix rfcs0625_a_d2 with rfcs0625_b_d2 for 5s
+rfcs0625_c_d2 = dispense 1 units of CompleteMedia_DMEM
+r5_0625_d2    = mix r10_0625_d2 with rfcs0625_c_d2 for 5s
+rfcs0625_d_d2 = dispense 1 units of CompleteMedia_DMEM
+r25_0625_d2   = mix r5_0625_d2 with rfcs0625_d_d2 for 5s
+rfcs0625_e_d2 = dispense 1 units of CompleteMedia_DMEM
+r125_0625_d2  = mix r25_0625_d2 with rfcs0625_e_d2 for 5s
+rfcs0625_f_d2 = dispense 1 units of CompleteMedia_DMEM
+rfcs0625_drop_d2 = mix r125_0625_d2 with rfcs0625_f_d2 for 5s
+
+well10_d2   = mix well10_suc_d2 with rfcs10_drop_d2 for 10s
+well5_d2    = mix well5_suc_d2 with rfcs5_drop_d2 for 10s
+well25_d2   = mix well25_suc_d2 with rfcs25_drop_d2 for 10s
+well125_d2  = mix well125_suc_d2 with rfcs125_drop_d2 for 10s
+well0625_d2 = mix well0625_suc_d2 with rfcs0625_drop_d2 for 10s
+
+heat well10_d2 at 37c for 1440m
+heat well5_d2 at 37c for 1440m
+heat well25_d2 at 37c for 1440m
+heat well125_d2 at 37c for 1440m
+heat well0625_d2 at 37c for 1440m
+
+// ------------------------------------------------------------
+// ASSAY 3 -- DAY 3 MEASUREMENT (72h): Final Vsense before
+//   last culture period. Regenerate FCS media and refresh.
+// ------------------------------------------------------------
+
+suc_10_d3    = dispense 1 units of SucroseBuffer
+well10_suc_d3  = mix well10_d2 with suc_10_d3 for 10s
+vsense_10_d3   = detect impedanceSensing on well10_suc_d3 for 1s
+
+suc_5_d3     = dispense 1 units of SucroseBuffer
+well5_suc_d3   = mix well5_d2 with suc_5_d3 for 10s
+vsense_5_d3    = detect impedanceSensing on well5_suc_d3 for 1s
+
+suc_25_d3    = dispense 1 units of SucroseBuffer
+well25_suc_d3  = mix well25_d2 with suc_25_d3 for 10s
+vsense_25_d3   = detect impedanceSensing on well25_suc_d3 for 1s
+
+suc_125_d3   = dispense 1 units of SucroseBuffer
+well125_suc_d3 = mix well125_d2 with suc_125_d3 for 10s
+vsense_125_d3  = detect impedanceSensing on well125_suc_d3 for 1s
+
+suc_0625_d3  = dispense 1 units of SucroseBuffer
+well0625_suc_d3 = mix well0625_d2 with suc_0625_d3 for 10s
+vsense_0625_d3  = detect impedanceSensing on well0625_suc_d3 for 1s
+
+rfcs10_d3   = dispense 1 units of FCS_Stock
+rdil10_d3   = dispense 1 units of CompleteMedia_DMEM
+rfcs10_drop_d3 = mix rfcs10_d3 with rdil10_d3 for 5s
+
+rfcs5_a_d3  = dispense 1 units of FCS_Stock
+rfcs5_b_d3  = dispense 1 units of CompleteMedia_DMEM
+rfcs10_5_d3 = mix rfcs5_a_d3 with rfcs5_b_d3 for 5s
+rfcs5_c_d3  = dispense 1 units of CompleteMedia_DMEM
+rfcs5_drop_d3  = mix rfcs10_5_d3 with rfcs5_c_d3 for 5s
+
+rfcs25_a_d3 = dispense 1 units of FCS_Stock
+rfcs25_b_d3 = dispense 1 units of CompleteMedia_DMEM
+rfcs25_10_d3 = mix rfcs25_a_d3 with rfcs25_b_d3 for 5s
+rfcs25_c_d3 = dispense 1 units of CompleteMedia_DMEM
+rfcs25_5_d3 = mix rfcs25_10_d3 with rfcs25_c_d3 for 5s
+rfcs25_d_d3 = dispense 1 units of CompleteMedia_DMEM
+rfcs25_drop_d3 = mix rfcs25_5_d3 with rfcs25_d_d3 for 5s
+
+rfcs125_a_d3 = dispense 1 units of FCS_Stock
+rfcs125_b_d3 = dispense 1 units of CompleteMedia_DMEM
+r10_125_d3   = mix rfcs125_a_d3 with rfcs125_b_d3 for 5s
+rfcs125_c_d3 = dispense 1 units of CompleteMedia_DMEM
+r5_125_d3    = mix r10_125_d3 with rfcs125_c_d3 for 5s
+rfcs125_d_d3 = dispense 1 units of CompleteMedia_DMEM
+r25_125_d3   = mix r5_125_d3 with rfcs125_d_d3 for 5s
+rfcs125_e_d3 = dispense 1 units of CompleteMedia_DMEM
+rfcs125_drop_d3 = mix r25_125_d3 with rfcs125_e_d3 for 5s
+
+rfcs0625_a_d3 = dispense 1 units of FCS_Stock
+rfcs0625_b_d3 = dispense 1 units of CompleteMedia_DMEM
+r10_0625_d3   = mix rfcs0625_a_d3 with rfcs0625_b_d3 for 5s
+rfcs0625_c_d3 = dispense 1 units of CompleteMedia_DMEM
+r5_0625_d3    = mix r10_0625_d3 with rfcs0625_c_d3 for 5s
+rfcs0625_d_d3 = dispense 1 units of CompleteMedia_DMEM
+r25_0625_d3   = mix r5_0625_d3 with rfcs0625_d_d3 for 5s
+rfcs0625_e_d3 = dispense 1 units of CompleteMedia_DMEM
+r125_0625_d3  = mix r25_0625_d3 with rfcs0625_e_d3 for 5s
+rfcs0625_f_d3 = dispense 1 units of CompleteMedia_DMEM
+rfcs0625_drop_d3 = mix r125_0625_d3 with rfcs0625_f_d3 for 5s
+
+well10_d3   = mix well10_suc_d3 with rfcs10_drop_d3 for 10s
+well5_d3    = mix well5_suc_d3 with rfcs5_drop_d3 for 10s
+well25_d3   = mix well25_suc_d3 with rfcs25_drop_d3 for 10s
+well125_d3  = mix well125_suc_d3 with rfcs125_drop_d3 for 10s
+well0625_d3 = mix well0625_suc_d3 with rfcs0625_drop_d3 for 10s
+
+heat well10_d3 at 37c for 1440m
+heat well5_d3 at 37c for 1440m
+heat well25_d3 at 37c for 1440m
+heat well125_d3 at 37c for 1440m
+heat well0625_d3 at 37c for 1440m
+
+// ------------------------------------------------------------
+// ASSAY 3 -- DAY 4 MEASUREMENT (96h): Final sucrose exchange
+//   and Vsense. No further media refresh.
+//   QC gate: 10% FCS Vsense (highest expected signal; paper
+//   Fig. 6a shows 10% FCS reaching ~200 cells/mm2 at Day 4).
+// ------------------------------------------------------------
+
+suc_10_d4    = dispense 1 units of SucroseBuffer
+well10_suc_d4  = mix well10_d3 with suc_10_d4 for 10s
+vsense_10_d4   = detect impedanceSensing on well10_suc_d4 for 1s
+
+suc_5_d4     = dispense 1 units of SucroseBuffer
+well5_suc_d4   = mix well5_d3 with suc_5_d4 for 10s
+vsense_5_d4    = detect impedanceSensing on well5_suc_d4 for 1s
+
+suc_25_d4    = dispense 1 units of SucroseBuffer
+well25_suc_d4  = mix well25_d3 with suc_25_d4 for 10s
+vsense_25_d4   = detect impedanceSensing on well25_suc_d4 for 1s
+
+suc_125_d4   = dispense 1 units of SucroseBuffer
+well125_suc_d4 = mix well125_d3 with suc_125_d4 for 10s
+vsense_125_d4  = detect impedanceSensing on well125_suc_d4 for 1s
+
+suc_0625_d4  = dispense 1 units of SucroseBuffer
+well0625_suc_d4 = mix well0625_d3 with suc_0625_d4 for 10s
+vsense_0625_d4  = detect impedanceSensing on well0625_suc_d4 for 1s
+
+// ============================================================
+// BB8 / BB9: Serum screening QC gate
+// Pass (BB8): vsense_10_d4 > 0 -> sigmoidal growth curve
+//             confirmed in 10% FCS condition; dispose all.
+// Fail (BB9): vsense_10_d4 <= 0 -> no growth signal
+//             (possible: cell detachment, serum reagent
+//             failure, sucrose exchange error); drain all.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (vsense_10_d4 > 0) {
+    dispose well10_suc_d4
+    dispose well5_suc_d4
+    dispose well25_suc_d4
+    dispose well125_suc_d4
+    dispose well0625_suc_d4
+} else {
+    drain well10_suc_d4
+    drain well5_suc_d4
+    drain well25_suc_d4
+    drain well125_suc_d4
+    drain well0625_suc_d4
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose all serum screening Vsense signals.
+// Experiment ends.
+// ============================================================
+
+dispose vsense_10_d1
+dispose vsense_5_d1
+dispose vsense_25_d1
+dispose vsense_125_d1
+dispose vsense_0625_d1
+
+dispose vsense_10_d2
+dispose vsense_5_d2
+dispose vsense_25_d2
+dispose vsense_125_d2
+dispose vsense_0625_d2
+
+dispose vsense_10_d3
+dispose vsense_5_d3
+dispose vsense_25_d3
+dispose vsense_125_d3
+dispose vsense_0625_d3
+
+// vsense_10_d4 consumed by QC gate if-condition above; do not re-dispose
+dispose vsense_5_d4
+dispose vsense_25_d4
+dispose vsense_125_d4
+dispose vsense_0625_d4
+
+// [terminal -- no further instructions; exit node for CFG]

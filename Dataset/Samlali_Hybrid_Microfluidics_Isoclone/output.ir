@@ -1,0 +1,59 @@
+bsbbif_2_t:
+	dispose(releasedDroplet1[0])
+bsbbif_3_f:
+	dispose(releasedDroplet1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(releaseSignal1[0])
+	viabilityCells1[0] = dispense(MCF7_Cells)
+	viabilityPriming1[0] = dispense(PBS)
+	viabilityTrapped1[0] = mix(viabilityCells1[0], viabilityPriming1[0]) @ 2.0SECOND
+	heat(viabilityTrapped1[0]) @ 25.0CELSIUS @ 30.0SECOND
+	fdaPiStain1[0] = dispense(FDA_PI_Stain)
+	stainedCells1[0] = mix(viabilityTrapped1[0], fdaPiStain1[0]) @ 600.0SECOND
+	viabilitySignal1[0] = detect(viabilityDetection, stainedCells1[0]) @ 30.0SECOND
+	if viabilitySignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	primingPBS1[0] = dispense(PBS)
+	primingPluronic1[0] = dispense(PluronicF127)
+	primingMix1[0] = mix(primingPBS1[0], primingPluronic1[0]) @ 300.0SECOND
+	mcf7Cells1[0] = dispense(MCF7_Cells)
+	trappedCells1[0] = mix(mcf7Cells1[0], primingMix1[0]) @ 2.0SECOND
+	oilPhase1[0] = dispense(HFE7500_Surfactant)
+	encapsulatedCell1[0] = mix(trappedCells1[0], oilPhase1[0]) @ 4.0SECOND
+	releasedDroplet1[0] = mix(encapsulatedCell1[0], oilPhase1[0]) @ 1.0SECOND
+	releaseSignal1[0] = detect(dropletReleaseDetection, releasedDroplet1[0]) @ 10.0SECOND
+	if releaseSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(stainedCells1[0])
+bsbbif_6_f:
+	dispose(stainedCells1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(viabilitySignal1[0])
+	h1299Cells1[0] = dispense(H1299_Cells)
+	egfpPlasmid1[0] = dispense(Cas9_eGFP_sgRNA_Plasmid)
+	lipofectamine1[0] = dispense(Lipofectamine3000)
+	transfectionMix1[0] = mix(egfpPlasmid1[0], lipofectamine1[0]) @ 5.0SECOND
+	transfectedCells1[0] = mix(h1299Cells1[0], transfectionMix1[0]) @ 60.0SECOND
+	heat(transfectedCells1[0]) @ 37.0CELSIUS @ 172800.0SECOND
+	primingPBS21[0] = dispense(PBS)
+	chipTrappedClones1[0] = mix(transfectedCells1[0], primingPBS21[0]) @ 2.0SECOND
+	oilPhase21[0] = dispense(HFE7500_Surfactant)
+	encapsulatedClone1[0] = mix(chipTrappedClones1[0], oilPhase21[0]) @ 4.0SECOND
+	sortedIsoclone1[0] = mix(encapsulatedClone1[0], oilPhase21[0]) @ 1.0SECOND
+	knockoutSignal1[0] = detect(mCherryGFPDetection, sortedIsoclone1[0]) @ 30.0SECOND
+	if knockoutSignal1[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	conditionedMedia1[0] = dispense(ConditionedMedia)
+	fc40Wash1[0] = dispense(FC40_Oil)
+	membraneWash1[0] = mix(sortedIsoclone1[0], fc40Wash1[0]) @ 60.0SECOND
+	recoveredClone1[0] = mix(membraneWash1[0], conditionedMedia1[0]) @ 60.0SECOND
+	heat(recoveredClone1[0]) @ 37.0CELSIUS @ 604800.0SECOND
+	dispose(recoveredClone1[0])
+bsbbif_9_f:
+	dispose(sortedIsoclone1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(knockoutSignal1[0])
+	NOP

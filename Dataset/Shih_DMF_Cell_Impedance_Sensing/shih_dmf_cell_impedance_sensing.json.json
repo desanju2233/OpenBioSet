@@ -1,0 +1,213 @@
+{
+  "protocol": {
+    "title": "Digital Microfluidics with Impedance Sensing for Integrated Cell Culture and Analysis",
+    "source": "Biosensors and Bioelectronics 42 (2013) 314-320",
+    "doi": "10.1016/j.bios.2012.10.035",
+    "platform": "Digital microfluidics (DMF) with integrated impedance sensing",
+    "cell_lines": [
+      "HeLa (human cervical carcinoma)",
+      "NIH-3T3 (mouse embryonic fibroblast)",
+      "CHO-K1 (Chinese hamster ovary)"
+    ],
+    "objective": "Label-free impedance-based cell density sensing integrated with DMF for cell seeding, long-term culture, and multiplexed analysis via three assays: calibration, proliferation, and serum screening",
+
+    "device": {
+      "bottom_plate": {
+        "electrodes_total": 66,
+        "substrate": "Glass",
+        "dielectric": "Parylene-C + Teflon-AF hydrophobic coating",
+        "electrode_types": [
+          "Reservoir electrode",
+          "Driving electrode",
+          "Active dispensing electrode",
+          "Cell-sensor electrode (ITO, patterned)"
+        ]
+      },
+      "top_plate": {
+        "material": "ITO (indium tin oxide)",
+        "cell_culture_sites": 6,
+        "culture_site_diameter_mm": 1,
+        "coating": "Teflon-AF hydrophobic coating (patterned; hydrophilic ITO exposed at culture sites)"
+      },
+      "droplet_volumes": {
+        "unit_droplet_uL": 1,
+        "virtual_microwell_uL": 0.2
+      },
+      "device_dimensions_mm": "50 x 100",
+      "passive_dispensing": "Unit droplet translated across hydrophilic ITO site -> spontaneous 0.2 uL virtual microwell formation (S1-S3 program)",
+      "reagent_exchange": "Three-droplet sequential wash sequence (E1-E3 program) replaces microwell contents without disturbing cell monolayer",
+      "feedback_control": "Impedance-based droplet position sensing (Vsense loop, Fig S1) repurposed for cell density measurement"
+    },
+
+    "impedance_system": {
+      "sensing_voltage_Vrms": 100,
+      "pulse_duration_s": 1,
+      "frequency_kHz": 15,
+      "measurement_medium": "500 mM aqueous sucrose (10 mM HEPES, 0.05% w/v Pluronic F68, pH 7.4)",
+      "rationale_for_sucrose": "Low-conductivity medium separates density-dependent Vsense values; full cell media shows no statistically significant difference between densities",
+      "sucrose_exposure_duration_min": 10,
+      "sucrose_viability_impact": "None observed for any cell type tested",
+      "lod_cells_per_mm2": "20-25",
+      "circuit_model": "Capacitor (insulator) in series with parallel R-C (medium) and cell membrane/cytoplasm sub-circuit; modified from Morgan et al. 2007 to account for DMF insulator layer and electrode-adhered cells"
+    },
+
+    "reagents": {
+      "cell_media": {
+        "HeLa":   "DMEM + 10% FCS + 100 IU/mL penicillin + 100 ug/mL streptomycin + 0.05% w/v Pluronic F68",
+        "NIH3T3": "DMEM + 10% FCS + 100 IU/mL penicillin + 100 ug/mL streptomycin + 0.05% w/v Pluronic F68",
+        "CHO_K1": "50/50 v/v F-12/DMEM + 10% FCS + 100 IU/mL penicillin + 100 ug/mL streptomycin + 0.05% w/v Pluronic F68"
+      },
+      "sucrose_buffer": "500 mM sucrose in DI water (18 MOhm cm), 10 mM HEPES, 0.05% w/v Pluronic F68, pH 7.4",
+      "trypsin_edta": "0.25% w/v trypsin + 1 mM EDTA (cell detachment before DMF experiments)",
+      "pluronic_f68_additive": "0.05% w/v Pluronic F68 in all cell suspensions (biofouling prevention)",
+      "fcs_stock_for_serum_assay": "20% FCS in serum-free DMEM (used as concentrated stock for on-chip serial dilution in serum screening assay)"
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Cell seeding into virtual microwells (calibration)",
+        "bb": "BB1",
+        "assay": "calibration",
+        "cell_lines": ["HeLa", "NIH-3T3", "CHO-K1"],
+        "volumetric_densities_cells_mL": ["0.5e6", "1.0e6", "2.0e6"],
+        "operation": "passive dispensing (abstracted as mix in BioScript)",
+        "incubation_temperature_C": 37,
+        "co2_pct": 5,
+        "incubation_duration_s": 86400,
+        "replicates": 5,
+        "notes": "S1-S3 passive dispensing: unit droplet (1 uL) driven over hydrophilic ITO site leaves 0.2 uL virtual microwell. Each of 9 conditions (3 lines x 3 densities) seeded in separate virtual microwells."
+      },
+      {
+        "id": "S2",
+        "name": "Sucrose exchange and Vsense measurement (calibration)",
+        "bb": "BB1",
+        "assay": "calibration",
+        "operation": "E1-E3 reagent exchange + impedance detection",
+        "exchange_medium": "500 mM sucrose buffer",
+        "sensing_voltage_Vrms": 100,
+        "sensing_frequency_kHz": 15,
+        "sensing_duration_s": 1,
+        "microscopy_validation": "ImageJ cell count of surface density (Nc) and area occupied (Ac) for regression validation",
+        "regression_results": {
+          "HeLa":   { "R2": 0.9965 },
+          "NIH3T3": { "R2": 0.9935 },
+          "CHO_K1": { "R2": 0.9920 }
+        },
+        "lod_cells_per_mm2": "20-25",
+        "detection_module": "impedanceSensing",
+        "microscopy_module": "cellCountDetection",
+        "branch": {
+          "pass": { "condition": "nih3t3High_Vsense > 0", "action": "dispose all calibration droplets", "bb": "BB2" },
+          "fail": { "condition": "nih3t3High_Vsense <= 0", "action": "drain all calibration droplets", "bb": "BB3" }
+        },
+        "notes": "QC gate keyed on NIH-3T3 high-density Vsense (highest expected signal; R2=0.9935). Sucrose exchange (E1-E3) is three-droplet wash abstracted as single mix step in BioScript."
+      },
+      {
+        "id": "S3",
+        "name": "Cell seeding and 4-day proliferation monitoring",
+        "bb": "BB4",
+        "assay": "proliferation",
+        "cell_lines": ["HeLa", "NIH-3T3", "CHO-K1"],
+        "seeding_density_cells_mL": "0.25e6",
+        "operation": "passive dispensing + periodic sucrose exchange + Vsense + media refresh",
+        "measurement_timepoints_h": [24, 48, 72, 96],
+        "cycle_per_timepoint": "sucrose exchange (E1-E3) -> Vsense at 15 kHz -> media exchange (E1-E3) -> 24h culture at 37C",
+        "incubation_temperature_C": 37,
+        "co2_pct": 5,
+        "incubation_per_cycle_s": 86400,
+        "replicates": 5,
+        "results": {
+          "day_1": "All cell lines below LOD (~20-25 cells/mm2)",
+          "days_2_to_4": "Measurable surface densities obtained for all lines",
+          "ranking": "NIH-3T3 and HeLa proliferate faster than CHO-K1; consistent with macroscale culture"
+        },
+        "detection_module": "impedanceSensing",
+        "branch": {
+          "pass": { "condition": "nih_vsense_d4 > 0", "action": "dispose Day 4 sucrose droplets", "bb": "BB5" },
+          "fail": { "condition": "nih_vsense_d4 <= 0", "action": "drain Day 4 sucrose droplets", "bb": "BB6" }
+        },
+        "notes": "QC gate keyed on NIH-3T3 Day 4 Vsense (highest expected surface density at experiment end). Vsense translated to surface density (cells/mm2) via calibration regression curves from S2."
+      },
+      {
+        "id": "S4",
+        "name": "Serum screening assay (5-plex FCS dilution series)",
+        "bb": "BB7",
+        "assay": "serum_screening",
+        "cell_line": "NIH-3T3",
+        "seeding_density_cells_mL": "0.25e5",
+        "initial_attachment_duration_s": 21600,
+        "fcs_concentrations_pct": [0.625, 1.25, 2.5, 5.0, 10.0],
+        "dilution_scheme": "On-chip serial dilution (D1-D9 program): 20% FCS stock + serum-free DMEM diluent; each concentration independently dispensed and verified",
+        "dilution_chain": {
+          "10_pct":    "1 part FCS_Stock (20%) + 1 part diluent",
+          "5_pct":     "1 part 10% mix + 1 part diluent",
+          "2_5_pct":   "1 part 5% mix + 1 part diluent",
+          "1_25_pct":  "1 part 2.5% mix + 1 part diluent",
+          "0_625_pct": "1 part 1.25% mix + 1 part diluent"
+        },
+        "measurement_timepoints_h": [24, 48, 72, 96],
+        "cycle_per_timepoint": "sucrose exchange (E1-E3) -> Vsense at 15 kHz -> regenerate FCS droplets (D1-D9) -> media exchange -> 24h culture at 37C",
+        "incubation_temperature_C": 37,
+        "co2_pct": 5,
+        "incubation_per_cycle_s": 86400,
+        "replicates": 5,
+        "multiplex_format": "6-plex (6 virtual microwells on single device)",
+        "results": {
+          "5_pct_and_10_pct": "Sigmoidal growth profiles; cells proliferate well",
+          "0_625_to_2_5_pct": "Flat or declining profiles; poor proliferation",
+          "max_surface_density_cells_per_mm2": "~200 (10% FCS, Day 4)"
+        },
+        "detection_module": "impedanceSensing",
+        "branch": {
+          "pass": { "condition": "vsense_10_d4 > 0", "action": "dispose all Day 4 serum droplets", "bb": "BB8" },
+          "fail": { "condition": "vsense_10_d4 <= 0", "action": "drain all Day 4 serum droplets", "bb": "BB9" }
+        },
+        "notes": "QC gate keyed on 10% FCS Day 4 Vsense (highest serum concentration; highest expected surface density). Serial dilution fully unrolled in BioScript (no loop support). Serum-free DMEM used as diluent throughout."
+      }
+    ],
+
+    "reagent_reduction": {
+      "commercial_ecis_per_assay_mL": "1.5-4",
+      "dmf_per_assay_uL": "1-10",
+      "fold_reduction": "~1000x"
+    },
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1",  "label": "main",         "type": "entry",        "content": "Calibration assay: 3 cell lines x 3 densities; seeding, 24h culture, sucrose exchange, Vsense, microscopy count" },
+        { "id": "BB2",  "label": "bsbbif_2_t",   "type": "branch_true",  "condition": "nih3t3High_Vsense > 0", "action": "dispose(all calibration exchanged droplets)" },
+        { "id": "BB3",  "label": "bsbbif_3_f",   "type": "branch_false", "condition": "nih3t3High_Vsense <= 0","action": "drain(all calibration exchanged droplets)" },
+        { "id": "BB4",  "label": "bsbbif_4_j",   "type": "join",         "content": "Dispose all calibration Vsense and count signals; proliferation assay begins" },
+        { "id": "BB5",  "label": "bsbbif_5_t",   "type": "branch_true",  "condition": "nih_vsense_d4 > 0",    "action": "dispose(hela/nih/cho Day 4 sucrose droplets)" },
+        { "id": "BB6",  "label": "bsbbif_6_f",   "type": "branch_false", "condition": "nih_vsense_d4 <= 0",   "action": "drain(hela/nih/cho Day 4 sucrose droplets)" },
+        { "id": "BB7",  "label": "bsbbif_7_j",   "type": "join",         "content": "Dispose all proliferation Vsense signals; serum screening assay begins" },
+        { "id": "BB8",  "label": "bsbbif_8_t",   "type": "branch_true",  "condition": "vsense_10_d4 > 0",     "action": "dispose(all 5 serum concentration Day 4 droplets)" },
+        { "id": "BB9",  "label": "bsbbif_9_f",   "type": "branch_false", "condition": "vsense_10_d4 <= 0",    "action": "drain(all 5 serum concentration Day 4 droplets)" },
+        { "id": "BB10", "label": "bsbbif_10_j",  "type": "terminal",     "content": "Dispose all serum screening Vsense signals; NOP; experiment ends" }
+      ],
+      "edges": [
+        ["BB1","BB2"], ["BB1","BB3"],
+        ["BB2","BB4"], ["BB3","BB4"],
+        ["BB4","BB5"], ["BB4","BB6"],
+        ["BB5","BB7"], ["BB6","BB7"],
+        ["BB7","BB8"], ["BB7","BB9"],
+        ["BB8","BB10"],["BB9","BB10"]
+      ]
+    },
+
+    "bioscript_notes": {
+      "bs_file": "shih_dmf_cell_impedance_sensing.bs",
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "ir_output": "10 basic blocks (BB1-BB10), 3 if/else gates, 12 CFG edges",
+      "dag_file": "shih_dmf_cell_impedance_sensing_main_dag.dot",
+      "duration_units": "All durations in s or m only (h token not supported by compiler); 1440m = 86400s (24h culture); 360m = 21600s (6h attachment in serum assay)",
+      "modules": ["impedanceSensing", "cellCountDetection"],
+      "virtual_microwell_abstraction": "mix steps abstract passive dispensing (S1-S3) event; not electrode mixing",
+      "sucrose_exchange_abstraction": "mix steps abstract E1-E3 three-droplet wash sequence",
+      "serial_dilution_note": "BioScript has no loop or parametric dilution support; all 5 FCS concentration chains fully unrolled for each of 3 daily refresh cycles",
+      "qc_gate_note": "Alias assignment (e.g. calibSignal = nih3t3High_Vsense) not supported by compiler symbol visitor; detect result variables used directly in if conditions",
+      "drain_vs_dispose_in_ir": "drain and dispose both lower to dispose() in IR; semantically equivalent at compiler level"
+    }
+  }
+}

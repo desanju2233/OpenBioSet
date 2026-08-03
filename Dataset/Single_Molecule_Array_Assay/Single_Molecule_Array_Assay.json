@@ -1,0 +1,62 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Digital Microfluidic Bead Densification and Processing Coupled to Single-Molecule Array (DMF-Simoa) for Tumor Necrosis Factor-alpha (TNF-alpha) Quantification\n\nREAGENTS USED:\n  - TNF-alpha Sample (solution of TNF-alpha antigen, 100 uL aliquot)\n  - Simoa Capture Beads (anti-TNF-alpha antibody-coated superparamagnetic beads, 25 uL suspension containing 15000 functionalized beads)\n  - Biotinylated Detection Antibody (anti-TNF-alpha detection antibody, 20 uL aliquot)\n  - Wash Buffer (PBS containing 0.01% w/v Tetronic 90R4 surfactant)\n  - Streptavidin-beta-Galactosidase (SbG) Reagent (enzyme label conjugate)\n  - RGP Substrate (resorufin-beta-D-galactopyranoside fluorogenic substrate)\n\nSTEPS:\n1. Off-chip pre-incubation: Mix the 100 uL TNF-alpha sample, 25 uL bead suspension (15000 beads), and 20 uL detection antibody together; incubate for 20 min off-chip on a shaker at 800 rpm to form antibody-antigen-bead sandwich immunocomplexes.\n2. Stepwise sample loading onto DMF: Dispense the entire pre-incubated sample-bead mixture onto the sample reservoir electrode; sequentially load, split, and remove waste from ~9 uL segments over ~12 closed-loop, capacitance-monitored cycles to fully transfer the sample into the device while retaining beads on the densifying electrode (>98% bead retention).\n3. Bead washing: Wash the densified beads with fresh wash buffer over multiple wash cycles (5 repeats) to remove unbound sample components.\n4. SbG incubation: Deliver the streptavidin-beta-galactosidase reagent to the densified beads and incubate for 5 min at 25C to label captured immunocomplexes with enzyme.\n5. Post-SbG washing: Wash the labeled beads again with fresh wash buffer over multiple wash cycles (5 repeats) to remove excess unbound SbG.\n6. Substrate addition and detection: Deliver the RGP (resorufin-beta-D-galactopyranoside) substrate to the washed, labeled beads and incubate for 30 min at 25C to allow enzymatic conversion to fluorescent resorufin; the processed bead suspension is then collected and transferred to a microtiter plate/SR-X imager, where beads are loaded into femtoliter-sized microwells and imaged to determine the average number of enzyme labels per bead (digital single-molecule readout), then the analyzed droplet is discarded.\n\nINTERPRETATION: Successful DMF-Simoa TNF-alpha quantification is confirmed by calibration curves of average enzyme labels per bead vs. TNF-alpha concentration obtained via the DMF-processed workflow that are comparable to those obtained via conventional manual microtiter-plate Simoa processing, with more than 98% bead retention during stepwise sample loading and no significant loss of assay sensitivity, supporting the feasibility of a miniaturized, automated DMF-Simoa platform for ultrasensitive biomarker detection." },
+    { "role": "assistant", "content": "module fluorescence\n\nmanifest tnf_sample\nmanifest simoa_beads\nmanifest detection_antibody\nmanifest wash_buffer\nmanifest sbg_reagent\nmanifest rgp_substrate\n\ninstructions:\n\nsample = dispense 100 units of tnf_sample\nbeads = dispense 25 units of simoa_beads\ndab = dispense 20 units of detection_antibody\n\na = mix sample with beads\nb = mix a with dab for 60s\nheat b at 23c for 20m\ndispose b\n\nrepeat 12 times {\n    sample2 = dispense 9 units of tnf_sample\n    beads2 = dispense 25 units of simoa_beads\n    c = mix sample2 with beads2 for 5s\n    dispose c\n}\n\nrepeat 5 times {\n    wash = dispense 250 units of wash_buffer\n    beads3 = dispense 25 units of simoa_beads\n    d = mix wash with beads3 for 45s\n    dispose d\n}\n\nsbg = dispense 20 units of sbg_reagent\nbeads4 = dispense 25 units of simoa_beads\ne = mix beads4 with sbg for 60s\nheat e at 25c for 5m\n\nrepeat 5 times {\n    wash2 = dispense 250 units of wash_buffer\n    beads5 = dispense 25 units of simoa_beads\n    f = mix wash2 with beads5 for 45s\n    dispose f\n}\n\nrgp = dispense 50 units of rgp_substrate\nbeads6 = dispense 25 units of simoa_beads\ng = mix beads6 with rgp\nheat g at 25c for 30m\n\ntnf_reading = detect fluorescence on g for 5m\ndispose g" }
+  ],
+  "metadata": {
+    "protocol_id": "dmf_simoa_tnf_alpha_bead_densification_001",
+    "bs_file": "tests/test_cases/dmf_simoa_tnf_alpha/dmf_simoa_tnf_alpha.bs",
+    "protocol_name": "High-Volume Single-Molecule Array (Simoa) Bead Densification on Digital Microfluidics (Li et al., Lab Chip 2025)",
+    "category": "immunoassay_biomarker_detection",
+    "chemicals": [
+      "tnf_sample",
+      "simoa_beads",
+      "detection_antibody",
+      "wash_buffer",
+      "sbg_reagent",
+      "rgp_substrate"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "repeat",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "original_protocol", "title": "High-Volume Single-Molecule Array (Simoa) Bead Densification on Digital Microfluidics", "publisher": "Lab Chip", "url": "https://microfluidics.utoronto.ca/papers/d4lc01002g.pdf", "doi": "10.1039/D4LC00962B" }
+    ],
+    "notes": "The authored BioScript code is a direct translation of the paper's TNF-alpha Simoa bead-processing workflow (Experimental Section, 'Simoa bead processing', and Fig. 5a), covering the off-chip sample/bead/detection-antibody pre-incubation, the stepwise DMF sample loading of the 100 uL sample onto the bead-densifying electrode (Fig. 3, ~12 cycles), the bead wash cycles, the SbG labeling incubation, a second wash series, and the final RGP substrate incubation and detection step. Because BioScript's grammar requires every 'dispense' statement to draw from a manifest-declared source reagent (never from an intermediate 'mix' result), and has no primitive for a single physical bead pellet that is repeatedly washed/retained/moved across a stationary densifying electrode over many sequential operations, the 'simoa_beads' manifest is re-dispensed before each wash/incubation step rather than a single bead-droplet handle being reused and washed in place -- consistent with how the enzyme reagent is re-dispensed across wash loops in the ciprofloxacin reference protocol. Likewise, because the paper's actual readout is offline imaging on a Quanterix SR-X imager (counting individual enzyme-labeled beads in femtoliter microwells to obtain an average-enzyme-labels-per-bead digital signal), not a bulk fluorogenic plate read, the 'detect fluorescence' primitive is used only as a stand-in for this generic detect-and-quantify step, since BioScript's grammar does not expose a dedicated single-molecule-array/digital-imaging detect module.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "tnf_sample", "source_quote": "a 100 uL sample (solution of TNF-alpha)", "source_location": "EXPERIMENTAL SECTION: Simoa bead processing" },
+        { "bs_chemical": "simoa_beads", "source_quote": "a 25 uL suspension of 15000 functionalized beads", "source_location": "EXPERIMENTAL SECTION: Simoa bead processing" },
+        { "bs_chemical": "detection_antibody", "source_quote": "a 20 uL aliquot of detection antibody were initially mixed and incubated", "source_location": "EXPERIMENTAL SECTION: Simoa bead processing" },
+        { "bs_chemical": "wash_buffer", "source_quote": "phosphate-buffered saline (PBS) containing 0.01% (w/v) Tetronic 90R4 surfactant", "source_location": "EXPERIMENTAL SECTION: Reagents and materials" },
+        { "bs_chemical": "sbg_reagent", "source_quote": "streptavidin-beta-galactosidase (SbG)", "source_location": "EXPERIMENTAL SECTION: Simoa bead processing" },
+        { "bs_chemical": "rgp_substrate", "source_quote": "resorufin-beta-D-galactopyranoside (RGP)", "source_location": "EXPERIMENTAL SECTION: Simoa bead processing" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "a = mix sample with beads / b = mix a with dab for 60s / heat b at 23c for 20m", "source_quote": "were initially mixed and incubated for 20 min off-chip on a shaker at 800 rpm", "source_location": "EXPERIMENTAL SECTION: Simoa bead processing" },
+        { "bs_operation": "repeat 12 times { ... }", "source_quote": "Approximately 12 cycles ... were needed to load a 100 uL sample into the device", "source_location": "RESULTS AND DISCUSSION: Stepwise loading of high-volume samples" },
+        { "bs_operation": "repeat 5 times { wash = dispense wash_buffer; d = mix wash with beads3 for 45s; dispose d }", "source_quote": "the remaining steps, including bead densifying, detection antibody and SbG incubations, and washing steps, were conducted on a design-1 DMF device", "source_location": "EXPERIMENTAL SECTION: Simoa bead processing" },
+        { "bs_operation": "e = mix beads4 with sbg for 60s / heat e at 25c for 5m", "source_quote": "streptavidin-beta-galactosidase (SbG) ... that catalyzes the formation of resorufin", "source_location": "RESULTS AND DISCUSSION: Fig. 5 caption" },
+        { "bs_operation": "g = mix beads6 with rgp / heat g at 25c for 30m / tnf_reading = detect fluorescence on g for 5m", "source_quote": "subjected to imaging and analysis to determine the average number of enzyme labels per bead", "source_location": "EXPERIMENTAL SECTION: Simoa bead processing" }
+      ],
+      "numeric_mismatches": [
+        { "field": "simoa_beads re-dispensed at each step", "note": "The paper's densified bead population is a single physical pellet retained on the densifying electrode and washed/incubated in place across many sequential steps; BioScript has no persistent-droplet primitive for this, so the beads are modeled as a fresh 'dispense simoa_beads' before each wash/incubation step rather than one droplet handle carried through the whole workflow." },
+        { "field": "tnf_reading = detect fluorescence", "note": "Detection in the paper is performed by transferring the processed beads to a Quanterix SR-X imager, which images beads sealed individually in femtoliter microwells to compute an average number of enzyme labels per bead (a digital, Poisson-statistics-based readout), not a bulk fluorescence intensity measurement. 'detect fluorescence' is used only because it is the sole detect module exposed by BioScript's grammar." },
+        { "field": "heat e at 25c for 5m (SbG incubation) and heat g at 25c for 30m (RGP incubation)", "note": "The paper does not state explicit on-chip SbG or RGP incubation durations for the DMF workflow itself (these steps are described only as being 'conducted on a design-1 DMF device' and cross-referenced to the standard microtiter-plate protocol in ref. 3); the 5 min and 30 min durations used here are reasonable estimated processing times adapted for BioScript's required heat-duration syntax, not values quoted directly from this paper." },
+        { "field": "wash cycle volumes (250 units) and durations (45s) in the two 5x wash-loop blocks", "note": "The paper states that washing steps occurred on the DMF device but does not give an exact per-cycle wash volume/duration for the TNF-alpha bead-washing steps specifically; the 250-unit/45s pattern is adapted from the analogous passive-loading wash-chamber convention used elsewhere in this test suite, not a value taken directly from the Simoa bead processing section." },
+        { "field": "capacitance-based closed-loop control of the 12-cycle stepwise loading (Fig. 3b/c)", "note": "Not modeled. BioScript has no primitive for real-time capacitance feedback, sub-step timing control, or the open-loop vs. closed-loop distinction described in the paper; the loop is represented only as 12 uniform load/mix/dispose cycles." },
+        { "field": "bead-densifying electrode geometry/model (Fig. 4, Note S1), parallel/passive loading alternatives (Fig. 1 and 2), and the SR-X microtiter-plate control comparison", "note": "Not modeled. These are device-design characterization experiments, alternative loading strategies not used in the final assay, or head-to-head validation/comparison sub-experiments run alongside the core assay, and fall outside the scope of this translation; only the core Simoa bead-processing workflow (Fig. 5a) is captured here." }
+      ]
+    }
+  }
+}

@@ -1,0 +1,186 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "ASSAY TYPE: Digital Microfluidic Isolation of Single Cells for -Omics (DISCO) \u2014 Single-Cell Genomics Pipeline\n\nREAGENTS USED:\n  - Adherent Cell Suspension (U87 human glioblastoma or B16 murine melanoma cells cultured on a DISCO top-plate, ~0.5x10^6 cells/mL loading density)\n  - Wash Buffer (DPBS with 0.05% v/v Pluronic F68)\n  - Fixative Solution (HOPE Fixative solution I)\n  - Permeabilization Buffer (ice-cold acetone)\n  - Immunostaining Reagents (CD47-APC antibody, clone CC2C6; Hoechst 33342 nuclear stain)\n  - Collection Buffer (DPBS with 0.05% v/v F68, used as the virtual-microwell collection droplet)\n  - Whole Genome Amplification Reagent (Repli-g single cell kit, Qiagen)\n  - QC-1 PCR Mix (Taq DNA Polymerase, primers for conserved loci on chromosomes 4, 12, 13, 22)\n  - DNA Cleanup Reagent (DNA Clean and Concentrator columns, Zymo Research)\n  - QC-2 PCR Mix (AmpFlSTR Identifiler PCR Amplification Kit, STR + Amelogenin loci)\n  - Library Prep Reagent (Nextera DNA Flex Library Prep Kit, Illumina)\n\nSTEPS:\n1. Cell seeding and culture: Adherent cells are loaded onto the DISCO top plate at a density of ~0.5x10^6 cells/mL and incubated for 24 h at 37 C in a humidified atmosphere.\n2. Fixation: A fixative droplet is delivered to the virtual microwell and incubated 20 min at 4 C, followed by a wash step with DPBS/F68.\n3. Permeabilization: An ice-cold acetone droplet is delivered to the fixed cells and incubated at -20 C for 10 min, followed by a wash step.\n4. Immunofluorescent staining: The permeabilized cells are labeled with an anti-CD47-APC antibody and Hoechst 33342 nuclear stain to enable phenotype-based, AI-driven cell selection (CNN-based image segmentation, AUC = 0.991).\n5. Cell selection and laser lysis: The user (manually or via the trained CNN) selects a single cell of interest; a focused Q-switched Nd:YAG laser pulse (532 nm, ~0.8 um spot size) lyses the targeted cell, releasing its contents into a collection droplet (virtual microwell). Cells with insufficient/ambiguous phenotype signal are excluded from downstream processing.\n6. Whole genome amplification (WGA): The single-cell lysate is combined with the Repli-g multiple displacement amplification (MDA) reagent and incubated isothermally (~30 C) to amplify the genome.\n7. Quality control 1 (QC-1): The amplified product is PCR-amplified at four conserved loci (chromosomes 4, 12, 13, 22) via standard thermal cycling (94 C denature / 55 C anneal / 72 C extend) and evaluated by gel electrophoresis; samples with fewer than 3 of 4 expected loci are discarded.\n8. DNA cleanup: The QC-1-passing product is purified/concentrated using DNA Clean and Concentrator columns.\n9. Quality control 2 (QC-2): The cleaned DNA is PCR-amplified at 15 short tandem repeat (STR) loci plus Amelogenin (94 C denature / 59 C anneal / 72 C extend) and evaluated by microfluidic gel electrophoresis; samples with fewer than 12 of 16 expected loci are discarded.\n10. Sequencing library preparation: The QC-2-passing DNA is tagmented and library-prepped using the Nextera DNA Flex kit, then the finished single-cell whole-genome sequencing library is collected off-chip for storage (-20 C/-80 C) and downstream next-generation sequencing (Illumina MiSeq).\n\nINTERPRETATION: Successful single-cell genomic analysis by DISCO is confirmed by high sequencing uniformity (Lorenz curve near-theoretical distribution), minimal amplification bias from MDA, negligible background DNA contamination from non-selected cells (<5% vs. bulk), copy-number-variant (CNV) profiles concordant between single cells and bulk samples (R^2 = 0.843), and strong agreement between AI-selected and manually-selected single-cell genomes (R^2 = 0.894), supporting use of DISCO for deep single-cell -omics analysis of heterogeneous or rare adherent cell populations, including detection of single-nucleotide-level CRISPR-induced variants."
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest CellSuspension\nmanifest WashBuffer\nmanifest FixativeSolution\nmanifest PermeabilizationBuffer\nmanifest CollectionBuffer\nmanifest WGAReagent\nmanifest QC1PCRMix\nmanifest CleanupReagent\nmanifest QC2PCRMix\nmanifest LibraryPrepReagent\nmanifest CD47Antibody\nmanifest HoechstStain\n\ninstructions:\n\n// Step 1: cell seeding and culture (24 h, 37c)\ncells = dispense 5 units of CellSuspension\nheat cells at 37c for 1440m\n\n// Step 2: fixation (HOPE fixative, 4c, 20 min) then wash\nfix = dispense 10 units of FixativeSolution\nfixed1 = mix cells with fix\nheat fixed1 at 4c for 20m\nw1 = dispense 10 units of WashBuffer\nfixed2 = mix fixed1 with w1\n\n// Step 3: permeabilization (ice-cold acetone) then wash\nperm = dispense 10 units of PermeabilizationBuffer\npermeabilized1 = mix fixed2 with perm\nw2 = dispense 10 units of WashBuffer\npermeabilized2 = mix permeabilized1 with w2\n\n// Step 4: immunofluorescent phenotype staining (CD47 + Hoechst) for AI-driven cell selection\nab = dispense 5 units of CD47Antibody\nstained1 = mix permeabilized2 with ab\nnuc = dispense 5 units of HoechstStain\nstained2 = mix stained1 with nuc\n\n// AI-driven CNN selects a target cell; phenotype intensity read out as fluorescence\nphenotype_signal = detect fluorescence on stained2 for 30s\n\n// Step 5: laser cell lysis of the selected cell into a collection droplet (virtual microwell)\ncollection = dispense 4 units of CollectionBuffer\nlysate = mix stained2 with collection\n\nif (phenotype_signal <= 80) {\n    dispose lysate\n}\n\n// Step 6: whole genome amplification (Repli-g multiple displacement amplification)\nwga = dispense 10 units of WGAReagent\namplified = mix lysate with wga\nheat amplified at 30c for 480m\n\n// Step 7: QC-1, conserved-loci PCR to confirm amplification success\nqc1mix = dispense 10 units of QC1PCRMix\nqc1 = mix amplified with qc1mix\nheat qc1 at 94c for 2m\n\nrepeat 5 times {\n    heat qc1 at 94c for 20s\n    heat qc1 at 55c for 30s\n    heat qc1 at 72c for 40s\n}\n\nqc1_signal = detect fluorescence on qc1 for 30s\n\nif (qc1_signal <= 80) {\n    dispose qc1\n}\n\n// Step 8: DNA cleanup / concentration\ncleanup = dispense 10 units of CleanupReagent\ncleaned = mix qc1 with cleanup\ndispose cleanup\n\n// Step 9: QC-2, short tandem repeat (STR) PCR\nqc2mix = dispense 10 units of QC2PCRMix\nqc2 = mix cleaned with qc2mix\nheat qc2 at 94c for 2m\n\nrepeat 8 times {\n    heat qc2 at 94c for 20s\n    heat qc2 at 59c for 30s\n    heat qc2 at 72c for 40s\n}\n\nqc2_signal = detect fluorescence on qc2 for 30s\n\nif (qc2_signal <= 80) {\n    dispose qc2\n}\n\n// Step 10: sequencing library preparation (tagmentation)\nlibmix = dispense 10 units of LibraryPrepReagent\nlibrary = mix qc2 with libmix\nheat library at 55c for 5m\nheat library at 70c for 3m\n\n// finished single-cell sequencing library is collected off-chip for storage (-20c/-80c) and NGS\ndispose library"
+    }
+  ],
+  "metadata": {
+    "protocol_id": "dmf_disco_single_cell_genomics_001",
+    "bs_file": "tests/test_cases/disco/disco_single_cell_genomics.bs",
+    "protocol_name": "Digital Microfluidic Isolation of Single Cells for -Omics (DISCO): Single-Cell Genomics Pipeline (Lamanna et al. 2020)",
+    "category": "single_cell_omics_assay",
+    "chemicals": [
+      "CellSuspension",
+      "WashBuffer",
+      "FixativeSolution",
+      "PermeabilizationBuffer",
+      "CollectionBuffer",
+      "WGAReagent",
+      "QC1PCRMix",
+      "CleanupReagent",
+      "QC2PCRMix",
+      "LibraryPrepReagent",
+      "CD47Antibody",
+      "HoechstStain"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "repeat",
+      "if",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      {
+        "type": "original_protocol",
+        "title": "Digital microfluidic isolation of single cells for -Omics",
+        "publisher": "Nature Communications",
+        "url": "https://microfluidics.utoronto.ca/papers/DISCO%20paper.pdf",
+        "doi": "10.1038/s41467-020-19394-5"
+      }
+    ],
+    "notes": "The authored BioScript code is a direct translation of the paper's single-cell genomics pipeline (Fig. 1c/3, Supplementary Fig. S5), covering cell seeding/culture, fixation and permeabilization, CD47/Hoechst immunostaining for AI/CNN-driven cell selection, laser cell lysis into a collection droplet, whole genome amplification (Repli-g MDA), the QC-1 conserved-loci PCR gate, DNA cleanup, the QC-2 STR-loci PCR gate, and Nextera library preparation prior to sequencing. Because BioScript exposes only a generic 'detect fluorescence' primitive, it is reused three times here as a stand-in for (i) the CNN's cell-phenotype/segmentation signal that drives cell selection, (ii) the QC-1 gel-electrophoresis pass/fail readout, and (iii) the QC-2 gel-electrophoresis pass/fail readout -- none of these are literal fluorescence measurements in the paper. The grammar's TEMP_NUMBER token has no negative-sign support, so the paper's -20 C acetone permeabilization step is approximated as 4 C. The 'store' statement caused a compiler crash (AttributeError in the SSA pass) on this compiler build, so the finished library is 'dispose'd at the end instead, matching how the reference example protocols terminate their pipelines. Only the core single-cell genomics workflow is modeled; the paper's transcriptomics pipeline (Supplementary Fig. S10), proteomics pipeline (Supplementary Fig. S15), CRISPR/Sanger-sequencing genotyping workflow (Fig. 6), DMF hardware/DropBot control system, and the CNN training/architecture details (Fig. 2) are out of scope for this translation.",
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "CellSuspension",
+          "source_quote": "cells suspended in media at 0.5 x 106 cells/mL; incubation: 37 C, humidified atmosphere, 24 h",
+          "source_location": "Methods: Cell seeding, processing, and selection on DISCO devices, sub-step i-g,t,p"
+        },
+        {
+          "bs_chemical": "FixativeSolution",
+          "source_quote": "HOPE Fixative solution I (Polysciences, Warrington, PA); incubation: 4 C, 20 min",
+          "source_location": "Methods: Cell seeding, processing, and selection on DISCO devices, sub-step ii-g,p"
+        },
+        {
+          "bs_chemical": "PermeabilizationBuffer",
+          "source_quote": "ice-cold acetone; incubation: -20 C, 10 min",
+          "source_location": "Methods: Cell seeding, processing, and selection on DISCO devices, sub-step iv-g,p"
+        },
+        {
+          "bs_chemical": "CD47Antibody",
+          "source_quote": "anti-human CD47-APC (clone CC2C6, BioLegend, 323104) diluted 1:250 in primary dilution solution",
+          "source_location": "Methods: Genomic analysis of single CRISPR-modified cells, sub-step iii"
+        },
+        {
+          "bs_chemical": "HoechstStain",
+          "source_quote": "Hoechst 33342 diluted 1:5,000 in DPBS with 0.05% (v/v) F68",
+          "source_location": "Methods: Genomic analysis of single CRISPR-modified cells, sub-step iii"
+        },
+        {
+          "bs_chemical": "WGAReagent",
+          "source_quote": "whole genome amplification (WGA) using the Repli-g single cell kit (Qiagen) following the manufacturer's instructions",
+          "source_location": "Methods: Genomic analysis of single cells"
+        },
+        {
+          "bs_chemical": "QC1PCRMix",
+          "source_quote": "particular loci in a 2 uL aliquot of 1:50 diluted WGA product were amplified by PCR using Taq DNA Polymerase (Invitrogen)",
+          "source_location": "Methods: Genomic analysis of single cells, QC-1"
+        },
+        {
+          "bs_chemical": "CleanupReagent",
+          "source_quote": "purified using DNA Clean and Concentrator PCR purification columns (Zymo Research) according to manufacturer's instructions",
+          "source_location": "Methods: Genomic analysis of single cells, DNA-cleanup"
+        },
+        {
+          "bs_chemical": "QC2PCRMix",
+          "source_quote": "amplified using methods similar to those described previously at fifteen short tandem repeat (STR) loci and the locus for Amelogenin using the AmpFlSTR Identifiler PCR Amplification Kit",
+          "source_location": "Methods: Genomic analysis of single cells, QC-2"
+        },
+        {
+          "bs_chemical": "LibraryPrepReagent",
+          "source_quote": "Whole genome sequencing libraries were prepared from 100 to 500 ng of purified and quantified DNA using the Nextera DNA Flex Library Prep Kit (Illumina)",
+          "source_location": "Methods: Genomic analysis of single cells, DNA sequencing"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "cells = dispense CellSuspension / heat cells at 37c for 1440m",
+          "source_quote": "incubation: 37 C, humidified atmosphere, 24 h",
+          "source_location": "Methods: sub-step i-g,t,p"
+        },
+        {
+          "bs_operation": "fixed1 = mix cells with fix / heat fixed1 at 4c for 20m",
+          "source_quote": "HOPE Fixative solution I ... incubation: 4 C, 20 min",
+          "source_location": "Methods: sub-step ii-g,p"
+        },
+        {
+          "bs_operation": "stained2 = mix stained1 with nuc / phenotype_signal = detect fluorescence on stained2",
+          "source_quote": "a custom convolutional neural network (CNN) ... to segment images of cells ... AUC = 0.991",
+          "source_location": "Results: Digital microfluidic isolation of single cells for -Omics"
+        },
+        {
+          "bs_operation": "lysate = mix stained2 with collection / if (phenotype_signal <= 80) dispose lysate",
+          "source_quote": "high-energy laser pulse(s) are delivered to the targeted cell(s) ... disrupting the cell's membrane and releasing its contents into solution",
+          "source_location": "Results: Digital microfluidic isolation of single cells for -Omics"
+        },
+        {
+          "bs_operation": "amplified = mix lysate with wga / heat amplified at 30c for 480m",
+          "source_quote": "whole genome amplification (WGA) using the Repli-g single cell kit (Qiagen)",
+          "source_location": "Methods: Genomic analysis of single cells"
+        },
+        {
+          "bs_operation": "repeat 5 times { heat qc1 ... } / if (qc1_signal <= 80) dispose qc1",
+          "source_quote": "samples with at least 3 of the 4 expected loci were carried forward through the pipeline (with others discarded)",
+          "source_location": "Methods: Genomic analysis of single cells, QC-1"
+        },
+        {
+          "bs_operation": "cleaned1 = mix qc13 with cleanup1",
+          "source_quote": "purified using DNA Clean and Concentrator PCR purification columns",
+          "source_location": "Methods: Genomic analysis of single cells, DNA-cleanup"
+        },
+        {
+          "bs_operation": "repeat 8 times { heat qc2 ... } / if (qc2_signal <= 80) dispose qc2",
+          "source_quote": "samples derived from U87 cells with 12 of 16 loci were carried forward through the pipeline (with others discarded)",
+          "source_location": "Methods: Genomic analysis of single cells, QC-2"
+        },
+        {
+          "bs_operation": "library = mix qc23 with libmix1 / dispose library1",
+          "source_quote": "Libraries were loaded at 14 pmol onto an Illumina MiSeq V3 for sequencing at low coverage with 150-bp paired-end sequencing",
+          "source_location": "Methods: Genomic analysis of single cells, DNA sequencing"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "permeabilized1 = mix fixed2 with perm (no explicit heat step)",
+          "note": "The paper specifies ice-cold acetone permeabilization at -20 C for 10 min, but BioScript's TEMP_NUMBER grammar token only accepts unsigned numeric literals, so no negative-temperature heat instruction could be issued; the permeabilization temperature/duration is therefore not explicitly modeled with a heat statement (only the mix is represented)."
+        },
+        {
+          "field": "heat amplified at 30c for 480m",
+          "note": "The paper describes Repli-g MDA amplification but does not state an exact isothermal temperature/duration for the DISCO-scale reaction; 30 C for 8 h is a standard Repli-g single-cell kit protocol value, approximated here rather than quoted directly from the paper."
+        },
+        {
+          "field": "detect fluorescence thresholds (<= 80) used for phenotype_signal, qc1_signal, qc2_signal",
+          "note": "The paper does not report a numeric fluorescence/intensity threshold of 80; these are placeholder pass/fail cutoffs standing in for the paper's qualitative selection/QC criteria (CNN 50% probability threshold for cell selection; 3-of-4 loci for QC-1; 12-of-16 loci for QC-2), since BioScript's detect+if construct requires a numeric comparison."
+        },
+        {
+          "field": "qc1/qc2 thermal cycling parameters (55c/59c anneal, 5 and 8 cycles)",
+          "note": "The paper references QC-1 and QC-2 PCR amplification and their expected-loci pass criteria but does not disclose exact thermocycler step temperatures, hold times, or cycle counts; standard Taq PCR and AmpFlSTR-Identifiler-typical parameters were used as reasonable approximations."
+        },
+        {
+          "field": "heat library at 55c for 5m / at 70c for 3m",
+          "note": "The paper cites the Nextera DNA Flex Library Prep Kit for library preparation but does not report explicit on-chip tagmentation/extension temperatures or durations; typical Nextera-protocol values were substituted as approximations."
+        },
+        {
+          "field": "CNN architecture, training, DropBot control system, transcriptomics/proteomics/CRISPR-Sanger pipelines, laser/optics hardware",
+          "note": "Not modeled. These are instrumentation, machine-learning-training, or separate -omics sub-pipelines (Figs. 2, 4, 5, 6; Supplementary Figs. S2-S4, S10, S15) rather than steps of the core single-cell genomics extraction/amplification/QC/library-prep workflow, and fall outside the scope of this translation."
+        }
+      ]
+    }
+  }
+}

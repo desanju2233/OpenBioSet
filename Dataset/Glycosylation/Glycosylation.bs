@@ -1,0 +1,71 @@
+module fluorescence
+
+manifest plasmid_dna
+manifest s30_extract
+manifest cjllos_reagent
+manifest wash_buffer
+manifest elution_buffer
+
+instructions:
+
+// ==================================================================
+// Module 1: Continuous-flow cell-free protein synthesis (CFPS)
+// Two streams - plasmid/energy/salts/metabolites and S30 extract/T7
+// RNAP - meet at the inlet and mix by diffusion along the serpentine
+// channel; each chip gives a 30 min residence time, chips are linked
+// in series for a 2 h total reaction (four-chip system in the paper).
+// ==================================================================
+plasmid = dispense plasmid_dna
+extract = dispense s30_extract
+
+cfps_mix = mix plasmid with extract for 30m
+
+repeat 3 times {
+    cfps_mix = mix cfps_mix with cfps_mix for 30m
+}
+
+sfgfp_reading = detect fluorescence on cfps_mix for 30s
+
+// ==================================================================
+// Module 2: On-chip glycosylation
+// The sfGFP-containing stream is flowed over CjPglB tethered to the
+// channel surface (via silane-PEG5000-biotin/NeutrAvidin/biotin) in
+// the presence of CjLLO glycan donor; the device is held at 30c and
+// components are continuously flowed across a series of chips at
+// 30 min residence time per chip.
+// ==================================================================
+llo = dispense cjllos_reagent
+glyco_mix = mix cfps_mix with llo for 30m
+heat glyco_mix at 30c for 30m
+
+repeat 3 times {
+    glyco_mix = mix glyco_mix with glyco_mix for 30m
+    heat glyco_mix at 30c for 30m
+}
+
+glyco_reading = detect fluorescence on glyco_mix for 30s
+
+// ==================================================================
+// Module 3: On-chip IMAC purification
+// The glycoprotein-containing stream is passed over Ni2+-charged
+// beads packed against posts at the channel outlet; hexahistidine-
+// tagged sfGFP binds the resin, unbound material is washed away,
+// and product is recovered by elution with high-imidazole buffer.
+// ==================================================================
+flowthrough = mix glyco_mix with glyco_mix for 1s
+flowthrough_reading = detect fluorescence on flowthrough for 30s
+
+wash = dispense wash_buffer
+wash_mix = mix flowthrough with wash for 2m
+wash_reading = detect fluorescence on wash_mix for 30s
+dispose wash_mix
+
+eluent = dispense elution_buffer
+product = mix flowthrough with eluent for 2m
+product_reading = detect fluorescence on product for 30s
+
+if (product_reading <= 0) {
+    dispose product
+}
+
+dispose flowthrough

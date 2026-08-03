@@ -1,0 +1,59 @@
+main:
+	particles1[0] = dispense(MagneticParticles)
+	s11[0] = dispense(Sample)
+	s21[0] = dispense(Sample)
+	s31[0] = dispense(Sample)
+	mix11[0] = mix(particles1[0], s11[0])
+	mix21[0] = mix(mix11[0], s21[0])
+	sample_complex1[0] = mix(mix21[0], s31[0])
+	heat(sample_complex1[0]) @ 25.0CELSIUS @ 360.0SECOND
+bsbbr_2_h:
+	PHI washed1 = {washed0,washed2}
+	PHI wb1 = {wb0,wb2}
+	PHI REPEAT_41 = {REPEAT_40,REPEAT_42}
+	if REPEAT_41[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	wb2[0] = dispense(WashBuffer)
+	washed2[0] = mix(sample_complex1[0], wb2[0]) @ 5.0SECOND
+	dispose(washed2[0])
+	REPEAT_42[0] = REPEAT_41[0] - 1
+bsbbr_4_f:
+	conj1[0] = dispense(Conjugate)
+	conjugate_complex1[0] = mix(sample_complex1[0], conj1[0])
+	heat(conjugate_complex1[0]) @ 25.0CELSIUS @ 120.0SECOND
+bsbbr_5_h:
+	PHI wb21 = {wb20,wb22}
+	PHI washed21 = {washed20,washed22}
+	PHI REPEAT_43 = {REPEAT_41,REPEAT_44}
+	if REPEAT_43[0] > 0	|	true: jump bsbbr_6_t	|	false: jump bsbbr_7_f
+bsbbr_6_t:
+	wb22[0] = dispense(WashBuffer)
+	washed22[0] = mix(conjugate_complex1[0], wb22[0]) @ 5.0SECOND
+	dispose(washed22[0])
+	REPEAT_44[0] = REPEAT_43[0] - 1
+bsbbr_7_f:
+bsbbr_8_h:
+	PHI REPEAT_21 = {REPEAT_20,REPEAT_22}
+	PHI rinsed1 = {rinsed0,rinsed2}
+	PHI rinse1 = {rinse0,rinse2}
+	if REPEAT_21[0] > 0	|	true: jump bsbbr_9_t	|	false: jump bsbbr_10_f
+bsbbr_9_t:
+	rinse2[0] = dispense(H2O2)
+	rinsed2[0] = mix(conjugate_complex1[0], rinse2[0]) @ 5.0SECOND
+	dispose(rinsed2[0])
+	REPEAT_22[0] = REPEAT_21[0] - 1
+bsbbr_10_f:
+	peroxide1[0] = dispense(H2O2)
+	substrate_complex1[0] = mix(conjugate_complex1[0], peroxide1[0])
+	heat(substrate_complex1[0]) @ 25.0CELSIUS @ 120.0SECOND
+	luminol1[0] = dispense(LuminolEnhancer)
+	signal_complex1[0] = mix(substrate_complex1[0], luminol1[0])
+	heat(signal_complex1[0]) @ 25.0CELSIUS @ 60.0SECOND
+	assay_signal1[0] = detect(fluorescence, signal_complex1[0]) @ 30.0SECOND
+	if assay_signal1[0] <= 0	|	true: jump bsbbif_11_t	|	false: jump bsbbif_12_f
+bsbbif_11_t:
+	dispose(signal_complex1[0])
+bsbbif_12_f:
+	PHI signal_complex2 = {signal_complex1,signal_complex}
+	dispose(signal_complex2[0])
+	NOP

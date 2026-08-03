@@ -1,0 +1,63 @@
+module fluorescence
+
+manifest raw_sample
+manifest lysing_solvent
+manifest methanol
+manifest isooctane
+manifest elisa_reagent
+
+instructions:
+
+// Step 1: load 1 uL of sample (whole blood, serum, or breast tissue
+// homogenate) into the sample reservoir and let it dry on the surface
+sample = dispense 1 units of raw_sample
+
+// Step 2: dropwise delivery of lysing solvent (DCM/acetone, 80:20 v/v)
+// to the dried sample, with an incubation/dry period between each
+// unit droplet (paper uses 9 x 1.1 uL or 5 x 2.2 uL)
+repeat 5 times {
+    lyse = dispense 2 units of lysing_solvent
+    sample = mix sample with lyse for 60s
+    heat sample at 23c for 1m
+    dispose lyse
+}
+
+// Step 3: dispense methanol (polar extraction solvent) to dissolve
+// the dried, lysed steroid residue
+meoh = dispense 2 units of methanol
+lysate = mix sample with meoh for 30s
+
+// Step 4: deliver a unit droplet of the dissolved sample into the
+// isooctane (nonpolar extracting solvent) reservoir; circulate for
+// ~20 s to perform liquid-liquid extraction, then split the two
+// phases and carry the extract droplet to the collection reservoir
+octane = dispense 5 units of isooctane
+extraction = mix lysate with octane for 20s
+dispose octane
+
+// Step 5: repeat methanol re-extraction of the sample reservoir to
+// recover all remaining free estradiol (paper repeats for a total of
+// 9 x 1.1 uL or 5 x 2.2 uL of methanol), pooling extract droplets
+// into the output reservoir each cycle
+repeat 4 times {
+    meoh = dispense 2 units of methanol
+    lysate = mix sample with meoh for 30s
+    octane = dispense 5 units of isooctane
+    extraction = mix extraction with octane for 20s
+    dispose octane
+}
+
+// Step 6: dry the pooled extract, then reconstitute for downstream
+// analysis (LC-MS/MS or ELISA)
+heat extraction at 25c for 10m
+recon = dispense 1 units of methanol
+final_extract = mix extraction with recon for 30s
+
+// Step 7: ELISA-based readout (percent recovery / quantification of
+// estradiol); modeled here as a detect step on the reconstituted
+// extract
+elisa = dispense 1 units of elisa_reagent
+readout_mix = mix final_extract with elisa for 60s
+estradiol_reading = detect fluorescence on readout_mix for 5m
+
+dispose readout_mix

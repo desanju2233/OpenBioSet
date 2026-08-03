@@ -1,0 +1,62 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Digital Microfluidic qPCR Cartridge Protocol for Viral Detection (SARS-CoV-2)\n\nREAGENTS USED:\n  - cDNA template of the SARS-CoV-2 N gene (SARS-CoV-2 RUO plasmid control, ten-fold serial dilutions from 10,000 to 1 copy/uL)\n  - N1 primer-probe mix (U.S. CDC-referenced, IDT)\n  - N2 primer-probe mix (U.S. CDC-referenced, IDT)\n  - RNase P (RP) primer-probe mix (human internal control gene)\n  - TaqMan Fast Advanced Master Mix (2X, Applied Biosystems)\n  - Nuclease-free water (diluent, and NTC substitute for template)\n  - Positive control template\n  - Hexadecane (environmental oil filling the cartridge to prevent droplet evaporation and reduce friction)\n  - Tween-20 surfactant (0.1% final concentration in aqueous reagents, reduces surface tension/biofouling)\n\nSTEPS:\n1. Reaction assembly: On the DMF cartridge, generate a 1.5 uL droplet-scale reaction for each of five parallel tracks/reservoirs (N1, N2, RP, positive control, NTC) by combining 1 uL cDNA template (or nuclease-free water for the NTC), 1.5 uL primer-probe mix, 10 uL TaqMan Fast Advanced Master Mix, and 7.5 uL nuclease-free water (20 uL bulk reaction mix, scaled down on-chip).\n2. Enzyme activation: Heat each reaction droplet at 95 C for 2 min (1 cycle) to activate the polymerase.\n3. Thermal cycling (40 cycles): For each cycle, denature at 95 C for 1 s, then anneal/extend at 60 C for 20 s, with droplets electrowetting-actuated between the two on-chip temperature zones (~1.75 C/s ramp rate, ~42 min total for 40 cycles).\n4. Real-time fluorescence detection: After every thermal cycle, capture the FAM fluorescence intensity of each droplet using the optical module (camera, fluorescence filter cube, LED) to build real-time amplification curves.\n5. Data analysis / dispose: Subtract baseline intensity to obtain delta fluorescence intensity (dFI), determine threshold cycle (Ct) values via LinRegPCR, and evaluate qPCR efficiency from the Ct-vs-log(concentration) standard curve; discard analyzed droplets once data collection is complete.\n\nINTERPRETATION: Successful SARS-CoV-2 N gene detection is confirmed by sigmoidal amplification curves resembling standard benchtop qPCR, a limit of detection down to 10 copies/uL (15 copies/droplet) for both N1 and N2 target regions, and standard-curve qPCR efficiencies within the acceptable 90-110% range (92.8% for N1, 101.2% for N2), supporting use of the DMF cartridge as a point-of-care NAAT platform for COVID-19 diagnosis." },
+    { "role": "assistant", "content": "module fluorescence\n\nmanifest cDNA_template\nmanifest primer_probe_N1\nmanifest primer_probe_N2\nmanifest primer_probe_RP\nmanifest master_mix\nmanifest nuclease_free_water\nmanifest positive_control\nmanifest ntc_sample\n\ninstructions:\n\ntemplate_n1 = dispense 1 units of cDNA_template\npp_n1 = dispense 2 units of primer_probe_N1\nmm_n1 = dispense 10 units of master_mix\nwater_n1 = dispense 8 units of nuclease_free_water\n\nmixa_n1 = mix template_n1 with pp_n1\nmixb_n1 = mix mixa_n1 with mm_n1\nN1_mix = mix mixb_n1 with water_n1\n\ntemplate_n2 = dispense 1 units of cDNA_template\npp_n2 = dispense 2 units of primer_probe_N2\nmm_n2 = dispense 10 units of master_mix\nwater_n2 = dispense 8 units of nuclease_free_water\n\nmixa_n2 = mix template_n2 with pp_n2\nmixb_n2 = mix mixa_n2 with mm_n2\nN2_mix = mix mixb_n2 with water_n2\n\ntemplate_rp = dispense 1 units of cDNA_template\npp_rp = dispense 2 units of primer_probe_RP\nmm_rp = dispense 10 units of master_mix\nwater_rp = dispense 8 units of nuclease_free_water\n\nmixa_rp = mix template_rp with pp_rp\nmixb_rp = mix mixa_rp with mm_rp\nRP_mix = mix mixb_rp with water_rp\n\npos = dispense 1 units of positive_control\npp_pos = dispense 2 units of primer_probe_N1\nmm_pos = dispense 10 units of master_mix\nwater_pos = dispense 8 units of nuclease_free_water\n\nmixa_pos = mix pos with pp_pos\nmixb_pos = mix mixa_pos with mm_pos\nPC_mix = mix mixb_pos with water_pos\n\nntc = dispense 1 units of ntc_sample\npp_ntc = dispense 2 units of primer_probe_N1\nmm_ntc = dispense 10 units of master_mix\nwater_ntc = dispense 8 units of nuclease_free_water\n\nmixa_ntc = mix ntc with pp_ntc\nmixb_ntc = mix mixa_ntc with mm_ntc\nNTC_mix = mix mixb_ntc with water_ntc\n\nheat N1_mix at 95c for 2m\nheat N2_mix at 95c for 2m\nheat RP_mix at 95c for 2m\nheat PC_mix at 95c for 2m\nheat NTC_mix at 95c for 2m\n\nrepeat 40 times {\n    heat N1_mix at 95c for 1s\n    heat N1_mix at 60c for 20s\n    N1_signal = detect fluorescence on N1_mix for 1s\n\n    heat N2_mix at 95c for 1s\n    heat N2_mix at 60c for 20s\n    N2_signal = detect fluorescence on N2_mix for 1s\n\n    heat RP_mix at 95c for 1s\n    heat RP_mix at 60c for 20s\n    RP_signal = detect fluorescence on RP_mix for 1s\n\n    heat PC_mix at 95c for 1s\n    heat PC_mix at 60c for 20s\n    PC_signal = detect fluorescence on PC_mix for 1s\n\n    heat NTC_mix at 95c for 1s\n    heat NTC_mix at 60c for 20s\n    NTC_signal = detect fluorescence on NTC_mix for 1s\n}\n\nif (N1_signal >= 40000) {\n    dispose N1_mix\n}\n\nif (N2_signal >= 40000) {\n    dispose N2_mix\n}\n\nif (NTC_signal >= 8000) {\n    dispose NTC_mix\n}\n\ndispose RP_mix\ndispose PC_mix" }
+  ],
+  "metadata": {
+    "protocol_id": "dmf_qpcr_sars_cov2_001",
+    "bs_file": "tests/test_cases/sars_cov2_dmf_qpcr/sars_cov2_dmf_qpcr.bs",
+    "protocol_name": "Digital Microfluidic qPCR Cartridge for SARS-CoV-2 Detection (Ho et al. 2022)",
+    "category": "viral_diagnostics_assay",
+    "chemicals": [
+      "cDNA_template",
+      "primer_probe_N1",
+      "primer_probe_N2",
+      "primer_probe_RP",
+      "master_mix",
+      "nuclease_free_water",
+      "positive_control",
+      "ntc_sample"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "repeat",
+      "detect",
+      "if",
+      "dispose"
+    ],
+    "validation_score": 1.0,
+    "validated": true,
+    "validation_status": "compiled_ir_dag_verified",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "original_protocol", "title": "Digital Microfluidic qPCR Cartridge for SARS-CoV-2 Detection", "publisher": "Micromachines", "url": "https://www.mdpi.com/2072-666X/13/2/196/pdf", "doi": "10.3390/mi13020196" }
+    ],
+    "notes": "The authored BioScript code is a direct translation of the paper's on-chip qPCR procedure (Sections 2.2 'Sample Preparation' and 2.6 'On-Chip qPCR Procedure of SARS-CoV-2 N Gene'), modeling the five parallel reservoirs/tracks (N1, N2, RP, positive control, NTC) described in the Discussion section, the 95C/2min enzyme activation, the 40-cycle 95C-1s/60C-20s thermal profile, per-cycle fluorescence detection matching the real-time optical module (Section 2.4), and threshold-based dispose logic standing in for the paper's Ct/deltaFI-based positive/negative call (Section 2.7). This script was compiled with the lilott8/BioScript compiler and produced a valid IR (with correctly phi-noded loop and if/else basic blocks for the 40-cycle repeat and the three threshold checks) and a valid control-flow DAG (.dot), confirming syntactic and structural correctness.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "cDNA_template", "source_quote": "the N gene cDNA template (SARS-CoV-2 RUO plasmid controls) of SARS-CoV-2 with a stock concentration of 200,000 copies/uL", "source_location": "Section 2.1 Reagents and Chemicals" },
+        { "bs_chemical": "primer_probe_N1 / primer_probe_N2", "source_quote": "The qPCR primer-probe mix for N1 and N2 referring to the U.S. CDC were from IDT", "source_location": "Section 2.1 Reagents and Chemicals" },
+        { "bs_chemical": "master_mix", "source_quote": "The TaqMan Fast Advanced Master Mix (2X) for two-step qPCR", "source_location": "Section 2.1 Reagents and Chemicals" },
+        { "bs_chemical": "nuclease_free_water", "source_quote": "1.5 uL primer-probe mix, 10 uL of DNA master mix, and 7.5 uL nuclease-free water", "source_location": "Section 2.2 Sample Preparation" },
+        { "bs_chemical": "primer_probe_RP / positive_control / ntc_sample", "source_quote": "a human RNase P gene (RP) control, a positive control, and a no template control (NTC) altogether on the same DMF qPCR cartridge", "source_location": "Section 4 Discussion" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "template/pp/mm/water dispense + mix chain per track", "source_quote": "we prepared a 20 uL reaction mix that contained 1 uL cDNA template of varied concentration, 1.5 uL primer-probe mix, 10 uL of DNA master mix, and 7.5 uL nuclease-free water", "source_location": "Section 2.2 Sample Preparation" },
+        { "bs_operation": "heat ..._mix at 95c for 2m", "source_quote": "1 cycle of enzyme activation at 95C for 2 min", "source_location": "Section 2.6 On-Chip qPCR Procedure" },
+        { "bs_operation": "repeat 40 times { heat 95c 1s, heat 60c 20s, detect fluorescence }", "source_quote": "followed by 40 cycles of a thermal profile of 1 s at 95C for denaturation, and 20 s at 60C for annealing and extension", "source_location": "Section 2.6 On-Chip qPCR Procedure" },
+        { "bs_operation": "N1_signal/N2_signal/... = detect fluorescence on ..._mix for 1s", "source_quote": "the optical module automatically recorded the fluorescence after each cycle, which enabled real-time analysis", "source_location": "Section 4 Discussion" },
+        { "bs_operation": "if (...signal >= threshold) { dispose ...mix }", "source_quote": "By expressing dFI on the logarithmic scale, the threshold cycle (Ct) was determined for quantification analysis", "source_location": "Section 2.7 Data Analysis" }
+      ],
+      "numeric_mismatches": [
+        { "field": "dispense volumes (1, 2, 10, 8 units)", "note": "BioScript's dispense grammar in the reference examples only uses integer unit counts, so the paper's exact 1 uL / 1.5 uL / 10 uL / 7.5 uL reaction volumes are approximated as 1/2/10/8 integer units rather than exact fractional microliter amounts." },
+        { "field": "if (...signal >= 40000) / (NTC_signal >= 8000)", "note": "The paper calls positives via Ct value derived from log-scale deltaFI and LinRegPCR baseline/threshold fitting, not a single-timepoint raw fluorescence-intensity cutoff. BioScript exposes only scalar comparison operators in its if-statement, so a plausible raw-intensity threshold (drawn from the ~7500-50000 a.u. range seen in Figure 3b) is used as a stand-in for the paper's Ct-based quantification logic." },
+        { "field": "electrowetting droplet shuttling between 95C/60C zones", "note": "The paper's thermal cycling is physically implemented by driving the droplet back and forth between two fixed-temperature zones on the cartridge (~1.75C/s effective ramp via droplet speed), not by ramping a single heater. BioScript has no droplet-transport/actuation primitive distinct from 'heat', so the zone-shuttling mechanism is represented simply as sequential 'heat at Tc' calls." },
+        { "field": "droplet volume consistency / temperature uniformity / fluorescence linearity characterization (Figures 2 and 3)", "note": "Not modeled. These are hardware/instrument characterization experiments (electric, thermal, and optical module validation) run separately from the N1/N2 qPCR assay itself, and fall outside the scope of this translation." }
+      ]
+    }
+  }
+}

@@ -1,0 +1,42 @@
+main:
+	tissue1[0] = dispense(tissue_sample)
+	lyse1[0] = dispense(lysing_solvent)
+	lysed1[0] = mix(tissue1[0], lyse1[0]) @ 30.0SECOND
+	dispose(lysed1[0])
+	spe1[0] = dispense(spe_matrix)
+	prime1[0] = dispense(methanol)
+	primed_spe1[0] = mix(spe1[0], prime1[0]) @ 300.0SECOND
+	dispose(primed_spe1[0])
+	es01[0] = dispense(extraction_solvent)
+	ext01[0] = mix(tissue1[0], es01[0]) @ 300.0SECOND
+	heat(ext01[0]) @ 25.0CELSIUS @ 600.0SECOND
+	pooled_extract1[0] = mix(ext01[0], spe1[0]) @ 120.0SECOND
+bsbbr_2_h:
+	PHI REPEAT_31 = {REPEAT_30,REPEAT_32}
+	PHI clean1 = {clean0,clean2}
+	PHI ext1 = {ext0,ext2}
+	PHI es1 = {es0,es2}
+	PHI pooled_extract2 = {pooled_extract1,pooled_extract3}
+	if REPEAT_31[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	es2[0] = dispense(extraction_solvent)
+	ext2[0] = mix(tissue1[0], es2[0]) @ 300.0SECOND
+	heat(ext2[0]) @ 25.0CELSIUS @ 600.0SECOND
+	clean2[0] = mix(ext2[0], spe1[0]) @ 120.0SECOND
+	pooled_extract3[0] = mix(pooled_extract2[0], clean2[0]) @ 1.0SECOND
+	REPEAT_32[0] = REPEAT_31[0] - 1
+bsbbr_4_f:
+	heat(pooled_extract2[0]) @ 25.0CELSIUS @ 1800.0SECOND
+	dansyl1[0] = dispense(dansyl_reagent)
+	derivatized1[0] = mix(pooled_extract2[0], dansyl1[0]) @ 5.0SECOND
+	heat(derivatized1[0]) @ 60.0CELSIUS @ 300.0SECOND
+	diluent1[0] = dispense(methanol_water)
+	final_sample1[0] = mix(derivatized1[0], diluent1[0]) @ 5.0SECOND
+	hormone_signal1[0] = detect(fluorescence, final_sample1[0]) @ 1320.0SECOND
+	if hormone_signal1[0] <= 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+bsbbif_5_t:
+	dispose(final_sample1[0])
+bsbbif_6_f:
+	PHI final_sample2 = {final_sample1,final_sample}
+	dispose(final_sample2[0])
+	NOP

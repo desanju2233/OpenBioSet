@@ -1,0 +1,146 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "ASSAY TYPE: Digital microfluidic Immunocytochemistry in Single Cells (DISC) for high-time-resolution analysis of PDGFR/PI3K/Akt phosphorylation signalling in adherent fibroblasts and breast cancer cells\n\nREAGENTS USED:\n  - Cell Suspension (NIH-3T3 fibroblasts, MCF-7, or MDA-MB-231 cells at 500,000 cells per mL in culture media; passively dispensed to form virtual microwells (VMs) on the patterned top-plate hydrophilic sites)\n  - Starving Media (0.5% serum, 0.05% v/v Pluronic F68 in DMEM)\n  - Serum-Free DMEM (0.05% v/v Pluronic F68 rinse/wash medium)\n  - PDGF-BB Ligand (human recombinant PDGF-BB stimulant in serum-free DMEM, delivered as single-bolus or brief pulse doses)\n  - Fixing Solution (4% paraformaldehyde, 0.05% v/v F68 in DPBS)\n  - Wash Buffer 1 (0.05% v/v F68 in DPBS, post-fixation rinse)\n  - Permeabilization Solution (0.2% v/v Tween-20 in DPBS)\n  - Wash Buffer 2 (0.05% v/v Brij 35 in DPBS, post-permeabilization/antibody rinse)\n  - Blocking Solution (1% bovine non-fat dried milk, 0.05% v/v Brij 35 in DPBS)\n  - Primary Antibody Solution (anti-PDGFR/anti-phospho-PDGFR or anti-Akt/anti-phospho-Akt mouse and rabbit antibodies in blocking solution)\n  - Secondary Antibody Solution (Alexa Fluor 647 anti-mouse and Alexa Fluor 555 anti-rabbit conjugates in blocking solution)\n\nSTEPS:\n1. Seeding: Passively dispense cell suspension droplets onto the top-plate hydrophilic sites to form virtual microwells; incubate 24 h at 37 C to allow cell adherence.\n2. Starving: Dispense starving media to the VM; incubate 24 h at 37 C to serum-starve adherent cells.\n3. Rinse: Passively dispense six successive serum-free DMEM droplets across the VM to wash out starving media.\n4. Stimulation: Deliver PDGF-BB ligand droplet(s) to the VM for a defined stimulation duration (single bolus of 1 s to 120 s, or a brief 3-40 s pulse followed by ligand-free wash-away, depending on experiment).\n5. Fixation: Immediately after stimulation, dispense fixing solution to the VM and incubate 10 min at room temperature to arrest the signalling state.\n6. Rinse: Passively dispense six successive Wash Buffer 1 droplets to remove residual fixing solution.\n7. Permeabilization: Dispense permeabilization solution to the VM and incubate 10 min at room temperature.\n8. Rinse: Passively dispense nine successive Wash Buffer 2 droplets to remove permeabilization solution.\n9. Blocking: Dispense blocking solution to the VM and incubate 1 h at room temperature.\n10. Primary Antibody Staining: Dispense primary antibody solution (target protein + phosphoprotein antibodies) to the VM and incubate overnight at 4 C.\n11. Rinse: Passively dispense six successive Wash Buffer 2 droplets to remove unbound primary antibody.\n12. Secondary Antibody Staining: Dispense secondary antibody solution to the VM and incubate 2 h at room temperature.\n13. Detection: Disassemble the top plate and scan on a microarray/laser-scanning cytometer; analyze images in CellProfiler to compute, for each single cell, the ratio of phosphorylated-protein to total-protein (phosphorylated + non-phosphorylated) fluorescence intensity, normalized to unstimulated control cells on the same device, yielding a per-cell phosphorylation fold-change used to classify normal vs. hyperactive responders.\n\nPULSE-STIMULATION VARIANT (time-resolved wash-away experiments, Fig. 6): After seeding, starving, and rinsing as above, cells are stimulated with a brief PDGF-BB pulse (as short as 3 s) and then washed with ligand-free medium to terminate ligand exposure. Cells are held for a defined post-stimulation interval (1-5 min, in 1 min increments) before fixation, so that phosphorylation state is captured at successive time points after the pulse. Steps 5-12 (fixation, permeabilization, blocking, primary/secondary antibody staining, and washes) are then performed identically to the standard protocol, followed by detection/classification of Akt activation.\n\nINTERPRETATION: Successful DISC operation is confirmed by dose-dependent, bulk-averaged PDGFR/Akt phosphorylation curves matching conventional (western blot) measurements of the PDGFR/PI3K/Akt pathway, Hill-coefficient/half-maximal-activation values consistent with prior literature, no significant signalling perturbation from droplet-movement shear stress, and single-cell-resolved histograms/scatter plots revealing heterogeneous 'hyperactive responder' subpopulations (e.g., in MDA-MB-231 vs. MCF-7 breast cancer cells) and fast pulse-stimulation kinetics (e.g., a 10 s PDGF pulse committing >30% of cells to Akt activation) not resolvable by traditional bulk assays."
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest CellSuspension\nmanifest StarvingMedia\nmanifest SerumFreeDMEM\nmanifest PDGF_BB\nmanifest FixingSolution\nmanifest WashBuffer1\nmanifest WashBuffer2\nmanifest PermeabilizationSolution\nmanifest BlockingSolution\nmanifest PrimaryAntibody\nmanifest SecondaryAntibody\n\ninstructions:\n\n// -----------------------------------------------------------------\n// Step 0: Seed cells and allow adherence (passive dispensing of cell\n// suspension onto hydrophilic site, 24 h incubation at 37c)\n// -----------------------------------------------------------------\nvm = dispense 3 units of CellSuspension\nheat vm at 37c for 24h\n\n// -----------------------------------------------------------------\n// Step 1: Starve cells (6 x 900nl droplets, 24 h at 37c)\n// -----------------------------------------------------------------\nstarve = dispense 6 units of StarvingMedia\nvm = mix vm with starve\nheat vm at 37c for 24h\n\n// -----------------------------------------------------------------\n// Step 2: Rinse starving media with serum-free DMEM (6 exchanges)\n// -----------------------------------------------------------------\nrepeat 6 times {\n    sfd = dispense 1 units of SerumFreeDMEM\n    vm = mix vm with sfd\n}\n\n// -----------------------------------------------------------------\n// Step 3: Stimulate with PDGF-BB ligand (2 x 900nl droplets)\n// -----------------------------------------------------------------\nligand = dispense 2 units of PDGF_BB\nvm = mix vm with ligand for 10s\n\n// -----------------------------------------------------------------\n// Step 4: Fix immediately after stimulation (3 x 900nl FS, 10 min)\n// -----------------------------------------------------------------\nfs = dispense 3 units of FixingSolution\nvm = mix vm with fs\nheat vm at 23c for 10m\n\n// -----------------------------------------------------------------\n// Step 5: Rinse fixing solution with WB1 (6 exchanges)\n// -----------------------------------------------------------------\nrepeat 6 times {\n    wb1 = dispense 1 units of WashBuffer1\n    vm = mix vm with wb1\n}\n\n// -----------------------------------------------------------------\n// Step 6: Permeabilize (3 x 900nl PS, 10 min)\n// -----------------------------------------------------------------\nps = dispense 3 units of PermeabilizationSolution\nvm = mix vm with ps\nheat vm at 23c for 10m\n\n// -----------------------------------------------------------------\n// Step 7: Rinse PS with WB2 (9 exchanges)\n// -----------------------------------------------------------------\nrepeat 9 times {\n    wb2 = dispense 1 units of WashBuffer2\n    vm = mix vm with wb2\n}\n\n// -----------------------------------------------------------------\n// Step 8: Block (3 x 900nl BS, 1 h)\n// -----------------------------------------------------------------\nbs = dispense 3 units of BlockingSolution\nvm = mix vm with bs\nheat vm at 23c for 60m\n\n// -----------------------------------------------------------------\n// Step 9: Primary antibody stain (3 x 900nl, overnight at 4c)\n// -----------------------------------------------------------------\npab = dispense 3 units of PrimaryAntibody\nvm = mix vm with pab\nheat vm at 4c for 12h\n\n// -----------------------------------------------------------------\n// Step 10: Rinse unbound primary antibody with WB2 (6 exchanges)\n// -----------------------------------------------------------------\nrepeat 6 times {\n    wb2b = dispense 1 units of WashBuffer2\n    vm = mix vm with wb2b\n}\n\n// -----------------------------------------------------------------\n// Step 11: Secondary antibody stain (3 x 900nl, 2 h)\n// -----------------------------------------------------------------\nsab = dispense 3 units of SecondaryAntibody\nvm = mix vm with sab\nheat vm at 23c for 120m\n\n// -----------------------------------------------------------------\n// Readout: microarray/laser scan of phosphorylated : total protein\n// ratio, expressed as fluorescence fold change\n// -----------------------------------------------------------------\nPhosphoSignal = detect fluorescence on vm for 30s\n\n// Classify single-cell response (e.g., hyperactive responder vs\n// normal population, cf. Fig. 4), then dispose exactly once\nif (PhosphoSignal >= 30) {\n    dispose vm\n} else {\n    dispose vm\n}\n\n\n// ===================================================================\n// Pulse-stimulation variant (cf. Fig. 6): brief ligand pulse followed\n// by wash-away, then fixation/immunostaining and readout at several\n// post-stimulation time points.\n// ===================================================================\n\npulse_vm = dispense 3 units of CellSuspension\nheat pulse_vm at 37c for 24h\n\npulse_starve = dispense 6 units of StarvingMedia\npulse_vm = mix pulse_vm with pulse_starve\nheat pulse_vm at 37c for 24h\n\nrepeat 6 times {\n    pulse_sfd = dispense 1 units of SerumFreeDMEM\n    pulse_vm = mix pulse_vm with pulse_sfd\n}\n\n// 3 s pulse of low-concentration PDGF-BB\npulse_ligand = dispense 2 units of PDGF_BB\npulse_vm = mix pulse_vm with pulse_ligand for 3s\n\n// Wash away ligand with ligand-free medium\nwash_away = dispense 2 units of SerumFreeDMEM\npulse_vm = mix pulse_vm with wash_away\n\n// Interrogate Akt phosphorylation at successive time points\n// (1, 2, 3, 4, 5 min) by repeated short incubation prior to fixing\nrepeat 5 times {\n    heat pulse_vm at 23c for 60s\n}\n\npulse_fs = dispense 3 units of FixingSolution\npulse_vm = mix pulse_vm with pulse_fs\nheat pulse_vm at 23c for 10m\n\nrepeat 6 times {\n    pulse_wb1 = dispense 1 units of WashBuffer1\n    pulse_vm = mix pulse_vm with pulse_wb1\n}\n\npulse_ps = dispense 3 units of PermeabilizationSolution\npulse_vm = mix pulse_vm with pulse_ps\nheat pulse_vm at 23c for 10m\n\nrepeat 9 times {\n    pulse_wb2 = dispense 1 units of WashBuffer2\n    pulse_vm = mix pulse_vm with pulse_wb2\n}\n\npulse_bs = dispense 3 units of BlockingSolution\npulse_vm = mix pulse_vm with pulse_bs\nheat pulse_vm at 23c for 60m\n\npulse_pab = dispense 3 units of PrimaryAntibody\npulse_vm = mix pulse_vm with pulse_pab\nheat pulse_vm at 4c for 12h\n\nrepeat 6 times {\n    pulse_wb2b = dispense 1 units of WashBuffer2\n    pulse_vm = mix pulse_vm with pulse_wb2b\n}\n\npulse_sab = dispense 3 units of SecondaryAntibody\npulse_vm = mix pulse_vm with pulse_sab\nheat pulse_vm at 23c for 120m\n\nAktSignal = detect fluorescence on pulse_vm for 30s\n\nif (AktSignal >= 32) {\n    dispose pulse_vm\n} else {\n    dispose pulse_vm\n}"
+    }
+  ],
+  "metadata": {
+    "protocol_id": "dmf_disc_pdgfr_akt_immunocytochemistry_001",
+    "bs_file": "tests/test_cases/disc_immunocytochemistry/disc_pdgfr_akt_dmf.bs",
+    "protocol_name": "Digital Microfluidic Immunocytochemistry in Single Cells (DISC) for PDGFR/PI3K/Akt Phosphorylation Signalling (Ng et al. 2015)",
+    "category": "single_cell_signalling_assay",
+    "chemicals": [
+      "CellSuspension",
+      "StarvingMedia",
+      "SerumFreeDMEM",
+      "PDGF_BB",
+      "FixingSolution",
+      "WashBuffer1",
+      "WashBuffer2",
+      "PermeabilizationSolution",
+      "BlockingSolution",
+      "PrimaryAntibody",
+      "SecondaryAntibody"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "repeat",
+      "if",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": true,
+    "validation_status": "compiled_v1_no_errors",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      {
+        "type": "original_protocol",
+        "title": "Digital microfluidic immunocytochemistry in single cells",
+        "publisher": "Nature Communications",
+        "url": "https://microfluidics.utoronto.ca/papers/ncomms8513.pdf",
+        "doi": "10.1038/ncomms8513"
+      }
+    ],
+    "notes": "The authored BioScript code is a direct translation of the paper's automated 11-step DMF cell-culture and immunocytochemistry procedure (Methods, 'DMF cell culture and immunocytochemistry'), covering cell seeding/adherence, serum starvation, PDGF-BB ligand stimulation, paraformaldehyde fixation, permeabilization, blocking, primary/secondary antibody staining, and the intervening wash cycles, as depicted in Fig. 1b. A second block translates the time-resolved pulse-stimulation wash-away variant (Fig. 6), where a brief ligand pulse (as short as 3 s) is followed by a ligand-free wash droplet and a delay before fixation, capturing Akt phosphorylation at successive post-pulse time points. Incubation durations, temperatures, and droplet counts (e.g., 6x900nl serum-free DMEM rinse, 9x900nl WB2 rinse, 10 min fixation/permeabilization, 1 h blocking, overnight primary antibody at 4C, 2 h secondary antibody) are taken directly from the Methods section's step-by-step reagent volumes. Because BioScript's 'dispense'/'mix' primitives model discrete reagent-exchange droplets rather than a persistent adherent-cell substrate, the virtual microwell is represented by a single continuously-updated droplet handle ('vm' / 'pulse_vm') that is repeatedly re-mixed with each new reagent droplet, consistent with the paper's own description of sequential passive-dispensing reagent exchange over a fixed virtual microwell. Likewise, because the paper's readout is a CellProfiler-derived phosphorylated:total-protein fluorescence intensity ratio (immunofluorescence, not a fluorogenic enzymatic assay), the 'detect fluorescence' primitive is used directly, since this is the genuine detection modality of the assay (unlike protocols using LC-MS/nESI-MS readouts, which must borrow the same primitive as a stand-in). The classification 'if/else' block after each detect step models the paper's post hoc single-cell classification into normal vs. hyperactive responder populations (Fig. 4) and disposes the droplet on both branches. The device fabrication/actuation-voltage control system (DropBot, Methods 'Device fabrication and operation'), the CellProfiler image-analysis pipeline and shape/neighbour-distance statistics (Fig. 4b, Supplementary Figs. 12-15), the microarray-scanner/live-cell-imaging hardware setup, the shear-stress/orthovanadate control experiments (Supplementary Figs. 8, 16), and the double-bolus ligand-renewal kinetics experiment (Fig. 5b) are hardware-control, image-analysis, or separate control/validation sub-experiments with no corresponding BioScript primitive, and are intentionally not modeled; only the core 11-step seed/stimulate/fix/stain/detect protocol and its pulse-stimulation variant are captured here.",
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "CellSuspension",
+          "source_quote": "cells adhered in the VMs are stimulated, fixed and labelled with antibodies",
+          "source_location": "Results: Digital microfluidic Immunocytochemistry in Single Cells"
+        },
+        {
+          "bs_chemical": "PDGF_BB",
+          "source_quote": "phosphorylation states in individual cells after stimulation by delivery of droplets containing various concentrations of PDGF",
+          "source_location": "Results: DISC validation"
+        },
+        {
+          "bs_chemical": "FixingSolution",
+          "source_quote": "fixing solution (FS) (4% paraformaldehyde and 0.05% v/v F68) ... were formed in DPBS",
+          "source_location": "Methods: On-chip reagent composition"
+        },
+        {
+          "bs_chemical": "PrimaryAntibody",
+          "source_quote": "the blocked cells were stained with primary antibodies ... incubating overnight in 4 oC",
+          "source_location": "Methods: DMF cell culture and immunocytochemistry, step 9"
+        },
+        {
+          "bs_chemical": "SecondaryAntibody",
+          "source_quote": "the primary antibodies were stained by secondary antibodies ... incubating for 2 h",
+          "source_location": "Methods: DMF cell culture and immunocytochemistry, step 11"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "repeat 6 times { sfd = dispense ... ; vm = mix vm with sfd }",
+          "source_quote": "the starving media was rinsed by passively dispensing 5.4 ml (6 x 900 nl) of serum-free DMEM",
+          "source_location": "Methods: DMF cell culture and immunocytochemistry, step 2"
+        },
+        {
+          "bs_operation": "vm = mix vm with ligand for 10s",
+          "source_quote": "cells to be stimulated (with ligand in droplet 1) for ~1 s before fixing",
+          "source_location": "Results: Digital microfluidic Immunocytochemistry in Single Cells"
+        },
+        {
+          "bs_operation": "heat vm at 23c for 10m",
+          "source_quote": "cells were fixed by passively dispensing ... FS and incubating for 10 min",
+          "source_location": "Methods: DMF cell culture and immunocytochemistry, step 4"
+        },
+        {
+          "bs_operation": "repeat 9 times { wb2 = dispense ... ; vm = mix vm with wb2 }",
+          "source_quote": "the PS was rinsed by passively dispensing 8.1 ml (9 x 900 nl) of WB2",
+          "source_location": "Methods: DMF cell culture and immunocytochemistry, step 7"
+        },
+        {
+          "bs_operation": "heat vm at 4c for 12h",
+          "source_quote": "stained with primary antibodies ... incubating overnight in 4 oC",
+          "source_location": "Methods: DMF cell culture and immunocytochemistry, step 9"
+        },
+        {
+          "bs_operation": "pulse_vm = mix pulse_vm with pulse_ligand for 3s",
+          "source_quote": "a 3 s pulse of ligand was not sufficient to commit activation of Akt",
+          "source_location": "Results: DISC for time-resolved signalling"
+        },
+        {
+          "bs_operation": "PhosphoSignal = detect fluorescence on vm for 30s",
+          "source_quote": "the fluorescent intensity from the phosphorylated protein is normalized to the fluorescent intensity from the corresponding whole protein",
+          "source_location": "Figure 1 legend (d)"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "vm re-mixed rather than re-dispensed",
+          "note": "Unlike the DBS punch (a persistent solid substrate re-dispensed each step because BioScript has no substrate primitive), the DISC virtual microwell genuinely is a single continuously-updated liquid droplet in the paper (sequential passive dispensing displaces its contents in place), so representing it as one repeatedly-mixed 'vm' handle is a faithful model, not a workaround."
+        },
+        {
+          "field": "overnight primary antibody incubation modeled as 12h",
+          "note": "The paper states primary antibody incubation is 'overnight' without a specific duration; BioScript requires a concrete time value, so 12h was chosen as a representative overnight incubation length."
+        },
+        {
+          "field": "stimulation duration parameterization (10s in main block, 3s in pulse block)",
+          "note": "The paper tests a range of single-bolus durations (1-120s) and pulse durations (3-40s) across multiple figures; the BioScript translation fixes one representative duration per block (10s bolus, 3s pulse) rather than modeling the full parameter sweep, since BioScript has no native loop-over-parameter-set construct matching the experimental design."
+        },
+        {
+          "field": "hyperactive-responder classification threshold (PhosphoSignal >= 30, AktSignal >= 32)",
+          "note": "The paper defines hyperactive responders statistically via an outlier-plot quartile method (75th percentile + 1.5x IQR of p-Akt fold change), not a fixed numeric threshold; the if/else threshold here is an illustrative stand-in for that statistical classification step, since BioScript's grammar only supports simple numeric comparisons."
+        },
+        {
+          "field": "DropBot actuation/voltage control system, CellProfiler shape/neighbour analysis, microarray scanner/live-cell imaging hardware, shear-stress and orthovanadate control experiments, double-bolus ligand-renewal experiment",
+          "note": "Not modeled. These are device-control, image-analysis, or separate control/validation sub-experiments run alongside the core seed/stimulate/fix/stain/detect protocol, not part of the 11-step immunocytochemistry procedure itself, and fall outside the scope of this translation."
+        }
+      ]
+    }
+  }
+}

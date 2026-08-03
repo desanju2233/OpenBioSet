@@ -1,0 +1,47 @@
+main:
+	organoid1[0] = dispense(organoid_suspension)
+	media1[0] = dispense(culture_media)
+	seeded1[0] = mix(organoid1[0], media1[0]) @ 30.0SECOND
+	heat(seeded1[0]) @ 37.0CELSIUS @ 3600.0SECOND
+bsbbr_2_h:
+	PHI necrotic_reading1 = {necrotic_reading0,necrotic_reading2}
+	PHI REPEAT_41 = {REPEAT_40,REPEAT_42}
+	PHI diluent1 = {diluent0,diluent2}
+	PHI hoechst1 = {hoechst0,hoechst2}
+	PHI apoptosis_stained1 = {apoptosis_stained0,apoptosis_stained2}
+	PHI fully_stained1 = {fully_stained0,fully_stained3}
+	PHI apoptotic_reading1 = {apoptotic_reading0,apoptotic_reading2}
+	PHI nuclei_stained1 = {nuclei_stained0,nuclei_stained2}
+	PHI drug1 = {drug0,drug2}
+	PHI caspase1 = {caspase0,caspase2}
+	PHI treated1 = {treated0,treated2}
+	PHI ethd1 = {ethd0,ethd2}
+	PHI dose1 = {dose0,dose2}
+	if REPEAT_41[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_6_f
+bsbbr_3_t:
+	drug2[0] = dispense(acetaminophen)
+	diluent2[0] = dispense(culture_media)
+	dose2[0] = mix(drug2[0], diluent2[0]) @ 30.0SECOND
+	treated2[0] = mix(seeded1[0], dose2[0]) @ 60.0SECOND
+	heat(treated2[0]) @ 37.0CELSIUS @ 86400.0SECOND
+	hoechst2[0] = dispense(hoechst_stain)
+	nuclei_stained2[0] = mix(treated2[0], hoechst2[0]) @ 60.0SECOND
+	caspase2[0] = dispense(caspase3_reporter)
+	apoptosis_stained2[0] = mix(nuclei_stained2[0], caspase2[0]) @ 120.0SECOND
+	heat(apoptosis_stained2[0]) @ 37.0CELSIUS @ 1800.0SECOND
+	ethd2[0] = dispense(ethidium_homodimer)
+	fully_stained2[0] = mix(apoptosis_stained2[0], ethd2[0]) @ 60.0SECOND
+	heat(fully_stained2[0]) @ 37.0CELSIUS @ 900.0SECOND
+	apoptotic_reading2[0] = detect(fluorescence, fully_stained2[0]) @ 30.0SECOND
+	if apoptotic_reading2[0] >= 70	|	true: jump bsbbif_4_t	|	false: jump bsbbif_5_f
+bsbbif_4_t:
+	dispose(fully_stained2[0])
+bsbbif_5_f:
+	PHI fully_stained3 = {fully_stained2,fully_stained}
+	necrotic_reading2[0] = detect(fluorescence, fully_stained3[0]) @ 30.0SECOND
+	dispose(fully_stained3[0])
+	REPEAT_42[0] = REPEAT_41[0] - 1
+	jump: bsbbr_2_h
+bsbbr_6_f:
+	dispose(seeded1[0])
+	NOP

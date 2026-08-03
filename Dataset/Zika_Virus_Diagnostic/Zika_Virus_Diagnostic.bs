@@ -1,0 +1,74 @@
+module fluorescence
+
+manifest plasma_sample
+manifest lysis_buffer
+manifest proteinase_k
+manifest carrier_rna
+manifest magnetic_beads
+manifest wash_buffer
+manifest ethanol_wash_buffer
+manifest elution_water
+manifest nasba_master_mix
+manifest nasba_enzymes
+manifest cf_master_mix
+manifest toehold_switch_dna
+
+instructions:
+
+// ---- Pre-processing (P): lysis and reversible RNA capture on magnetic beads ----
+sample = dispense 5 units of plasma_sample
+lysis = dispense 5 units of lysis_buffer
+lysed = mix sample with lysis for 30s
+heat lysed at 95c for 2m
+
+pk = dispense 1 units of proteinase_k
+lysed_pk = mix lysed with pk for 30s
+
+carrier = dispense 1 units of carrier_rna
+lysed_carrier = mix lysed_pk with carrier for 30s
+heat lysed_carrier at 23c for 15m
+
+beads = dispense 12 units of magnetic_beads
+captured = mix lysed_carrier with beads for 5m
+
+// ---- DMF Extraction (E_DMF): bead wash cycles (optimized to 6 washes) ----
+repeat 4 times {
+    wash = dispense 6 units of wash_buffer
+    washed = mix captured with wash for 1m
+    dispose wash
+}
+
+repeat 2 times {
+    ewash = dispense 6 units of ethanol_wash_buffer
+    ewashed = mix captured with ewash for 1m
+    dispose ewash
+}
+
+eluent = dispense 5 units of elution_water
+rna_eluate = mix captured with eluent for 3m
+
+// ---- DMF Amplification (A_DMF): NASBA anneal, cool/equilibrate, amplify ----
+mmix = dispense 3 units of nasba_master_mix
+anneal_mix = mix rna_eluate with mmix
+heat anneal_mix at 65c for 2m
+heat anneal_mix at 41c for 10m
+
+enzymes = dispense 1 units of nasba_enzymes
+amp_mix = mix anneal_mix with enzymes
+heat amp_mix at 41c for 90m
+
+// ---- Cell-free protein expression assay (C): toehold switch colorimetric detection ----
+cfmix = dispense 6 units of cf_master_mix
+switch = dispense 1 units of toehold_switch_dna
+cf_reaction = mix cfmix with switch for 30s
+
+detection_mix = mix cf_reaction with amp_mix for 60s
+heat detection_mix at 37c for 175m
+
+zika_result = detect fluorescence on detection_mix for 5m
+
+if (zika_result <= 50) {
+    dispose detection_mix
+}
+
+dispose detection_mix

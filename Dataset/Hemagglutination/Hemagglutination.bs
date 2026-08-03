@@ -1,0 +1,85 @@
+module fluorescence
+
+manifest whole_blood
+manifest reconstitution_solvent
+manifest anti_A
+manifest anti_B
+manifest anti_AB
+manifest anti_D
+manifest hematocrit_reagent
+
+instructions:
+
+// Step 1: reconstitute the lyophilized (dried) blood-typing antibodies
+// and the chemical agglutination agent used for hematocrit
+solvent_a = dispense 1 units of reconstitution_solvent
+solvent_b = dispense 1 units of reconstitution_solvent
+solvent_ab = dispense 1 units of reconstitution_solvent
+solvent_d = dispense 1 units of reconstitution_solvent
+solvent_hct = dispense 1 units of reconstitution_solvent
+
+dry_a = dispense 1 units of anti_A
+dry_b = dispense 1 units of anti_B
+dry_ab = dispense 1 units of anti_AB
+dry_d = dispense 1 units of anti_D
+dry_hct = dispense 1 units of hematocrit_reagent
+
+reagent_a = mix solvent_a with dry_a for 5s
+reagent_b = mix solvent_b with dry_b for 5s
+reagent_ab = mix solvent_ab with dry_ab for 5s
+reagent_d = mix solvent_d with dry_d for 5s
+reagent_hct = mix solvent_hct with dry_hct for 5s
+
+// Step 2: meter whole-blood unit-droplets for each parallel test
+blood_a = dispense 1 units of whole_blood
+blood_b = dispense 1 units of whole_blood
+blood_ab = dispense 1 units of whole_blood
+blood_d = dispense 1 units of whole_blood
+blood_hct = dispense 1 units of whole_blood
+
+// Step 3: merge each blood droplet with its reconstituted reagent
+// and mix to form the double-unit product droplet
+test_a = mix blood_a with reagent_a for 10s
+test_b = mix blood_b with reagent_b for 10s
+test_ab = mix blood_ab with reagent_ab for 10s
+test_d = mix blood_d with reagent_d for 10s
+test_hct = mix blood_hct with reagent_hct for 10s
+
+// Step 4: DAAD imaging read-out of agglutination state for the
+// ABO/RhD blood-typing panel (anti-A, anti-B, anti-AB, anti-D)
+score_a = detect fluorescence on test_a for 5s
+score_b = detect fluorescence on test_b for 5s
+score_ab = detect fluorescence on test_ab for 5s
+score_d = detect fluorescence on test_d for 5s
+
+// Below-threshold scores correspond to nonagglutinated (negative) droplets
+if (score_a <= 15) {
+    dispose test_a
+}
+
+if (score_b <= 15) {
+    dispose test_b
+}
+
+if (score_ab <= 15) {
+    dispose test_ab
+}
+
+if (score_d <= 15) {
+    dispose test_d
+}
+
+// Step 5: quantitative DAAD hematocrit scoring on the chemically
+// agglutinated blood droplet
+hct_score = detect fluorescence on test_hct for 5s
+
+if (hct_score <= 15) {
+    dispose test_hct
+}
+
+// Step 6: clear remaining (agglutinated/positive) droplets from the array
+dispose test_a
+dispose test_b
+dispose test_ab
+dispose test_d
+dispose test_hct

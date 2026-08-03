@@ -1,0 +1,58 @@
+module fluorescence
+
+manifest cell_sample
+manifest hoechst_stain
+manifest pi_stain
+manifest protein_a_beads
+manifest wash_buffer
+manifest fluorescent_secondary_antibody
+
+instructions:
+
+// --- Viability assay: Hoechst (total cells) + Propidium Iodide (dead cells) ---
+sample1 = dispense 10 units of cell_sample
+hoechst = dispense 5 units of hoechst_stain
+stained = mix sample1 with hoechst for 300s
+
+pi = dispense 5 units of pi_stain
+stained2 = mix stained with pi for 300s
+heat stained2 at 25c for 5m
+
+live_signal = detect fluorescence on stained2 for 10s
+dead_signal = detect fluorescence on stained2 for 10s
+
+if (dead_signal >= 50) {
+    dispose stained2
+}
+
+heat stained2 at 25c for 1m
+dispose stained2
+
+// --- FLISA assay: Protein A bead capture of secreted IgG, fluorescent detection ---
+sample2 = dispense 10 units of cell_sample
+beads = dispense 10 units of protein_a_beads
+capture = mix sample2 with beads for 600s
+heat capture at 25c for 10m
+
+repeat 3 times {
+    wash = dispense 50 units of wash_buffer
+    capture = mix capture with wash for 30s
+}
+
+secondary = dispense 10 units of fluorescent_secondary_antibody
+labeled = mix capture with secondary for 300s
+heat labeled at 25c for 15m
+
+repeat 2 times {
+    wash2 = dispense 50 units of wash_buffer
+    labeled = mix labeled with wash2 for 30s
+}
+
+igg_signal = detect fluorescence on labeled for 10s
+
+if (igg_signal < 50) {
+    dispose labeled
+}
+
+heat labeled at 25c for 1m
+dispose labeled

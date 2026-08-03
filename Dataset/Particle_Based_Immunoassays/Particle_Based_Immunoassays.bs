@@ -1,0 +1,88 @@
+module fluorescence
+
+// Reagents used in the on-chip DMF particle-based immunoassay
+// (Ng et al., Anal. Chem. 2012, 84, 8805-8812)
+//
+// Swap the two "assay-specific" manifests below to switch between:
+//   - Noncompetitive TSH assay:  particles = anti-TSH-beta magnetic particles
+//                                 conjugate = anti-TSH-HRP
+//   - Competitive E2 assay:      particles = anti-E2 magnetic particles
+//                                 conjugate = E2-HRP
+manifest MagneticParticles      // anti-beta-TSH particles (or anti-E2 particles)
+manifest Conjugate               // anti-TSH-HRP (or E2-HRP)
+manifest Sample                  // TSH or E2 standard/patient sample
+manifest WashBuffer
+manifest H2O2
+manifest LuminolEnhancer
+
+instructions:
+
+// --- Step 1: Particle separation ---
+// A droplet containing paramagnetic particles is dispensed and separated
+// from its diluent using the magnet (supernatant separation method).
+particles = dispense MagneticParticles
+
+// --- Step 2: Sample incubation ---
+// Three sample droplets (800 nL x 3 = 2.4 uL) are delivered to the
+// immobilized particles for resuspension and a 6 min incubation.
+s1 = dispense 1 units of Sample
+s2 = dispense 1 units of Sample
+s3 = dispense 1 units of Sample
+
+mix1 = mix particles with s1
+mix2 = mix mix1 with s2
+sample_complex = mix mix2 with s3
+
+heat sample_complex at 25c for 6m
+
+// --- Step 3: Wash (4x wash buffer), supernatant separated each time ---
+repeat 4 times {
+    wb = dispense 1 units of WashBuffer
+    washed = mix sample_complex with wb for 5s
+    dispose washed
+}
+
+// --- Step 4: Conjugate incubation ---
+// One droplet of conjugate (HRP-labeled antibody or antigen) is
+// resuspended with the particles and incubated for 2 min.
+conj = dispense 1 units of Conjugate
+conjugate_complex = mix sample_complex with conj
+heat conjugate_complex at 25c for 2m
+
+// --- Step 5: Wash (4x wash buffer + 2x H2O2), supernatant separated each time ---
+repeat 4 times {
+    wb2 = dispense 1 units of WashBuffer
+    washed2 = mix conjugate_complex with wb2 for 5s
+    dispose washed2
+}
+
+repeat 2 times {
+    rinse = dispense 1 units of H2O2
+    rinsed = mix conjugate_complex with rinse for 5s
+    dispose rinsed
+}
+
+// --- Step 6: Substrate (H2O2) incubation ---
+// One droplet of H2O2 is delivered to the immobilized particles
+// for resuspension and a 2 min incubation.
+peroxide = dispense 1 units of H2O2
+substrate_complex = mix conjugate_complex with peroxide
+heat substrate_complex at 25c for 2m
+
+// --- Step 7: Signal generation ---
+// The H2O2/particle suspension is merged and mixed with the
+// luminol/enhancer solution to activate chemiluminescence.
+luminol = dispense 1 units of LuminolEnhancer
+signal_complex = mix substrate_complex with luminol
+
+// --- Step 8: Detection ---
+// The pooled droplet is incubated for 1 min, and chemiluminescence
+// is measured with a well-plate reader.
+heat signal_complex at 25c for 1m
+assay_signal = detect fluorescence on signal_complex for 30s
+
+if (assay_signal <= 0) {
+    dispose signal_complex
+}
+
+dispose signal_complex

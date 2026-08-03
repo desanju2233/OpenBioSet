@@ -1,0 +1,58 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Tissue-Digital Microfluidic Isolation of Single Cells for -Omics (tDISCO) for Spatially-Resolved Single-Cell Transcriptomic and Proteomic Profiling of Proximal vs. Distal Astrocytes after Ischemic Stroke\n\nREAGENTS USED:\n  - Cryosectioned Brain Tissue Biopsy (2 mm diameter punch from a cortical stroke tissue section, mounted on the tDISCO top-plate)\n  - Fixation Reagent (paraformaldehyde-based fixative, applied on-chip)\n  - DAPI Nuclear Stain (marks all nuclei)\n  - Anti-GFAP Antibody (fluorescent astrocyte marker)\n  - Anti-NEUN Antibody (fluorescent neuronal marker)\n  - Cell Lysis/Receiving Buffer (droplet positioned above the tissue for laser-induced single-cell lysis and lysate collection)\n\nSTEPS:\n1. Mount a 2 mm cryosectioned cortical tissue biopsy onto the tDISCO top-plate.\n2. Fix the mounted tissue biopsy in place on-chip using the fixation reagent.\n3. Stain the fixed tissue on-chip with DAPI, anti-GFAP, and anti-NEUN to mark nuclei, astrocytes, and neurons, respectively.\n4. Image the stained tissue at low magnification (20X) to map DAPI+/GFAP+ and DAPI+/NEUN+ cells and record their distance from the stroke lesion.\n5. Select a single target cell (e.g., a GFAP+ astrocyte at a defined distance from the injury site) and re-image at high magnification (100X) to confirm its identity and position before lysis.\n6. Dispense a receiving-buffer droplet and use digital microfluidic actuation to position it directly over the selected single cell.\n7. Fire the focused laser at the targeted cell to induce a cavitation bubble that mechanically lyses the cell, releasing its contents into the overlying receiving-buffer droplet.\n8. Actuate the single-cell lysate droplet away from the tissue for downstream -omics processing (library preparation for transcriptomics, or digestion for proteomics).\n9. Replenish a fresh receiving-buffer droplet over the same tissue section and repeat steps 5-8 to iteratively isolate additional single cells (e.g., a second GFAP+ astrocyte at a different lesion distance, or a DAPI+/NEUN+ neuron) from the same biopsy.\n10. Pool/queue the collected single-cell lysate droplets for transcriptomic (RNA-seq) and proteomic (LC-MS/MS) analysis, comparing molecular profiles across cells at varying distances from the stroke lesion to resolve the spatial boundaries of the astrocyte response.\n\nINTERPRETATION: Successful tDISCO profiling is confirmed by clear separation of DAPI+/GFAP+ astrocyte transcriptomic/proteomic signatures by lesion-distance (proximal vs. distal), consistent with the differential lipid-shuttling markers (e.g., Apoe, Fabp5) identified in proximal astrocytes, supporting the use of tDISCO to resolve spatial boundaries of molecularly distinct reactive astrocyte populations after stroke." },
+    { "role": "assistant", "content": "module fluorescence\n\nmanifest tissue_biopsy\nmanifest fixative\nmanifest dapi_stain\nmanifest gfap_antibody\nmanifest neun_antibody\nmanifest lysis_buffer\n\ninstructions:\n\n// Steps 1-2: mount 2 mm cryosectioned tissue biopsy on the tDISCO top-plate and fix it on-chip\nbiopsy = dispense tissue_biopsy\nfix = dispense fixative\nfixed_tissue = mix biopsy with fix for 900s\ndispose fix\n\n// Step 3: on-chip immunostaining (DAPI nuclei, GFAP astrocyte marker, NEUN neuronal marker)\ndapi = dispense dapi_stain\nstain1 = mix fixed_tissue with dapi for 300s\ngfap = dispense gfap_antibody\nstain2 = mix stain1 with gfap for 600s\nneun = dispense neun_antibody\nstained_tissue = mix stain2 with neun for 600s\n\n// Steps 4-5: AI/image-based mapping and selection of a single target cell\n// (e.g., a DAPI+/GFAP+ astrocyte at a defined distance from the stroke lesion)\nselection_signal = detect fluorescence on stained_tissue for 10s\n\nif (selection_signal >= 80) {\n    // Steps 6-9: iterative single-cell isolation from the same tissue section:\n    // position a receiving-buffer droplet over the selected cell, laser-lyse it,\n    // collect the lysate droplet, replenish buffer, and repeat for the next target cell\n    repeat 3 times {\n        buffer = dispense 1 units of lysis_buffer\n        positioned_droplet = mix stained_tissue with buffer for 5s\n        cell_lysate = heat positioned_droplet at 25c for 1s\n        dispose cell_lysate\n    }\n} else {\n    dispose stained_tissue\n}" }
+  ],
+  "metadata": {
+    "protocol_id": "tdisco_astrocyte_stroke_single_cell_001",
+    "bs_file": "tests/test_cases/tdisco_astrocyte_stroke/tdisco_astrocyte_stroke.bs",
+    "protocol_name": "tDISCO: Tissue-Digital Microfluidic Isolation of Single Cells for -Omics, applied to proximal/distal astrocyte profiling after ischemic stroke (nature.com/articles/s41467-024-45821-y)",
+    "category": "single_cell_omics_assay",
+    "chemicals": [
+      "tissue_biopsy",
+      "fixative",
+      "dapi_stain",
+      "gfap_antibody",
+      "neun_antibody",
+      "lysis_buffer"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "repeat",
+      "if",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "original_protocol", "title": "Integrating single-cell and spatially resolved transcriptomic strategies to survey the astrocyte response to stroke in male mice", "publisher": "Nature Communications", "url": "https://www.nature.com/articles/s41467-024-45821-y", "doi": "10.1038/s41467-024-45821-y" },
+      { "type": "background_platform", "title": "Digital microfluidic isolation of single cells for -Omics", "publisher": "Nature Communications", "url": "https://www.nature.com/articles/s41467-020-19394-5", "doi": "10.1038/s41467-020-19394-5" }
+    ],
+    "notes": "The authored BioScript code is a translation of the tDISCO workflow as described in the paper's figures and results text (Fig. 4: 'tDISCO resolves the boundaries and molecular profiles of proximal and distal astrocytes'), covering on-chip tissue mounting/fixation/staining, AI/fluorescence-image-based single-cell selection, and iterative laser-lysis single-cell collection. Because BioScript has no primitive for a persistent solid tissue substrate (the biopsy remains physically mounted on the tDISCO top-plate across all cycles while buffer droplets are cycled past it), the tissue is modeled as a single droplet-like handle ('stained_tissue') reused directly across repeat iterations, consistent with how a persistent bead/substrate complex is handled in other translated wash-cycle protocols. Because BioScript exposes no laser-cavitation-lysis primitive, the instantaneous laser pulse that mechanically ruptures the targeted cell is represented using 'heat' as the closest available disruptive operation, with an arbitrary short duration (1s) standing in for the near-instantaneous laser pulse rather than true thermal denaturation. Likewise, because BioScript's grammar exposes only a generic 'detect fluorescence' primitive, this is used both to represent the AI-driven DAPI/GFAP/NEUN fluorescence image-based selection decision (steps 4-5) and, implicitly, the confirmation of collected single-cell material, rather than a literal fluorescence intensity read. The number of iteratively-isolated cells (repeat 3 times) is an illustrative placeholder chosen to represent the paper's iterative multi-cell collection from a single tissue section; the paper does not specify a fixed cell count per biopsy. The upstream tissue cryosectioning/biopsy-punching, the Visium and 10X Chromium comparison workflows, the AI cell-selection/tracking software, the DropBot droplet-control hardware, and the downstream RNA-seq/LC-MS/MS library preparation and sequencing steps are hardware-control, comparison-platform, or off-chip sample-processing sub-experiments with no corresponding BioScript primitive, and are intentionally not modeled; only the core on-chip mount/fix/stain/select/lyse/collect cycle is captured here.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "tissue_biopsy", "source_quote": "three 2 mm tissue biopsies from a cryosectioned tissue slice", "source_location": "Fig. 4B legend" },
+        { "bs_chemical": "dapi_stain / gfap_antibody / neun_antibody", "source_quote": "DAPI + NEUN+ neurons and DAPI + GFAP+ astrocytes were selected", "source_location": "Fig. 4C legend" },
+        { "bs_chemical": "lysis_buffer", "source_quote": "digital microfluidics is used to collect this single cell and replenish the buffer droplet above the tissue", "source_location": "Results, 'tDISCO resolves the boundaries...' section" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "fixed_tissue = mix biopsy with fix / stained_tissue = mix ... with dapi/gfap/neun", "source_quote": "Biopsies are mounted onto an tDISCO top-plate, fixed and stained", "source_location": "Fig. 4B legend" },
+        { "bs_operation": "cell_lysate = heat positioned_droplet at 25c for 1s", "source_quote": "a laser to create cavitation bubbles that mechanically release selected single cells", "source_location": "Results, 'tDISCO resolves the boundaries...' section" },
+        { "bs_operation": "repeat 3 times { ... }", "source_quote": "allowing for iterative lysis of individual cells from a single tissue", "source_location": "Results, 'tDISCO resolves the boundaries...' section" }
+      ],
+      "numeric_mismatches": [
+        { "field": "stained_tissue re-used directly inside repeat loop", "note": "The paper's tissue biopsy is a single physical object that remains mounted on the tDISCO top-plate across all lysis cycles; BioScript has no persistent-substrate primitive, so the biopsy is modeled as one reusable 'stained_tissue' handle mixed with a fresh buffer droplet each iteration, rather than a truly re-dispensed solid substrate." },
+        { "field": "cell_lysate = heat ... at 25c for 1s", "note": "Detection/disruption in the paper is a focused Q-switched laser pulse inducing a cavitation bubble, not a thermal/heating event. 'heat' is used here only because it is the closest disruptive primitive exposed by BioScript's grammar; the 25c/1s values are placeholders and do not represent a measured laser parameter." },
+        { "field": "selection_signal = detect fluorescence", "note": "Cell selection in the paper is performed via AI-driven fluorescence image analysis (DAPI/GFAP/NEUN channels) to map marker-positive cells and their lesion distance, not a single scalar fluorescence intensity threshold; 'detect fluorescence >= 80' is a simplified stand-in for this image-based decision." },
+        { "field": "repeat 3 times", "note": "Represents iterative single-cell isolation from one tissue section; the paper does not report a fixed number of cells collected per biopsy, so 3 is an illustrative placeholder, not a reported value." },
+        { "field": "Visium/10X Chromium comparison, DropBot control system, AI cell-tracking software, off-chip RNA-seq/LC-MS/MS library prep", "note": "Not modeled. These are comparison-platform, hardware-control, or downstream off-chip sequencing/proteomics sub-experiments run alongside the core tDISCO cycle, not part of the on-chip mount/fix/stain/select/lyse/collect protocol itself, and fall outside the scope of this translation." }
+      ]
+    }
+  }
+}

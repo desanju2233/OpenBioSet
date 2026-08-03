@@ -1,0 +1,51 @@
+module fluorescence
+
+// Reagents used in the DMF-LAMP c-Myc amplification protocol
+// (Coelho et al., Sensors 2017, 17, 2616)
+manifest LAMPMix
+manifest DNASample
+
+instructions:
+
+// --- Reagent dispensing and transport ---
+// 10 droplets of LAMP reagents (~0.14 uL/droplet -> ~1.40 uL total)
+// dispensed from the left reservoir
+reagent = dispense 10 units of LAMPMix
+
+// 1 droplet of target DNA sample (~0.14 uL) dispensed from the
+// right reservoir, giving a final 0.5 ng/uL DNA concentration
+sample = dispense 1 units of DNASample
+
+// --- Merging and mixing in the central reaction reservoir ---
+// Total on-chip reaction volume: 1.54 uL
+LAMP_Reaction = mix reagent with sample
+
+// --- Isothermal amplification at the bottom-plate set point (65C) ---
+// LAMP is isothermal, so there is no thermal cycling as in PCR;
+// amplification efficiency was evaluated in 15 min increments
+// (15 min, 30 min, 45 min) per Figure 3e
+
+heat LAMP_Reaction at 65c for 15m
+Amp_Check_15 = detect fluorescence on LAMP_Reaction for 30s
+
+if (Amp_Check_15 <= 80) {
+
+    heat LAMP_Reaction at 65c for 15m
+    Amp_Check_30 = detect fluorescence on LAMP_Reaction for 30s
+
+    if (Amp_Check_30 <= 80) {
+
+        heat LAMP_Reaction at 65c for 15m
+        Amp_Check_45 = detect fluorescence on LAMP_Reaction for 30s
+
+        if (Amp_Check_45 <= 80) {
+            dispose LAMP_Reaction
+        }
+    }
+}
+
+// --- Reaction product transport for withdrawal ---
+// Successful amplification (positive signal at/after 45 min total)
+// is routed to the retrieving reservoir; product is withdrawn
+// from the device via pipette
+dispose LAMP_Reaction

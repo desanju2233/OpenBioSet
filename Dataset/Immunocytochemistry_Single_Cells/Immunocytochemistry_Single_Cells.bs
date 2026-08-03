@@ -1,0 +1,192 @@
+module fluorescence
+
+manifest CellSuspension
+manifest StarvingMedia
+manifest SerumFreeDMEM
+manifest PDGF_BB
+manifest FixingSolution
+manifest WashBuffer1
+manifest WashBuffer2
+manifest PermeabilizationSolution
+manifest BlockingSolution
+manifest PrimaryAntibody
+manifest SecondaryAntibody
+
+instructions:
+
+// -----------------------------------------------------------------
+// Step 0: Seed cells and allow adherence (passive dispensing of cell
+// suspension onto hydrophilic site, 24 h incubation at 37c)
+// -----------------------------------------------------------------
+vm = dispense 3 units of CellSuspension
+heat vm at 37c for 24h
+
+// -----------------------------------------------------------------
+// Step 1: Starve cells (6 x 900nl droplets, 24 h at 37c)
+// -----------------------------------------------------------------
+starve = dispense 6 units of StarvingMedia
+vm = mix vm with starve
+heat vm at 37c for 24h
+
+// -----------------------------------------------------------------
+// Step 2: Rinse starving media with serum-free DMEM (6 exchanges)
+// -----------------------------------------------------------------
+repeat 6 times {
+    sfd = dispense 1 units of SerumFreeDMEM
+    vm = mix vm with sfd
+}
+
+// -----------------------------------------------------------------
+// Step 3: Stimulate with PDGF-BB ligand (2 x 900nl droplets)
+// -----------------------------------------------------------------
+ligand = dispense 2 units of PDGF_BB
+vm = mix vm with ligand for 10s
+
+// -----------------------------------------------------------------
+// Step 4: Fix immediately after stimulation (3 x 900nl FS, 10 min)
+// -----------------------------------------------------------------
+fs = dispense 3 units of FixingSolution
+vm = mix vm with fs
+heat vm at 23c for 10m
+
+// -----------------------------------------------------------------
+// Step 5: Rinse fixing solution with WB1 (6 exchanges)
+// -----------------------------------------------------------------
+repeat 6 times {
+    wb1 = dispense 1 units of WashBuffer1
+    vm = mix vm with wb1
+}
+
+// -----------------------------------------------------------------
+// Step 6: Permeabilize (3 x 900nl PS, 10 min)
+// -----------------------------------------------------------------
+ps = dispense 3 units of PermeabilizationSolution
+vm = mix vm with ps
+heat vm at 23c for 10m
+
+// -----------------------------------------------------------------
+// Step 7: Rinse PS with WB2 (9 exchanges)
+// -----------------------------------------------------------------
+repeat 9 times {
+    wb2 = dispense 1 units of WashBuffer2
+    vm = mix vm with wb2
+}
+
+// -----------------------------------------------------------------
+// Step 8: Block (3 x 900nl BS, 1 h)
+// -----------------------------------------------------------------
+bs = dispense 3 units of BlockingSolution
+vm = mix vm with bs
+heat vm at 23c for 60m
+
+// -----------------------------------------------------------------
+// Step 9: Primary antibody stain (3 x 900nl, overnight at 4c)
+// -----------------------------------------------------------------
+pab = dispense 3 units of PrimaryAntibody
+vm = mix vm with pab
+heat vm at 4c for 12h
+
+// -----------------------------------------------------------------
+// Step 10: Rinse unbound primary antibody with WB2 (6 exchanges)
+// -----------------------------------------------------------------
+repeat 6 times {
+    wb2b = dispense 1 units of WashBuffer2
+    vm = mix vm with wb2b
+}
+
+// -----------------------------------------------------------------
+// Step 11: Secondary antibody stain (3 x 900nl, 2 h)
+// -----------------------------------------------------------------
+sab = dispense 3 units of SecondaryAntibody
+vm = mix vm with sab
+heat vm at 23c for 120m
+
+// -----------------------------------------------------------------
+// Readout: microarray/laser scan of phosphorylated : total protein
+// ratio, expressed as fluorescence fold change
+// -----------------------------------------------------------------
+PhosphoSignal = detect fluorescence on vm for 30s
+
+// Classify single-cell response (e.g., hyperactive responder vs
+// normal population, cf. Fig. 4), then dispose exactly once
+if (PhosphoSignal >= 30) {
+    dispose vm
+} else {
+    dispose vm
+}
+
+
+// ===================================================================
+// Pulse-stimulation variant (cf. Fig. 6): brief ligand pulse followed
+// by wash-away, then fixation/immunostaining and readout at several
+// post-stimulation time points.
+// ===================================================================
+
+pulse_vm = dispense 3 units of CellSuspension
+heat pulse_vm at 37c for 24h
+
+pulse_starve = dispense 6 units of StarvingMedia
+pulse_vm = mix pulse_vm with pulse_starve
+heat pulse_vm at 37c for 24h
+
+repeat 6 times {
+    pulse_sfd = dispense 1 units of SerumFreeDMEM
+    pulse_vm = mix pulse_vm with pulse_sfd
+}
+
+// 3 s pulse of low-concentration PDGF-BB
+pulse_ligand = dispense 2 units of PDGF_BB
+pulse_vm = mix pulse_vm with pulse_ligand for 3s
+
+// Wash away ligand with ligand-free medium
+wash_away = dispense 2 units of SerumFreeDMEM
+pulse_vm = mix pulse_vm with wash_away
+
+// Interrogate Akt phosphorylation at successive time points
+// (1, 2, 3, 4, 5 min) by repeated short incubation prior to fixing
+repeat 5 times {
+    heat pulse_vm at 23c for 60s
+}
+
+pulse_fs = dispense 3 units of FixingSolution
+pulse_vm = mix pulse_vm with pulse_fs
+heat pulse_vm at 23c for 10m
+
+repeat 6 times {
+    pulse_wb1 = dispense 1 units of WashBuffer1
+    pulse_vm = mix pulse_vm with pulse_wb1
+}
+
+pulse_ps = dispense 3 units of PermeabilizationSolution
+pulse_vm = mix pulse_vm with pulse_ps
+heat pulse_vm at 23c for 10m
+
+repeat 9 times {
+    pulse_wb2 = dispense 1 units of WashBuffer2
+    pulse_vm = mix pulse_vm with pulse_wb2
+}
+
+pulse_bs = dispense 3 units of BlockingSolution
+pulse_vm = mix pulse_vm with pulse_bs
+heat pulse_vm at 23c for 60m
+
+pulse_pab = dispense 3 units of PrimaryAntibody
+pulse_vm = mix pulse_vm with pulse_pab
+heat pulse_vm at 4c for 12h
+
+repeat 6 times {
+    pulse_wb2b = dispense 1 units of WashBuffer2
+    pulse_vm = mix pulse_vm with pulse_wb2b
+}
+
+pulse_sab = dispense 3 units of SecondaryAntibody
+pulse_vm = mix pulse_vm with pulse_sab
+heat pulse_vm at 23c for 120m
+
+AktSignal = detect fluorescence on pulse_vm for 30s
+
+if (AktSignal >= 32) {
+    dispose pulse_vm
+} else {
+    dispose pulse_vm
+}

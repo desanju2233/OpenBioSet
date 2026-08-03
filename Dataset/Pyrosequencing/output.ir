@@ -1,0 +1,70 @@
+main:
+	dna1[0] = dispense(genomic_dna)
+	primers1[0] = dispense(primer_mix)
+	mix11[0] = mix(dna1[0], primers1[0]) @ 15.0SECOND
+	pcr_reagent_drop1[0] = dispense(pcr_reagent)
+	pcr_rxn1[0] = mix(mix11[0], pcr_reagent_drop1[0]) @ 15.0SECOND
+	heat(pcr_rxn1[0]) @ 95.0CELSIUS @ 120.0SECOND
+bsbbr_2_h:
+	PHI REPEAT_401 = {REPEAT_400,REPEAT_402}
+	PHI pcr_rxn2 = {pcr_rxn1,pcr_rxn2}
+	if REPEAT_401[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	heat(pcr_rxn2[0]) @ 95.0CELSIUS @ 15.0SECOND
+	heat(pcr_rxn2[0]) @ 60.0CELSIUS @ 30.0SECOND
+	REPEAT_402[0] = REPEAT_401[0] - 1
+bsbbr_4_f:
+	heat(pcr_rxn2[0]) @ 72.0CELSIUS @ 60.0SECOND
+	beads1[0] = dispense(magnetic_beads)
+	capture1[0] = mix(pcr_rxn2[0], beads1[0]) @ 60.0SECOND
+bsbbr_5_h:
+	PHI REPEAT_51 = {REPEAT_50,REPEAT_52}
+	PHI wash1 = {wash0,wash2}
+	PHI capture2 = {capture1,capture3}
+	if REPEAT_51[0] > 0	|	true: jump bsbbr_6_t	|	false: jump bsbbr_7_f
+bsbbr_6_t:
+	wash2[0] = dispense(wash_buffer)
+	capture3[0] = mix(capture2[0], wash2[0]) @ 30.0SECOND
+	dispose(capture3[0])
+	REPEAT_52[0] = REPEAT_51[0] - 1
+bsbbr_7_f:
+	seq_primer1[0] = dispense(sequencing_primer)
+	anneal1[0] = mix(capture2[0], seq_primer1[0]) @ 30.0SECOND
+	heat(anneal1[0]) @ 65.0CELSIUS @ 120.0SECOND
+	enzyme1[0] = dispense(enzyme_mix)
+	seq_rxn1[0] = mix(anneal1[0], enzyme1[0]) @ 15.0SECOND
+bsbbr_8_h:
+	PHI REPEAT_101 = {REPEAT_100,REPEAT_102}
+	PHI dctp1 = {dctp0,dctp2}
+	PHI datp1 = {datp0,datp2}
+	PHI c_signal1 = {c_signal0,c_signal2}
+	PHI dttp1 = {dttp0,dttp2}
+	PHI a_signal1 = {a_signal0,a_signal2}
+	PHI g_signal1 = {g_signal0,g_signal2}
+	PHI dgtp1 = {dgtp0,dgtp2}
+	PHI t_signal1 = {t_signal0,t_signal2}
+	PHI seq_rxn2 = {seq_rxn1,seq_rxn7}
+	if REPEAT_101[0] > 0	|	true: jump bsbbr_9_t	|	false: jump bsbbr_12_f
+bsbbr_9_t:
+	datp2[0] = dispense(datp_reagent)
+	seq_rxn3[0] = mix(seq_rxn2[0], datp2[0]) @ 5.0SECOND
+	a_signal2[0] = detect(fluorescence, seq_rxn3[0]) @ 60.0SECOND
+	dctp2[0] = dispense(dctp_reagent)
+	seq_rxn4[0] = mix(seq_rxn3[0], dctp2[0]) @ 5.0SECOND
+	c_signal2[0] = detect(fluorescence, seq_rxn4[0]) @ 60.0SECOND
+	dgtp2[0] = dispense(dgtp_reagent)
+	seq_rxn5[0] = mix(seq_rxn4[0], dgtp2[0]) @ 5.0SECOND
+	g_signal2[0] = detect(fluorescence, seq_rxn5[0]) @ 60.0SECOND
+	dttp2[0] = dispense(dttp_reagent)
+	seq_rxn6[0] = mix(seq_rxn5[0], dttp2[0]) @ 5.0SECOND
+	t_signal2[0] = detect(fluorescence, seq_rxn6[0]) @ 60.0SECOND
+	if a_signal2[0] <= 1000	|	true: jump bsbbif_10_t	|	false: jump bsbbif_11_f
+bsbbif_10_t:
+	dispose(seq_rxn6[0])
+bsbbif_11_f:
+	PHI seq_rxn7 = {seq_rxn6,seq_rxn}
+	REPEAT_102[0] = REPEAT_101[0] - 1
+	jump: bsbbr_8_h
+bsbbr_12_f:
+	dispose(seq_rxn2[0])
+	NOP

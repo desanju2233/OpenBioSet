@@ -1,0 +1,40 @@
+module fluorescence
+
+manifest sample
+manifest capture_antibody_beads
+manifest reporter_antibody_alp
+manifest wash_buffer
+manifest chemiluminescent_substrate
+
+instructions:
+
+// Dispense sample (whole blood / TnI standard), magnetic capture-antibody
+// beads, and ALP-labeled reporter antibody, then merge them together
+tni_sample = dispense sample
+beads = dispense capture_antibody_beads
+reporter = dispense reporter_antibody_alp
+
+mix1 = mix tni_sample with beads
+reaction_mix = mix mix1 with reporter
+
+// Off-magnet incubation (shuttle/split/merge cycling) to capture
+// close to 100% of the antigen (~240s, optimized rapid protocol)
+heat reaction_mix at 25c for 240s
+
+// Ten slug-based wash cycles to remove unbound reporter antibody
+repeat 10 times {
+    wash = dispense 1 units of wash_buffer
+    washed = mix reaction_mix with wash
+    dispose washed
+}
+
+// Incubate washed antigen-antibody-ALP complex with chemiluminescent
+// substrate (Lumigen APS-5) for 2 minutes to reach the endpoint signal
+substrate = dispense 1 units of chemiluminescent_substrate
+detection_mix = mix reaction_mix with substrate
+heat detection_mix at 25c for 120s
+
+// Endpoint chemiluminescence read (photon-counting PMT)
+tni_signal = detect fluorescence on detection_mix for 30s
+
+dispose detection_mix

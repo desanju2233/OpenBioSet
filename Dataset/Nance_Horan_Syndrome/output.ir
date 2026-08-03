@@ -1,0 +1,70 @@
+main:
+	lysate1[0] = dispense(cell_lysate)
+	preclear_beads1[0] = dispense(protein_a_beads)
+	precleared1[0] = mix(lysate1[0], preclear_beads1[0])
+	heat(precleared1[0]) @ 4.0CELSIUS @ 1800.0SECOND
+	dispose(preclear_beads1[0])
+	igg1[0] = dispense(control_igg)
+	igg_mix1[0] = mix(precleared1[0], igg1[0])
+	heat(igg_mix1[0]) @ 4.0CELSIUS @ 7200.0SECOND
+	igg_beads1[0] = dispense(protein_a_beads)
+	igg_complex1[0] = mix(igg_mix1[0], igg_beads1[0])
+	heat(igg_complex1[0]) @ 4.0CELSIUS @ 3600.0SECOND
+bsbbr_2_h:
+	PHI igg_washed1 = {igg_washed0,igg_washed2}
+	PHI igg_wash1 = {igg_wash0,igg_wash2}
+	PHI REPEAT_31 = {REPEAT_30,REPEAT_32}
+	if REPEAT_31[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	igg_wash2[0] = dispense(wash_buffer)
+	igg_washed2[0] = mix(igg_complex1[0], igg_wash2[0])
+	dispose(igg_washed2[0])
+	REPEAT_32[0] = REPEAT_31[0] - 1
+bsbbr_4_f:
+	igg_elution_buffer1[0] = dispense(laemmli_buffer)
+	igg_eluate1[0] = mix(igg_complex1[0], igg_elution_buffer1[0])
+	heat(igg_eluate1[0]) @ 95.0CELSIUS @ 300.0SECOND
+	dispose(igg_eluate1[0])
+	ab1[0] = dispense(nhsl1_antibody)
+	ip_mix1[0] = mix(precleared1[0], ab1[0])
+	heat(ip_mix1[0]) @ 4.0CELSIUS @ 7200.0SECOND
+	ip_beads1[0] = dispense(protein_a_beads)
+	ip_complex1[0] = mix(ip_mix1[0], ip_beads1[0])
+	heat(ip_complex1[0]) @ 4.0CELSIUS @ 3600.0SECOND
+bsbbr_5_h:
+	PHI ip_washed1 = {ip_washed0,ip_washed2}
+	PHI ip_wash1 = {ip_wash0,ip_wash2}
+	PHI REPEAT_33 = {REPEAT_31,REPEAT_34}
+	if REPEAT_33[0] > 0	|	true: jump bsbbr_6_t	|	false: jump bsbbr_7_f
+bsbbr_6_t:
+	ip_wash2[0] = dispense(wash_buffer)
+	ip_washed2[0] = mix(ip_complex1[0], ip_wash2[0])
+	dispose(ip_washed2[0])
+	REPEAT_34[0] = REPEAT_33[0] - 1
+bsbbr_7_f:
+	elution_buffer1[0] = dispense(laemmli_buffer)
+	eluate1[0] = mix(ip_complex1[0], elution_buffer1[0])
+	heat(eluate1[0]) @ 95.0CELSIUS @ 300.0SECOND
+	secondary1[0] = dispense(secondary_hrp_antibody)
+	substrate1[0] = dispense(ecl_substrate)
+	detection_mix1[0] = mix(eluate1[0], secondary1[0])
+	blot_mix1[0] = mix(detection_mix1[0], substrate1[0])
+	coip_signal1[0] = detect(fluorescence, blot_mix1[0]) @ 60.0SECOND
+	if coip_signal1[0] >= 80	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(blot_mix1[0])
+bsbbif_9_f:
+bsbbif_10_j:
+	NOP
+bsbbr_11_h:
+	PHI REPEAT_21 = {REPEAT_20,REPEAT_22}
+	PHI rewash1 = {rewash0,rewash2}
+	PHI rewashed1 = {rewashed0,rewashed2}
+	if REPEAT_21[0] > 0	|	true: jump bsbbr_12_t	|	false: jump bsbbr_13_f
+bsbbr_12_t:
+	rewash2[0] = dispense(wash_buffer)
+	rewashed2[0] = mix(blot_mix1[0], rewash2[0])
+	dispose(rewashed2[0])
+	REPEAT_22[0] = REPEAT_21[0] - 1
+bsbbr_13_f:
+	dispose(blot_mix1[0])

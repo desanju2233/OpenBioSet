@@ -1,0 +1,81 @@
+// Digital microfluidic blood-plasma separation + 21-step RV IgG chemiluminescent
+// ELISA, adapted from Dixon, Lamanna & Wheeler, Lab Chip, 2020, 20, 1845-1855.
+//
+// Note: the BioScript compiler's built-in detection modules do not include a
+// "chemiluminescence" sensor, so this protocol is declared under the
+// "fluorescence" module (as in the ciprofloxacin/probabilistic_pcr reference
+// scripts) and used to model the luminometer readout from the paper's PMT
+// (steps 19-21).
+module fluorescence
+
+manifest whole_blood
+manifest extraction_buffer
+manifest virus_particles
+manifest wash_buffer
+manifest conjugate_solution
+manifest luminol_enhancer
+manifest stable_h2o2
+
+instructions:
+
+// --- Steps 1-4: on-chip blood-plasma separation (extraction zone) ---
+// Five-unit extraction-buffer droplet dispensed onto the array (~6.5 uL)
+buffer = dispense 5 units of extraction_buffer
+// Whole blood "dabbed" onto the plasma separation membrane (~55 uL)
+blood = dispense 55 units of whole_blood
+// Blood wicks through the membrane onto the extraction droplet (~3 min)
+loaded = mix blood with buffer for 180s
+// Extraction droplet driven through the transport membrane (~30 s)
+plasma = mix loaded with buffer for 30s
+dispose loaded
+
+// --- Step 5: virus-coated paramagnetic particles delivered to assay zone ---
+particles = dispense 2 units of virus_particles
+
+// --- Step 6: separated plasma mixed with particles, actively mixed 7 min ---
+complex = mix plasma with particles for 420s
+
+// --- Steps 7-12: wash cycle (initial wash + 5 repeats), 30 s each ---
+repeat 6 times {
+    wash = dispense 2 units of wash_buffer
+    complex = mix complex with wash for 30s
+    dispose wash
+}
+
+// --- Step 13: HRP-conjugated anti-human IgG delivered, mixed 5 min ---
+conjugate = dispense 2 units of conjugate_solution
+complex = mix complex with conjugate for 300s
+
+// --- Steps 14-17: wash cycle repeated 4 times, 30 s each ---
+repeat 4 times {
+    wash = dispense 2 units of wash_buffer
+    complex = mix complex with wash for 30s
+    dispose wash
+}
+
+// --- Step 18: final wash before moving to detection zone, 10 s ---
+wash = dispense 2 units of wash_buffer
+complex = mix complex with wash for 10s
+dispose wash
+
+// --- Step 19: luminol enhancer solution delivered, mixed 10 s ---
+luminol = dispense 1 units of luminol_enhancer
+complex = mix complex with luminol for 10s
+
+// --- Step 20: stable H2O2 substrate delivered, mixed 80 s ---
+h2o2 = dispense 1 units of stable_h2o2
+complex = mix complex with h2o2 for 80s
+
+// --- Step 21: chemiluminescence measured for 120 s ---
+rv_igg_signal = detect fluorescence on complex for 120s
+
+// WHO diagnostic cut-off for RV immunity is 10 IU/mL
+if (rv_igg_signal < 10) {
+    // sample reads non-immune
+    dispose complex
+}
+if (rv_igg_signal >= 10) {
+    // sample reads immune
+    dispose complex
+}
+

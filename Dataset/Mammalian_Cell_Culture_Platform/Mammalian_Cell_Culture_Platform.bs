@@ -1,0 +1,101 @@
+module fluorescence
+
+manifest fibronectin
+manifest cell_suspension
+manifest growth_media
+manifest fresh_media
+manifest trypsin
+manifest harvest_media
+manifest transfection_mix
+
+instructions:
+
+// ---- Adhesion pad preparation ----
+// Fibronectin is dispensed onto the electrode and dried to form an
+// ECM-coated "adhesion pad" on the Teflon-AF surface (Fig. 2a)
+fn = dispense fibronectin
+heat fn at 25c for 10m
+dispose fn
+
+// ---- Cell seeding on primary (1st) adhesion pad ----
+cells = dispense 20 units of cell_suspension
+media = dispense growth_media
+pad1 = mix cells with media
+
+// Incubate seeded cells (round -> spread morphology, Fig. 2b)
+heat pad1 at 37c for 1440m
+
+// ---- Daily media exchange by passive dispensing (Fig. 3) ----
+// Three source droplets fully displace old media (<3% carryover
+// after 1 exchange, background after 3 exchanges)
+repeat 4 times {
+    repeat 3 times {
+        fresh = dispense fresh_media
+        pad1 = mix pad1 with fresh for 5s
+        dispose fresh
+    }
+    heat pad1 at 37c for 1440m
+}
+
+confluency = detect fluorescence on pad1 for 30s
+
+if (confluency >= 80) {
+
+    // ---- Cell detachment/subculture (Fig. 4) ----
+    // Old media is passively replaced with trypsin/EDTA to detach cells
+    repeat 3 times {
+        tryp = dispense trypsin
+        pad1 = mix pad1 with tryp for 5s
+        dispose tryp
+    }
+    heat pad1 at 37c for 4m
+
+    // ---- Harvest and delivery to secondary (2nd) adhesion pad ----
+    // A media droplet is passed over the 1st pad to collect cells,
+    // then translated to the 2nd pad, delivering ~2-3% of cells per pass.
+    // On average, four 1 uL droplets deliver ~10% of the 1st-pad cells.
+    collect = dispense harvest_media
+    pad2 = mix collect with pad1 for 5s
+
+    repeat 3 times {
+        collect = dispense harvest_media
+        harvest = mix collect with pad1 for 5s
+        pad2 = mix pad2 with harvest for 5s
+    }
+    dispose pad1
+
+    // Grow subcultured generation on the 2nd adhesion pad
+    heat pad2 at 37c for 4320m
+
+    repeat 4 times {
+        repeat 3 times {
+            fresh2 = dispense fresh_media
+            pad2 = mix pad2 with fresh2 for 5s
+            dispose fresh2
+        }
+        heat pad2 at 37c for 1440m
+    }
+
+    // ---- On-demand transfection of subcultured generation ----
+    tf = dispense transfection_mix
+    pad2 = mix pad2 with tf for 5s
+    heat pad2 at 37c for 180m
+
+    repeat 3 times {
+        fresh3 = dispense fresh_media
+        pad2 = mix pad2 with fresh3 for 5s
+        dispose fresh3
+    }
+    heat pad2 at 37c for 1440m
+
+    gfp_expression = detect fluorescence on pad2 for 60s
+
+    if (gfp_expression <= 10) {
+        dispose pad2
+    } else {
+        dispose pad2
+    }
+
+} else {
+    dispose pad1
+}

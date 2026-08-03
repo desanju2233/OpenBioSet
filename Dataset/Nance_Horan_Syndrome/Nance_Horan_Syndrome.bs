@@ -1,0 +1,77 @@
+module fluorescence
+
+manifest cell_lysate
+manifest nhsl1_antibody
+manifest control_igg
+manifest protein_a_beads
+manifest wash_buffer
+manifest laemmli_buffer
+manifest secondary_hrp_antibody
+manifest ecl_substrate
+
+instructions:
+
+// Preclear lysate with Protein A beads to remove non-specific binders
+lysate = dispense 100 units of cell_lysate
+preclear_beads = dispense 30 units of protein_a_beads
+precleared = mix lysate with preclear_beads
+heat precleared at 4c for 30m
+dispose preclear_beads
+
+// Negative control IP with non-immune IgG
+igg = dispense 5 units of control_igg
+igg_mix = mix precleared with igg
+heat igg_mix at 4c for 120m
+
+igg_beads = dispense 30 units of protein_a_beads
+igg_complex = mix igg_mix with igg_beads
+heat igg_complex at 4c for 60m
+
+repeat 3 times {
+    igg_wash = dispense 200 units of wash_buffer
+    igg_washed = mix igg_complex with igg_wash
+    dispose igg_washed
+}
+
+igg_elution_buffer = dispense 30 units of laemmli_buffer
+igg_eluate = mix igg_complex with igg_elution_buffer
+heat igg_eluate at 95c for 5m
+dispose igg_eluate
+
+// Specific IP with anti-NHSL1 antibody (pAb 4457)
+ab = dispense 5 units of nhsl1_antibody
+ip_mix = mix precleared with ab
+heat ip_mix at 4c for 120m
+
+ip_beads = dispense 30 units of protein_a_beads
+ip_complex = mix ip_mix with ip_beads
+heat ip_complex at 4c for 60m
+
+repeat 3 times {
+    ip_wash = dispense 200 units of wash_buffer
+    ip_washed = mix ip_complex with ip_wash
+    dispose ip_washed
+}
+
+elution_buffer = dispense 30 units of laemmli_buffer
+eluate = mix ip_complex with elution_buffer
+heat eluate at 95c for 5m
+
+// Western blot detection step (anti-Abi1 / anti-WAVE2, HRP-ECL)
+secondary = dispense secondary_hrp_antibody
+substrate = dispense 20 units of ecl_substrate
+detection_mix = mix eluate with secondary
+blot_mix = mix detection_mix with substrate
+
+coip_signal = detect fluorescence on blot_mix for 60s
+
+if (coip_signal >= 80) {
+    dispose blot_mix
+} else {
+    repeat 2 times {
+        rewash = dispense 200 units of wash_buffer
+        rewashed = mix blot_mix with rewash
+        dispose rewashed
+    }
+    dispose blot_mix
+}

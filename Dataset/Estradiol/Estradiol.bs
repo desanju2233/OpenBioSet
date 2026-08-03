@@ -1,0 +1,71 @@
+module fluorescence
+
+manifest cnb_sample
+manifest extraction_solvent
+manifest reconstitution_buffer
+manifest anti_e2_beads
+manifest wash_buffer
+manifest e2_hrp_conjugate
+manifest h2o2
+manifest luminol
+
+instructions:
+
+// ============================================================
+// Stage 1: On-chip CNB tissue extraction (~15 min total)
+// Fig. 1: E2 extracted into methanol droplets, dried onto the
+// hydrophilic anchor, cycle repeated twice, then reconstituted.
+// ============================================================
+
+tissue = dispense cnb_sample
+
+repeat 2 times {
+    solvent = dispense 48 units of extraction_solvent
+    extract = mix tissue with solvent for 300s
+    heat extract at 25c for 300s
+    dispose extract
+}
+
+recon = dispense 48 units of reconstitution_buffer
+sample_extract = mix tissue with recon for 30s
+dispose tissue
+
+// ============================================================
+// Stage 2: On-chip DMF-ELISA immunoassay (~25 min total)
+// Fig. 2: 16-step bead capture, wash, conjugate, wash,
+// chemiluminescent detection.
+// ============================================================
+
+// Steps 1-3: bead resuspension with sample, 6 min incubation
+beads = dispense 16 units of anti_e2_beads
+complex = mix beads with sample_extract for 360s
+
+// Steps 4-7: wash x4
+repeat 4 times {
+    wash = dispense 16 units of wash_buffer
+    complex = mix complex with wash for 10s
+    dispose wash
+}
+
+// Steps 8-9: E2-HRP conjugate, 2 min incubation
+conjugate = dispense 16 units of e2_hrp_conjugate
+complex = mix complex with conjugate for 120s
+
+// Steps 10-13: wash x4
+repeat 4 times {
+    wash = dispense 16 units of wash_buffer
+    complex = mix complex with wash for 10s
+    dispose wash
+}
+
+// Steps 14-15: reporter reagents (H2O2 + luminol/enhancer)
+peroxide = dispense 8 units of h2o2
+complex = mix complex with peroxide for 5s
+
+reporter = dispense 8 units of luminol
+complex = mix complex with reporter for 5s
+
+// Step 16: 10 min mix, chemiluminescence read on integrated PMT
+signal = detect fluorescence on complex for 10m
+
+dispose complex

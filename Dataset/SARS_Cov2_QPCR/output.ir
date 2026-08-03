@@ -1,0 +1,90 @@
+main:
+	template_n11[0] = dispense(cDNA_template)
+	pp_n11[0] = dispense(primer_probe_N1)
+	mm_n11[0] = dispense(master_mix)
+	water_n11[0] = dispense(nuclease_free_water)
+	mixa_n11[0] = mix(template_n11[0], pp_n11[0])
+	mixb_n11[0] = mix(mixa_n11[0], mm_n11[0])
+	N1_mix1[0] = mix(mixb_n11[0], water_n11[0])
+	template_n21[0] = dispense(cDNA_template)
+	pp_n21[0] = dispense(primer_probe_N2)
+	mm_n21[0] = dispense(master_mix)
+	water_n21[0] = dispense(nuclease_free_water)
+	mixa_n21[0] = mix(template_n21[0], pp_n21[0])
+	mixb_n21[0] = mix(mixa_n21[0], mm_n21[0])
+	N2_mix1[0] = mix(mixb_n21[0], water_n21[0])
+	template_rp1[0] = dispense(cDNA_template)
+	pp_rp1[0] = dispense(primer_probe_RP)
+	mm_rp1[0] = dispense(master_mix)
+	water_rp1[0] = dispense(nuclease_free_water)
+	mixa_rp1[0] = mix(template_rp1[0], pp_rp1[0])
+	mixb_rp1[0] = mix(mixa_rp1[0], mm_rp1[0])
+	RP_mix1[0] = mix(mixb_rp1[0], water_rp1[0])
+	pos1[0] = dispense(positive_control)
+	pp_pos1[0] = dispense(primer_probe_N1)
+	mm_pos1[0] = dispense(master_mix)
+	water_pos1[0] = dispense(nuclease_free_water)
+	mixa_pos1[0] = mix(pos1[0], pp_pos1[0])
+	mixb_pos1[0] = mix(mixa_pos1[0], mm_pos1[0])
+	PC_mix1[0] = mix(mixb_pos1[0], water_pos1[0])
+	ntc1[0] = dispense(ntc_sample)
+	pp_ntc1[0] = dispense(primer_probe_N1)
+	mm_ntc1[0] = dispense(master_mix)
+	water_ntc1[0] = dispense(nuclease_free_water)
+	mixa_ntc1[0] = mix(ntc1[0], pp_ntc1[0])
+	mixb_ntc1[0] = mix(mixa_ntc1[0], mm_ntc1[0])
+	NTC_mix1[0] = mix(mixb_ntc1[0], water_ntc1[0])
+	heat(N1_mix1[0]) @ 95.0CELSIUS @ 120.0SECOND
+	heat(N2_mix1[0]) @ 95.0CELSIUS @ 120.0SECOND
+	heat(RP_mix1[0]) @ 95.0CELSIUS @ 120.0SECOND
+	heat(PC_mix1[0]) @ 95.0CELSIUS @ 120.0SECOND
+	heat(NTC_mix1[0]) @ 95.0CELSIUS @ 120.0SECOND
+bsbbr_2_h:
+	PHI RP_signal1 = {RP_signal0,RP_signal2}
+	PHI N1_signal1 = {N1_signal0,N1_signal2}
+	PHI REPEAT_401 = {REPEAT_400,REPEAT_402}
+	PHI NTC_signal1 = {NTC_signal0,NTC_signal2}
+	PHI PC_signal1 = {PC_signal0,PC_signal2}
+	PHI N2_signal1 = {N2_signal0,N2_signal2}
+	PHI N1_mix2 = {N1_mix1,N1_mix2}
+	PHI RP_mix2 = {RP_mix1,RP_mix2}
+	PHI N2_mix2 = {N2_mix1,N2_mix2}
+	PHI PC_mix2 = {PC_mix1,PC_mix2}
+	PHI NTC_mix2 = {NTC_mix1,NTC_mix2}
+	if REPEAT_401[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	heat(N1_mix2[0]) @ 95.0CELSIUS @ 1.0SECOND
+	heat(N1_mix2[0]) @ 60.0CELSIUS @ 20.0SECOND
+	N1_signal2[0] = detect(fluorescence, N1_mix2[0]) @ 1.0SECOND
+	heat(N2_mix2[0]) @ 95.0CELSIUS @ 1.0SECOND
+	heat(N2_mix2[0]) @ 60.0CELSIUS @ 20.0SECOND
+	N2_signal2[0] = detect(fluorescence, N2_mix2[0]) @ 1.0SECOND
+	heat(RP_mix2[0]) @ 95.0CELSIUS @ 1.0SECOND
+	heat(RP_mix2[0]) @ 60.0CELSIUS @ 20.0SECOND
+	RP_signal2[0] = detect(fluorescence, RP_mix2[0]) @ 1.0SECOND
+	heat(PC_mix2[0]) @ 95.0CELSIUS @ 1.0SECOND
+	heat(PC_mix2[0]) @ 60.0CELSIUS @ 20.0SECOND
+	PC_signal2[0] = detect(fluorescence, PC_mix2[0]) @ 1.0SECOND
+	heat(NTC_mix2[0]) @ 95.0CELSIUS @ 1.0SECOND
+	heat(NTC_mix2[0]) @ 60.0CELSIUS @ 20.0SECOND
+	NTC_signal2[0] = detect(fluorescence, NTC_mix2[0]) @ 1.0SECOND
+	REPEAT_402[0] = REPEAT_401[0] - 1
+bsbbr_4_f:
+	if N1_signal1[0] >= 40000	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+bsbbif_5_t:
+	dispose(N1_mix2[0])
+bsbbif_6_f:
+	PHI N1_mix3 = {N1_mix2,N1_mix}
+	if N2_signal1[0] >= 40000	|	true: jump bsbbif_7_t	|	false: jump bsbbif_8_f
+bsbbif_7_t:
+	dispose(N2_mix2[0])
+bsbbif_8_f:
+	PHI N2_mix3 = {N2_mix2,N2_mix}
+	if NTC_signal1[0] >= 8000	|	true: jump bsbbif_9_t	|	false: jump bsbbif_10_f
+bsbbif_9_t:
+	dispose(NTC_mix2[0])
+bsbbif_10_f:
+	PHI NTC_mix3 = {NTC_mix2,NTC_mix}
+	dispose(RP_mix2[0])
+	dispose(PC_mix2[0])
+	NOP

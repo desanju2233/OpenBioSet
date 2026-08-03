@@ -1,0 +1,85 @@
+module absorbance
+
+manifest distilled_water
+manifest mtb_ba_reagent
+manifest ammonium_reagent
+manifest nitrate_reagent
+manifest sulfate_standard
+manifest ammonium_standard
+manifest nitrate_standard
+manifest aerosol_sample
+
+instructions:
+
+// ---- Aerosol collection & extraction ----
+// A scanning droplet is dispensed in oil, transported through the
+// oil/air interface, and passed twice across the 5-electrode
+// impaction area to dissolve the deposited aerosol particles.
+extract = dispense 1 units of aerosol_sample
+
+repeat 2 times {
+    extract = mix extract with extract for 30s
+}
+
+// ==================================================================
+// Sulfate assay (Methylthymol Blue - Barium complex, 608 nm)
+// Six standard concentrations run to build the calibration curve,
+// then the collected aerosol extract is measured against it.
+// ==================================================================
+repeat 6 times {
+    su_std = dispense 1 units of sulfate_standard
+    mtb = dispense 1 units of mtb_ba_reagent
+    su_cal = mix su_std with mtb for 10s
+    su_cal_reading = detect absorbance on su_cal for 5s
+    dispose su_cal
+}
+
+mtb_sample = dispense 1 units of mtb_ba_reagent
+su_mix = mix extract with mtb_sample for 10s
+sulfate_reading = detect absorbance on su_mix for 5s
+
+if (sulfate_reading >= 11) {
+    dispose su_mix
+}
+
+// ==================================================================
+// Ammonium assay (colorimetric, 365 nm)
+// Same calibration + sample measurement pattern as sulfate.
+// ==================================================================
+repeat 6 times {
+    nh4_std = dispense 1 units of ammonium_standard
+    nh4_reagent = dispense 1 units of ammonium_reagent
+    nh4_cal = mix nh4_std with nh4_reagent for 10s
+    nh4_cal_reading = detect absorbance on nh4_cal for 5s
+    dispose nh4_cal
+}
+
+nh4_reagent_sample = dispense 1 units of ammonium_reagent
+nh4_mix = mix extract with nh4_reagent_sample for 10s
+ammonium_reading = detect absorbance on nh4_mix for 5s
+
+if (ammonium_reading >= 0.256) {
+    dispose nh4_mix
+}
+
+// ==================================================================
+// Nitrate assay (540 nm) - unstable on-chip due to precipitate
+// formation from the acidic reagent; measurement is attempted but
+// flagged/discarded rather than trusted, per the paper's findings.
+// ==================================================================
+repeat 6 times {
+    no3_std = dispense 1 units of nitrate_standard
+    no3_reagent = dispense 1 units of nitrate_reagent
+    no3_cal = mix no3_std with no3_reagent for 10s
+    heat no3_cal at 25c for 150s
+    no3_cal_reading = detect absorbance on no3_cal for 5s
+    dispose no3_cal
+}
+
+no3_reagent_sample = dispense 1 units of nitrate_reagent
+no3_mix = mix extract with no3_reagent_sample for 10s
+heat no3_mix at 25c for 150s
+nitrate_reading = detect absorbance on no3_mix for 5s
+dispose no3_mix
+
+dispose extract

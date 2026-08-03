@@ -1,0 +1,53 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Digital Microfluidic Immunoprecipitation (DMF-IP) for Targeted Protein Purification with Mass Spectrometry Readout\n\nREAGENTS USED:\n  - Magnetic Particles (superparamagnetic particles coated with an antibody against the target protein)\n  - Sample (complex biological matrix, e.g., serum, containing the target analyte)\n  - Wash Buffer (Tris-HCl, pH 7.6)\n  - Elution Buffer (100 mM citric acid)\n\nSTEPS:\n1. Particle Loading: Dispense a droplet of antibody-functionalized magnetic particles onto the device.\n2. Capture: Dispense a droplet of sample and merge it with the immobilized particles. Actively resuspend and mix for 10 minutes to allow the target analyte to bind the antibody-coated particles.\n3. Wash Cycle: Repeat twice - dispense a droplet of Tris-HCl wash buffer, merge with the particle-bound complex, and mix for approximately 3 minutes to remove unbound sample matrix.\n4. Elution: Dispense a droplet of 100 mM citric acid elution buffer and merge with the washed particles. Mix for 5 minutes to release the purified target from the particles.\n5. Detection: Recover the eluted droplet and analyze the purified target by direct-infusion tandem mass spectrometry (MS/MS) for 1 minute. Discard the final reaction mixture.\n\nINTERPRETATION: Successful immunoprecipitation is confirmed by a strong mass spectrometry signal for the target protein's diagnostic tryptic peptide transition in the eluted droplet, in contrast to the low signal observed for the same transition in unprocessed sample matrix, demonstrating effective removal of background matrix and preconcentration of the target analyte." },
+    { "role": "assistant", "content": "module mass_spec\n\nmanifest magnetic_particles\nmanifest sample\nmanifest wash_buffer\nmanifest elution_buffer\n\ninstructions:\n\n// Step 1: Load antibody-functionalized magnetic particles onto the device\nbeads = dispense 4 units of magnetic_particles\n\n// Steps 3-4: Capture - sample droplet exposed to immobilized particles\n// and actively resuspended to bind target analyte (10 min)\nsmp = dispense 4 units of sample\nrxn_capture = mix beads with smp for 600s\n\n// Steps 5-6: Wash cycle - particles washed twice with Tris-HCl buffer\n// to remove unbound sample matrix (~3 min per wash)\nrepeat 2 times {\n    wash = dispense 4 units of wash_buffer\n    rxn_capture = mix rxn_capture with wash for 180s\n}\n\n// Step 7: Elution - particles exposed to citric acid elution buffer (5 min)\nelution = dispense 4 units of elution_buffer\nrxn_elute = mix rxn_capture with elution for 300s\n\n// Step 8: Recovery of purified target and analysis by mass spectrometry\nhsa_reading = detect mass_spec on rxn_elute for 1m\ndispose rxn_elute" }
+  ],
+  "metadata": {
+    "protocol_id": "dmf_ip_immunoprecipitation_ms_001",
+    "bs_file": "tests/test_cases/immunoprecipitation/dmf_ip_immunoprecipitation.bs",
+    "protocol_name": "Digital Microfluidic Immunoprecipitation (DMF-IP) (Seale et al. 2016)",
+    "category": "immunoprecipitation",
+    "chemicals": [
+      "magnetic_particles",
+      "sample",
+      "wash_buffer",
+      "elution_buffer"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "repeat",
+      "detect",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "original_protocol", "title": "Digital Microfluidics for Immunoprecipitation", "publisher": "Analytical Chemistry", "url": "https://microfluidics.utoronto.ca/papers/6b02915.pdf", "doi": "10.1021/acs.analchem.6b02915" }
+    ],
+    "notes": "The authored BioScript code is a direct translation of the core, small-volume (3-5 uL) eight-step DMF-IP procedure from Seale et al. (2016), covering particle loading, sample capture, a two-cycle wash, elution, and MS detection. Wash and elution mixing durations (10 min capture, ~3 min per wash, 5 min elution) and the elution buffer identity (100 mM citric acid) are taken directly from the paper's DMF-IP General Procedure and are consistent with the elution conditions the authors settled on after optimization (Figure 2). Because the underlying BioScript grammar exposes only dispense, mix, heat, repeat, detect, and dispose, the paper's explicit magnet-engage/particle-isolation steps (steps 2, 4, and 8, in which a magnet immobilizes particles so supernatant can be exchanged) have no dedicated primitive and are folded implicitly into the surrounding dispense/mix pairs, the same abstraction used for wash cycles in the ELISA-style scripts in this test suite. The paper's second technique, P-CLIP (a macro-to-microscale paper-wicking preconcentration interface for >=100 uL samples), is a physically distinct workflow involving passive lateral-flow pumping and sequential electrode deactivation with no analog in this instruction set, and is intentionally not modeled here; only the core small-volume DMF-IP protocol (Figure 1) is captured.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "magnetic_particles", "source_quote": "superparamagnetic particles with an antihuman serum albumin antibody coating", "source_location": "EXPERIMENTAL SECTION: Reagents and Materials" },
+        { "bs_chemical": "sample", "source_quote": "A 4 µL droplet of sample was loaded into a reservoir", "source_location": "EXPERIMENTAL SECTION: DMF-IP General Procedure, step (3)" },
+        { "bs_chemical": "wash_buffer", "source_quote": "droplet of Tris-HCl buffer (pH 7.6, Tris-buffer) was loaded", "source_location": "EXPERIMENTAL SECTION: DMF-IP General Procedure, step (5)" },
+        { "bs_chemical": "elution_buffer", "source_quote": "droplet of 100 mM citric acid was loaded onto a reservoir", "source_location": "EXPERIMENTAL SECTION: DMF-IP General Procedure, step (7)" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "rxn_capture = mix beads with smp for 600s", "source_quote": "the droplet was mixed for 10 min to resuspend the particles", "source_location": "EXPERIMENTAL SECTION: DMF-IP General Procedure, step (3)" },
+        { "bs_operation": "repeat 2 times { ... mix ... for 180s }", "source_quote": "the droplet was mixed for ∼3 min, followed by a repeat", "source_location": "EXPERIMENTAL SECTION: DMF-IP General Procedure, steps (5)-(6)" },
+        { "bs_operation": "rxn_elute = mix rxn_capture with elution for 300s", "source_quote": "we arbitrarily chose to use 5 min elution steps", "source_location": "RESULTS AND DISCUSSION: Digital Microfluidic Immunoprecipitation (DMF-IP)" },
+        { "bs_operation": "detect mass_spec", "source_quote": "gold standard analytical technique for biologically derived drug analysis is mass spectrometry", "source_location": "RESULTS AND DISCUSSION: Digital Microfluidic Immunoprecipitation (DMF-IP)" }
+      ],
+      "numeric_mismatches": [
+        { "field": "dispense 4 units of magnetic_particles", "note": "The paper's general step (1) states particle volume and density are 'dependent on application' rather than fixed; the script uses 4 units as a representative value matching the 4 uL sample/wash/elution volumes used throughout the characterization experiments, not an explicit particle volume given for the general protocol." },
+        { "field": "magnet engage / particle isolation (paper steps 2, 4, 8)", "note": "BioScript has no dedicated primitive for magnetic particle immobilization or supernatant exchange; these steps are implicitly absorbed into the adjacent dispense/mix instructions rather than represented as discrete operations." },
+        { "field": "P-CLIP preconcentration workflow", "note": "Not modeled. The paper's macro-to-microscale P-CLIP technique for >=100 uL samples uses passive paper-wicking and sequential electrode deactivation, which falls outside this instruction set entirely; only the core 3-5 uL DMF-IP protocol is translated." }
+      ]
+    }
+  }
+}

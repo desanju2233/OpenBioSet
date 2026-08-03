@@ -1,0 +1,148 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "ASSAY TYPE: Digital Microfluidic (DMF) Platform for Chemiluminescent Detection of Rubella Virus (RV) IgG and IgM by Indirect ELISA\n\nREAGENTS USED:\n  - RV-Coated Paramagnetic Particle Suspension (virus-immobilized magnetic microparticles for antigen capture, 1.8 uL droplets)\n  - Patient Sample (serum or plasma, pre-diluted, containing RV IgG and/or RV IgM, 1.8 uL droplets)\n  - DMF-Compatible Wash Buffer (1.8 uL droplets, used in 4x wash cycles after each binding step)\n  - HRP-Conjugated Goat Anti-Human IgG (detection conjugate for the RV IgG assay, 1.8 uL droplets)\n  - HRP-Conjugated Goat Anti-Human IgM (detection conjugate for the RV IgM assay, 1.8 uL droplets)\n  - Goat Anti-Human IgG Pretreatment Reagent (blocks endogenous RV IgG/rheumatoid-factor IgM interference before the IgM assay, 0.9 uL droplets)\n  - Hydrogen Peroxide, H2O2 (chemiluminescent substrate component, 0.9 uL droplets)\n  - Luminol-Enhancer Solution (chemiluminescent substrate component, 0.9 uL droplets)\n\nSTEPS:\nRV IgG Immunoassay (7-step indirect ELISA):\n1. Dispense a droplet of RV-coated paramagnetic particle suspension (1.8 uL) and separate the particles from the storage diluent.\n2. Dispense a sample droplet (1.8 uL), deliver it to the particles, mix for 3 min, then magnetically separate particles from the supernatant.\n3. Wash the particles in 4 successive 1.8 uL wash-buffer droplets, mixing and then separating from the supernatant each time.\n4. Dispense a droplet of HRP-conjugated anti-human IgG (1.8 uL), deliver to the particles, and mix for 2 min.\n5. Repeat the 4x wash cycle from step 3.\n6. Dispense one droplet each of H2O2 (0.9 uL) and luminol-enhancer solution (0.9 uL), merge them with the particles, and mix for 2 min.\n7. Measure the mean chemiluminescent signal over 10 s with the integrated photomultiplier tube (PMT).\n\nRV IgM Immunoassay (identical 7-step assay, preceded by an IgG-blocking pretreatment):\n0. Pretreatment: Mix a 1.8 uL sample droplet with a 0.9 uL droplet of goat anti-human IgG pretreatment reagent for 7 min to block endogenous RV IgG and rheumatoid-factor IgM before analysis.\n1-7. Repeat the same capture -> 4x wash -> conjugate (HRP-anti-human IgM in place of anti-IgG) -> 4x wash -> substrate -> PMT-detect sequence described above.\n\nINTERPRETATION: Results are reported as a signal-to-cutoff (s/co) ratio, calculated by normalizing the mean chemiluminescent signal of each assay to the mean signal of the corresponding cutoff control (a 10 IU/mL RV IgG calibrator for the IgG assay; the RV IgM cutoff Cal 1 reagent for the IgM assay). An s/co >= 1 is interpreted as positive; an s/co in the gray zone (0.69-0.99 for IgG, 0.75-0.99 for IgM) is interpreted as equivocal; an s/co below the gray zone is interpreted as negative. Diagnostic sensitivity and specificity of 100%/100% for both RV IgG and RV IgM were obtained against a commercial mixed-titer performance panel referenced against an Abbott EIA platform, supporting use of the method as a portable, decentralized alternative to central-laboratory rubella serology for identifying pregnant women at risk of transmitting rubella to their offspring."
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest rv_particles\nmanifest wash_buffer\nmanifest patient_sample\nmanifest hrp_antihuman_igg\nmanifest hrp_antihuman_igm\nmanifest pretreatment_reagent\nmanifest h2o2\nmanifest luminol\n\ninstructions:\n\n// RV IgG immunoassay: steps 1-2, capture RV IgG on virus-coated particles\nparticles_igg = dispense 18 units of rv_particles\nsample_igg = dispense 18 units of patient_sample\ncapture_igg = mix particles_igg with sample_igg for 3m\n\n// Step 3: wash particles in 4 successive wash-buffer droplets\nrepeat 4 times {\n    wash_igg = dispense 18 units of wash_buffer\n    capture_igg = mix capture_igg with wash_igg for 30s\n    dispose wash_igg\n}\n\n// Step 4: HRP-conjugated anti-human IgG delivered to particles\nconjugate_igg = dispense 18 units of hrp_antihuman_igg\nlabeled_igg = mix capture_igg with conjugate_igg for 2m\n\n// Step 5: repeat 4x wash cycle\nrepeat 4 times {\n    wash_igg2 = dispense 18 units of wash_buffer\n    labeled_igg = mix labeled_igg with wash_igg2 for 30s\n    dispose wash_igg2\n}\n\n// Step 6: merge H2O2 and luminol-enhancer substrate with particles\nperoxide_igg = dispense 9 units of h2o2\nenhancer_igg = dispense 9 units of luminol\nsubstrate_igg = mix peroxide_igg with enhancer_igg\nrxn_igg = mix labeled_igg with substrate_igg for 2m\n\n// Step 7: PMT chemiluminescent read, interpreted against 10 IU/mL cutoff\nigg_signal = detect fluorescence on rxn_igg for 10s\n\nif (igg_signal >= 10) {\n    dispose rxn_igg\n} else {\n    dispose rxn_igg\n}\n\n// RV IgM immunoassay: pretreatment blocks endogenous IgG/RF interference\npretreat = dispense 9 units of pretreatment_reagent\nsample_igm = dispense 18 units of patient_sample\nblocked_igm = mix sample_igm with pretreat for 7m\n\n// Steps 1-2: capture RV IgM on virus-coated particles\nparticles_igm = dispense 18 units of rv_particles\ncapture_igm = mix particles_igm with blocked_igm for 3m\n\n// Step 3: wash particles in 4 successive wash-buffer droplets\nrepeat 4 times {\n    wash_igm = dispense 18 units of wash_buffer\n    capture_igm = mix capture_igm with wash_igm for 30s\n    dispose wash_igm\n}\n\n// Step 4: HRP-conjugated anti-human IgM delivered to particles\nconjugate_igm = dispense 18 units of hrp_antihuman_igm\nlabeled_igm = mix capture_igm with conjugate_igm for 2m\n\n// Step 5: repeat 4x wash cycle\nrepeat 4 times {\n    wash_igm2 = dispense 18 units of wash_buffer\n    labeled_igm = mix labeled_igm with wash_igm2 for 30s\n    dispose wash_igm2\n}\n\n// Step 6: merge H2O2 and luminol-enhancer substrate with particles\nperoxide_igm = dispense 9 units of h2o2\nenhancer_igm = dispense 9 units of luminol\nsubstrate_igm = mix peroxide_igm with enhancer_igm\nrxn_igm = mix labeled_igm with substrate_igm for 2m\n\n// Step 7: PMT chemiluminescent read, interpreted against s/co = 1 cutoff\nigm_signal = detect fluorescence on rxn_igm for 10s\n\nif (igm_signal >= 1) {\n    dispose rxn_igm\n} else {\n    dispose rxn_igm\n}"
+    }
+  ],
+  "metadata": {
+    "protocol_id": "dmf_pmt_rubella_igg_igm_001",
+    "bs_file": "tests/test_cases/rubella_dmf_immunoassay/rubella_dmf_immunoassay.bs",
+    "protocol_name": "Digital Microfluidic Platform for the Detection of Rubella Infection and Immunity: A Proof of Concept (Ng et al. 2015)",
+    "category": "infectious_disease_serology_assay",
+    "chemicals": [
+      "rv_particles",
+      "wash_buffer",
+      "patient_sample",
+      "hrp_antihuman_igg",
+      "hrp_antihuman_igm",
+      "pretreatment_reagent",
+      "h2o2",
+      "luminol"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "repeat",
+      "detect",
+      "if",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      {
+        "type": "original_protocol",
+        "title": "Digital Microfluidic Platform for the Detection of Rubella Infection and Immunity: A Proof of Concept",
+        "publisher": "Clinical Chemistry",
+        "url": "https://microfluidics.utoronto.ca/papers/ClinChemV61I2.pdf",
+        "doi": "10.1373/clinchem.2014.232181"
+      }
+    ],
+    "notes": "The authored BioScript code is a direct translation of the paper's 7-step RV IgG indirect-ELISA protocol (Methods, 'RV IgG Immunoassay') and the parallel RV IgM protocol with its added IgG-blocking pretreatment step (Methods, 'RV IgM Immunoassay'). Both branches share the same capture -> 4x-wash -> conjugate -> 4x-wash -> substrate -> PMT-read structure, modeled as two sequential blocks in one script since BioScript has no notion of running assays in parallel on separate electrodes as the paper's 4-way aliquoting scheme does. Because the paper's detection modality is chemiluminescence read by an integrated PMT (relative light units), not a fluorogenic signal, the 'detect fluorescence' primitive is used as a stand-in for the generic detect-and-quantify step, representing the RLU chemiluminescent read rather than an actual fluorescence measurement, since BioScript's grammar does not expose a dedicated chemiluminescence detect module. The paper's diagnostic interpretation bands (positive / equivocal / negative s/co zones) are collapsed into a single if/else branch per assay using the two-level (positive/negative) numeric cutoffs (10 IU/mL for IgG, s/co = 1 for IgM), since BioScript's grammar does not support a 3-way equivocal band without additional nested conditionals.",
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "rv_particles",
+          "source_quote": "virus-coated paramagnetic particles used to capture RV-specific antibody from the sample",
+          "source_location": "METHODS: RV IgG Immunoassay, step (a)"
+        },
+        {
+          "bs_chemical": "patient_sample",
+          "source_quote": "diluted serum or plasma sample delivered to the virus-coated particles for antibody capture",
+          "source_location": "METHODS: RV IgG Immunoassay, step (b)"
+        },
+        {
+          "bs_chemical": "wash_buffer",
+          "source_quote": "particles washed in four successive droplets of DMF-compatible wash buffer",
+          "source_location": "METHODS: RV IgG Immunoassay, step (c)"
+        },
+        {
+          "bs_chemical": "hrp_antihuman_igg",
+          "source_quote": "HRP-conjugated goat polyclonal antihuman IgG used as the detection conjugate",
+          "source_location": "METHODS: Reagents and Materials"
+        },
+        {
+          "bs_chemical": "hrp_antihuman_igm",
+          "source_quote": "HRP-conjugated goat antihuman IgM substituted as conjugate for the IgM assay",
+          "source_location": "METHODS: RV IgM Immunoassay"
+        },
+        {
+          "bs_chemical": "pretreatment_reagent",
+          "source_quote": "goat antihuman IgG pretreatment reagent used to block endogenous IgG before IgM analysis",
+          "source_location": "METHODS: RV IgM Immunoassay and IgG blocking"
+        },
+        {
+          "bs_chemical": "h2o2",
+          "source_quote": "stable hydrogen peroxide solution merged with particles to generate chemiluminescence",
+          "source_location": "METHODS: RV IgG Immunoassay, step (f)"
+        },
+        {
+          "bs_chemical": "luminol",
+          "source_quote": "luminol-enhancer solution combined with peroxide as the chemiluminescent substrate",
+          "source_location": "METHODS: RV IgG Immunoassay, step (f)"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "capture_igg = mix particles_igg with sample_igg for 3m",
+          "source_quote": "sample delivered to particles and mixed for approximately three minutes before separation",
+          "source_location": "METHODS: RV IgG Immunoassay, step (b)"
+        },
+        {
+          "bs_operation": "repeat 4 times { wash_igg = dispense ...; mix ... for 30s; dispose }",
+          "source_quote": "four successive wash droplets each mixed with particles then separated from supernatant",
+          "source_location": "METHODS: RV IgG Immunoassay, step (c)"
+        },
+        {
+          "bs_operation": "labeled_igg = mix capture_igg with conjugate_igg for 2m",
+          "source_quote": "conjugate droplet delivered to particles and mixed for roughly two minutes",
+          "source_location": "METHODS: RV IgG Immunoassay, step (d)"
+        },
+        {
+          "bs_operation": "rxn_igg = mix labeled_igg with substrate_igg for 2m",
+          "source_quote": "peroxide and luminol droplets merged with particles and mixed for about two minutes",
+          "source_location": "METHODS: RV IgG Immunoassay, step (f)"
+        },
+        {
+          "bs_operation": "igg_signal = detect fluorescence on rxn_igg for 10s",
+          "source_quote": "mean chemiluminescent signal collected over a ten second window by the PMT",
+          "source_location": "METHODS: RV IgG Immunoassay, step (g)"
+        },
+        {
+          "bs_operation": "blocked_igm = mix sample_igm with pretreat for 7m",
+          "source_quote": "sample and pretreatment reagent combined and mixed for about seven minutes before assay",
+          "source_location": "METHODS: RV IgM Immunoassay and IgG blocking"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "igg_signal = detect fluorescence / igm_signal = detect fluorescence",
+          "note": "Detection in the paper is integrated-PMT chemiluminescence (relative light units), not a fluorogenic assay. 'fluorescence' is used only because it is the sole detect module exposed by BioScript's grammar; it stands in for the generic RLU chemiluminescent read, not an actual fluorescence measurement."
+        },
+        {
+          "field": "if (igg_signal >= 10) / if (igm_signal >= 1)",
+          "note": "The paper defines three interpretation bands per assay (positive / equivocal gray-zone / negative s/co thresholds); this is collapsed to a two-way if/else using only the positive-cutoff boundary, since a three-way banded interpretation would require nested conditionals not exercised here."
+        },
+        {
+          "field": "parallel 4-way aliquoting of samples/reagents",
+          "note": "The paper's instrument runs 4 parallel replicate assays per sample by aliquoting reagents across 4 sets of electrodes simultaneously; BioScript has no primitive for concurrent/parallel electrode operations, so the script models a single serial assay per antibody class rather than 4-way replication."
+        },
+        {
+          "field": "on-chip serial dilution (Supplemental Fig. 2) and off-chip RF IgM ELISA screening",
+          "note": "The paper's droplet-splitting dilution series and the separate off-chip RF IgM absorbance ELISA used to characterize calibrator cross-reactivity are not modeled, since BioScript has no droplet-splitting primitive and no external-plate-reader detect module."
+        }
+      ]
+    }
+  }
+}

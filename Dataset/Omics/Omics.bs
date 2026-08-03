@@ -1,0 +1,323 @@
+module fluorescence
+
+// ── Reagents / Manifests ──────────────────────────────────────────────────────
+// Cell suspensions
+manifest cells_in_media           // target cells at 0.5e6 cells/mL
+
+// Fixation & permeabilisation
+manifest hope_fixative             // HOPE Fixative Solution I (Polysciences)
+manifest ice_cold_acetone          // permeabilisation
+
+// Wash / carrier buffers
+manifest dpbs_f68                  // DPBS + 0.05 % v/v Pluronic F68
+manifest dpbs_ddm                  // DPBS + 0.0125 % v/v DDM (proteomics)
+
+// Immunofluorescence (used for CRISPR/HAP1 variant; optional for genomics)
+manifest fbs_tween_block           // 5 % FBS + 0.05 % Tween-20 in DPBS
+manifest anti_cd47_apc             // anti-human CD47-APC (clone CC2C6, 1:250)
+manifest hoechst_33342             // nuclear counterstain, 1:5000 in DPBS-F68
+
+// Amplification & sequencing reagents
+manifest replig_wga_kit            // Repli-g single-cell WGA (Qiagen)
+manifest taq_polymerase            // Taq DNA Polymerase (Invitrogen)
+manifest qc1_primers               // primers for QC-1 (chr 4, 12, 13, 22 loci)
+manifest ampflstr_kit              // AmpFLSTR Identifiler PCR kit (QC-2)
+manifest nextera_flex_kit          // Nextera DNA Flex Library Prep (Illumina)
+
+// Transcriptomics reagents
+manifest capture_oligo             // UMI-barcoded capture oligo in lysis buffer
+manifest maxima_rt_mix             // Maxima H-Minus RT + dNTPs + RNase Inh + TSO
+manifest advantage2_pcr_kit        // cDNA amplification (Takara)
+manifest nextera_xt_kit            // RNA-seq library prep
+
+// Proteomics reagents
+manifest tcep_solution             // 5 mM TCEP for reduction
+manifest iodoacetamide             // 10 mM IAA for alkylation
+manifest lysc_enzyme               // Lys-C protease 5 ng/µL
+manifest trypsin_enzyme            // Trypsin 20 ng/µL
+manifest formic_acid               // digest quench
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// DISCO PROTOCOL  (Lamanna et al., Nat. Commun. 2020, 11:5632)
+// Three sub-protocols share common Steps 1-4; Steps 5+ branch by -Omics mode.
+// This script encodes: (A) Genomics, (B) Transcriptomics, (C) Proteomics,
+// and (D) CRISPR/HAP1 genotyping (extends A with immunostaining).
+// ═════════════════════════════════════════════════════════════════════════════
+
+instructions:
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 1-2  Cell seeding, fixation, and permeabilisation
+// Applied to genomics (-g) and proteomics (-p) branches.
+// Transcriptomics (-t) uses live cells (sub-step ii-t only).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Sub-step i  –  seed cells into virtual microwells on DMF top plate
+cell_droplet = dispense 2 units of cells_in_media
+heat cell_droplet at 37c for 1440m          // 24 h incubation (37 °C, 5 % CO2)
+
+// Sub-step ii-g,p  –  HOPE fixation
+fixative = dispense 2 units of hope_fixative
+fixed_cells = mix cell_droplet with fixative
+heat fixed_cells at 4c for 20m             // 4 °C, 20 min
+
+// Sub-step iii  –  wash
+wash1 = dispense 2 units of dpbs_f68
+washed_cells = mix fixed_cells with wash1 for 5s
+dispose wash1
+
+// Sub-step iv  –  acetone permeabilisation
+acetone = dispense 2 units of ice_cold_acetone
+permeabilised = mix washed_cells with acetone
+heat permeabilised at -20c for 10m
+
+// Sub-step v-g  –  final wash (genomics / CRISPR path)
+wash2 = dispense 2 units of dpbs_f68
+washed_g = mix permeabilised with wash2 for 5s
+dispose wash2
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OPTIONAL IMMUNOSTAINING BLOCK  (HAP1 / CRISPR genotyping only)
+// Identifies WT (CD47+) vs. KO (CD47-) cells before lysis.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Block
+block_buf = dispense 2 units of fbs_tween_block
+blocked = mix washed_g with block_buf
+heat blocked at 23c for 60m                // room temperature, 1 h
+
+wash3 = dispense 2 units of dpbs_f68
+blocked_washed = mix blocked with wash3 for 5s
+dispose wash3
+
+// Primary antibody (anti-CD47-APC)
+antibody = dispense 2 units of anti_cd47_apc
+stained = mix blocked_washed with antibody
+heat stained at 4c for 720m               // 4 °C, overnight (~12 h)
+
+// Nuclear stain
+hoechst = dispense 2 units of hoechst_33342
+stained_final = mix stained with hoechst
+heat stained_final at 23c for 10m
+
+// Post-stain washes
+repeat 2 times {
+    wash_if = dispense 2 units of dpbs_f68
+    stained_final = mix stained_final with wash_if for 5s
+    dispose wash_if
+}
+
+// Fluorescence imaging to classify WT vs. KO phenotype
+phenotype_image = detect fluorescence on stained_final for 5m
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 3-4  Automated cell selection, laser lysis, and lysate collection
+// Collection buffer: DPBS-F68 (genomics/transcriptomics) or DPBS-DDM (proteomics)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Load collection droplet over virtual microwell
+collection_buf = dispense 4 units of dpbs_f68
+
+// AI-driven (CNN) or manual cell identification + laser cell lysis (LCL)
+// The LCL fires 8 ns Q-switched Nd:YAG pulses (532 nm) at the selected cell.
+// Result: single-cell contents released into the collection droplet.
+cell_lysate = mix collection_buf with washed_g for 1s   // lysis event
+
+// Collect lysate droplet into PCR tube; store at -80 °C until processing
+lysate_collected = detect fluorescence on cell_lysate for 1s
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ════════════════  BRANCH A: SINGLE-CELL GENOMICS  ══════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
+
+// STEP 5  –  Whole Genome Amplification (WGA) via MDA
+wga_reagent = dispense 4 units of replig_wga_kit
+wga_product = mix cell_lysate with wga_reagent
+heat wga_product at 30c for 480m           // 8 h MDA at 30 °C (Repli-g protocol)
+heat wga_product at 65c for 10m           // heat inactivation / shearing
+
+// STEP 6  –  Quality Control 1 (QC-1): conserved loci on chr 4, 12, 13, 22
+qc1_mix = dispense 2 units of taq_polymerase
+qc1_primers_drop = dispense 2 units of qc1_primers
+qc1_rxn = mix wga_product with qc1_mix
+qc1_rxn = mix qc1_rxn with qc1_primers_drop
+
+// Denaturation
+heat qc1_rxn at 94c for 2m
+
+repeat 35 times {
+    heat qc1_rxn at 94c for 30s
+    heat qc1_rxn at 60c for 30s
+    heat qc1_rxn at 72c for 30s
+}
+heat qc1_rxn at 72c for 5m
+
+qc1_result = detect fluorescence on qc1_rxn for 1s
+
+if (qc1_result <= 30) {
+    dispose qc1_rxn
+}
+
+// STEP 7  –  DNA cleanup (Zymo DNA Clean & Concentrator columns)
+// Represented as a wash/concentration step
+wash_dna = dispense 4 units of dpbs_f68
+purified_dna = mix qc1_rxn with wash_dna for 30s
+dispose wash_dna
+
+// STEP 8  –  Quality Control 2 (QC-2): STR profiling across 15 chromosomes
+qc2_mix = dispense 2 units of ampflstr_kit
+qc2_rxn = mix purified_dna with qc2_mix
+
+heat qc2_rxn at 95c for 11m
+
+repeat 28 times {
+    heat qc2_rxn at 94c for 1m
+    heat qc2_rxn at 59c for 1m
+    heat qc2_rxn at 72c for 1m
+}
+heat qc2_rxn at 60c for 60m
+
+qc2_result = detect fluorescence on qc2_rxn for 1s
+
+if (qc2_result <= 75) {
+    dispose qc2_rxn
+}
+
+// STEP 9  –  Sequencing library preparation (Nextera DNA Flex)
+lib_reagent = dispense 4 units of nextera_flex_kit
+genomic_library = mix purified_dna with lib_reagent
+heat genomic_library at 55c for 5m        // tagmentation
+heat genomic_library at 68c for 5m        // stop tagmentation
+
+// STEP 10  –  Sequencing readout (150-bp paired-end, low-coverage MiSeq V3)
+genome_sequencing_result = detect fluorescence on genomic_library for 60m
+
+dispose genomic_library
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ════════════════  BRANCH B: SINGLE-CELL TRANSCRIPTOMICS  ═══════════════════
+// (Uses live-cell lysate from Step 3-4; parallel to Branch A)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// STEP 5  –  Poly-A capture, reverse transcription, and barcoding
+capture = dispense 1 units of capture_oligo
+rt_master = dispense 3 units of maxima_rt_mix
+
+rt_rxn = mix cell_lysate with capture
+heat rt_rxn at 23c for 10m               // oligo capture, room temperature
+
+rt_rxn = mix rt_rxn with rt_master
+heat rt_rxn at 50c for 30m              // reverse transcription
+
+// cDNA amplification
+pcr_reagent = dispense 5 units of advantage2_pcr_kit
+cdna_amplified = mix rt_rxn with pcr_reagent
+
+heat cdna_amplified at 95c for 1m
+
+repeat 21 times {
+    heat cdna_amplified at 95c for 15s
+    heat cdna_amplified at 65c for 30s
+    heat cdna_amplified at 68c for 6m
+}
+heat cdna_amplified at 68c for 10m
+
+// STEP 6  –  Quality check (Qubit concentration + Bioanalyzer size ~1 kb)
+cdna_qc = detect fluorescence on cdna_amplified for 5m
+
+if (cdna_qc <= 10) {
+    dispose cdna_amplified
+}
+
+// Library prep with Nextera XT
+rna_lib_reagent = dispense 2 units of nextera_xt_kit
+rna_library = mix cdna_amplified with rna_lib_reagent
+
+// STEP 7  –  RNA-seq (MiSeq V3, 2×75 custom settings)
+transcriptome_result = detect fluorescence on rna_library for 60m
+
+dispose rna_library
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ════════════════  BRANCH C: SINGLE-CELL PROTEOMICS  ════════════════════════
+// Uses DPBS-DDM lysate from Step 3-4
+// ─────────────────────────────────────────────────────────────────────────────
+
+// STEP 5a  –  Reduction (TCEP, 5 mM final)
+tcep = dispense 4 units of tcep_solution
+reduced = mix cell_lysate with tcep
+heat reduced at 70c for 30m
+
+// STEP 5b  –  Alkylation (IAA, 10 mM final, dark)
+iaa = dispense 4 units of iodoacetamide
+alkylated = mix reduced with iaa
+heat alkylated at 23c for 30m
+
+// STEP 5c  –  Lys-C digest
+lysc = dispense 1 units of lysc_enzyme
+lysc_digest = mix alkylated with lysc
+heat lysc_digest at 37c for 180m          // 3 h
+
+// STEP 5d  –  Trypsin digest
+trypsin = dispense 1 units of trypsin_enzyme
+tryptic_digest = mix lysc_digest with trypsin
+heat tryptic_digest at 37c for 960m       // 16 h
+
+// Quench
+fa = dispense 1 units of formic_acid
+quenched = mix tryptic_digest with fa for 5s
+
+// STEP 6-7  –  nanoLC-MS/MS (EASY-nLC 1200 + Q-Exactive HF-X)
+// 90-min gradient 3-30 % ACN, data-dependent top-10 acquisition
+proteome_result = detect fluorescence on quenched for 90m
+
+dispose quenched
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ════════════════  BRANCH D: CRISPR/HAP1 SANGER GENOTYPING  ═════════════════
+// Extends genomics Branch A (Steps 5-8 WGA + QC) then uses Sanger sequencing
+// in place of NGS; immunostaining block above identifies WT vs. KO before lysis
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Touchdown PCR at CD47 sgRNA locus (~700 bp amplicon)
+sanger_pcr_mix = dispense 2 units of taq_polymerase
+sanger_primers  = dispense 2 units of qc1_primers
+sanger_rxn = mix purified_dna with sanger_pcr_mix
+sanger_rxn = mix sanger_rxn with sanger_primers
+
+// Denaturation
+heat sanger_rxn at 95c for 5m
+
+// Touchdown cycles: 72 → 60 °C annealing, -0.5 °C per cycle
+repeat 24 times {
+    heat sanger_rxn at 94c for 30s
+    heat sanger_rxn at 66c for 30s    // representative mid-touchdown annealing
+    heat sanger_rxn at 72c for 60s
+}
+
+// Additional cycles at 59 °C
+repeat 10 times {
+    heat sanger_rxn at 94c for 30s
+    heat sanger_rxn at 59c for 30s
+    heat sanger_rxn at 72c for 60s
+}
+heat sanger_rxn at 72c for 10m
+
+// Gel electrophoresis QC
+gel_result = detect fluorescence on sanger_rxn for 5m
+
+if (gel_result <= 10) {
+    dispose sanger_rxn
+}
+
+// Sanger sequencing readout (ABI 3730 XL)
+sanger_result = detect fluorescence on sanger_rxn for 30m
+
+dispose sanger_rxn

@@ -1,0 +1,74 @@
+bsbbif_2_t:
+	dispose(lysate1[0])
+bsbbif_3_f:
+	PHI lysate2 = {lysate1,lysate}
+	wga1[0] = dispense(WGAReagent)
+	amplified1[0] = mix(lysate2[0], wga1[0])
+	heat(amplified1[0]) @ 30.0CELSIUS @ 28800.0SECOND
+	qc1mix1[0] = dispense(QC1PCRMix)
+	qc11[0] = mix(amplified1[0], qc1mix1[0])
+	heat(qc11[0]) @ 94.0CELSIUS @ 120.0SECOND
+main:
+	cells1[0] = dispense(CellSuspension)
+	heat(cells1[0]) @ 37.0CELSIUS @ 86400.0SECOND
+	fix1[0] = dispense(FixativeSolution)
+	fixed11[0] = mix(cells1[0], fix1[0])
+	heat(fixed11[0]) @ 4.0CELSIUS @ 1200.0SECOND
+	w11[0] = dispense(WashBuffer)
+	fixed21[0] = mix(fixed11[0], w11[0])
+	perm1[0] = dispense(PermeabilizationBuffer)
+	permeabilized11[0] = mix(fixed21[0], perm1[0])
+	w21[0] = dispense(WashBuffer)
+	permeabilized21[0] = mix(permeabilized11[0], w21[0])
+	ab1[0] = dispense(CD47Antibody)
+	stained11[0] = mix(permeabilized21[0], ab1[0])
+	nuc1[0] = dispense(HoechstStain)
+	stained21[0] = mix(stained11[0], nuc1[0])
+	phenotype_signal1[0] = detect(fluorescence, stained21[0]) @ 30.0SECOND
+	collection1[0] = dispense(CollectionBuffer)
+	lysate1[0] = mix(stained21[0], collection1[0])
+	if phenotype_signal1[0] <= 80	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbr_4_h:
+	PHI REPEAT_51 = {REPEAT_50,REPEAT_52}
+	PHI qc12 = {qc11,qc12}
+	if REPEAT_51[0] > 0	|	true: jump bsbbr_5_t	|	false: jump bsbbr_6_f
+bsbbr_5_t:
+	heat(qc12[0]) @ 94.0CELSIUS @ 20.0SECOND
+	heat(qc12[0]) @ 55.0CELSIUS @ 30.0SECOND
+	heat(qc12[0]) @ 72.0CELSIUS @ 40.0SECOND
+	REPEAT_52[0] = REPEAT_51[0] - 1
+bsbbr_6_f:
+	qc1_signal1[0] = detect(fluorescence, qc12[0]) @ 30.0SECOND
+	if qc1_signal1[0] <= 80	|	true: jump bsbbif_7_t	|	false: jump bsbbif_8_f
+bsbbif_7_t:
+	dispose(qc12[0])
+bsbbif_8_f:
+	PHI qc13 = {qc12,qc1}
+	cleanup1[0] = dispense(CleanupReagent)
+	cleaned1[0] = mix(qc13[0], cleanup1[0])
+	dispose(cleanup1[0])
+	qc2mix1[0] = dispense(QC2PCRMix)
+	qc21[0] = mix(cleaned1[0], qc2mix1[0])
+	heat(qc21[0]) @ 94.0CELSIUS @ 120.0SECOND
+bsbbr_9_h:
+	PHI REPEAT_81 = {REPEAT_80,REPEAT_82}
+	PHI qc22 = {qc21,qc22}
+	if REPEAT_81[0] > 0	|	true: jump bsbbr_10_t	|	false: jump bsbbr_11_f
+bsbbr_10_t:
+	heat(qc22[0]) @ 94.0CELSIUS @ 20.0SECOND
+	heat(qc22[0]) @ 59.0CELSIUS @ 30.0SECOND
+	heat(qc22[0]) @ 72.0CELSIUS @ 40.0SECOND
+	REPEAT_82[0] = REPEAT_81[0] - 1
+bsbbr_11_f:
+	qc2_signal1[0] = detect(fluorescence, qc22[0]) @ 30.0SECOND
+	if qc2_signal1[0] <= 80	|	true: jump bsbbif_12_t	|	false: jump bsbbif_13_f
+bsbbif_12_t:
+	dispose(qc22[0])
+bsbbif_13_f:
+	PHI qc23 = {qc22,qc2}
+	libmix1[0] = dispense(LibraryPrepReagent)
+	library1[0] = mix(qc23[0], libmix1[0])
+	heat(library1[0]) @ 55.0CELSIUS @ 300.0SECOND
+	heat(library1[0]) @ 70.0CELSIUS @ 180.0SECOND
+	dispose(library1[0])
+	NOP

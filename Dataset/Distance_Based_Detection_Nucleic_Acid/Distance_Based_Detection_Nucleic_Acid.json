@@ -1,0 +1,118 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "ASSAY TYPE: Digital Microfluidics with Distance-Based Detection (DMF-DBD) for Semi-Quantitative Nucleic Acid Diagnostics (RT-LAMP detection of SARS-CoV-2 from saliva)\n\nREAGENTS USED:\n  - Saliva Sample (lysed, column-extracted and purified viral RNA)\n  - Lysis Buffer\n  - RT Mastermix (reverse-transcription reagents, converts viral RNA to cDNA)\n  - LAMP Mastermix (isothermal amplification reagents for cDNA)\n  - Capto(TM) Adhere Agarose Bead Suspension (amplicon clean-up reagent)\n  - Wash Buffer\n  - SYBR(TM) Safe Intercalating Dye (fluorescent staining reagent for purified LAMP amplicons)\n\nSTEPS:\n1. Sample lysis: Combine the saliva sample with lysis buffer and incubate at 95 C for 5 min to release viral RNA.\n2. Reverse transcription: Mix the lysate with RT mastermix; incubate 15 min at 42 C then 5 min at 65 C to reverse-transcribe viral RNA into cDNA.\n3. RT-LAMP amplification: Mix the cDNA with LAMP mastermix and incubate isothermally at 65 C for 30 min to generate LAMP amplicons.\n4. Amplicon clean-up: Mix the LAMP product with a suspension of Capto(TM) Adhere agarose beads; incubate 5 min at 25 C, then wash three times with wash buffer to remove unincorporated primers and reduce background fluorescence.\n5. Dye staining: Mix the purified, bead-cleaned amplicons with SYBR(TM) Safe intercalating dye.\n6. Distance-based detection: Deliver the stained amplicon mixture to the distance-based detection (DBD) paper substrate; measure the resulting fluorescent signal (travel distance/intensity) to semi-quantitatively determine viral load, then discard the analyzed droplet. If the signal falls below threshold (negative sample), the droplet is discarded immediately after detection.\n\nINTERPRETATION: Successful semi-quantitative detection is confirmed by a monotonic relationship between fluorescent travel distance on the DBD substrate and LAMP amplicon/viral RNA copy number, background LAMP signal suppressed to near-baseline after Capto(TM) Adhere bead clean-up (Fig. S4), positive/negative discrimination visible by eye under fluorescent illumination (Fig. S3), and N2 gene concentrations from spiked saliva samples consistent between the DMF-LAMP-DBD workflow and orthogonal qPCR measurement (Table S1), supporting use of the method as a low-cost, semi-quantitative point-of-care nucleic acid diagnostic."
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest saliva_sample\nmanifest lysis_buffer\nmanifest rt_mastermix\nmanifest lamp_mastermix\nmanifest capto_adhere_beads\nmanifest wash_buffer\nmanifest sybr_safe_dye\n\ninstructions:\n\nsample = dispense 50 units of saliva_sample\nlysis = dispense 50 units of lysis_buffer\nlysate = mix sample with lysis for 60s\nheat lysate at 95c for 5m\n\nrt_mix = dispense 20 units of rt_mastermix\nrt_rxn = mix lysate with rt_mix for 30s\nheat rt_rxn at 42c for 15m\nheat rt_rxn at 65c for 5m\n\nlamp_mix = dispense 30 units of lamp_mastermix\nlamp_rxn = mix rt_rxn with lamp_mix for 30s\nheat lamp_rxn at 65c for 30m\n\nbeads = dispense 20 units of capto_adhere_beads\ncleanup = mix lamp_rxn with beads for 60s\nheat cleanup at 25c for 5m\n\nrepeat 3 times {\n    wash = dispense 100 units of wash_buffer\n    cleanup = mix cleanup with wash for 30s\n}\n\ndye = dispense 10 units of sybr_safe_dye\nstained = mix cleanup with dye for 30s\n\nsignal = detect fluorescence on stained for 10m\n\nif (signal < 80) {\n    dispose stained\n}\n\nheat stained at 25c for 1m\ndispose stained\n"
+    }
+  ],
+  "metadata": {
+    "protocol_id": "dmf_dbd_nucleic_acid_diagnostics_001",
+    "bs_file": "tests/test_cases/dmf_dbd_diagnostics/dmf_dbd_diagnostics.bs",
+    "protocol_name": "Digital Microfluidics with Distance-Based Detection for Nucleic Acid Diagnostics (Li et al., Lab Chip 2024)",
+    "category": "point_of_care_diagnostic_assay",
+    "chemicals": [
+      "saliva_sample",
+      "lysis_buffer",
+      "rt_mastermix",
+      "lamp_mastermix",
+      "capto_adhere_beads",
+      "wash_buffer",
+      "sybr_safe_dye"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "repeat",
+      "if",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      {
+        "type": "original_protocol",
+        "title": "Digital Microfluidics with Distance-Based Detection - A New Approach for Nucleic Acid Diagnostics",
+        "publisher": "Lab on a Chip",
+        "url": "https://microfluidics.utoronto.ca/papers/d3lc00683b1.pdf",
+        "doi": "10.1039/D3LC00683B"
+      }
+    ],
+    "notes": "The authored BioScript code is a direct translation of the ESI's DMF-DBD assay workflow (Figure S1: lysis, column-based RNA extraction/purification, RT-LAMP amplification at 65C, Capto(TM) Adhere bead clean-up, SYBR intercalating dye staining, and distance-based fluorescent detection). Column-based RNA extraction/purification is abstracted into the initial lysis/mix step since BioScript has no dedicated solid-phase-extraction primitive. The three-cycle Capto(TM) Adhere bead wash (shown to suppress LAMP background fluorescence to near-baseline in Figure S4C) is modeled as a repeat-loop that re-mixes the bead/amplicon droplet with fresh wash buffer each iteration. Because BioScript's grammar exposes only a 'detect fluorescence' primitive and no dedicated distance-based/paper-substrate detection module, 'detect fluorescence' is used as a stand-in for the DBD travel-distance readout described in Figures S2 and S3. The final if-block models the semi-quantitative positive/negative call: a sub-threshold signal triggers immediate disposal (negative), while a signal at or above threshold continues to a final heat/dispose step (positive), consistent with the pattern used for conditional branching in other translated protocols. The automated DMF cartridge hardware layout (Figure S6A), the physical fluorescent imaging setup using a modified cell-phone camera with bandpass filters (Figure S3), and the head-to-head qPCR comparison after spiking into human saliva (Table S1) are hardware-configuration, imaging-apparatus, or orthogonal validation sub-experiments with no corresponding BioScript primitive, and are intentionally not modeled; only the core lysis-through-detection assay chemistry is captured here.",
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "saliva_sample",
+          "source_quote": "The saliva sample is lysed, and any viral RNA is extracted and purified using columns.",
+          "source_location": "Figure S1 caption"
+        },
+        {
+          "bs_chemical": "lamp_mastermix",
+          "source_quote": "the RNA is reverse transcribed to DNA and then amplified using LAMP",
+          "source_location": "Figure S1 caption"
+        },
+        {
+          "bs_chemical": "capto_adhere_beads",
+          "source_quote": "Capto(TM) adhere agarose beads are used to clean up LAMP amplicons",
+          "source_location": "Figure S1 caption"
+        },
+        {
+          "bs_chemical": "sybr_safe_dye",
+          "source_quote": "the purified LAMP amplicons are mixed with an intercalating dye (SYBR Safe)",
+          "source_location": "Figure S1 caption"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "heat lamp_rxn at 65c for 30m",
+          "source_quote": "amplified using LAMP ... 65C",
+          "source_location": "Figure S1 schematic/flame icon annotation"
+        },
+        {
+          "bs_operation": "repeat 3 times { wash = dispense wash_buffer; cleanup = mix cleanup with wash }",
+          "source_quote": "normalized travel distance ... after exposure to volumes of water ... or a suspension Capto(TM) Adhere beads",
+          "source_location": "Figure S4 caption"
+        },
+        {
+          "bs_operation": "signal = detect fluorescence on stained for 10m",
+          "source_quote": "The distance of the fluorescent signal (Green) on the DBD is used to determine the viral load in the saliva sample semi-quantitatively",
+          "source_location": "Figure S1 caption"
+        },
+        {
+          "bs_operation": "if (signal < 80) { dispose stained }",
+          "source_quote": "low copy number, high copy number ... Semi-quantitative fluorescent readout",
+          "source_location": "Figure S1 schematic labels"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "lysis_buffer / column extraction step",
+          "note": "The paper performs RNA extraction/purification with a physical spin-column prior to DMF loading; BioScript has no solid-phase-extraction primitive, so this is abstracted as a generic lysis mix/heat step rather than a discrete column-based operation."
+        },
+        {
+          "field": "sybr_safe_dye stained detect fluorescence",
+          "note": "Detection in the paper is a distance-based readout (fluorescent front travel distance on a paper substrate, imaged by eye or cell-phone camera per Figure S3), not a plate-reader fluorescence intensity value. 'detect fluorescence' is used only because it is the sole detect module exposed by BioScript's grammar; it stands in for the DBD travel-distance measurement, not a conventional fluorescence intensity reading."
+        },
+        {
+          "field": "repeat 3 times wash loop",
+          "note": "Figure S4C shows a dose-response of normalized travel distance across 0/4/6/8/10 uL wash volumes rather than a fixed integer repeat count; three wash cycles is a reasonable discretization chosen for this translation, not a value stated verbatim in the SI text."
+        },
+        {
+          "field": "DMF cartridge hardware layout (Figure S6A), cell-phone imaging apparatus (Figure S3), qPCR comparison (Table S1)",
+          "note": "Not modeled. These are hardware-configuration, imaging-instrumentation, or orthogonal validation sub-experiments run alongside the core assay, not part of the lysis-through-detection protocol itself, and fall outside the scope of this translation."
+        }
+      ]
+    }
+  }
+}

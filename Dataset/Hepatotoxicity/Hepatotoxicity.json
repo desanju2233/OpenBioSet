@@ -1,0 +1,59 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Digital Microfluidic (DMF) Screening of Hepatotoxicity Using 3D Self-Assembled Hepatic Organoids (HepG2/NIH-3T3 Spheroids)\n\nREAGENTS USED:\n  - HepG2/NIH-3T3 Collagen Organoid Suspension (free-floating hepatic organoids self-assembled from HepG2 hepatocyte-like cells and NIH-3T3 fibroblasts in a collagen hydrogel matrix, confined on-chip by SU-8 pillars)\n  - Culture Media (standard growth media used for organoid maintenance and as diluent for the on-chip acetaminophen dilution series)\n  - Acetaminophen (cytotoxic hepatotoxin, used to generate a dose-response dilution series on-chip)\n  - Hoechst 33342 (nuclear stain, labels total cell population)\n  - Caspase-3 Activity Reporter / NucView488 (fluorogenic apoptosis marker)\n  - Ethidium Homodimer-1 (necrosis marker, labels compromised-membrane/dead cells)\n\nSTEPS:\n1. Organoid Seeding: Dispense the HepG2/NIH-3T3 collagen organoid suspension and merge with culture media; incubate 60 min at 37 C to allow the organoids to settle and equilibrate on-chip (confined by SU-8 pillars).\n2-6. Dose-Response Loop (repeated once per acetaminophen concentration in the on-chip dilution series):\n   a. Dispense a fresh acetaminophen droplet and a culture-media diluent droplet; merge to form one dose of the dilution series.\n   b. Merge the diluted acetaminophen dose with the seeded organoid droplet; incubate 24 h at 37 C to expose the organoids to the hepatotoxin.\n   c. Dispense Hoechst 33342 and merge with the treated organoid droplet to stain total nuclei.\n   d. Dispense the caspase-3 activity reporter and merge with the Hoechst-stained droplet; incubate 30 min at 37 C to develop the apoptosis signal.\n   e. Dispense ethidium homodimer-1 and merge with the apoptosis-stained droplet; incubate 15 min at 37 C to develop the necrosis signal.\n   f. Detect apoptotic-marker fluorescence on the fully stained droplet. If the apoptotic signal is at or above a defined toxicity threshold, discard the droplet (organoid scored as apoptotic/toxic response).\n   g. Otherwise, detect necrotic-marker fluorescence on the same droplet to score the necrotic fraction, then discard the droplet.\n7. Repeat the dose-response loop across the acetaminophen concentration series to build the apoptotic-versus-necrotic population profile as a function of acetaminophen concentration.\n8. End of Assay: Discard the residual seeded-organoid reservoir droplet.\n\nINTERPRETATION: Successful hepatotoxicity screening is confirmed by a dose-dependent shift from an apoptotic-dominant response at intermediate acetaminophen concentrations (peaking near 10 mM) to a necrotic-dominant response at higher concentrations (e.g., 20 mM), consistent with 3D organoid culture recapitulating in vivo-like hepatotoxic responses not observed in comparable 2D (96-well plate) assays, supporting use of the DMF organ-on-a-chip platform for drug/toxicity screening." },
+    { "role": "assistant", "content": "module fluorescence\n\nmanifest organoid_suspension\nmanifest acetaminophen\nmanifest culture_media\nmanifest hoechst_stain\nmanifest caspase3_reporter\nmanifest ethidium_homodimer\n\ninstructions:\n\norganoid = dispense 15 units of organoid_suspension\nmedia = dispense 50 units of culture_media\n\nseeded = mix organoid with media for 30s\nheat seeded at 37c for 60m\n\nrepeat 4 times {\n    drug = dispense 20 units of acetaminophen\n    diluent = dispense 20 units of culture_media\n    dose = mix drug with diluent for 30s\n\n    treated = mix seeded with dose for 60s\n    heat treated at 37c for 1440m\n\n    hoechst = dispense 5 units of hoechst_stain\n    nuclei_stained = mix treated with hoechst for 60s\n\n    caspase = dispense 5 units of caspase3_reporter\n    apoptosis_stained = mix nuclei_stained with caspase for 120s\n    heat apoptosis_stained at 37c for 30m\n\n    ethd = dispense 5 units of ethidium_homodimer\n    fully_stained = mix apoptosis_stained with ethd for 60s\n    heat fully_stained at 37c for 15m\n\n    apoptotic_reading = detect fluorescence on fully_stained for 30s\n\n    if (apoptotic_reading >= 70) {\n        dispose fully_stained\n    }\n\n    necrotic_reading = detect fluorescence on fully_stained for 30s\n    dispose fully_stained\n}\n\ndispose seeded" }
+  ],
+  "metadata": {
+    "protocol_id": "dmf_hepatotoxicity_organoid_screen_001",
+    "bs_file": "tests/test_cases/hepatotoxicity_screen/dmf_hepatotoxicity_screen.bs",
+    "protocol_name": "Digital Microfluidic Screening of Hepatotoxicity Using 3D Hepatic Organoids (Au et al. 2014, cited in Ng, Li, Chamberlain, Wheeler, Annu. Rev. Biomed. Eng. 2015)",
+    "category": "toxicity_screening_assay",
+    "chemicals": [
+      "organoid_suspension",
+      "acetaminophen",
+      "culture_media",
+      "hoechst_stain",
+      "caspase3_reporter",
+      "ethidium_homodimer"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "if",
+      "repeat",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "review_article", "title": "Digital Microfluidic Cell Culture", "authors": "Ng AHC, Li BB, Chamberlain MD, Wheeler AR", "publisher": "Annual Review of Biomedical Engineering", "year": 2015, "volume": "17", "pages": "91-112", "url": "https://microfluidics.utoronto.ca/papers/annurev1791112.pdf", "doi": "10.1146/annurev-bioeng-071114-040808" }
+    ],
+    "notes": "The authored BioScript code is a direct translation of the hepatotoxicity organoid screening assay summarized in Section 4.2 ('Toxicity Screens') and depicted in Figure 3b of the review, originally reported by Au et al. (Lab Chip 2014, 'Hepatic organoids for microfluidic drug screening', ref. 30). The review describes free-floating HepG2/NIH-3T3 collagen-hydrogel organoids confined on-chip by SU-8 pillars, incubated with an on-chip acetaminophen dilution series for 24 hours, then stained for total nuclei (Hoechst 33342), apoptosis (caspase-3 activity reporter/NucView488), and necrosis (ethidium homodimer-1), with the reported result that the apoptotic fraction peaks near 10 mM acetaminophen before switching to a necrosis-dominant response at higher concentrations (20 mM). Because the review does not report the exact number of doses tested, a 4-iteration on-chip dilution loop was chosen as a representative dose-response series; the underlying source figure implies at least four concentrations (0, 5, 10, 20 mM). The apoptotic-vs-necrotic threshold check (>=70) is an authored stand-in decision point representing the paper's apoptosis-to-necrosis switch, since BioScript has no primitive for reporting a population percentage split; it is used only to demonstrate branching logic consistent with the described biology, not a value taken verbatim from the source. Organoid formation itself (mixing HepG2/NIH-3T3 cells with collagen and gelling into free-floating spheroid aggregates) is not modeled as a discrete step; the 'organoid_suspension' manifest represents the already-formed organoid construct as loaded onto the SU-8-pillar-confined chip region, consistent with how pre-formed cell/tissue suspensions are handled as single dispensable manifests in other translated protocols. The review's cytochrome P450/dexamethasone induction assay (the other proof-of-principle experiment run on the same organoid platform), the SU-8 pillar microfabrication process, and the 96-well-plate comparison control experiment are separate sub-experiments or device-fabrication details with no corresponding BioScript primitive, and are intentionally not modeled; only the core acetaminophen dose-response apoptosis/necrosis screen is captured here.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "organoid_suspension", "source_quote": "individually addressable free-floating tissue constructs were formed on-chip by mixing two cell lines, HepG2 and NIH-3T3 in collagen hydrogels", "source_location": "Section 4.2, Toxicity Screens" },
+        { "bs_chemical": "acetaminophen", "source_quote": "organoids were incubated with increasing concentrations of acetaminophen (with the dilution series formed on-chip) for 24 hours", "source_location": "Section 4.2, Toxicity Screens" },
+        { "bs_chemical": "hoechst_stain", "source_quote": "stained for total nuclei using Hoechst 33342", "source_location": "Figure 3 caption, panel b" },
+        { "bs_chemical": "caspase3_reporter", "source_quote": "apoptotic cells using NucView488 ... via caspase-3 activity", "source_location": "Section 4.2 / Figure 3 caption, panel b" },
+        { "bs_chemical": "ethidium_homodimer", "source_quote": "necrotic cells using ethidium homodimer-1", "source_location": "Figure 3 caption, panel b" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "repeat 4 times { drug = dispense ... dose = mix drug with diluent }", "source_quote": "increasing concentrations of acetaminophen (with the dilution series formed on-chip)", "source_location": "Section 4.2, Toxicity Screens" },
+        { "bs_operation": "heat treated at 37c for 1440m", "source_quote": "incubated with increasing concentrations of acetaminophen ... for 24 hours", "source_location": "Section 4.2, Toxicity Screens" },
+        { "bs_operation": "apoptotic_reading = detect fluorescence on fully_stained / if (apoptotic_reading >= 70)", "source_quote": "the percentage of cells that are apoptotic peaks at 10 mM acetaminophen and then switches to necrosis at higher concentrations", "source_location": "Figure 3 caption, panel b" },
+        { "bs_operation": "necrotic_reading = detect fluorescence on fully_stained", "source_quote": "plot of percentage of the cell population in apoptotic ... or necrotic ... state as functions of acetaminophen concentration", "source_location": "Figure 3 caption, panel b" }
+      ],
+      "numeric_mismatches": [
+        { "field": "repeat 4 times", "note": "The review does not state an exact number of acetaminophen doses tested on-chip; Figure 3b shows at least four concentration panels (0, 5, 10, 20 mM), so 4 iterations was chosen as a representative dose count rather than a value taken verbatim from the text." },
+        { "field": "if (apoptotic_reading >= 70)", "note": "The 70-unit threshold is an authored placeholder to demonstrate the apoptosis-to-necrosis branching behavior described qualitatively in the review ('peaks at 10 mM ... then switches to necrosis'); the paper reports population percentages read from a bar chart (Figure 3b,ii), not a single detector threshold value." },
+        { "field": "sa/apoptotic detect fluorescence module", "note": "The review describes confocal fluorescence imaging with three distinct stains/channels (Hoechst, NucView488, ethidium homodimer-1) rather than a single scalar detector; 'detect fluorescence' is used twice (apoptotic_reading, necrotic_reading) as a stand-in for reading each channel, since BioScript's grammar exposes only one generic detect module." },
+        { "field": "cytochrome P450/dexamethasone induction assay, SU-8 pillar fabrication, 96-well-plate 2D comparison control", "note": "Not modeled. These are a separate proof-of-principle assay run on the same platform, a device-fabrication detail, and a comparison-control experiment, respectively, not part of the acetaminophen dose-response apoptosis/necrosis screen itself, and fall outside the scope of this translation." }
+      ]
+    }
+  }
+}

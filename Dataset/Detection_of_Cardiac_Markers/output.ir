@@ -1,0 +1,39 @@
+main:
+	sample1[0] = dispense(CardiacSample)
+	beads1[0] = dispense(CaptureBeads)
+	blocker1[0] = dispense(BlockingAntibody)
+	reagent11[0] = mix(beads1[0], blocker1[0])
+	assay1[0] = mix(sample1[0], reagent11[0]) @ 60.0SECOND
+	heat(assay1[0]) @ 23.0CELSIUS @ 180.0SECOND
+	wash11[0] = dispense(WashBuffer)
+	washed11[0] = mix(assay1[0], wash11[0]) @ 30.0SECOND
+	dispose(washed11[0])
+	reporter1[0] = dispense(ReporterAntibody)
+	assay21[0] = mix(assay1[0], reporter1[0]) @ 60.0SECOND
+	heat(assay21[0]) @ 23.0CELSIUS @ 120.0SECOND
+bsbbr_2_h:
+	PHI REPEAT_111 = {REPEAT_110,REPEAT_112}
+	PHI washbuf1 = {washbuf0,washbuf2}
+	PHI assay22 = {assay21,assay23}
+	if REPEAT_111[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	washbuf2[0] = dispense(WashBuffer)
+	assay23[0] = mix(assay22[0], washbuf2[0]) @ 30.0SECOND
+	REPEAT_112[0] = REPEAT_111[0] - 1
+bsbbr_4_f:
+	substrate1[0] = dispense(ChemiluminescentSubstrate)
+	detection_droplet1[0] = mix(assay22[0], substrate1[0]) @ 30.0SECOND
+	heat(detection_droplet1[0]) @ 25.0CELSIUS @ 120.0SECOND
+	cardiac_marker_signal1[0] = detect(chemiluminescence, detection_droplet1[0]) @ 5.0SECOND
+	if cardiac_marker_signal1[0] > 120000	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+bsbbif_5_t:
+	diluent1[0] = dispense(WashBuffer)
+	diluted_droplet1[0] = mix(detection_droplet1[0], diluent1[0]) @ 30.0SECOND
+	diluted_signal1[0] = detect(chemiluminescence, diluted_droplet1[0]) @ 5.0SECOND
+	dispose(diluted_droplet1[0])
+bsbbif_6_f:
+	PHI diluted_droplet2 = {diluted_droplet0,diluted_droplet}
+	PHI diluted_signal2 = {diluted_signal0,diluted_signal}
+	PHI diluent2 = {diluent0,diluent}
+	dispose(detection_droplet1[0])
+	NOP

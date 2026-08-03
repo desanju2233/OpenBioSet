@@ -1,0 +1,52 @@
+bsbbif_2_t:
+	dispose(stained21[0])
+bsbbif_3_f:
+	PHI stained22 = {stained21,stained2}
+	heat(stained22[0]) @ 25.0CELSIUS @ 60.0SECOND
+	dispose(stained22[0])
+	sample21[0] = dispense(cell_sample)
+	beads1[0] = dispense(protein_a_beads)
+	capture1[0] = mix(sample21[0], beads1[0]) @ 600.0SECOND
+	heat(capture1[0]) @ 25.0CELSIUS @ 600.0SECOND
+main:
+	sample11[0] = dispense(cell_sample)
+	hoechst1[0] = dispense(hoechst_stain)
+	stained1[0] = mix(sample11[0], hoechst1[0]) @ 300.0SECOND
+	pi1[0] = dispense(pi_stain)
+	stained21[0] = mix(stained1[0], pi1[0]) @ 300.0SECOND
+	heat(stained21[0]) @ 25.0CELSIUS @ 300.0SECOND
+	live_signal1[0] = detect(fluorescence, stained21[0]) @ 10.0SECOND
+	dead_signal1[0] = detect(fluorescence, stained21[0]) @ 10.0SECOND
+	if dead_signal1[0] >= 50	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbr_4_h:
+	PHI REPEAT_31 = {REPEAT_30,REPEAT_32}
+	PHI wash1 = {wash0,wash2}
+	PHI capture2 = {capture1,capture3}
+	if REPEAT_31[0] > 0	|	true: jump bsbbr_5_t	|	false: jump bsbbr_6_f
+bsbbr_5_t:
+	wash2[0] = dispense(wash_buffer)
+	capture3[0] = mix(capture2[0], wash2[0]) @ 30.0SECOND
+	REPEAT_32[0] = REPEAT_31[0] - 1
+bsbbr_6_f:
+	secondary1[0] = dispense(fluorescent_secondary_antibody)
+	labeled1[0] = mix(capture2[0], secondary1[0]) @ 300.0SECOND
+	heat(labeled1[0]) @ 25.0CELSIUS @ 900.0SECOND
+bsbbr_7_h:
+	PHI wash21 = {wash20,wash22}
+	PHI REPEAT_21 = {REPEAT_20,REPEAT_22}
+	PHI labeled2 = {labeled1,labeled3}
+	if REPEAT_21[0] > 0	|	true: jump bsbbr_8_t	|	false: jump bsbbr_9_f
+bsbbr_8_t:
+	wash22[0] = dispense(wash_buffer)
+	labeled3[0] = mix(labeled2[0], wash22[0]) @ 30.0SECOND
+	REPEAT_22[0] = REPEAT_21[0] - 1
+bsbbr_9_f:
+	igg_signal1[0] = detect(fluorescence, labeled2[0]) @ 10.0SECOND
+	if igg_signal1[0] < 50	|	true: jump bsbbif_10_t	|	false: jump bsbbif_11_f
+bsbbif_10_t:
+	dispose(labeled2[0])
+bsbbif_11_f:
+	PHI labeled4 = {labeled2,labeled}
+	heat(labeled4[0]) @ 25.0CELSIUS @ 60.0SECOND
+	dispose(labeled4[0])
+	NOP

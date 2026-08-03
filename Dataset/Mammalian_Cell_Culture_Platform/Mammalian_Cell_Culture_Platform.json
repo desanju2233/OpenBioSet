@@ -1,0 +1,123 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "ASSAY TYPE: Digital Microfluidic (DMF) Platform for Complete Mammalian Cell Culture \u2014 Adherent Cell Seeding, Growth, Media Exchange, Subculture, and On-Demand Transfection\n\nREAGENTS USED:\n  - Fibronectin (ECM protein, dispensed and dried to form an \"adhesion pad\" on the Teflon-AF electrode surface)\n  - Cell Suspension (CHO-K1, HeLa, NIH-3T3, or INS-1 cells, 20-100 cells seeded per 150 nL droplet)\n  - Growth Media (DMEM, F-12/DMEM, or RPMI 1640, supplemented with 10% FBS)\n  - Fresh Media (used for daily passive-dispensing media exchange, three source droplets per exchange)\n  - Trypsin/EDTA (0.25% vol/vol trypsin, 1 mM EDTA, used to detach cells from the adhesion pad)\n  - Harvest Media (1 uL droplet passed over the primary pad to collect detached cells and deliver them to the secondary pad; ~2-3% of cells transferred per pass, four passes per subculture)\n  - Transfection Mix (pCAG-GFP plasmid DNA complexed with Dreamfect cationic lipid, diluted in culture media)\n\nSTEPS:\n1. Adhesion pad preparation: Dispense a droplet of fibronectin onto the electrode and allow it to dry, forming an ECM-coated adhesion pad on the hydrophobic Teflon-AF surface.\n2. Cell seeding: Dispense a 150 nL droplet of cell suspension (20-100 cells) onto the primary (1 deg) adhesion pad and mix with growth media.\n3. Growth incubation: Incubate the seeded droplet at 37 C (5% CO2 humidified chamber) for 24 h, allowing cells to shift from round to spread morphology.\n4. Daily media exchange (passive dispensing): Every 24 h, drive three successive 1 uL source droplets of fresh media across the adhesion pad; each passing droplet sweeps away old media and leaves a fresh ~150 nL droplet behind (<3% carryover after one exchange, background level after three). Repeat this daily exchange/incubation cycle across the culture period.\n5. Confluency check: Monitor cell density; once cells reach the second half of exponential growth (high density, e.g. 200-300 cells on the pad), proceed to subculture.\n6. Cell detachment: Passively exchange the old media on the primary pad with a 150 nL droplet of trypsin/EDTA (three source-droplet exchanges) and allow cells to dissociate for 3-5 min.\n7. Harvest and delivery to secondary pad: Translate a 1 uL droplet of fresh media over the primary pad to collect dissociated cells (blocking further trypsin activity), then drive the droplet to the secondary (2 deg) adhesion pad, where a passive-dispensing step deposits some of the cells. Repeat four times (collect + deliver) so that ~10% of the primary-pad cells are transferred to the secondary pad, then discard the depleted primary-pad droplet.\n8. Secondary-pad growth: Incubate the newly seeded secondary pad at 37 C for 72 h, with daily passive-dispensing media exchange as in step 4, before subculturing again onto a subsequent generation.\n9. On-demand transfection: Passively exchange the media on a subcultured (2 deg) pad with a 150 nL droplet of transfection mix (pCAG-GFP plasmid + Dreamfect lipid, ~5 ng DNA/~20 nL lipid per droplet) and incubate 3 h at 37 C.\n10. Post-transfection recovery: Passively exchange the transfection solution for fresh media (three source droplets) and incubate overnight (24 h) at 37 C to allow GFP expression.\n11. Detection: Image/quantify GFP fluorescence on the droplet to determine transfection efficiency, then discard the analyzed droplet.\n\nINTERPRETATION: Successful implementation of complete on-chip mammalian cell culture is confirmed by growth/proliferation rates and morphology in droplets comparable to conventional multiwell-plate culture across multiple cell lines and subculture generations, and by transfection efficiencies (~20% GFP-positive cells) comparable to macro-scale transfection, supporting the DMF platform as an automated, miniaturized alternative to conventional mammalian cell seeding, feeding, passaging, and on-demand genetic transformation."
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest fibronectin\nmanifest cell_suspension\nmanifest growth_media\nmanifest fresh_media\nmanifest trypsin\nmanifest harvest_media\nmanifest transfection_mix\n\ninstructions:\n\n// ---- Adhesion pad preparation ----\n// Fibronectin is dispensed onto the electrode and dried to form an\n// ECM-coated \"adhesion pad\" on the Teflon-AF surface (Fig. 2a)\nfn = dispense fibronectin\nheat fn at 25c for 10m\ndispose fn\n\n// ---- Cell seeding on primary (1st) adhesion pad ----\ncells = dispense 20 units of cell_suspension\nmedia = dispense growth_media\npad1 = mix cells with media\n\n// Incubate seeded cells (round -> spread morphology, Fig. 2b)\nheat pad1 at 37c for 1440m\n\n// ---- Daily media exchange by passive dispensing (Fig. 3) ----\n// Three source droplets fully displace old media (<3% carryover\n// after 1 exchange, background after 3 exchanges)\nrepeat 4 times {\n    repeat 3 times {\n        fresh = dispense fresh_media\n        pad1 = mix pad1 with fresh for 5s\n        dispose fresh\n    }\n    heat pad1 at 37c for 1440m\n}\n\nconfluency = detect fluorescence on pad1 for 30s\n\nif (confluency >= 80) {\n\n    // ---- Cell detachment/subculture (Fig. 4) ----\n    // Old media is passively replaced with trypsin/EDTA to detach cells\n    repeat 3 times {\n        tryp = dispense trypsin\n        pad1 = mix pad1 with tryp for 5s\n        dispose tryp\n    }\n    heat pad1 at 37c for 4m\n\n    // ---- Harvest and delivery to secondary (2nd) adhesion pad ----\n    // A media droplet is passed over the 1st pad to collect cells,\n    // then translated to the 2nd pad, delivering ~2-3% of cells per pass.\n    // On average, four 1 uL droplets deliver ~10% of the 1st-pad cells.\n    collect = dispense harvest_media\n    pad2 = mix collect with pad1 for 5s\n\n    repeat 3 times {\n        collect = dispense harvest_media\n        harvest = mix collect with pad1 for 5s\n        pad2 = mix pad2 with harvest for 5s\n    }\n    dispose pad1\n\n    // Grow subcultured generation on the 2nd adhesion pad\n    heat pad2 at 37c for 4320m\n\n    repeat 4 times {\n        repeat 3 times {\n            fresh2 = dispense fresh_media\n            pad2 = mix pad2 with fresh2 for 5s\n            dispose fresh2\n        }\n        heat pad2 at 37c for 1440m\n    }\n\n    // ---- On-demand transfection of subcultured generation ----\n    tf = dispense transfection_mix\n    pad2 = mix pad2 with tf for 5s\n    heat pad2 at 37c for 180m\n\n    repeat 3 times {\n        fresh3 = dispense fresh_media\n        pad2 = mix pad2 with fresh3 for 5s\n        dispose fresh3\n    }\n    heat pad2 at 37c for 1440m\n\n    gfp_expression = detect fluorescence on pad2 for 60s\n\n    if (gfp_expression <= 10) {\n        dispose pad2\n    } else {\n        dispose pad2\n    }\n\n} else {\n    dispose pad1\n}\n"
+    }
+  ],
+  "metadata": {
+    "protocol_id": "dmf_complete_mammalian_cell_culture_001",
+    "bs_file": "tests/test_cases/complete_cell_culture/complete_cell_culture.bs",
+    "protocol_name": "A Microfluidic Platform for Complete Mammalian Cell Culture (Barbulovic-Nad et al. 2010)",
+    "category": "cell_culture_assay",
+    "chemicals": [
+      "fibronectin",
+      "cell_suspension",
+      "growth_media",
+      "fresh_media",
+      "trypsin",
+      "harvest_media",
+      "transfection_mix"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "repeat",
+      "if",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      {
+        "type": "original_protocol",
+        "title": "A Microfluidic Platform for Complete Mammalian Cell Culture",
+        "publisher": "Lab on a Chip / Royal Society of Chemistry",
+        "url": "https://microfluidics.utoronto.ca/papers/completecellculture.pdf",
+        "doi": "10.1039/c002147d"
+      }
+    ],
+    "notes": "The authored BioScript code translates the paper's four-part complete cell-culture workflow (Results and Discussion): (1) adhesion-pad formation and cell seeding/growth on the primary pad (Fig. 2), (2) daily passive-dispensing media exchange using three source droplets (Fig. 3), (3) trypsin-mediated detachment and passive-dispensing harvest/delivery of cells to a secondary adhesion pad over four collection passes (Fig. 4), and (4) on-demand transient GFP transfection of the subcultured generation (Fig. 6). Incubation temperatures/durations (37C growth, 25C fibronectin drying, 3-5 min trypsinization, 3 h transfection exposure, 24h media-exchange cycles, 72h secondary-pad growth window) and droplet volumes (150 nL culture droplets, 1 uL source/harvest droplets) are taken directly from the Experimental section. BioScript has no primitive for a persistent adhered droplet/pad that is only partially exchanged, so 'passive dispensing' (a source droplet crossing a pad and leaving fresh solution behind while removing old solution) is approximated as a short 'mix' operation between the resident pad droplet and each dispensed source droplet, repeated three times per exchange, consistent with the paper's own finding that three passive exchanges reduce carryover to background. Likewise, the paper's continuous multigenerational passaging ('subcultured ad nauseam' for up to 4 subcultures) is modeled as a single representative 1st-to-2nd-pad subculture event (rather than an arbitrary/unbounded generation count), and the density-based decision to subculture ('second half of exponential growth phase') is modeled with an explicit if/else gated on a detected confluency reading rather than a continuous density sensor. Because BioScript's grammar exposes only a 'detect fluorescence' module, this primitive is reused both as a stand-in for optical/microscopy-based confluency monitoring (which is not fluorescence-based in the paper) and for its literal, correct use in quantifying GFP transfection efficiency in the final step.",
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "fibronectin",
+          "source_quote": "surfaces with fibronectin ... forming adhesion pads",
+          "source_location": "Results and discussion: Cell seeding and growth"
+        },
+        {
+          "bs_chemical": "cell_suspension",
+          "source_quote": "cells were seeded on adhesion pads in 150 nL droplets of media containing 20-100 cells",
+          "source_location": "Experimental: Microfluidic cell culture"
+        },
+        {
+          "bs_chemical": "trypsin",
+          "source_quote": "media were then replaced with a 150 nL droplet containing trypsin (0.25% vol/vol) and EDTA (1 mM)",
+          "source_location": "Experimental: Microfluidic cell culture"
+        },
+        {
+          "bs_chemical": "transfection_mix",
+          "source_quote": "0.25 ug DNA and 1 uL Dreamfect cationic lipid ... diluted 1:4 in CHO-K1 culture media",
+          "source_location": "Experimental: Cell transfection"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "repeat 3 { pad1 = mix pad1 with fresh for 5s }",
+          "source_quote": "after three passive exchanges, the dye is completely removed ... three passive exchanges were used to deliver new media",
+          "source_location": "Results and discussion: Media exchange"
+        },
+        {
+          "bs_operation": "repeat 3 { tryp = dispense trypsin; pad1 = mix pad1 with tryp } / heat pad1 at 37c for 4m",
+          "source_quote": "cells were detached by passively exchanging the media with trypsin ... allowed to dissociate for 3-5 min",
+          "source_location": "Results and discussion / Experimental: Cell subculture"
+        },
+        {
+          "bs_operation": "repeat 4 { collect = dispense harvest_media; pad2 = mix pad2 with harvest }",
+          "source_quote": "on average four 1 uL droplets were used to collect and deliver ~10% of the 1 cells to the 2 pad",
+          "source_location": "Results and discussion: Cell subculture"
+        },
+        {
+          "bs_operation": "tf = dispense transfection_mix; heat pad2 at 37c for 180m",
+          "source_quote": "after incubating 3 h, the transfection solution was replaced with fresh media",
+          "source_location": "Experimental: Cell transfection"
+        },
+        {
+          "bs_operation": "gfp_expression = detect fluorescence on pad2 for 60s",
+          "source_quote": "approximately 20% of cells were typically transfected in both systems",
+          "source_location": "Results and discussion: On-demand transfection / Fig. 6"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "confluency = detect fluorescence on pad1",
+          "note": "The paper monitors cell density/confluency by microscopy and image analysis (ImageJ), not by a fluorescence sensor. 'detect fluorescence' is reused here only because it is the sole detect module exposed by BioScript's grammar; it stands in for a generic density/confluency readout gating the subculture decision, not an actual fluorescence measurement."
+        },
+        {
+          "field": "single 1st-to-2nd-pad subculture event",
+          "note": "The paper repeats seeding, growth, media exchange, and subculture across multiple generations (up to 4 subcultures) for several cell lines over weeks. The .bs script models one representative subculture cycle rather than an open-ended or fixed 4-generation loop, since generation count/duration was not tied to a single deterministic branching condition in the text."
+        },
+        {
+          "field": "passive dispensing modeled as 'mix ... for 5s'",
+          "note": "Passive dispensing is a surface-tension/hydrophilicity-driven droplet-splitting phenomenon distinct from active electrode-driven mixing; BioScript has no dedicated primitive for this, so it is approximated as a short mix step, matching the pattern used for reagent/media exchange in other translated protocols (e.g. ciprofloxacin.bs)."
+        },
+        {
+          "field": "fixed generation counts / outer repeat loops",
+          "note": "Numeric repeat counts (4 daily exchange cycles per growth phase, 3 wash/exchange passes, 4 harvest passes) are illustrative values consistent with the ranges given in the paper (media exchanged every 24h over multi-day culture, three passive exchanges, four ~1 uL harvest droplets) rather than exact reproductions of any single stated day-count, since the paper reports variable culture durations (2-8 days) across experiments rather than one fixed number."
+        }
+      ]
+    }
+  }
+}

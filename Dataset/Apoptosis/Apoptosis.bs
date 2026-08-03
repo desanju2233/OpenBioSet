@@ -1,0 +1,112 @@
+module fluorescence
+
+manifest cells
+manifest st_0
+manifest st_1_25
+manifest st_2_5
+manifest st_5
+manifest st_10a
+manifest st_10b
+manifest nucview
+manifest inhibitor
+
+instructions:
+
+// ---------------------------------------------------------------
+// Step 1: seed HeLa cells onto six hydrophilic assay zones
+//         (six-plex device, ~800 cells/zone) and grow overnight
+// ---------------------------------------------------------------
+c1 = dispense 1 units of cells
+c2 = dispense 1 units of cells
+c3 = dispense 1 units of cells
+c4 = dispense 1 units of cells
+c5 = dispense 1 units of cells
+c6 = dispense 1 units of cells
+
+heat c1 at 37c for 960m
+heat c2 at 37c for 960m
+heat c3 at 37c for 960m
+heat c4 at 37c for 960m
+heat c5 at 37c for 960m
+heat c6 at 37c for 960m
+
+// ---------------------------------------------------------------
+// Step 2: dispense staurosporine (ST) dose series onto each zone
+//         zones 1-5: 0, 1.25, 2.5, 5, 10 uM ST
+//         zone 6: 10 uM ST (paired with inhibitor for specificity test)
+//         merge to 1.3 uL combined droplets, incubate 5 h
+// ---------------------------------------------------------------
+d0 = dispense 1 units of st_0
+d1 = dispense 1 units of st_1_25
+d2 = dispense 1 units of st_2_5
+d3 = dispense 1 units of st_5
+d4 = dispense 1 units of st_10a
+d5 = dispense 1 units of st_10b
+
+zone1 = mix c1 with d0
+zone2 = mix c2 with d1
+zone3 = mix c3 with d2
+zone4 = mix c4 with d3
+zone5 = mix c5 with d4
+zone6 = mix c6 with d5
+
+heat zone1 at 37c for 300m
+heat zone2 at 37c for 300m
+heat zone3 at 37c for 300m
+heat zone4 at 37c for 300m
+heat zone5 at 37c for 300m
+heat zone6 at 37c for 300m
+
+// ---------------------------------------------------------------
+// Step 2B: caspase-3 inhibitor (Ac-DEVD-CHO) added only to zone 6
+//          for specificity control, 30 min incubation
+// ---------------------------------------------------------------
+inhib = dispense 1 units of inhibitor
+zone6 = mix zone6 with inhib for 60s
+heat zone6 at 23c for 30m
+
+// ---------------------------------------------------------------
+// Step 3: dispense NucView 488 caspase-3 substrate onto each zone,
+//         incubate 45 min, then read fluorescence (lambda ex/em 485/520 nm)
+// ---------------------------------------------------------------
+nv1 = dispense 1 units of nucview
+nv2 = dispense 1 units of nucview
+nv3 = dispense 1 units of nucview
+nv4 = dispense 1 units of nucview
+nv5 = dispense 1 units of nucview
+nv6 = dispense 1 units of nucview
+
+assay1 = mix zone1 with nv1
+assay2 = mix zone2 with nv2
+assay3 = mix zone3 with nv3
+assay4 = mix zone4 with nv4
+assay5 = mix zone5 with nv5
+assay6 = mix zone6 with nv6
+
+heat assay1 at 23c for 45m
+heat assay2 at 23c for 45m
+heat assay3 at 23c for 45m
+heat assay4 at 23c for 45m
+heat assay5 at 23c for 45m
+heat assay6 at 23c for 45m
+
+reading1 = detect fluorescence on assay1 for 30s
+reading2 = detect fluorescence on assay2 for 30s
+reading3 = detect fluorescence on assay3 for 30s
+reading4 = detect fluorescence on assay4 for 30s
+reading5 = detect fluorescence on assay5 for 30s
+reading6 = detect fluorescence on assay6 for 30s
+
+// ---------------------------------------------------------------
+// Specificity check: inhibitor-treated zone (6) should show
+// reduced caspase-3 (NucView) signal relative to matched 10 uM ST zone (5)
+// ---------------------------------------------------------------
+if (reading6 <= reading5) {
+    dispose assay6
+}
+
+dispose assay1
+dispose assay2
+dispose assay3
+dispose assay4
+dispose assay5

@@ -1,0 +1,64 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Cell-Based Non-Invasive Diagnostic Testing Using the DISCO Platform -- Detergent Direct Capture (DDC) Reconstitution of the ABC Transporter MsbA in Peptidiscs and Malachite Green ATPase Activity Assay\n\nREAGENTS USED:\n  - MsbA-Enriched Membrane Extract (E. coli membrane fraction bearing His6-tagged MsbA)\n  - DDM Detergent (n-dodecyl-beta-D-maltoside, 1% w/v solubilization solution)\n  - Peptidisc Peptide (NSPr amphipathic peptide, molar excess)\n  - Dilution Buffer (Buffer A: 50 mM Tris-HCl pH 7.8, 100 mM NaCl, 10% glycerol)\n  - Wash Buffer (Buffer A, used for Ni-NTA resin washing)\n  - Elution Buffer (Buffer A + 600 mM Imidazole)\n  - ATP Reagent (2 mM ATP in reaction buffer: 50 mM Tris-HCl pH 7.8, 100 mM NaCl, 5 mM MgCl2)\n  - Malachite Green Reagent (Malachite green solution with 0.05% Triton X-100)\n\nSTEPS:\n1. Solubilization: Solubilize the MsbA-enriched membrane extract with 1% DDM detergent for 30 min at 4 C to release MsbA from the native membrane.\n2. Peptidisc reconstitution: Mix the clarified detergent extract with a molar excess of peptidisc peptide (NSPr) to initiate detergent-direct-capture reconstitution.\n3. Dilution/concentration cycles: Rapidly dilute the mixture into fresh dilution buffer and concentrate over a filter; repeat this dilution/concentration cycle 3 times to progressively lower the detergent concentration to a calculated ~0.008% final level.\n4. Resin binding and washing: Incubate the reconstituted mixture with Ni-NTA resin for 1 hour at 4 C, then wash the resin with wash buffer to remove unbound material.\n5. Elution: Elute the peptidisc-reconstituted MsbA (DDC-MsbA) from the resin using elution buffer containing imidazole.\n6. ATPase reaction: Combine the eluted peptidisc-MsbA with ATP reagent and incubate at 37 C for 10 min to allow ATP hydrolysis.\n7. Colorimetric detection: Add Malachite green reagent to the reaction, incubate at room temperature for 10 min to allow color development, then measure light absorption at 660 nm to quantify the released inorganic phosphate and calculate the initial rate of ATP hydrolysis, then discard the analyzed reaction mixture.\n\nINTERPRETATION: Successful peptidisc reconstitution and ATPase activity measurement is confirmed when the DDC-MsbA preparation shows comparable purity and yield to other reconstitution methods (SDS-PAGE), a distinct blue-native gel migration pattern reflecting captured endogenous lipid content, and an ATPase rate elevated 2- to 5-fold relative to detergent-solubilized MsbA (DDM-MsbA), consistent with the lipid-mediated increase in both thermal stability and ATPase activity described for peptidisc preparations with higher endogenous lipid content." },
+    { "role": "assistant", "content": "module fluorescence\n\nmanifest membrane_extract\nmanifest ddm_detergent\nmanifest peptidisc_peptide\nmanifest dilution_buffer\nmanifest wash_buffer\nmanifest elution_buffer\nmanifest atp_reagent\nmanifest malachite_green_reagent\n\ninstructions:\n\nmembrane = dispense membrane_extract\nddm = dispense ddm_detergent\nextract = mix membrane with ddm for 1800s\nheat extract at 4c for 30m\n\npeptide = dispense peptidisc_peptide\nrecon = mix extract with peptide\n\nrepeat 3 times {\n    buffer = dispense 15000 units of dilution_buffer\n    recon = mix recon with buffer for 60s\n}\n\nwash = dispense wash_buffer\nwashed = mix recon with wash for 60s\nheat washed at 4c for 60m\ndispose washed\n\nelution = dispense elution_buffer\npeptidisc_msba = mix recon with elution\n\natp = dispense atp_reagent\nreaction = mix peptidisc_msba with atp\nheat reaction at 37c for 10m\n\nmg_reagent = dispense malachite_green_reagent\ndetect_mix = mix reaction with mg_reagent\nheat detect_mix at 25c for 10m\n\natpase_reading = detect fluorescence on detect_mix for 60s\n\ndispose detect_mix" }
+  ],
+  "metadata": {
+    "protocol_id": "peptidisc_msba_ddc_atpase_001",
+    "bs_file": "tests/test_cases/peptidisc_msba_ddc_atpase/peptidisc_msba_ddc_atpase.bs",
+    "protocol_name": "Cell-Based Non-Invasive Diagnostic Testing Using the DISCO Platform (Lamanna et al., iScience 2024)",
+    "category": "membrane_protein_reconstitution_functional_assay",
+    "chemicals": [
+      "membrane_extract",
+      "ddm_detergent",
+      "peptidisc_peptide",
+      "dilution_buffer",
+      "wash_buffer",
+      "elution_buffer",
+      "atp_reagent",
+      "malachite_green_reagent"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "repeat",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "original_protocol", "title": "Cell-Based Non-Invasive Diagnostic Testing Using the DISCO Platform", "publisher": "iScience", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10993126/pdf/main.pdf", "doi": "10.1016/j.isci.2024.109382" }
+    ],
+    "notes": "The authored BioScript code is a direct translation of the paper's Detergent Direct Capture (DDC) method for reconstituting MsbA in peptidiscs (STAR Methods, 'Reconstitution of MsbA in peptidiscs') followed by the Malachite green ATPase activity assay (STAR Methods, 'ATPase assays'). It covers DDM solubilization, mixing with peptidisc peptide, the three dilution/ultrafiltration cycles used to lower detergent concentration, Ni-NTA resin binding/washing, imidazole elution, and the ATP-hydrolysis/Malachite-green colorimetric readout. Because BioScript has no primitive for ultracentrifugation, filter-based ultrafiltration/concentration, or resin-based affinity chromatography, these physical separation steps are approximated using 'mix'/'heat'/'dispose' operations at nominal durations rather than dedicated operations. Likewise, because the paper's actual readout is a 660 nm absorbance measurement of the Malachite green-phosphate complex (not a fluorogenic assay), the 'detect fluorescence' primitive is used as a stand-in for the generic detect-and-quantify step, since BioScript's grammar does not expose a dedicated colorimetric/absorbance detect module.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "membrane_extract", "source_quote": "about 3 mg of MsbA-enriched membranes were solubilized with 1% DDM (w/v) for 30 min at 4C", "source_location": "METHOD DETAILS: Reconstitution of MsbA in peptidiscs" },
+        { "bs_chemical": "ddm_detergent", "source_quote": "solubilized with 1% DDM (w/v) for 30 min at 4C", "source_location": "METHOD DETAILS: Reconstitution of MsbA in peptidiscs" },
+        { "bs_chemical": "peptidisc_peptide", "source_quote": "mixed with a molar excess of peptidisc peptides (1 mg)", "source_location": "METHOD DETAILS: Reconstitution of MsbA in peptidiscs" },
+        { "bs_chemical": "dilution_buffer", "source_quote": "rapidly diluted into 15 mL of Buffer A before concentration over a nitrocellulose filter", "source_location": "METHOD DETAILS: Reconstitution of MsbA in peptidiscs" },
+        { "bs_chemical": "elution_buffer", "source_quote": "The peptidisc-reconstituted MsbA (DDC-MsbA) was eluted in 200 uL of Buffer A + 600 mM Imidazole", "source_location": "METHOD DETAILS: Reconstitution of MsbA in peptidiscs" },
+        { "bs_chemical": "atp_reagent", "source_quote": "200 ml of reaction buffer ... containing 2 mM of ATP", "source_location": "METHOD DETAILS: ATPase assays" },
+        { "bs_chemical": "malachite_green_reagent", "source_quote": "mixed with 500 uL of Malachite green solution containing 0.05% Triton X-100", "source_location": "METHOD DETAILS: ATPase assays" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "extract = mix membrane with ddm for 1800s / heat extract at 4c for 30m", "source_quote": "solubilized with 1% DDM (w/v) for 30 min at 4C", "source_location": "METHOD DETAILS: Reconstitution of MsbA in peptidiscs" },
+        { "bs_operation": "repeat 3 times { buffer = dispense dilution_buffer; recon = mix recon with buffer for 60s }", "source_quote": "The dilution and concentration process were repeated three times to decrease the detergent concentration", "source_location": "METHOD DETAILS: Reconstitution of MsbA in peptidiscs" },
+        { "bs_operation": "washed = mix recon with wash for 60s / heat washed at 4c for 60m", "source_quote": "incubated on a tabletop rocker with the Ni-NTA resin (150 uL) for 1 hour at 4C", "source_location": "METHOD DETAILS: Reconstitution of MsbA in peptidiscs" },
+        { "bs_operation": "reaction = mix peptidisc_msba with atp / heat reaction at 37c for 10m", "source_quote": "incubated at 37C in 200 ml of reaction buffer ... containing 2 mM of ATP", "source_location": "METHOD DETAILS: ATPase assays" },
+        { "bs_operation": "detect_mix = mix reaction with mg_reagent / heat detect_mix at 25c for 10m / atpase_reading = detect fluorescence", "source_quote": "Light absorption at 660 nm was measured after 10 min incubation at room temperature", "source_location": "METHOD DETAILS: ATPase assays" }
+      ],
+      "numeric_mismatches": [
+        { "field": "atpase_reading = detect fluorescence", "note": "Detection in the paper is a 660 nm absorbance measurement of the Malachite green-phosphate complex, converted to nmol Pi/mg protein/min via a phosphate standard curve, not a fluorogenic signal. 'detect fluorescence' is used only because it is the sole detect module exposed by BioScript's grammar." },
+        { "field": "wash and Ni-NTA resin binding steps modeled with 'mix' and 'heat'", "note": "BioScript has no primitive for resin-based affinity chromatography, sedimentation, or column washing; the 1 hour 4C Ni-NTA incubation and subsequent wash are approximated as a single mix/heat/dispose sequence rather than a multi-wash resin protocol." },
+        { "field": "repeat 3 times dilution/concentration cycle volume (15000 units)", "note": "The paper specifies a 15 mL dilution into Buffer A followed by ultrafiltration concentration to 500 uL per cycle; the exact ultrafiltration/concentration step has no BioScript primitive, so only the dilution volume is represented and the concentration step is omitted." },
+        { "field": "ultracentrifugation steps (180000g clarification of detergent extract) and blue-native/SDS-PAGE analyses", "note": "Not modeled. BioScript has no centrifugation or gel-electrophoresis primitive; only the liquid-handling and incubation steps of the reconstitution and ATPase assay are captured." },
+        { "field": "thermal stability assay (50C denaturation time course), lipidomic LC-MS/MS analysis, SecYEG reconstitution and SecA binding/ATPase assays, and exogenous PG/CL lipid-addition experiments", "note": "Not modeled. These are separate structural, lipidomic, and comparative functional sub-experiments performed alongside the core DDC-MsbA reconstitution and ATPase assay, and fall outside the scope of this translation; only the DDC reconstitution and Malachite green ATPase workflow (STAR Methods) is captured here." }
+      ]
+    }
+  }
+}

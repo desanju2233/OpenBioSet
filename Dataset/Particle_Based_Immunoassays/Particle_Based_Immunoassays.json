@@ -1,0 +1,58 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "ASSAY TYPE: Digital Microfluidic Magnetic Separation Particle-Based Immunoassay (TSH and 17β-estradiol)\n\nREAGENTS USED:\n  - MagneticParticles (anti-beta-TSH or anti-E2)\n  - Conjugate (anti-TSH-HRP or E2-HRP)\n  - Sample\n  - WashBuffer\n  - H2O2\n  - LuminolEnhancer\n\nSTEPS:\n1. Particle Separation: Dispense a droplet of magnetic particles.\n2. Sample Incubation: Dispense 3 sample droplets, merge them sequentially with the particles, and incubate at 25C for 6 minutes.\n3. First Wash: Repeat 4 times: dispense wash buffer, mix with the sample complex for 5 seconds, and dispose of the supernatant.\n4. Conjugate Incubation: Dispense conjugate, mix with the complex, and incubate at 25C for 2 minutes.\n5. Second Wash: Repeat 4 times: dispense wash buffer, mix for 5 seconds, and dispose. Then repeat 2 times: dispense H2O2, mix for 5 seconds, and dispose.\n6. Substrate Incubation: Dispense H2O2, mix with the complex, and incubate at 25C for 2 minutes.\n7. Signal Generation: Dispense LuminolEnhancer and mix with the complex.\n8. Detection: Incubate the final signal complex at 25C for 1 minute, detect fluorescence for 30 seconds, and dispose of the complex."
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\n// Reagents used in the on-chip DMF particle-based immunoassay\n// (Ng et al., Anal. Chem. 2012, 84, 8805-8812)\n//\n// Swap the two \"assay-specific\" manifests below to switch between:\n//   - Noncompetitive TSH assay:  particles = anti-TSH-beta magnetic particles\n//                                 conjugate = anti-TSH-HRP\n//   - Competitive E2 assay:      particles = anti-E2 magnetic particles\n//                                 conjugate = E2-HRP\nmanifest MagneticParticles      // anti-beta-TSH particles (or anti-E2 particles)\nmanifest Conjugate               // anti-TSH-HRP (or E2-HRP)\nmanifest Sample                  // TSH or E2 standard/patient sample\nmanifest WashBuffer\nmanifest H2O2\nmanifest LuminolEnhancer\n\ninstructions:\n\n// --- Step 1: Particle separation ---\n// A droplet containing paramagnetic particles is dispensed and separated\n// from its diluent using the magnet (supernatant separation method).\nparticles = dispense MagneticParticles\n\n// --- Step 2: Sample incubation ---\n// Three sample droplets (800 nL x 3 = 2.4 uL) are delivered to the\n// immobilized particles for resuspension and a 6 min incubation.\ns1 = dispense 1 units of Sample\ns2 = dispense 1 units of Sample\ns3 = dispense 1 units of Sample\n\nmix1 = mix particles with s1\nmix2 = mix mix1 with s2\nsample_complex = mix mix2 with s3\n\nheat sample_complex at 25c for 6m\n\n// --- Step 3: Wash (4x wash buffer), supernatant separated each time ---\nrepeat 4 times {\n    wb = dispense 1 units of WashBuffer\n    washed = mix sample_complex with wb for 5s\n    dispose washed\n}\n\n// --- Step 4: Conjugate incubation ---\n// One droplet of conjugate (HRP-labeled antibody or antigen) is\n// resuspended with the particles and incubated for 2 min.\nconj = dispense 1 units of Conjugate\nconjugate_complex = mix sample_complex with conj\nheat conjugate_complex at 25c for 2m\n\n// --- Step 5: Wash (4x wash buffer + 2x H2O2), supernatant separated each time ---\nrepeat 4 times {\n    wb2 = dispense 1 units of WashBuffer\n    washed2 = mix conjugate_complex with wb2 for 5s\n    dispose washed2\n}\n\nrepeat 2 times {\n    rinse = dispense 1 units of H2O2\n    rinsed = mix conjugate_complex with rinse for 5s\n    dispose rinsed\n}\n\n// --- Step 6: Substrate (H2O2) incubation ---\n// One droplet of H2O2 is delivered to the immobilized particles\n// for resuspension and a 2 min incubation.\nperoxide = dispense 1 units of H2O2\nsubstrate_complex = mix conjugate_complex with peroxide\nheat substrate_complex at 25c for 2m\n\n// --- Step 7: Signal generation ---\n// The H2O2/particle suspension is merged and mixed with the\n// luminol/enhancer solution to activate chemiluminescence.\nluminol = dispense 1 units of LuminolEnhancer\nsignal_complex = mix substrate_complex with luminol\n\n// --- Step 8: Detection ---\n// The pooled droplet is incubated for 1 min, and chemiluminescence\n// is measured with a well-plate reader.\nheat signal_complex at 25c for 1m\nassay_signal = detect fluorescence on signal_complex for 30s\n\nif (assay_signal <= 0) {\n    dispose signal_complex\n}\n\ndispose signal_complex\n"
+    }
+  ],
+  "metadata": {
+    "protocol_id": "dmf_magnetic_immunoassay_001",
+    "bs_file": "tests/test_cases/immuno/ng_magnetic_immunoassay.bs",
+    "protocol_name": "Digital Microfluidic Magnetic Separation for Particle-Based Immunoassays (Ng et al. 2012)",
+    "category": "immunoassay",
+    "chemicals": [
+      "MagneticParticles",
+      "Conjugate",
+      "Sample",
+      "WashBuffer",
+      "H2O2",
+      "LuminolEnhancer"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "repeat",
+      "detect",
+      "if",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      {
+        "type": "original_protocol",
+        "title": "Digital Microfluidic Magnetic Separation for Particle-Based Immunoassays",
+        "publisher": "Analytical Chemistry",
+        "url": "http://microfluidics.utoronto.ca/papers/estrogen%20and%20TSH%20immunoassay.pdf",
+        "doi": "10.1021/ac3020627"
+      }
+    ],
+    "notes": "BioScript does not have an explicit primitive for magnetic separation. This translation groups magnetic immobilization implicitly within the wash (mix) and split/dispose sequences. The updated JSON matches the correct 8-step protocol parameters defined in the validated standalone .bs file.",
+    "evidence": {
+      "chemical_evidence": [],
+      "operation_evidence": [],
+      "numeric_mismatches": []
+    }
+  }
+}

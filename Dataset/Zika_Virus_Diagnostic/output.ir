@@ -1,0 +1,56 @@
+main:
+	sample1[0] = dispense(plasma_sample)
+	lysis1[0] = dispense(lysis_buffer)
+	lysed1[0] = mix(sample1[0], lysis1[0]) @ 30.0SECOND
+	heat(lysed1[0]) @ 95.0CELSIUS @ 120.0SECOND
+	pk1[0] = dispense(proteinase_k)
+	lysed_pk1[0] = mix(lysed1[0], pk1[0]) @ 30.0SECOND
+	carrier1[0] = dispense(carrier_rna)
+	lysed_carrier1[0] = mix(lysed_pk1[0], carrier1[0]) @ 30.0SECOND
+	heat(lysed_carrier1[0]) @ 23.0CELSIUS @ 900.0SECOND
+	beads1[0] = dispense(magnetic_beads)
+	captured1[0] = mix(lysed_carrier1[0], beads1[0]) @ 300.0SECOND
+bsbbr_2_h:
+	PHI REPEAT_41 = {REPEAT_40,REPEAT_42}
+	PHI washed1 = {washed0,washed2}
+	PHI wash1 = {wash0,wash2}
+	if REPEAT_41[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	wash2[0] = dispense(wash_buffer)
+	washed2[0] = mix(captured1[0], wash2[0]) @ 60.0SECOND
+	dispose(wash2[0])
+	REPEAT_42[0] = REPEAT_41[0] - 1
+bsbbr_4_f:
+bsbbr_5_h:
+	PHI ewash1 = {ewash0,ewash2}
+	PHI REPEAT_21 = {REPEAT_20,REPEAT_22}
+	PHI ewashed1 = {ewashed0,ewashed2}
+	if REPEAT_21[0] > 0	|	true: jump bsbbr_6_t	|	false: jump bsbbr_7_f
+bsbbr_6_t:
+	ewash2[0] = dispense(ethanol_wash_buffer)
+	ewashed2[0] = mix(captured1[0], ewash2[0]) @ 60.0SECOND
+	dispose(ewash2[0])
+	REPEAT_22[0] = REPEAT_21[0] - 1
+bsbbr_7_f:
+	eluent1[0] = dispense(elution_water)
+	rna_eluate1[0] = mix(captured1[0], eluent1[0]) @ 180.0SECOND
+	mmix1[0] = dispense(nasba_master_mix)
+	anneal_mix1[0] = mix(rna_eluate1[0], mmix1[0])
+	heat(anneal_mix1[0]) @ 65.0CELSIUS @ 120.0SECOND
+	heat(anneal_mix1[0]) @ 41.0CELSIUS @ 600.0SECOND
+	enzymes1[0] = dispense(nasba_enzymes)
+	amp_mix1[0] = mix(anneal_mix1[0], enzymes1[0])
+	heat(amp_mix1[0]) @ 41.0CELSIUS @ 5400.0SECOND
+	cfmix1[0] = dispense(cf_master_mix)
+	switch1[0] = dispense(toehold_switch_dna)
+	cf_reaction1[0] = mix(cfmix1[0], switch1[0]) @ 30.0SECOND
+	detection_mix1[0] = mix(cf_reaction1[0], amp_mix1[0]) @ 60.0SECOND
+	heat(detection_mix1[0]) @ 37.0CELSIUS @ 10500.0SECOND
+	zika_result1[0] = detect(fluorescence, detection_mix1[0]) @ 300.0SECOND
+	if zika_result1[0] <= 50	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(detection_mix1[0])
+bsbbif_9_f:
+	PHI detection_mix2 = {detection_mix1,detection_mix}
+	dispose(detection_mix2[0])
+	NOP

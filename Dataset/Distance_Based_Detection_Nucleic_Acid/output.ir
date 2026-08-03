@@ -1,0 +1,36 @@
+main:
+	sample1[0] = dispense(saliva_sample)
+	lysis1[0] = dispense(lysis_buffer)
+	lysate1[0] = mix(sample1[0], lysis1[0]) @ 60.0SECOND
+	heat(lysate1[0]) @ 95.0CELSIUS @ 300.0SECOND
+	rt_mix1[0] = dispense(rt_mastermix)
+	rt_rxn1[0] = mix(lysate1[0], rt_mix1[0]) @ 30.0SECOND
+	heat(rt_rxn1[0]) @ 42.0CELSIUS @ 900.0SECOND
+	heat(rt_rxn1[0]) @ 65.0CELSIUS @ 300.0SECOND
+	lamp_mix1[0] = dispense(lamp_mastermix)
+	lamp_rxn1[0] = mix(rt_rxn1[0], lamp_mix1[0]) @ 30.0SECOND
+	heat(lamp_rxn1[0]) @ 65.0CELSIUS @ 1800.0SECOND
+	beads1[0] = dispense(capto_adhere_beads)
+	cleanup1[0] = mix(lamp_rxn1[0], beads1[0]) @ 60.0SECOND
+	heat(cleanup1[0]) @ 25.0CELSIUS @ 300.0SECOND
+bsbbr_2_h:
+	PHI REPEAT_31 = {REPEAT_30,REPEAT_32}
+	PHI wash1 = {wash0,wash2}
+	PHI cleanup2 = {cleanup1,cleanup3}
+	if REPEAT_31[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	wash2[0] = dispense(wash_buffer)
+	cleanup3[0] = mix(cleanup2[0], wash2[0]) @ 30.0SECOND
+	REPEAT_32[0] = REPEAT_31[0] - 1
+bsbbr_4_f:
+	dye1[0] = dispense(sybr_safe_dye)
+	stained1[0] = mix(cleanup2[0], dye1[0]) @ 30.0SECOND
+	signal1[0] = detect(fluorescence, stained1[0]) @ 600.0SECOND
+	if signal1[0] < 80	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+bsbbif_5_t:
+	dispose(stained1[0])
+bsbbif_6_f:
+	PHI stained2 = {stained1,stained}
+	heat(stained2[0]) @ 25.0CELSIUS @ 60.0SECOND
+	dispose(stained2[0])
+	NOP

@@ -1,0 +1,261 @@
+{
+  "protocol": {
+    "title": "Quantitative Multiparameter Measuring of Dynamic Single-Cell Immune Responses",
+    "source": "EMBC 2014 (IEEE Engineering in Medicine and Biology Conference)",
+    "doi": "N/A",
+    "platform": "Custom PDMS microfluidic device with single-cell trapping chambers and on-chip bead-based fluorescent sandwich assay",
+    "cell_lines": ["RAW264.7 macrophages (NF-kB-GFP fusion reporter)"],
+    "objective": "Simultaneous dynamic measurement of NF-kB nuclear translocation, cytokine/protein secretion, cell migration, and morphology in single macrophages stimulated with arbitrary temporal profiles of LPS and TNF",
+
+    "device": {
+      "material": "PDMS (polydimethylsiloxane)",
+      "configuration": "Single-cell isolation chambers with on-chip bead assay zone",
+      "trapping_method": "Hydrodynamic single-cell trapping (custom trap geometry)",
+      "channel_description": "Serpentine trapping channel with distinct single-cell chambers",
+      "flow_control": "Upstream microfluidic valve actuation for arbitrary temporal stimulus delivery",
+      "imaging_platform": "Inverted fluorescence microscope (time-lapse)",
+      "measurement_modes": [
+        "NF-kB-GFP nuclear translocation (fluorescence)",
+        "Cytokine secretion (on-chip bead-based sandwich assay)",
+        "Cell migration (bright-field time-lapse)",
+        "Cell morphology (bright-field time-lapse)"
+      ]
+    },
+
+    "reagents": {
+      "cells": {
+        "line": "RAW264.7 macrophages",
+        "reporter": "NF-kB-GFP fusion protein",
+        "suspension_buffer": "Culture media",
+        "concentration_cells_mL": "~1e6"
+      },
+      "stimuli": {
+        "LPS": {
+          "full_name": "Lipopolysaccharide (E. coli)",
+          "type": "Pathogen-associated molecular pattern (PAMP)",
+          "input_profile": "Brief pulse (seconds-range)",
+          "receptor": "TLR4"
+        },
+        "TNF": {
+          "full_name": "Tumour Necrosis Factor",
+          "type": "Pro-inflammatory cytokine",
+          "input_profile": "Prolonged exposure (minutes to hours)",
+          "receptor": "TNFR1/TNFR2"
+        }
+      },
+      "wash_buffer": "PBS (phosphate-buffered saline)",
+      "culture_media": "DMEM or RPMI supplemented with FBS",
+      "bead_assay": {
+        "type": "Bead-based fluorescent sandwich immunoassay (on-chip)",
+        "capture_reagent": "Antibody-conjugated beads (multiplexed, spectrally distinct)",
+        "detection_reagent": "Fluorescent secondary detection antibody",
+        "wash_reagent": "Wash buffer (to remove unbound detection antibody)",
+        "targets": ["TNF", "IL-6", "MCP-1", "other secreted cytokines and chemokines"],
+        "dynamic_range": "pM to nM",
+        "sample_volume_nL": "~50 per time point"
+      },
+      "nfkb_reporter": {
+        "type": "GFP fusion protein",
+        "readout": "Nuclear/cytoplasmic fluorescence ratio per cell per frame",
+        "acquisition_interval_min": "3-5"
+      }
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Device priming",
+        "bb": "BB1",
+        "inputs": ["PBS_Buffer"],
+        "operation": "mix",
+        "duration_s": 300,
+        "notes": "Two PBS washes combined to flush channels, remove air bubbles, and passivate PDMS surfaces to minimise non-specific cell adhesion. Low flow rate (~1 nL/s)."
+      },
+      {
+        "id": "S2",
+        "name": "Hydrodynamic single-cell loading and trapping",
+        "bb": "BB1",
+        "cell_line": "RAW264.7",
+        "cell_concentration_cells_mL": "~1e6",
+        "suspension_buffer": "Culture media",
+        "operation": "flow-through trap (abstracted as mix in BioScript)",
+        "duration_s": 2,
+        "notes": "Cells loaded at low flow rate into serpentine trapping channel. Custom trap geometry isolates single cells in distinct chambers. BioScript mix abstracts channel-flow hydrodynamic trapping; no bulk DMF electrode mixing occurs at this step. Trapping efficiency verified by bright-field imaging."
+      },
+      {
+        "id": "S3",
+        "name": "Channel wash to remove untrapped cells",
+        "bb": "BB1",
+        "inputs": ["PBS_Buffer", "primingMix"],
+        "operation": "mix",
+        "duration_s": 30,
+        "notes": "PBS flush through channels removes excess untrapped cells. Only single cells retained in trapping chambers proceed. Maintains low background for imaging."
+      },
+      {
+        "id": "S4",
+        "name": "Pre-stimulus baseline imaging",
+        "bb": "BB1",
+        "operation": "heat (37 C hold)",
+        "temperature_C": 37,
+        "duration_s": 900,
+        "notes": "15-min baseline incubation at 37 C before stimulation. Bright-field and GFP fluorescence images acquired at t=0. NF-kB-GFP baseline: cytoplasmic (inactive state). Cell centroid coordinates and morphology descriptors logged as pre-stimulus reference."
+      },
+      {
+        "id": "S5",
+        "name": "LPS stimulus delivery (brief pulse)",
+        "bb": "BB1",
+        "inputs": ["LPS_Stimulus", "washStep"],
+        "operation": "mix",
+        "duration_s": 60,
+        "stimulus_profile": "Brief pulse (~60 s representative)",
+        "delivery_method": "Upstream microfluidic valve actuation",
+        "notes": "LPS delivered as a short pulse via valve-controlled flow switching. Mimics transient pathogen-associated molecular pattern encounter. Pulse duration tunable from seconds to minutes via valve control. Triggers TLR4-mediated NF-kB activation."
+      },
+      {
+        "id": "S6",
+        "name": "TNF stimulus delivery (prolonged exposure)",
+        "bb": "BB1",
+        "inputs": ["TNF_Stimulus", "lpsPulse"],
+        "operation": "mix",
+        "duration_s": 3600,
+        "stimulus_profile": "Sustained 60-min exposure",
+        "delivery_method": "Upstream microfluidic valve actuation",
+        "notes": "TNF delivered as a prolonged sustained input following LPS pulse. Models cytokine-driven reactivation of NF-kB (second activation wave). Sequential LPS then TNF delivery allows independent characterisation of PAMP-triggered vs. cytokine-triggered NF-kB dynamics in the same single cell."
+      },
+      {
+        "id": "S7",
+        "name": "Dynamic NF-kB fluorescence imaging and multiparameter observation",
+        "bb": "BB1",
+        "operation": "heat (37 C) + detect",
+        "temperature_C": 37,
+        "imaging_duration_s": 14400,
+        "detection_duration_s": 300,
+        "detection_module": "nfkbActivationDetection",
+        "imaging_interval_min": "3-5",
+        "readout": "Nuclear/cytoplasmic GFP ratio per cell per frame",
+        "co_measurements": ["Migration vectors (centroid tracking)", "Morphology descriptors (area, circularity, aspect ratio)"],
+        "notes": "NF-kB-GFP nuclear translocation monitored in real time across the full 4-hour (240m) observation window. Nuclear masks generated by segmentation; N/C ratio computed per frame. Same image series simultaneously analysed for migration and morphology (non-destructive). nfkbActivationDetection module abstracts: fluorescence acquisition, nuclear segmentation, N/C ratio, migration vector extraction, and morphology descriptor calculation."
+      },
+      {
+        "id": "S8",
+        "name": "Periodic conditioned medium sampling",
+        "bb": "BB4",
+        "operation": "mix",
+        "sampling_interval_min": "30-60",
+        "sample_volume_nL": "~50",
+        "duration_s": 30,
+        "notes": "Supernatant periodically collected from single-cell chamber at defined time intervals throughout stimulation window. Non-destructive: fresh media returned after each sample to maintain cell viability. Provides time-resolved secretion data matched to NF-kB activation and migration traces of the same cell."
+      },
+      {
+        "id": "S9",
+        "name": "On-chip bead-based cytokine capture (sandwich assay - Step 1)",
+        "bb": "BB4",
+        "inputs": ["BeadConjugatedAntibody", "mediumSample"],
+        "operation": "mix + heat",
+        "incubation_temperature_C": 25,
+        "incubation_duration_s": 3600,
+        "notes": "Antibody-conjugated capture beads mixed with conditioned medium sample in on-chip assay zone. Secreted proteins captured on bead surface during 60-min incubation at room temperature. Multiple cytokines assayed simultaneously via spectrally distinct bead populations (multiplexed). No cell destruction or removal required."
+      },
+      {
+        "id": "S10",
+        "name": "Detection antibody addition (sandwich assay - Step 2)",
+        "bb": "BB4",
+        "inputs": ["FluorescentSandwichReagent", "beadCaptureMix"],
+        "operation": "mix + heat",
+        "incubation_temperature_C": 25,
+        "incubation_duration_s": 1800,
+        "notes": "Fluorescent secondary detection antibody added to complete sandwich immunoassay complex. Binds captured secreted proteins on beads. 30-min incubation at 25 C. Fluorescence intensity per bead cluster proportional to secreted protein concentration. Quantitative against standard curve."
+      },
+      {
+        "id": "S11",
+        "name": "Bead assay wash",
+        "bb": "BB4",
+        "inputs": ["WashBuffer", "sandwichComplex"],
+        "operation": "mix",
+        "duration_s": 300,
+        "notes": "Wash buffer removes excess unbound fluorescent detection antibody to reduce background signal. Critical for quantitative accuracy at single-cell secretion levels (pM to nM range). 5-min wash step."
+      },
+      {
+        "id": "S12",
+        "name": "Fluorescence detection of cytokine secretion",
+        "bb": "BB4",
+        "operation": "detect",
+        "detection_module": "cytokineSecretionDetection",
+        "detection_duration_s": 60,
+        "targets": ["TNF", "IL-6", "MCP-1", "additional cytokines and chemokines"],
+        "notes": "On-chip fluorescence imaging of bead assay zone. cytokineSecretionDetection module abstracts: bead cluster fluorescence acquisition, bead segmentation, per-channel intensity quantification, multi-cytokine spectral demultiplexing, and concentration calibration. Result: quantitative secreted protein levels per single cell per time point."
+      }
+    ],
+
+    "measurement_parameters": {
+      "NF_kB_activation": {
+        "reporter": "NF-kB-GFP fusion protein",
+        "readout": "Nuclear/cytoplasmic fluorescence ratio",
+        "temporal_resolution_min": "3-5",
+        "observation_window_h": 4,
+        "nature": "Dynamic, non-destructive, real-time"
+      },
+      "cytokine_secretion": {
+        "method": "On-chip bead-based fluorescent sandwich immunoassay",
+        "sampling_interval_min": "30-60",
+        "targets": ["TNF", "IL-6", "MCP-1", "others"],
+        "dynamic_range": "pM to nM",
+        "nature": "Quantitative, multiplexed, non-destructive"
+      },
+      "migration": {
+        "method": "Centroid tracking from bright-field time-lapse",
+        "readout": "Migration vectors",
+        "co_acquired_with": "NF-kB imaging",
+        "nature": "Dynamic, non-destructive"
+      },
+      "morphology": {
+        "method": "Image analysis of bright-field frames",
+        "descriptors": ["Area", "Circularity", "Aspect ratio"],
+        "co_acquired_with": "NF-kB imaging",
+        "nature": "Dynamic, non-destructive"
+      }
+    },
+
+    "stimulus_input_space": {
+      "stimuli": ["LPS (TLR4 agonist)", "TNF (cytokine)"],
+      "temporal_profiles": "Arbitrary; ranging from brief pulses (seconds) to prolonged inputs (hours)",
+      "delivery_method": "Upstream microfluidic valve actuation with programmable switching",
+      "sequential_stimulation": true,
+      "notes": "Dynamic input space mimics physiological stimulus variability. Same temporal profiles applied to all trapped single cells simultaneously via upstream channel control."
+    },
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1", "label": "main",        "type": "entry",        "description": "Device priming, cell trapping, wash, baseline imaging, LPS pulse, TNF exposure, NF-kB imaging and detection" },
+        { "id": "BB2", "label": "bsbbif_2_t",  "type": "branch_true",  "condition": "nfkbSignal > 0",      "action": "dispose(tnfExposure)" },
+        { "id": "BB3", "label": "bsbbif_3_f",  "type": "branch_false", "condition": "nfkbSignal <= 0",     "action": "drain(tnfExposure)" },
+        { "id": "BB4", "label": "bsbbif_4_j",  "type": "join",         "description": "Dispose nfkbSignal; secretion assay branch begins" },
+        { "id": "BB5", "label": "bsbbif_5_t",  "type": "branch_true",  "condition": "secretionSignal > 0", "action": "dispose(washedBeads)" },
+        { "id": "BB6", "label": "bsbbif_6_f",  "type": "branch_false", "condition": "secretionSignal <= 0","action": "drain(washedBeads)" },
+        { "id": "BB7", "label": "bsbbif_7_j",  "type": "terminal",     "description": "Dispose secretionSignal; NOP; experiment ends" }
+      ],
+      "edges": [
+        ["BB1","BB2"], ["BB1","BB3"],
+        ["BB2","BB4"], ["BB3","BB4"],
+        ["BB4","BB5"], ["BB4","BB6"],
+        ["BB5","BB7"], ["BB6","BB7"]
+      ]
+    },
+
+    "bioscript_notes": {
+      "bs_file": "junkin_tay_singlecell_immune.bs",
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "ir_output": "7 basic blocks (BB1-BB7), 2 if/else gates, 8 CFG edges",
+      "dag_file": "junkin_tay_singlecell_immune_main_dag.dot",
+      "duration_units": "All durations converted to seconds (s) or minutes (m) for compiler compatibility (BioScript supports s and m only; h token not supported). 240 min imaging window -> 240m (IR: 14400.0 SECOND). 60 min bead capture -> 60m (IR: 3600.0 SECOND). 30 min detection antibody -> 30m (IR: 1800.0 SECOND).",
+      "modules": [
+        "nfkbActivationDetection",
+        "cytokineSecretionDetection",
+        "migrationMorphologyDetection"
+      ],
+      "trapping_abstraction": "mix statements in Steps 2 and 3 abstract hydrodynamic single-cell trapping and channel-flow wash events. No DMF electrode mixing occurs at these steps.",
+      "heat_abstraction": "heat statements model temperature-controlled incubation at 37 C (cell culture and imaging window) and 25 C (room-temperature bead assay steps). Baseline hold at 37 C for 15 min (900 s) before stimulation.",
+      "ascii_constraint": "All comment text restricted to ASCII characters (ANTLR4 FileStream reads as ASCII). Non-ASCII characters (e.g. diacritics) will cause UnicodeDecodeError at compile time."
+    }
+  }
+}

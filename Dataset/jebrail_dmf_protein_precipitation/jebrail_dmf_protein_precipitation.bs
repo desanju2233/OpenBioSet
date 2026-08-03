@@ -1,0 +1,536 @@
+module precipitationDetection
+module fluorescenceDetection
+
+manifest BoratBuffer_pH85_1percentSDS
+manifest BoratBuffer_pH85_10percentSDS
+manifest TCA_20percent
+manifest Acetonitrile
+manifest AmmoniumSulfate_Saturated
+manifest Acetone
+manifest Chloroform_ACN_70_30
+manifest Chloroform_Acetone_60_40
+manifest PluronicF127_PBS
+manifest Myoglobin_Mb
+manifest Fibrinogen_Fb
+manifest BSA
+manifest Mb_PC_Mixture
+manifest FBS
+manifest CellLysate
+manifest Fluorescamine
+
+// ============================================================
+// Digital Microfluidic Method for Protein Extraction
+// by Precipitation
+// Jebrail & Wheeler, Anal. Chem. 2009, 81, 330-335
+// DOI: 10.1021/ac8021554
+//
+// Protocol: automated DMF-based protein precipitation,
+// rinsing, and resolubilization from heterogeneous fluids
+// including protein standards (Mb, Fb, BSA), fetal bovine
+// serum (FBS), and cell lysate (CL). Extraction efficiency
+// quantified by fluorescamine-based fluorescence assay.
+//
+// DEVICE: Double-T geometry on Parylene-C / Teflon-AF coated
+// glass wafer. 1x1 mm and 1.5x1.5 mm actuation electrodes.
+// Reservoir electrodes: 2.5x2.5 mm and 3.0x3.0 mm.
+// Interelectrode gap: 40 um. ITO-coated glass top plate.
+// Spacer: 1-2 layers double-sided tape (70 or 140 um).
+// Driving potentials: 70-100 Vrms at 18 kHz.
+//
+// DROPLET VOLUMES:
+//   Sample and precipitant: ~140 nL
+//   Rinse and resolubilization: ~315 nL
+//   Cell lysate: sample ~70 nL, rinse/resol. ~158 nL
+//
+// PRECIPITANTS (per analyte, Table 1):
+//   Mb, Fb:       ACN (primary); no secondary
+//   Mb/PC mix:    ACN (primary) + saturated ammonium sulfate
+//   BSA:          20% TCA; no secondary
+//   FBS:          20% TCA; no secondary
+//   Cell lysate:  20% TCA; no secondary
+//
+// RINSE SOLUTIONS (per analyte, Table 1):
+//   Mb, Fb, Mb/PC, BSA: 70/30 v/v chloroform/ACN
+//   FBS:                 acetone
+//   Cell lysate:         60/40 v/v chloroform/acetone
+//
+// RESOLUBILIZATION (per analyte, Table 1):
+//   Mb, Fb, Mb/PC, BSA: 10 mM borate pH 8.5 + 1% SDS
+//   FBS, CL:            100 mM borate pH 8.5 + 10% SDS
+//
+// ANALYSIS:
+//   Qualitative: ESI-MS on Mb/PC model system (Fig. 2)
+//   Quantitative: fluorescamine assay (Fig. 3) for % recovery
+//     BSA (50 mg/mL): >80% recovery by DMF and conventional
+//     Mb  (30 mg/mL): >80% recovery by DMF and conventional
+//     Fb  (20 mg/mL): >80% recovery by DMF and conventional
+//     FBS:            84.0 +/- 7.8%
+//     CL:             82.4 +/- 11.5%
+//
+// CFG STRUCTURE:
+//   BB1  main              -- device priming; Mb/PC qualitative
+//                             extraction (ESI-MS QC model)
+//   BB2  qualitativePass   -- precipitationSignal > 0: Mb recovered;
+//                             dispose and continue to quantitative branch
+//   BB3  qualitativeFail   -- precipitationSignal <= 0: Mb not detected; drain
+//   BB4  qualitativeJoin   -- join: protein standard quantitative branch
+//   BB5  quantPass         -- fluorSignal > 0: >80% recovery; dispose
+//   BB6  quantFail         -- fluorSignal <= 0: low recovery; dispose (compiler fix)
+//   BB7  quantJoin         -- join: complex mixture (FBS/CL) branch
+//   BB8  complexPass       -- complexSignal > 0: recovery valid; dispose
+//   BB9  complexFail       -- complexSignal <= 0: recovery invalid; dispose (compiler fix)
+//   BB10 finalCleanup      -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prime device with 0.08% Pluronics F-127 in PBS to
+//         reduce protein adsorption to Teflon-AF surfaces.
+//         All working protein solutions are prepared in
+//         10 mM borate buffer (pH 8.5) with 0.08% Pluronics F127.
+// ------------------------------------------------------------
+
+primingDrop = dispense 1 units of PluronicF127_PBS
+
+// Priming: actuate across device surface for 5 min to coat
+// Teflon-AF with Pluronics surfactant layer.
+heat primingDrop at 25c for 5m
+
+dispose primingDrop
+
+// ============================================================
+// QUALITATIVE EXTRACTION - Mb/PC Model System (Fig. 2)
+// Analyte: Mb (0.71 mM); Contaminant: PC (62 mM) -- 80:1 excess.
+// Protocol: ACN (primary) + saturated ammonium sulfate (secondary).
+// Rinse: 70/30 v/v chloroform/ACN (x3 droplets).
+// Resolubilize: 10 mM borate pH 8.5 + 1% SDS.
+// ESI-MS evaluates PC removal and Mb recovery qualitatively.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 2: Dispense Mb/PC mixture sample and first precipitant (ACN).
+//         Sample and precipitant droplets: ~140 nL each.
+//         Merge on extraction electrode; incubate ~5 min at RT.
+// ------------------------------------------------------------
+
+mbPcSample      = dispense 1 units of Mb_PC_Mixture
+precipitant1_Mb = dispense 1 units of Acetonitrile
+
+mbPcPrecip1     = mix mbPcSample with precipitant1_Mb for 5m
+
+// ------------------------------------------------------------
+// STEP 3: Add secondary precipitant (saturated ammonium sulfate)
+//         for enhanced precipitation at low Mb concentration (0.71 mM).
+//         Combined droplet incubated until protein precipitates (~5 min).
+// ------------------------------------------------------------
+
+precipitant2_Mb = dispense 1 units of AmmoniumSulfate_Saturated
+mbPcPrecipFull  = mix mbPcPrecip1 with precipitant2_Mb for 5m
+
+// ------------------------------------------------------------
+// STEP 4: Remove supernatant by actuating to waste reservoir.
+//         Precipitate remains on extraction electrode, adhered
+//         to Teflon-AF surface (no centrifugation required).
+//         Maximum path length in DMF: ~0.1 mm; settling is
+//         2x faster than in microcentrifuge tubes.
+// ------------------------------------------------------------
+
+supernatant1 = mix mbPcPrecipFull with mbPcPrecipFull for 1s
+drain supernatant1
+
+// ------------------------------------------------------------
+// STEP 5: Rinse precipitate with three droplets of 70/30 v/v
+//         chloroform/ACN (~315 nL each) to remove PC lipid
+//         contamination and other non-protein constituents.
+//         Each rinse droplet is driven across the extraction
+//         electrode and actuated to waste.
+// ------------------------------------------------------------
+
+rinse1_Mb = dispense 1 units of Chloroform_ACN_70_30
+rinse2_Mb = dispense 1 units of Chloroform_ACN_70_30
+rinse3_Mb = dispense 1 units of Chloroform_ACN_70_30
+
+rinsed1_Mb = mix mbPcPrecipFull with rinse1_Mb for 30s
+drain rinsed1_Mb
+
+rinsed2_Mb = mix mbPcPrecipFull with rinse2_Mb for 30s
+drain rinsed2_Mb
+
+rinsed3_Mb = mix mbPcPrecipFull with rinse3_Mb for 30s
+drain rinsed3_Mb
+
+// ------------------------------------------------------------
+// STEP 6: Dry precipitate (air dry at room temperature) to
+//         remove residual rinse solvent before resolubilization.
+//         No bake step required for chloroform/ACN rinse.
+// ------------------------------------------------------------
+
+heat mbPcPrecipFull at 25c for 5m
+
+// ------------------------------------------------------------
+// STEP 7: Resolubilize precipitated Mb in 10 mM borate buffer
+//         (pH 8.5) + 1% SDS (~315 nL droplet).
+//         Dispense and drive to extraction electrode; incubate
+//         to fully dissolve precipitate.
+// ------------------------------------------------------------
+
+resolubBuffer_Mb = dispense 1 units of BoratBuffer_pH85_1percentSDS
+resolubMb        = mix mbPcPrecipFull with resolubBuffer_Mb for 5m
+
+// ------------------------------------------------------------
+// STEP 8: Qualitative QC via precipitationDetection module.
+//         Abstracts ESI-MS analysis (LTQ linear ion trap):
+//         positive ion mode, 315 nL diluted into 50 uL
+//         50/50 water/ACN + 0.1% formic acid.
+//         Pass: Mb multiply charged ions detected (m/z 600-1800,
+//         charges +27 to +10); PC signal suppressed at m/z 398.
+//         Fail: Mb signal absent or PC signal dominant.
+// ------------------------------------------------------------
+
+precipitationSignal = detect precipitationDetection on resolubMb for 30s
+
+// ============================================================
+// BB2 / BB3: Qualitative extraction QC gate
+// Pass (BB2): precipitationSignal > 0 -> Mb ions detected by
+//             ESI-MS; PC contamination removed; dispose and
+//             proceed to quantitative protein standard branch.
+// Fail (BB3): precipitationSignal <= 0 -> Mb not recovered or
+//             PC still dominant; drain resolubMb.
+// Both branches converge at BB4 (qualitativeJoin).
+// ============================================================
+
+if (precipitationSignal > 0) {
+    dispose resolubMb
+} else {
+    drain resolubMb
+}
+
+// ============================================================
+// BB4: qualitativeJoin
+// Dispose qualitative QC signal. Control falls into the
+// protein standard quantitative recovery branch (BB5/BB6).
+// ============================================================
+
+dispose precipitationSignal
+
+// ============================================================
+// QUANTITATIVE EXTRACTION - Protein Standards (Fig. 3)
+// Three proteins with different physicochemical properties:
+//   BSA  (MW 66 kDa, pI 4.7, 50 mg/mL): precipitant = 20% TCA
+//   Mb   (MW 17 kDa, pI 7.3, 30 mg/mL): precipitant = ACN
+//   Fb   (MW 340 kDa, pI 5.5, 20 mg/mL): precipitant = ACN
+// All: rinse = 70/30 v/v chloroform/ACN (x3)
+// BSA:  resolubilize in 100 mM borate pH 8.5 + 1% SDS
+// Mb/Fb: resolubilize in 10 mM borate pH 8.5 + 1% SDS
+// % recovery by fluorescamine assay vs. unextracted control.
+// Target: >80% recovery for all three proteins.
+//
+// NOTE: BSA, Mb, and Fb are extracted in parallel on the DMF
+// device (double-T layout with dedicated paths). BioScript
+// encodes operations sequentially as the language does not
+// model spatial parallelism; the CFG correctly reflects the
+// logical dependency structure (all must succeed for QC pass).
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTEIN 1: BSA (50 mg/mL) -- TCA precipitation
+// Precipitant: 20% TCA (~140 nL)
+// Rinse: 70/30 v/v chloroform/ACN (x3, ~315 nL each)
+// Resolubilize: 100 mM borate pH 8.5 + 1% SDS (~315 nL)
+// ------------------------------------------------------------
+
+bsaSample      = dispense 1 units of BSA
+tcaDrop_BSA    = dispense 1 units of TCA_20percent
+
+bsaPrecip      = mix bsaSample with tcaDrop_BSA for 5m
+
+supernatant_BSA = mix bsaPrecip with bsaPrecip for 1s
+drain supernatant_BSA
+
+bsaRinse1 = dispense 1 units of Chloroform_ACN_70_30
+bsaRinse2 = dispense 1 units of Chloroform_ACN_70_30
+bsaRinse3 = dispense 1 units of Chloroform_ACN_70_30
+
+bsaRinsed1 = mix bsaPrecip with bsaRinse1 for 30s
+drain bsaRinsed1
+
+bsaRinsed2 = mix bsaPrecip with bsaRinse2 for 30s
+drain bsaRinsed2
+
+bsaRinsed3 = mix bsaPrecip with bsaRinse3 for 30s
+drain bsaRinsed3
+
+// Bake at 95 C for 5 min to remove residual TCA solvent
+// before resolubilization (required for TCA precipitants).
+heat bsaPrecip at 95c for 5m
+
+bsaResolub     = dispense 1 units of BoratBuffer_pH85_1percentSDS
+resolubBSA     = mix bsaPrecip with bsaResolub for 5m
+
+// ------------------------------------------------------------
+// PROTEIN 2: Mb (30 mg/mL) -- ACN precipitation
+// Precipitant: ACN (~140 nL); no secondary precipitant at
+// this concentration (30 mg/mL >> 0.71 mM threshold).
+// Rinse: 70/30 v/v chloroform/ACN (x3, ~315 nL each)
+// Resolubilize: 10 mM borate pH 8.5 + 1% SDS (~315 nL)
+// ------------------------------------------------------------
+
+mbSample       = dispense 1 units of Myoglobin_Mb
+acnDrop_Mb     = dispense 1 units of Acetonitrile
+
+mbPrecip       = mix mbSample with acnDrop_Mb for 5m
+
+supernatant_Mb = mix mbPrecip with mbPrecip for 1s
+drain supernatant_Mb
+
+mbRinse1 = dispense 1 units of Chloroform_ACN_70_30
+mbRinse2 = dispense 1 units of Chloroform_ACN_70_30
+mbRinse3 = dispense 1 units of Chloroform_ACN_70_30
+
+mbRinsed1 = mix mbPrecip with mbRinse1 for 30s
+drain mbRinsed1
+
+mbRinsed2 = mix mbPrecip with mbRinse2 for 30s
+drain mbRinsed2
+
+mbRinsed3 = mix mbPrecip with mbRinse3 for 30s
+drain mbRinsed3
+
+heat mbPrecip at 25c for 5m
+
+mbResolub      = dispense 1 units of BoratBuffer_pH85_1percentSDS
+resolubMbQuant = mix mbPrecip with mbResolub for 5m
+
+// ------------------------------------------------------------
+// PROTEIN 3: Fb (20 mg/mL) -- ACN precipitation
+// Precipitant: ACN (~140 nL)
+// Rinse: 70/30 v/v chloroform/ACN (x3, ~315 nL each)
+// Resolubilize: 10 mM borate pH 8.5 + 1% SDS (~315 nL)
+// ------------------------------------------------------------
+
+fbSample       = dispense 1 units of Fibrinogen_Fb
+acnDrop_Fb     = dispense 1 units of Acetonitrile
+
+fbPrecip       = mix fbSample with acnDrop_Fb for 5m
+
+supernatant_Fb = mix fbPrecip with fbPrecip for 1s
+drain supernatant_Fb
+
+fbRinse1 = dispense 1 units of Chloroform_ACN_70_30
+fbRinse2 = dispense 1 units of Chloroform_ACN_70_30
+fbRinse3 = dispense 1 units of Chloroform_ACN_70_30
+
+fbRinsed1 = mix fbPrecip with fbRinse1 for 30s
+drain fbRinsed1
+
+fbRinsed2 = mix fbPrecip with fbRinse2 for 30s
+drain fbRinsed2
+
+fbRinsed3 = mix fbPrecip with fbRinse3 for 30s
+drain fbRinsed3
+
+heat fbPrecip at 25c for 5m
+
+fbResolub      = dispense 1 units of BoratBuffer_pH85_1percentSDS
+resolubFb      = mix fbPrecip with fbResolub for 5m
+
+// ------------------------------------------------------------
+// STEP 9: Fluorescamine-based quantitative recovery assay.
+//         Fluorescamine reacts with primary amines (protein
+//         N-terminus); non-fluorescent until reacted.
+//         Ex: 390 nm; Em: 510 nm. Pherastar plate reader.
+//         QC gate uses BSA signal (largest, most robust peak).
+//         Pass threshold: >80% recovery vs. unextracted control.
+//
+//         NOTE: fluorescamine reagent addition modelled as a
+//         mix step with the resolubilized protein droplet.
+//         Physical readout is off-chip (384-well low-volume plate).
+// ------------------------------------------------------------
+
+fluorescamine_BSA = dispense 1 units of Fluorescamine
+fluorescamine_Mb  = dispense 1 units of Fluorescamine
+fluorescamine_Fb  = dispense 1 units of Fluorescamine
+
+assayBSA = mix resolubBSA with fluorescamine_BSA for 1m
+assayMb  = mix resolubMbQuant with fluorescamine_Mb for 1m
+assayFb  = mix resolubFb with fluorescamine_Fb for 1m
+
+// Plate reader incubation (2 min settle before read).
+heat assayBSA at 25c for 2m
+heat assayMb  at 25c for 2m
+heat assayFb  at 25c for 2m
+
+fluorSignal = detect fluorescenceDetection on assayBSA for 30s
+
+// ============================================================
+// BB5 / BB6: Quantitative recovery QC gate (BSA signal)
+// Pass (BB5): fluorSignal > 0 -> >80% BSA recovery confirmed;
+//             dispose all three assay droplets and proceed to
+//             complex mixture branch (BB7).
+// Fail (BB6): fluorSignal <= 0 -> insufficient recovery; dispose all.
+//             (drain replaced with dispose: compiler collapses both to
+//             dispose() in IR, so explicit dispose gives cleaner output.)
+// Both branches converge at BB7 (quantJoin).
+// ============================================================
+
+if (fluorSignal > 0) {
+    dispose assayBSA
+    dispose assayMb
+    dispose assayFb
+} else {
+    // FIX (BB6): lilott8/BioScript compiler collapses drain to dispose in IR;
+    // using dispose explicitly on both branches for consistent IR output.
+    dispose assayBSA
+    dispose assayMb
+    dispose assayFb
+}
+
+// ============================================================
+// BB7: quantJoin
+// Dispose quantitative QC signal. Control falls into the
+// complex mixture branch (BB8/BB9).
+// ============================================================
+
+dispose fluorSignal
+
+// ============================================================
+// COMPLEX MIXTURE EXTRACTION - FBS and Cell Lysate (Fig. 4)
+// Both use 20% TCA as precipitant.
+// FBS rinse:        acetone (traces of TCA removed by acetone)
+// CL rinse:         60/40 v/v chloroform/acetone
+//                   (neat acetone dissolves some CL precipitate)
+// Both resolubilize: 100 mM borate pH 8.5 + 10% SDS
+// Cell lysate: interplate spacing reduced from 140 to 70 um
+//   (smaller droplet volume ~70 nL) to handle high viscosity.
+//   Rinse/resolubilization droplets: ~158 nL for CL.
+// Supplemental rinse strategy for sticky precipitates:
+//   if supernatant cannot be actuated away, dispense rinse
+//   solvent into extraction electrode; combined rinse+supernatant
+//   driven to waste together.
+// Expected recovery: FBS 84.0 +/- 7.8%; CL 82.4 +/- 11.5%
+// ============================================================
+
+// ------------------------------------------------------------
+// FBS EXTRACTION
+// Precipitant: 20% TCA (~140 nL)
+// Rinse: acetone x3 (~315 nL each)
+// Resolubilize: 100 mM borate pH 8.5 + 10% SDS (~315 nL)
+// ------------------------------------------------------------
+
+fbsSample      = dispense 1 units of FBS
+tcaDrop_FBS    = dispense 1 units of TCA_20percent
+
+fbsPrecip      = mix fbsSample with tcaDrop_FBS for 5m
+
+supernatant_FBS = mix fbsPrecip with fbsPrecip for 1s
+drain supernatant_FBS
+
+fbsRinse1 = dispense 1 units of Acetone
+fbsRinse2 = dispense 1 units of Acetone
+fbsRinse3 = dispense 1 units of Acetone
+
+// Supplemental rinse strategy: rinse droplet merges with any
+// residual supernatant, and combined droplet is driven to waste.
+fbsRinsed1 = mix fbsPrecip with fbsRinse1 for 30s
+drain fbsRinsed1
+
+fbsRinsed2 = mix fbsPrecip with fbsRinse2 for 30s
+drain fbsRinsed2
+
+fbsRinsed3 = mix fbsPrecip with fbsRinse3 for 30s
+drain fbsRinsed3
+
+// Bake to remove TCA residue (95 C, 5 min).
+heat fbsPrecip at 95c for 5m
+
+fbsResolub  = dispense 1 units of BoratBuffer_pH85_10percentSDS
+resolubFBS  = mix fbsPrecip with fbsResolub for 5m
+
+// ------------------------------------------------------------
+// CELL LYSATE EXTRACTION
+// Jurkat T-cells lysed in PBS + 1% Triton X-100 + 1 mM PMSF
+// + 0.08% F127. Interplate spacing: 70 um (smaller droplets).
+// Precipitant: 20% TCA (~70 nL)
+// Rinse: 60/40 v/v chloroform/acetone x3 (~158 nL each)
+//   Reason: neat acetone dissolves some CL precipitate.
+// Resolubilize: 100 mM borate pH 8.5 + 10% SDS (~158 nL)
+// ------------------------------------------------------------
+
+clSample       = dispense 1 units of CellLysate
+tcaDrop_CL     = dispense 1 units of TCA_20percent
+
+clPrecip       = mix clSample with tcaDrop_CL for 5m
+
+supernatant_CL = mix clPrecip with clPrecip for 1s
+drain supernatant_CL
+
+clRinse1 = dispense 1 units of Chloroform_Acetone_60_40
+clRinse2 = dispense 1 units of Chloroform_Acetone_60_40
+clRinse3 = dispense 1 units of Chloroform_Acetone_60_40
+
+clRinsed1 = mix clPrecip with clRinse1 for 30s
+drain clRinsed1
+
+clRinsed2 = mix clPrecip with clRinse2 for 30s
+drain clRinsed2
+
+clRinsed3 = mix clPrecip with clRinse3 for 30s
+drain clRinsed3
+
+// Bake to remove TCA residue (95 C, 5 min).
+heat clPrecip at 95c for 5m
+
+clResolub   = dispense 1 units of BoratBuffer_pH85_10percentSDS
+resolubCL   = mix clPrecip with clResolub for 5m
+
+// ------------------------------------------------------------
+// STEP 10: Fluorescence QC for complex mixtures.
+//          Same fluorescamine assay as protein standards.
+//          QC gate on FBS signal (assayed first, higher volume).
+//          Expected: FBS 84.0+/-7.8%, CL 82.4+/-11.5% recovery.
+// ------------------------------------------------------------
+
+fluorescamine_FBS = dispense 1 units of Fluorescamine
+fluorescamine_CL  = dispense 1 units of Fluorescamine
+
+assayFBS = mix resolubFBS with fluorescamine_FBS for 1m
+assayCL  = mix resolubCL  with fluorescamine_CL  for 1m
+
+heat assayFBS at 25c for 2m
+heat assayCL  at 25c for 2m
+
+complexSignal = detect fluorescenceDetection on assayFBS for 30s
+
+// ============================================================
+// BB8 / BB9: Complex mixture QC gate (FBS signal)
+// Pass (BB8): complexSignal > 0 -> valid recovery for both
+//             FBS and CL; dispose both assay droplets.
+// Fail (BB9): complexSignal <= 0 -> insufficient recovery; dispose.
+//             (drain replaced with dispose: compiler collapses both to
+//             dispose() in IR, so explicit dispose gives cleaner output.)
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (complexSignal > 0) {
+    dispose assayFBS
+    dispose assayCL
+} else {
+    // FIX (BB9): lilott8/BioScript compiler collapses drain to dispose in IR;
+    // using dispose explicitly on both branches for consistent IR output.
+    dispose assayFBS
+    dispose assayCL
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose complex mixture QC signal. Experiment ends.
+// ============================================================
+
+dispose complexSignal
+
+// [terminal -- no further instructions; exit node for CFG]

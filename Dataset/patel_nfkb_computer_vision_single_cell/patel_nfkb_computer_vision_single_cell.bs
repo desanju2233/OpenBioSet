@@ -1,0 +1,332 @@
+module nfkbActivationDetection
+module immunofluorescenceDetection
+
+manifest NIH3T3_p65dsRed_H2BGFP_Cells
+manifest FibronectinCoating
+manifest PBS
+manifest FluoroBriteDMEM_TNFalpha
+manifest ParaformaldehydeFixative
+manifest BlockingPermeabilizationBuffer
+manifest IkBa_PrimaryAntibody
+manifest AlexaFluor647_SecondaryAntibody
+
+instructions:
+
+// ============================================================
+// Computer Vision Reveals Hidden Variables Underlying
+// NF-kB Activation in Single Cells
+// Patel, Drayman, Liu, Bilgic, Tay - Sci. Adv. 2021; 7: eabg4135
+// DOI: 10.1126/sciadv.abg4135
+//
+// Protocol: High-throughput microfluidic live-cell imaging of
+// mouse NIH 3T3 fibroblasts expressing p65-dsRed and H2B-GFP
+// reporters, TNF-alpha stimulation, single-cell NF-kB nuclear
+// translocation tracking, and fixed-cell immunofluorescence
+// validation of the IkB/NF-kB ratio as the primary determinant
+// of heterogeneous single-cell activation.
+//
+// CELL LINE: Knockout p65(-/-) mouse NIH 3T3 fibroblasts
+//   re-engineered with p65-dsRed under native p65 promotor and
+//   ubiquitin-promotor-driven H2B-GFP (nuclear marker).
+//   Minimum fluorescence clone selected for endogenous NF-kB
+//   expression levels. (Materials and Methods, paper p. 8)
+//
+// MICROFLUIDIC DEVICE: PDMS chambers coated with fibronectin
+//   (FC010-10MG) overnight. Cells seeded at ~20,000 cells/cm2
+//   and cultured for 5 h before stimulation at 37 C / 5% CO2.
+//   TNF-alpha vials pressurized at 5 psi, connected via PEEK
+//   microbore tubing (VICI). Device mounted on Nikon Eclipse Ti2
+//   microscope with Hamamatsu ORCA-Flash4.0 V3 Digital CMOS
+//   camera (C13440), 20x magnification, 5 min imaging interval.
+//
+// STIMULATION: TNF-alpha (PMC3014_3671982503) diluted in
+//   FluoroBrite DMEM (A1896701) with 2x GlutaMAX (35050061),
+//   penicillin/streptomycin (15140-122), and FBS (16140071).
+//   Final concentration: 0.1 ng/mL for main single-dose dataset
+//   (n = 2113 cells). Multi-dose dataset: 0.005, 0.05, 0.5,
+//   5 ng/mL (n = 3456 cells total). (Materials and Methods, p. 8)
+//
+// ACTIVATION LABELING: NF-kB activation quantified as mean
+//   nuclear fluorescence intensity (background corrected).
+//   Peak analysis: MATLAB smooth + z-score normalization,
+//   then peak detection. Binary activation label: nuclear
+//   p65_peak - nuclear p65_(t=0) > 500 threshold. (Fig. S4A)
+//   Activated cells show complete cytoplasm-to-nucleus p65
+//   translocation in digital (switch-like) fashion. (Fig. 1D)
+//
+// MACHINE LEARNING: Image-based SVM (cubic kernel, 73% accuracy
+//   on full multi-dose dataset; 79.4% on single-dose independent
+//   validation set, n = 2113). 236 hand-crafted features per
+//   cell including nuclear p65-dsRed level, SD, phase texture
+//   (entropy, pixel correlation, information measure),
+//   Otsu dimension, SFTA. Top predictor: mean nuclear p65-dsRed
+//   prestimulation level (r = 0.62 with activation probability).
+//   (Results section, paper pp. 2-4; table S1; fig. S4)
+//
+// FIXED-CELL IMMUNOFLUORESCENCE: Validates IkBa/NF-kB ratio
+//   as activation probability determinant. Primary: rabbit
+//   polyclonal anti-IkB-alpha (ab7217). Secondary: goat
+//   polyclonal anti-rabbit IgG H&L Alexa Fluor 647 (G378361).
+//   Imaging at time point immediately preceding fixation (5 min
+//   before fixation) for UMAP alignment. (Materials and Methods)
+//
+// DURATION TOKENS: BioScript supports s and m only.
+//   No h token. 5 h culture = 300m. Overnight fibronectin
+//   coating = 720m. 1.5 h prestimulation imaging = 90m.
+//   6 h post-stimulation imaging = 360m.
+//
+// CFG STRUCTURE:
+//   BB1  main               -- device prep, cell seeding, culture,
+//                              prestimulation imaging, TNF stimulation,
+//                              post-stimulation imaging, QC detection
+//   BB2  activationPass     -- activationSignal > 0: NF-kB activated
+//                              (p65 peak threshold exceeded); proceed
+//                              to fixed-cell immunofluorescence
+//   BB3  activationFail     -- activationSignal <= 0: non-responding
+//                              cell; drain unstained cell droplet
+//   BB4  activationJoin     -- join: IkBa staining branch begins
+//   BB5  stainingPass       -- ifStainingSignal > 0: IkB/NF-kB ratio
+//                              quantified; dispose stained sample
+//   BB6  stainingFail       -- ifStainingSignal <= 0: staining failed;
+//                              drain stained sample
+//   BB7  finalCleanup       -- terminal: dispose QC signals; end
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Coat PDMS microfluidic chamber with fibronectin
+//         (FC010-10MG) overnight at room temperature to
+//         promote cell adhesion. Overnight = 720m (12 h;
+//         paper states "coated with fibronectin overnight").
+//         This models the surface functionalization step
+//         prior to cell loading.
+// ------------------------------------------------------------
+
+fibronectinSolution = dispense 1 units of FibronectinCoating
+coatedChamber       = mix fibronectinSolution with fibronectinSolution for 720m
+
+// ------------------------------------------------------------
+// STEP 2: Wash unbound fibronectin with PBS before cell
+//         seeding. 1-min PBS wash to remove excess coating.
+// ------------------------------------------------------------
+
+pbsWash1    = dispense 1 units of PBS
+chamberwash = mix coatedChamber with pbsWash1 for 1m
+
+// ------------------------------------------------------------
+// STEP 3: Seed NIH 3T3 p65-dsRed / H2B-GFP reporter cells
+//         into the fibronectin-coated microfluidic chamber.
+//         Density: ~20,000 cells/cm2. Cells taken at 100%
+//         confluence via 0.25% trypsin-ETDA (25200-056) for
+//         5 min before loading (off-chip; modelled as part
+//         of the cell dispense step here).
+//         Culture conditions: 5% CO2, 37 C, 5 h before
+//         stimulation (= 300m).
+// ------------------------------------------------------------
+
+cellSuspension  = dispense 1 units of NIH3T3_p65dsRed_H2BGFP_Cells
+seededChamber   = mix chamberwash with cellSuspension for 5s
+
+// 5-hour pre-stimulation culture at 37 C / 5% CO2.
+// Cells allowed to adhere and equilibrate to endogenous
+// p65-dsRed / H2B-GFP expression levels before imaging.
+heat seededChamber at 37c for 300m
+
+// ------------------------------------------------------------
+// STEP 4: Prestimulation imaging (1.5 h = 90m).
+//         Phase and fluorescence images captured every 5 min
+//         at 20x magnification. p65-dsRed (red) and H2B-GFP
+//         (green) channels acquired simultaneously.
+//         This unperturbed imaging window provides the input
+//         feature set for the SVM classifier (236 features
+//         per cell, including nuclear p65 level, texture,
+//         H2B morphology). Images fed to machine learning
+//         pipeline for prestimulation activation prediction.
+//         (Fig. 1C-E; Results section p. 2)
+//
+//         NOTE: mix models the imaging acquisition loop
+//         (repeated field-of-view capture over 90 min).
+//         No reagent mixing occurs at this step.
+// ------------------------------------------------------------
+
+pbsImaging      = dispense 1 units of PBS
+prestimImaging  = mix seededChamber with pbsImaging for 90m
+
+// ------------------------------------------------------------
+// STEP 5: TNF-alpha stimulation at 0.1 ng/mL.
+//         TNF-alpha diluted in FluoroBrite DMEM + 2x GlutaMAX
+//         + penicillin/streptomycin + FBS. Vial pressurized
+//         at 5 psi; stimulus delivered via PEEK microbore
+//         tubing. Stimulation marks t = 0 for all trace
+//         analyses. (Materials and Methods, paper p. 8)
+// ------------------------------------------------------------
+
+tnfStimulus     = dispense 1 units of FluoroBriteDMEM_TNFalpha
+stimulatedCells = mix prestimImaging with tnfStimulus for 2s
+
+// ------------------------------------------------------------
+// STEP 6: Post-stimulation live-cell imaging (6 h = 360m).
+//         Cells imaged every 5 min. Nuclear NF-kB (p65-dsRed)
+//         translocation tracked in real time per cell.
+//         Activated cells: rapid cytoplasm-to-nucleus p65
+//         translocation (digital / switch-like, within
+//         ~40 min of stimulation). Non-responding cells:
+//         no translocation, no target gene expression.
+//         Custom MATLAB scripts: background correction,
+//         smooth + z-score normalization, peak detection.
+//         Activation label: binary threshold on p65_peak
+//         - p65_(t=0) > 500. (Fig. 1C-D; Fig. S4A)
+// ------------------------------------------------------------
+
+heat stimulatedCells at 37c for 360m
+
+// ------------------------------------------------------------
+// STEP 7: NF-kB activation QC detection.
+//         nfkbActivationDetection module abstracts the MATLAB
+//         image analysis pipeline: nuclear segmentation,
+//         mean nuclear fluorescence extraction, peak height
+//         computation, and binary label assignment per cell.
+//         Detection window: 30 s (represents the final image
+//         analysis classification step at end of experiment).
+//         Signal > 0: activated cell (p65 peak exceeded
+//         threshold of 500; nuclear translocation confirmed).
+//         Signal <= 0: non-responding cell.
+// ------------------------------------------------------------
+
+activationSignal = detect nfkbActivationDetection on stimulatedCells for 30s
+
+// ============================================================
+// BB2 / BB3: Activation QC gate
+// Pass (BB2): activationSignal > 0 -> NF-kB activated cell
+//             identified; proceed to fixed-cell IF staining
+//             to validate IkB/NF-kB ratio hypothesis.
+// Fail (BB3): activationSignal <= 0 -> non-responding cell;
+//             drain (no downstream staining required).
+// Both branches converge at BB4 (activationJoin).
+// ============================================================
+
+if (activationSignal > 0) {
+    // --------------------------------------------------------
+    // STEP 8 (Pass path): Fix cells for immunofluorescence.
+    //   PBS rinse (1 min), then 4% paraformaldehyde (PFA)
+    //   fixation for 10 min at room temperature (25 C).
+    //   Fixation captures the cellular state immediately
+    //   before fixation (images taken at t = -5 min used
+    //   for UMAP alignment with live imaging data).
+    //   (Materials and Methods - Fixed-cell IF, paper p. 8)
+    // --------------------------------------------------------
+
+    pbsRinse        = dispense 1 units of PBS
+    rinsedCells     = mix stimulatedCells with pbsRinse for 1m
+
+    pfaSolution     = dispense 1 units of ParaformaldehydeFixative
+    fixedCells      = mix rinsedCells with pfaSolution for 10m
+
+    // --------------------------------------------------------
+    // STEP 9 (Pass path): Block and permeabilize.
+    //   10% BSA + 0.5% Triton X-100 in PBS for 1 h at
+    //   room temperature (25 C). Blocks non-specific antibody
+    //   binding and permeabilizes cell membranes to allow
+    //   access of antibodies to intracellular IkB-alpha.
+    // --------------------------------------------------------
+
+    blockingBuffer      = dispense 1 units of BlockingPermeabilizationBuffer
+    blockedCells        = mix fixedCells with blockingBuffer for 60m
+
+    // --------------------------------------------------------
+    // STEP 10 (Pass path): Primary antibody incubation.
+    //   Anti-IkB-alpha rabbit polyclonal (ab7217) in staining
+    //   solution (2% BSA + 0.1% Triton X-100 in PBS) for
+    //   1 h at 37 C. IkB-alpha is the main inhibitor of
+    //   NF-kB (p65), sequestering it in the cytoplasm of
+    //   unstimulated cells. The IkB/NF-kB ratio is the
+    //   primary molecular determinant of p65 leakiness and
+    //   thus activation probability (Fig. 4; Fig. 5).
+    // --------------------------------------------------------
+
+    primaryAntibody     = dispense 1 units of IkBa_PrimaryAntibody
+    primaryStained      = mix blockedCells with primaryAntibody for 60m
+    heat primaryStained at 37c for 60m
+
+    // --------------------------------------------------------
+    // STEP 11 (Pass path): PBS wash to remove unbound
+    //   primary antibody before secondary incubation.
+    // --------------------------------------------------------
+
+    pbsWash2            = dispense 1 units of PBS
+    washedCells         = mix primaryStained with pbsWash2 for 1m
+
+    // --------------------------------------------------------
+    // STEP 12 (Pass path): Secondary antibody incubation.
+    //   Goat polyclonal anti-rabbit IgG H&L Alexa Fluor 647
+    //   (G378361) in staining solution for 1 h at 37 C.
+    //   Alexa Fluor 647: excitation ~650 nm, emission ~668 nm.
+    //   Enables quantification of IkB-alpha protein levels
+    //   in nuclear and cytoplasmic compartments by
+    //   immunofluorescence for IkB/NF-kB ratio analysis.
+    //   (Materials and Methods; Fig. 5A-D, paper pp. 6-7)
+    // --------------------------------------------------------
+
+    secondaryAntibody   = dispense 1 units of AlexaFluor647_SecondaryAntibody
+    stainedCells        = mix washedCells with secondaryAntibody for 60m
+    heat stainedCells at 37c for 60m
+
+    dispose stainedCells
+} else {
+    drain stimulatedCells
+}
+
+// ============================================================
+// BB4: activationJoin
+// Dispose activation QC signal. Control falls into the
+// immunofluorescence staining QC branch (BB5/BB6).
+// ============================================================
+
+dispose activationSignal
+
+// ------------------------------------------------------------
+// STEP 13: Immunofluorescence staining QC detection.
+//   immunofluorescenceDetection module abstracts the image
+//   analysis step for fixed cells: nuclear and cytoplasmic
+//   segmentation of Alexa Fluor 647 signal (IkB-alpha),
+//   p65-dsRed channel quantification, and computation of
+//   the IkB/NF-kB ratio per cell.
+//   Validation outcome: significant inverse correlation
+//   between IkB/NF-kB ratio and leaky nuclear p65
+//   (rho = -0.256, P = 2.7e-11; Fig. 5C). Activated
+//   (high-scoring) fixed cells show significantly lower
+//   IkB/NF-kB ratio, higher nuclear NF-kB, and larger
+//   cellular area than inactive cells (Fig. 5D).
+// ------------------------------------------------------------
+
+pbsFinalWash        = dispense 1 units of PBS
+finalSample         = mix pbsFinalWash with pbsFinalWash for 1m
+
+ifStainingSignal    = detect immunofluorescenceDetection on finalSample for 30s
+
+// ============================================================
+// BB5 / BB6: Immunofluorescence staining QC gate
+// Pass (BB5): ifStainingSignal > 0 -> IkB/NF-kB ratio
+//             successfully quantified; dispose stained sample.
+// Fail (BB6): ifStainingSignal <= 0 -> staining failure
+//             (antibody issue or segmentation error); drain.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (ifStainingSignal > 0) {
+    dispose finalSample
+} else {
+    drain finalSample
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose immunofluorescence QC signal. Experiment ends.
+// ============================================================
+
+dispose ifStainingSignal
+
+// [terminal -- no further instructions; exit node for CFG]

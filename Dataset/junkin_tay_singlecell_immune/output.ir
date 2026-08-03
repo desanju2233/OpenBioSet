@@ -1,0 +1,43 @@
+bsbbif_2_t:
+	dispose(tnfExposure1[0])
+bsbbif_3_f:
+	dispose(tnfExposure1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(nfkbSignal1[0])
+	conditionedMedium1[0] = dispense(CultureMedia)
+	mediumSample1[0] = mix(conditionedMedium1[0], washStep1[0]) @ 30.0SECOND
+	captureBeads1[0] = dispense(BeadConjugatedAntibody)
+	beadCaptureMix1[0] = mix(mediumSample1[0], captureBeads1[0]) @ 5.0SECOND
+	heat(beadCaptureMix1[0]) @ 25.0CELSIUS @ 3600.0SECOND
+	detectionAntibody1[0] = dispense(FluorescentSandwichReagent)
+	sandwichComplex1[0] = mix(beadCaptureMix1[0], detectionAntibody1[0]) @ 5.0SECOND
+	heat(sandwichComplex1[0]) @ 25.0CELSIUS @ 1800.0SECOND
+	washBuf1[0] = dispense(WashBuffer)
+	washedBeads1[0] = mix(sandwichComplex1[0], washBuf1[0]) @ 300.0SECOND
+	secretionSignal1[0] = detect(cytokineSecretionDetection, washedBeads1[0]) @ 60.0SECOND
+	if secretionSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	primingBuffer1[0] = dispense(PBS_Buffer)
+	chamberWash1[0] = dispense(PBS_Buffer)
+	primingMix1[0] = mix(primingBuffer1[0], chamberWash1[0]) @ 300.0SECOND
+	macrophageCells1[0] = dispense(RAW264_7_Macrophage)
+	cellLoadingMedia1[0] = dispense(CultureMedia)
+	trappedCells1[0] = mix(macrophageCells1[0], cellLoadingMedia1[0]) @ 2.0SECOND
+	washStep1[0] = mix(trappedCells1[0], primingMix1[0]) @ 30.0SECOND
+	heat(washStep1[0]) @ 37.0CELSIUS @ 900.0SECOND
+	lpsStimulus1[0] = dispense(LPS_Stimulus)
+	lpsPulse1[0] = mix(washStep1[0], lpsStimulus1[0]) @ 60.0SECOND
+	tnfStimulus1[0] = dispense(TNF_Stimulus)
+	tnfExposure1[0] = mix(lpsPulse1[0], tnfStimulus1[0]) @ 3600.0SECOND
+	heat(tnfExposure1[0]) @ 37.0CELSIUS @ 14400.0SECOND
+	nfkbSignal1[0] = detect(nfkbActivationDetection, tnfExposure1[0]) @ 300.0SECOND
+	if nfkbSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(washedBeads1[0])
+bsbbif_6_f:
+	dispose(washedBeads1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(secretionSignal1[0])
+	NOP

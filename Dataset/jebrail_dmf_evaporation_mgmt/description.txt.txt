@@ -1,0 +1,275 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : A Solvent Replenishment Solution for Managing Evaporation of Biochemical Reactions in Air-Matrix Digital Microfluidics Devices
+Source Link  : https://www.osti.gov/servlets/purl/1225865
+Paper DOI    : https://doi.org/10.1039/c4lc00703d
+Journal      : Lab on a Chip, 2015 (Sandia National Laboratories, SAND2015-0066J)
+Platform     : Air-matrix digital microfluidics (DMF) on six-layer printed circuit board (PCB) with EWOD electrode array
+
+
+OVERVIEW
+--------
+This protocol describes a just-in-time solvent replenishment strategy for managing droplet evaporation
+in an air-matrix digital microfluidics (DMF) device, enabling reliable execution of biochemical
+reactions requiring high temperatures (up to 95 C) and extended incubation times (up to 1 h or more)
+without the use of an oil matrix, humidified chamber, or off-chip heating modules.
+
+The core innovation is periodic merging of pre-heated solvent droplets (nuclease-free water, 0.5 uL
+each) with the reaction droplet to restore volume lost to evaporation. Replenishing droplets are
+delivered via a PEEK tube through a drilled through-hole (0.8 mm ID) in the PCB bottom plate,
+controlled by a stepper-motor-driven syringe pump. Each replenishing droplet is transported to the
+edge of the thermal zone and pre-heated for 5 s before merging, minimising the temperature perturbation
+to the reaction droplet (<=1 C change on merging). Volume is replenished when the reaction droplet
+loses 15-20% of its target volume (monitored visually in the current device; future devices could use
+automated concentration or volume sensing with feedback control).
+
+Three representative biochemical reactions from a gene expression analysis workflow are demonstrated:
+
+  1. RNA Fragmentation
+     Human PBMC total RNA fragmented at 94 C for 3 min on the DMF device. Six 0.5 uL replenishing
+     water droplets added during incubation. Reaction terminated at 4 C with NEBNext stop solution.
+     DMF product size distribution (40-1000 nt, peak ~150 nt) indistinguishable from conventional
+     benchscale fragmentation.
+
+  2. First-Strand cDNA Synthesis (Peregrine Method)
+     Fragmented PBMC RNA converted to first-strand cDNA via the Peregrine template-switching approach
+     using SMARTScribe RT. Protocol involves sequential incubation steps at 65 C (2 min denaturation),
+     4 C (snap-cool), 25 C (3 min primer annealing), 42 C (1 min RT activation), 42 C (60 min
+     extension with primer PP_TS), and 70 C (5 min termination). Thirteen 0.5 uL replenishing water
+     droplets added in total (9 during the 42 C 60-min incubation; 4 during 70 C termination).
+     qPCR Ct values and ds-cDNA yields comparable to conventional benchscale (p=0.14, N=3).
+
+  3. PCR (M13mp18 template, 200 bp amplicon)
+     PCR amplification of a 200 bp region (positions 4905-5104) of bacteriophage M13mp18 ssDNA
+     using Hot Start Taq (doubled concentration) and thermal cycling between three zones:
+     95 C 45 s initial denaturation; 33 cycles of (95 C 20 s, 50 C 30 s, 68 C 45 s); 68 C 5 min
+     final extension. One 0.5 uL water replenishment added per cycle (33 total) after the 95 C
+     denaturation step (~45 min total experiment time). Correct 200 bp product confirmed by gel
+     electrophoresis; slightly reduced yield vs conventional PCR.
+
+The protocol is encoded as a single BioScript file with three sequential protocol arms each terminated
+by a QC detection gate, yielding a 10-block CFG.
+
+
+DEVICE ARCHITECTURE
+-------------------
+Substrate     : Six-layer PCB; copper electrodes (43 um) plated with nickel (185 um) and gold (3.6 um);
+                fabricated by World International PCB (Orange, CA) via photolithography and etching.
+Dielectric    : Soldermask, ~15 um thick.
+Hydrophobic   : 50 nm Teflon-AF (1% wt/wt in Fluorinert FC-40; 1500 rpm 30 s; baked 100 C 5 h);
+                applied to both top and bottom plates.
+Top plate     : Glass substrate coated with unpatterned ITO (Delta Technologies) + 50 nm Teflon-AF.
+Bottom plate  : 100 actuation electrodes (1.6 x 1.6 mm each); 6 reservoir electrodes (3.5 x 5.5 mm);
+                1 waste reservoir (5.2 x 5.5 mm); 80 um inter-electrode gaps.
+Gap spacing   : 185 um (RNA fragmentation and cDNA synthesis); 800 um (PCR).
+
+Thermal zones:
+  - 4 independently controlled TEC thermal zones; each spanning 6 actuation electrodes.
+  - Isolated by 1.0 x 7.0 mm voids machined into PCB substrate.
+  - TEC: Laird Technologies OT08-08-F0-0303; RTD: US Sensor PPG102A1.
+  - Attached with thermally conductive epoxy to gold-plated pads on PCB back side.
+  - Thermally coupled to front-side zone electrodes via drilled through-holes filled with
+    conductive epoxy.
+  - Temperature offset between RTD (back side) and droplet: 3.0 C (+/- 0.5 C); incorporated
+    into zone temperature programming as a compensation factor.
+  - Controller: custom PICAXE 14M2 board; PWM + polarity control for heating and cooling.
+  - Rapid temperature transitions achieved by shuttling reaction droplet between zones.
+
+Through-hole interface:
+  - 0.8 mm ID through-hole drilled in PCB bottom plate.
+  - 360/150 OD/ID PEEK tube (IDEX) inserted from back side; immobilised with custom fittings.
+  - Driven by stepper motor with computer-controlled electronic interface (Allmotion) via ASCII commands.
+  - Delivers replenishing solvent droplets from external syringe pump reservoir onto device surface.
+
+Actuation     : 80-100 Vrms, 18 kHz; function generator (Trek) + amplifier (Digi-Key).
+Imaging       : Olympus MVX10 microscope; QIClick digital camera (Qimaging); 35x26 mm2 FOV;
+                Streampix5 software (Norpix).
+Thermal imaging: ThermoProTM TP8 IR camera (Guide Infrared); 10 s equilibration before capture.
+
+
+REAGENTS
+--------
+
+Shared:
+  NucleaseFreeWater  : Nuclease-free distilled water (molecular biology grade); replenishing solvent
+                       in all three protocols. Dispensed from external syringe pump via through-hole.
+  PluronicF127       : 0.1% w/v in cDNA master mix (Sigma Chemical).
+
+RNA Fragmentation:
+  RNA_PBMC           : Human PBMC total RNA, 380 ng/uL; extracted with RNAzol + Direct-zol kit
+                       (Zymo Research); quantified on Qubit 2.0; stored at -80 C.
+                       Source: 5-10e6 cells centrifuged 1000 rpm 4 C 5 min; 1 mL RNAzol +
+                       400 uL water; 15 min RT; 16000 rpm 4 C 15 min; aqueous phase 1:1 EtOH;
+                       Direct-zol purification; eluted 10 uL nuclease-free water.
+  FragmentationBuffer: 10X NEBNext RNA fragmentation buffer (New England Biolabs).
+  StopSolution       : NEBNext stop solution (New England Biolabs).
+
+cDNA Synthesis (Peregrine Method):
+  RNA_PBMC           : Pre-fragmented human PBMC total RNA, 100 ng per 0.5 uL reaction droplet.
+  PrimerPP_RT        : Primer PP_RT, 25 mM.
+  MasterMixCDNA      : 45% SMARTScribe 5X First-Strand Buffer (Clontech) + 5.5% 20 mM DTT +
+                       22% 10 mM dNTP mix + 5.5% RiboGuard RNase inhibitor (Epicentre) +
+                       22% SMARTScribe Reverse Transcriptase (Clontech) + 0.1% w/v Pluronic F-127.
+  PrimerPP_TS        : Primer PP_TS, 12 mM.
+  Purification       : AMPure XP beads (Beckman Coulter Genomics), 1.8X volumes, eluted 10-20 uL.
+  qPCR primers       : PP_P1 (5'-CAGGACGCTGTTCCGTTCTATGGG-3') and PP_P2 (5'-CAGACGTGTGCTCTTCCGATCT-3').
+
+PCR:
+  PCRMasterMix       : Hot Start Taq 2X Master Mix (NEB) + 0.025 U/uL additional Hot Start Taq (NEB)
+                       to double Taq concentration.
+  PCRPrimers         : Forward TGTTAATACTGACCGCCTCAC + Reverse CAGTAATAAAAGGGACATTCTGGC;
+                       target M13mp18 positions 4905-5104 (200 bp amplicon; GenBank X02513.1);
+                       equimolar mix, 4 uM per primer in 4X stock; 2 uM final concentration.
+  M13mp18_Template   : Bacteriophage M13mp18 ssDNA (NEB), 250 pg/uL in nuclease-free water.
+  Reservoir volumes  : 4 uL master mix; 2 uL primers; 2 uL template.
+
+
+PROTOCOL STEPS
+--------------
+
+=== PROTOCOL 1: RNA Fragmentation ===
+
+Step 1 | Dispense reagents
+  Inputs   : 3 x 0.5 uL RNA_PBMC (380 ng/uL); 1 x 0.5 uL 10X NEBNext fragmentation buffer
+  Operation: dispense from respective reservoirs (reservoir volume 3.6 uL each)
+
+Step 2 | Merge into reaction droplet
+  Operation: sequential mix; rna1 + rna2 (10 s), + rna3 (10 s), + fragBuffer (10 s)
+  Result   : 2 uL reaction droplet; transported to thermal zone
+
+Step 3 | Thermal fragmentation
+  Operation: heat at 94 C for 180 s
+  Notes    : Without replenishment, droplet dries completely in <2 min at 94 C
+
+Step 4 | Evaporation replenishment (6 water droplets)
+  Operation: 6 x (dispense 0.5 uL NucleaseFreeWater + mix 5 s)
+  Notes    : Each droplet pre-heated at zone edge 5 s before merge; volume maintained <=20% variation;
+             temperature perturbation <=1 C per replenishment
+
+Step 5 | Termination
+  Operation: heat at 4 C for 30 s (droplet shuttled to cold zone); then dispense 0.5 uL StopSolution +
+             mix 5 s
+  Notes    : Stop solution terminates fragmentation reaction
+
+Step 6 | QC detection
+  Module   : rnaFragmentationDetection
+  Duration : 30 s
+  Expected : Fragments 40-1000 nt, peak ~150 nt; no 18S (1868 nt) or 28S (5025 nt) rRNA peaks
+  Off-chip : Zymo RNA Clean + Concentrator-5 purification; Agilent 2100 Bioanalyzer RNA Nano 6000 Chip
+  Gate     : rnaSignal > 0 -> dispose (BB2); rnaSignal <= 0 -> drain (BB3)
+  Join     : BB4
+
+=== PROTOCOL 2: First-Strand cDNA Synthesis (Peregrine Method) ===
+
+Step 7 | Dispense and merge RNA + primer PP_RT (Step A)
+  Inputs   : 0.5 uL fragmented RNA_PBMC (100 ng); 0.5 uL PrimerPP_RT (25 mM)
+  Operation: dispense; mix 10 s -> 1 uL droplet
+  Notes    : Begins Peregrine template-switching cDNA synthesis
+
+Step 8 | Denaturation and snap-cool (Step A cont.)
+  Operation: heat 65 C 120 s (denaturation); heat 4 C 30 s (snap-cool)
+  Notes    : Droplet shuttled between thermal zones for rapid transition
+
+Step 9 | Merge master mix and incubate (Step B)
+  Inputs   : 3 x 0.5 uL MasterMixCDNA
+  Operation: dispense mm1, mm2, mm3; mix mm1+mm2 (5 s); mix + mm3 (5 s); mix into cdnaRxn (10 s)
+  Then     : heat 25 C 180 s (primer annealing); heat 42 C 60 s (RT activation)
+
+Step 10 | Merge primer PP_TS and extend (Step C)
+  Input    : 0.5 uL PrimerPP_TS (12 mM)
+  Operation: dispense + mix 5 s; heat 42 C 3600 s
+  Replenishment: 9 x (dispense 0.5 uL NucleaseFreeWater + mix 5 s) during incubation
+
+Step 11 | Termination (Step D)
+  Operation: heat 70 C 300 s
+  Replenishment: 4 x (dispense 0.5 uL NucleaseFreeWater + mix 5 s) during incubation
+  Notes    : Inactivates SMARTScribe RT; 13 replenishments total across cDNA synthesis protocol
+
+Step 12 | QC detection
+  Module   : cdnaSynthesisDetection
+  Duration : 30 s
+  Expected : Ct comparable to conventional benchscale (p=0.14, N=3); equivalent ds-cDNA yield and size
+  Off-chip : AMPure XP bead purification; qPCR Ct assay (SsoFast EvaGreen, CFX96, Bio-Rad);
+             Bioanalyzer High Sensitivity DNA Assay Chip
+  Gate     : cdnaSignal > 0 -> dispose (BB5); cdnaSignal <= 0 -> drain (BB6)
+  Join     : BB7
+
+=== PROTOCOL 3: PCR (M13mp18, 200 bp amplicon) ===
+
+Step 13 | Dispense and merge PCR reagents
+  Inputs   : 0.5 uL PCRMasterMix; 0.5 uL PCRPrimers; 0.5 uL M13mp18_Template
+  Operation: dispense; mix master mix + primers (5 s); mix + template (5 s) -> 1.5 uL reaction droplet
+
+Step 14 | Initial denaturation
+  Operation: heat 95 C 45 s
+  Purpose  : Hot Start Taq polymerase activation
+
+Step 15 | 33 PCR cycles with per-cycle replenishment
+  Cycle profile per cycle:
+    Denaturation : 95 C, 20 s
+    Replenishment: dispense 0.5 uL NucleaseFreeWater + mix 5 s (after denaturation, before annealing)
+    Annealing    : 50 C, 30 s
+    Extension    : 68 C, 45 s
+  Total cycles     : 33
+  Total water drops: 33 (one per cycle, added after denaturation step as in paper M&M)
+  Note             : BioScript has no loop construct; all 33 cycles fully unrolled in source
+
+Step 16 | Final extension
+  Operation: heat 68 C 300 s
+  Purpose  : Completion of partially extended amplicons
+
+Step 17 | QC detection
+  Module   : pcrProductDetection
+  Duration : 30 s
+  Expected : Single band at 200 bp; slightly reduced yield vs conventional PCR acceptable
+  Off-chip : 2% agarose gel electrophoresis (E-Gel system, Life Technologies)
+  Gate     : pcrSignal > 0 -> dispose (BB8); pcrSignal <= 0 -> drain (BB9)
+  Join     : BB10 (terminal; dispose pcrSignal)
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file    : jebrail_dmf_evaporation_mgmt.bs
+Compiler          : lilott8/BioScript (ANTLR4-based)
+IR output         : 10 basic blocks (BB1-BB10), 3 if/else gates, 12 CFG edges
+DAG               : jebrail_dmf_evaporation_mgmt_main_dag.dot
+
+Duration encoding : All durations use s (seconds) or m (minutes); h token unsupported by compiler.
+                    3 min  -> 180s   (RNA fragmentation at 94 C)
+                    2 min  -> 120s   (cDNA denaturation at 65 C)
+                    1 h    -> 3600s  (cDNA extension at 42 C)
+                    5 min  -> 300s   (cDNA termination at 70 C; PCR final extension)
+
+Evaporation replenishment abstraction:
+  Each just-in-time replenishment event is encoded as:
+    wN = dispense 1 units of NucleaseFreeWater
+    rxnVar = mix rxnVar with wN for 5s
+  Variable reassignment (rxnVar = mix rxnVar with wN) correctly tracks fluid ownership through
+  each sequential merge. The 5 s mix duration abstracts: (1) dispensing from syringe pump via
+  through-hole; (2) transport to thermal zone edge; (3) pre-heating; (4) merge with reaction droplet.
+  Total replenishment events: 6 (RNA) + 13 (cDNA) + 33 (PCR) = 52 events across the full file.
+
+PCR cycle unrolling:
+  BioScript has no loop primitive. All 33 cycles are fully unrolled as sequential heat/dispense/mix
+  blocks. This yields a linear CFG for the PCR section rather than a cyclic graph, which correctly
+  captures the sequential electrode actuation and thermal zone shuttle schedule.
+
+heat statement semantics:
+  `heat` is void/in-place in BioScript; the fluid variable is NOT consumed and persists after the
+  statement. All downstream operations correctly reuse the same variable post-heat.
+
+dispose/drain pattern:
+  True branches (QC pass) use `dispose`; else branches (QC fail) use `drain` throughout.
+  Known compiler behaviour: `drain` is lowered to `dispose()` in IR output due to visitStore
+  routing in the compiler. The .bs source is correct; only IR lowering is affected.
+
+Known compiler limitations (consistent with all other dataset entries):
+  1. drain -> dispose lowering in IR (bsbbif_3_f, bsbbif_6_f, bsbbif_9_f): expected behaviour.
+  2. True-branch blocks (bsbbif_2_t, bsbbif_5_t, bsbbif_8_t) emit no unconditional jump in IR
+     text; DOT edges are correct. Known missing-jump-in-true-branch limitation.
+
+Modules declared:
+  rnaFragmentationDetection  : Agilent 2100 Bioanalyzer RNA Nano 6000 Chip readout
+  cdnaSynthesisDetection     : qPCR Ct assay + Bioanalyzer High Sensitivity DNA Assay Chip
+  pcrProductDetection        : Gel electrophoresis (2% agarose E-Gel), 200 bp band

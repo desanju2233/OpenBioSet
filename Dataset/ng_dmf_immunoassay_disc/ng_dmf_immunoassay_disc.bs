@@ -1,0 +1,582 @@
+module chemiluminescenceDetection
+module phosphoProteinDetection
+
+manifest MagneticParticles_TSH
+manifest MagneticParticles_E2
+manifest SampleAnalyte_TSH
+manifest SampleAnalyte_E2
+manifest AntiTSH_HRP_Conjugate
+manifest E2_HRP_Conjugate
+manifest WashBuffer
+manifest H2O2_Peroxide
+manifest Luminol_Enhancer
+manifest Cells_NIH3T3
+manifest CultureMedia
+manifest StarvingMedia
+manifest SerumFreeMedia
+manifest PDGF_BB_Ligand
+manifest FixingSolution
+manifest WashBuffer1
+manifest WashBuffer2
+manifest BlockingSolution
+manifest PermeabilizationSolution
+manifest PrimaryAntibody_Akt
+manifest SecondaryAntibody
+
+// ============================================================
+// Development of Digital Microfluidic Heterogeneous
+// Immunoassays
+// Alphonsus H.C. Ng - PhD Thesis, University of Toronto, 2015
+//
+// Two protocols are encoded in sequence:
+//
+// PROTOCOL 1: DMF Magnetic Particle-Based Immunoassay
+//   (Chapter 2 -- Thyroid-Stimulating Hormone [TSH] and
+//   17beta-Estradiol [E2] immunoassays using supernatant
+//   separation washing on a two-plate DMF device operated
+//   in air with Pluronic L64 additive.)
+//
+//   Eight-step protocol:
+//     Step 1: Dispense and separate magnetic particles
+//             from diluent (supernatant separation method).
+//     Step 2: Merge 3 droplets of sample with particles;
+//             incubate 6 min (TSH: sandwich/non-competitive;
+//             E2: competitive).
+//     Step 3: Wash particles 4x in wash buffer;
+//             separate supernatant each time.
+//     Step 4: Merge 1 droplet of conjugate (Anti-TSH-HRP
+//             or E2-HRP); incubate 2 min.
+//     Step 5: Wash particles 4x in wash buffer;
+//             wash 2x in H2O2; separate supernatant.
+//     Step 6: Merge 1 droplet H2O2; incubate 2 min.
+//     Step 7: Merge 1 droplet luminol/enhancer; mix.
+//     Step 8: Incubate 1 min; detect chemiluminescence.
+//   Actuation: ~150 Vrms, 10 kHz, air-surrounded droplets.
+//   Unit droplet volume: ~800 nL.
+//   Particle density: ~3.0e8 particles/mL.
+//
+// PROTOCOL 2: DISC -- Digital Microfluidic
+//   Immunocytochemistry in Single Cells (Chapter 5)
+//   NIH 3T3 cells stimulated with PDGF-BB (50 ng/mL for
+//   2 min), then fixed and probed for phospho-Akt (S473)
+//   and total Akt via two-antibody ICC on-chip.
+//
+//   Eleven-step protocol (DISC standard):
+//     Step 1: Seed cells (3 unit droplets, ~400 nL VM).
+//             Incubate 24 h at 37 C.
+//     Step 2: Starve cells in starving media (24 h, 37 C).
+//     Step 3: Rinse with serum-free DMEM.
+//     Step 4: Stimulate with PDGF-BB (50 ng/mL, 2 min).
+//     Step 5: Fix with 4% paraformaldehyde (10 min).
+//     Step 6: Rinse with WB1.
+//     Step 7: Permeabilize with 0.2% Tween-20 (10 min).
+//     Step 8: Rinse with WB2.
+//     Step 9: Block with 1% NFDM in DPBS (1 h).
+//     Step 10: Stain with primary antibodies
+//              (pan-Akt + p-Akt S473; overnight, 4 C).
+//     Step 11: Rinse unbound primary antibodies (WB2).
+//     Step 12: Stain with secondary antibodies (2 h).
+//     Step 13: Detect phosphoprotein signal.
+//   Virtual microwell (VM) volume: ~400 nL.
+//   Actuation: 80-100 Vrms, 10 kHz.
+//
+// NOTE ON SUPERNATANT SEPARATION (Protocol 1):
+//   `mix` steps in the wash loop abstract the DMF magnet
+//   actuation sequence: (a) magnet immobilises pellet,
+//   (b) supernatant droplet is actuated to waste, (c)
+//   magnet removed, (d) fresh droplet passed over pellet,
+//   (e) droplet shuttled circularly to resuspend particles.
+//   This outperforms the serial-dilution method, achieving
+//   >98% unbound reagent removal in 2 washes (paper Fig 2.4C).
+//
+// NOTE ON PASSIVE DISPENSING (Protocol 2):
+//   DISC relies on passive dispensing over lift-off spots
+//   (hydrophilic ITO pads) to form virtual microwells.
+//   `mix` steps throughout Protocol 2 abstract each passive
+//   dispense event -- the source droplet is translated across
+//   the vacant lift-off spot and a sub-droplet is captured
+//   by hydrophilic-hydrophobic contrast. One exchange
+//   removes ~93% of the prior solution; two exchanges >99%.
+//
+// CFG STRUCTURE:
+//   BB1  main                 -- Protocol 1 entry: particle
+//                               dispense through sample incubation
+//   BB2  washLoop1            -- 4x wash after sample (pass)
+//   BB3  washFail1            -- wash signal <= 0, drain
+//   BB4  washJoin1            -- join: conjugate incubation
+//   BB5  washLoop2            -- 4x wash after conjugate + 2x H2O2
+//   BB6  washFail2            -- wash signal <= 0, drain
+//   BB7  washJoin2            -- join: substrate activation
+//   BB8  detectionPass        -- chemiluminescence detected
+//   BB9  detectionFail        -- no signal, drain
+//   BB10 discMain             -- Protocol 2 entry: cell seeding
+//                               through permeabilization
+//   BB11 stainPass            -- phospho signal > 0, dispose
+//   BB12 stainFail            -- no signal, drain
+//   BB13 finalCleanup         -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// PROTOCOL 1: DMF MAGNETIC PARTICLE IMMUNOASSAY (Chapter 2)
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Dispense magnetic particle suspension (~800 nL) from
+//   reservoir. Magnet positioned beneath device immobilises
+//   the pellet (~470 uN magnetic force, Fig 2.2C). The
+//   ARCHITECT particle diluent (supernatant) is separated by
+//   actuating it to waste, leaving the pellet behind.
+//   Particles were pre-processed off-chip: washed 2x DI water,
+//   blocked with NFDM (TSH only), resuspended at 3.0e8/mL in
+//   DMF-compatible particle diluent (pH 10, Tris/NaCl/BSA/L64).
+//   NOTE: `mix` here abstracts the supernatant separation step
+//   (magnet on -> actuate supernatant -> magnet off -> rinse).
+// ------------------------------------------------------------
+
+particleDrop     = dispense 1 units of MagneticParticles_TSH
+diluent          = dispense 1 units of WashBuffer
+
+// Supernatant separation: magnet pellets particles;
+// diluent is actuated away to waste; particle pellet remains.
+particlePellet   = mix particleDrop with diluent for 5s
+dispose diluent
+
+// ------------------------------------------------------------
+// STEP 2: Merge 3 droplets of sample analyte with particle
+//   pellet (one at a time, as in paper Fig 2.5A).
+//   Incubate 6 min during circular shuttling mixing (4 electrodes).
+//   TSH non-competitive: analyte forms sandwich with capture
+//   Ab on particle and Anti-TSH-HRP conjugate.
+//   E2 competitive: E2-HRP competes with analyte for Anti-E2
+//   capture Ab sites; higher analyte -> lower signal.
+// ------------------------------------------------------------
+
+sampleDrop1      = dispense 1 units of SampleAnalyte_TSH
+sampleDrop2      = dispense 1 units of SampleAnalyte_TSH
+sampleDrop3      = dispense 1 units of SampleAnalyte_TSH
+
+sampleMix1       = mix particlePellet with sampleDrop1 for 2m
+sampleMix2       = mix sampleMix1 with sampleDrop2 for 2m
+sampleIncubated  = mix sampleMix2 with sampleDrop3 for 2m
+
+// ------------------------------------------------------------
+// STEP 3: Wash particles 4x in wash buffer using supernatant
+//   separation method.
+//   Wash buffer (pH 7.7): Tris-base/Tris-HCl/NaCl/L64 0.05%.
+//   Each wash: magnet on -> actuate supernatant -> magnet off
+//   -> dispense wash buffer -> circularly mix to resuspend.
+//   >98% unbound reagent removed by wash 2 (Fig 2.4C).
+// ------------------------------------------------------------
+
+wash1Drop        = dispense 1 units of WashBuffer
+wash2Drop        = dispense 1 units of WashBuffer
+wash3Drop        = dispense 1 units of WashBuffer
+wash4Drop        = dispense 1 units of WashBuffer
+
+washed1          = mix sampleIncubated with wash1Drop for 5s
+dispose wash1Drop
+washed2          = mix washed1 with wash2Drop for 5s
+dispose wash2Drop
+washed3          = mix washed2 with wash3Drop for 5s
+dispose wash3Drop
+washed4          = mix washed3 with wash4Drop for 5s
+
+// QC gate: check wash efficiency proxy signal.
+washSignal1      = detect chemiluminescenceDetection on washed4 for 5s
+
+// ============================================================
+// BB2 / BB3: Wash QC Gate #1
+// Pass (BB2): washSignal1 > 0 -> particles washed, continue.
+// Fail (BB3): washSignal1 <= 0 -> separation failure, drain.
+// Both converge at BB4 (washJoin1).
+// ============================================================
+
+if (washSignal1 > 0) {
+    dispose washed4
+} else {
+    drain washed4
+}
+
+// ============================================================
+// BB4: washJoin1
+// Dispose wash QC signal; proceed to conjugate incubation.
+// ============================================================
+
+dispose washSignal1
+
+// ------------------------------------------------------------
+// STEP 4: Merge 1 droplet of conjugate solution with particle
+//   pellet. Incubate 2 min.
+//   TSH: Anti-TSH-HRP (2 ug/mL in conjugate diluent).
+//   E2: E2-HRP (1 ug/mL in conjugate diluent).
+//   Conjugate diluent (pH 7.4): Tris/NaCl/BSA/gelatin/L64.
+// ------------------------------------------------------------
+
+pelletAfterWash1 = dispense 1 units of MagneticParticles_TSH
+conjugateDrop    = dispense 1 units of AntiTSH_HRP_Conjugate
+conjugateMix     = mix pelletAfterWash1 with conjugateDrop for 2m
+
+// ------------------------------------------------------------
+// STEP 5: Wash 4x in wash buffer then 2x in H2O2.
+//   Two H2O2 wash steps flush residual wash buffer and prevent
+//   cross-contamination with luminol/enhancer.
+//   (Paper protocol: replaces pre-mixing H2O2/luminol off-chip.)
+// ------------------------------------------------------------
+
+cwash1Drop       = dispense 1 units of WashBuffer
+cwash2Drop       = dispense 1 units of WashBuffer
+cwash3Drop       = dispense 1 units of WashBuffer
+cwash4Drop       = dispense 1 units of WashBuffer
+h2o2wash1        = dispense 1 units of H2O2_Peroxide
+h2o2wash2        = dispense 1 units of H2O2_Peroxide
+
+cwashed1         = mix conjugateMix with cwash1Drop for 5s
+dispose cwash1Drop
+cwashed2         = mix cwashed1 with cwash2Drop for 5s
+dispose cwash2Drop
+cwashed3         = mix cwashed2 with cwash3Drop for 5s
+dispose cwash3Drop
+cwashed4         = mix cwashed3 with cwash4Drop for 5s
+dispose cwash4Drop
+h2oWashed1       = mix cwashed4 with h2o2wash1 for 5s
+dispose h2o2wash1
+h2oWashed2       = mix h2oWashed1 with h2o2wash2 for 5s
+
+// QC gate: check background after conjugate wash.
+washSignal2      = detect chemiluminescenceDetection on h2oWashed2 for 5s
+
+// ============================================================
+// BB5 / BB6: Wash QC Gate #2
+// Pass (BB5): washSignal2 > 0 -> conjugate removed, continue.
+// Fail (BB6): washSignal2 <= 0 -> wash failure, drain.
+// Both converge at BB7 (washJoin2).
+// ============================================================
+
+if (washSignal2 > 0) {
+    dispose h2oWashed2
+} else {
+    drain h2oWashed2
+}
+
+// ============================================================
+// BB7: washJoin2
+// Dispose wash QC signal #2; proceed to substrate activation.
+// ============================================================
+
+dispose washSignal2
+
+// ------------------------------------------------------------
+// STEP 6: Reconstitute particle pellet in 1 droplet of H2O2.
+//   Incubate 2 min. HRP on conjugate catalyzes H2O2 reduction;
+//   particles moved to detection region (96-well plate format).
+// ------------------------------------------------------------
+
+pelletAfterWash2 = dispense 1 units of MagneticParticles_TSH
+h2o2Substrate    = dispense 1 units of H2O2_Peroxide
+h2o2Incubated    = mix pelletAfterWash2 with h2o2Substrate for 2m
+
+// ------------------------------------------------------------
+// STEP 7: Merge 1 droplet luminol/enhancer solution.
+//   On-chip mixing (circular shuttling, 4 electrodes) activates
+//   enzymatic chemiluminescence immediately before detection.
+//   (Alternative to off-chip premixing, which had high CV.)
+// ------------------------------------------------------------
+
+luminolDrop      = dispense 1 units of Luminol_Enhancer
+reactionMix      = mix h2o2Incubated with luminolDrop for 5s
+
+// ------------------------------------------------------------
+// STEP 8: Incubate 1 min; detect chemiluminescence.
+//   Device affixed to empty 96-well Stripwell plate; droplet
+//   aligned to well. PHERAstar reader: LUM module,
+//   focal height 8.6 mm, gain 3600.
+//   Signal saturates at 1 min -> measurement endpoint.
+// ------------------------------------------------------------
+
+heat reactionMix at 25c for 60s
+
+assaySignal = detect chemiluminescenceDetection on reactionMix for 60s
+
+// ============================================================
+// BB8 / BB9: Immunoassay Detection Gate
+// Pass (BB8): assaySignal > 0 -> valid chemiluminescence;
+//             dispose, proceed to Protocol 2 (DISC).
+// Fail (BB9): assaySignal <= 0 -> no signal; drain.
+// Both converge at BB10 (discMain).
+// ============================================================
+
+if (assaySignal > 0) {
+    dispose reactionMix
+} else {
+    drain reactionMix
+}
+
+// ============================================================
+// PROTOCOL 2: DISC -- DIGITAL MICROFLUIDIC
+// IMMUNOCYTOCHEMISTRY IN SINGLE CELLS (Chapter 5)
+// ============================================================
+
+// ============================================================
+// BB10: discMain
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1 (DISC): Seed NIH 3T3 cells onto DMF device top plate.
+//   3 unit droplets (2.7 uL total) passively dispensed over
+//   each lift-off spot, forming a ~400 nL virtual microwell.
+//   Cell density: 500,000 cells/mL -> ~150-300 cells/VM.
+//   Device inverted; incubate 24 h at 37 C in humidified
+//   chamber to allow cell adhesion to hydrophilic ITO sites.
+//   NOTE: `mix` abstracts passive dispensing over the lift-off
+//   spot; not electrode-driven mixing in the DMF sense.
+// ------------------------------------------------------------
+
+cellDrop1        = dispense 1 units of Cells_NIH3T3
+cellDrop2        = dispense 1 units of Cells_NIH3T3
+cellDrop3        = dispense 1 units of Cells_NIH3T3
+mediaDrop1       = dispense 1 units of CultureMedia
+
+cellSeed1        = mix cellDrop1 with mediaDrop1 for 5s
+cellSeed2        = mix cellSeed1 with cellDrop2 for 5s
+virtualMicrowell = mix cellSeed2 with cellDrop3 for 5s
+
+// 24 h adhesion incubation at 37 C (= 1440 min).
+heat virtualMicrowell at 37c for 1440m
+
+// ------------------------------------------------------------
+// STEP 2 (DISC): Starve cells to remove serum growth factors.
+//   Starving media: 0.5% serum + 0.05% Pluronic F68 in DMEM.
+//   5.4 uL (3 unit droplets passively dispensed) per VM.
+//   Incubate 24 h at 37 C. Serum starvation synchronizes
+//   basal PDGFR/Akt activity prior to PDGF-BB stimulation.
+// ------------------------------------------------------------
+
+starveDrop1      = dispense 1 units of StarvingMedia
+starveDrop2      = dispense 1 units of StarvingMedia
+starveDrop3      = dispense 1 units of StarvingMedia
+
+starve1          = mix virtualMicrowell with starveDrop1 for 5s
+starve2          = mix starve1 with starveDrop2 for 5s
+starvedCells     = mix starve2 with starveDrop3 for 5s
+
+// 24 h starvation at 37 C (= 1440 min).
+heat starvedCells at 37c for 1440m
+
+// ------------------------------------------------------------
+// STEP 3 (DISC): Rinse starving media with serum-free DMEM.
+//   5.4 uL (3 unit droplets) per VM. One passive dispense
+//   exchange removes ~93% of prior solution (Fig 5.2B);
+//   three exchanges effectively clear starving media.
+//   Serum-free DMEM: 0.05% F68, no serum, no growth factors.
+// ------------------------------------------------------------
+
+sfDrop1          = dispense 1 units of SerumFreeMedia
+sfDrop2          = dispense 1 units of SerumFreeMedia
+sfDrop3          = dispense 1 units of SerumFreeMedia
+
+sfRinse1         = mix starvedCells with sfDrop1 for 5s
+sfRinse2         = mix sfRinse1 with sfDrop2 for 5s
+rinsedCells      = mix sfRinse2 with sfDrop3 for 5s
+
+// ------------------------------------------------------------
+// STEP 4 (DISC): Stimulate cells with PDGF-BB (50 ng/mL).
+//   2 unit droplets (1.8 uL) passively dispensed per VM.
+//   Incubation: 2 min for PDGFR phosphorylation; 5 min for
+//   Akt phosphorylation (this protocol targets Akt).
+//   Dose-response: half-maximal at ~12.5 ng/mL (Hill n~1.73).
+//   At 50 ng/mL: maximal PDGFR and Akt phosphorylation.
+//   NOTE: DISC achieves ~4 s between stimulation and fixing
+//   (Fig 5.2A), enabling sub-minute temporal resolution.
+// ------------------------------------------------------------
+
+pdgfDrop1        = dispense 1 units of PDGF_BB_Ligand
+pdgfDrop2        = dispense 1 units of PDGF_BB_Ligand
+
+stimulated1      = mix rinsedCells with pdgfDrop1 for 5s
+stimulatedCells  = mix stimulated1 with pdgfDrop2 for 5m
+
+// ------------------------------------------------------------
+// STEP 5 (DISC): Fix cells immediately after stimulation.
+//   2.7 uL of fixing solution (FS): 4% paraformaldehyde +
+//   0.05% Pluronic F68 in DPBS. Incubate 10 min at room temp.
+//   Rapid fixation (<4 s switch) preserves transient
+//   phosphorylation state at the stimulation endpoint.
+// ------------------------------------------------------------
+
+fixDrop1         = dispense 1 units of FixingSolution
+fixDrop2         = dispense 1 units of FixingSolution
+fixDrop3         = dispense 1 units of FixingSolution
+
+fix1             = mix stimulatedCells with fixDrop1 for 5s
+fix2             = mix fix1 with fixDrop2 for 5s
+fixedCells       = mix fix2 with fixDrop3 for 10m
+
+// ------------------------------------------------------------
+// STEP 6 (DISC): Rinse fixing solution with WB1.
+//   5.4 uL (3 unit droplets) of WB1 (0.05% Pluronic F68 in
+//   DPBS). Removes residual paraformaldehyde before
+//   permeabilization.
+// ------------------------------------------------------------
+
+wb1Drop1         = dispense 1 units of WashBuffer1
+wb1Drop2         = dispense 1 units of WashBuffer1
+wb1Drop3         = dispense 1 units of WashBuffer1
+
+wb1Rinse1        = mix fixedCells with wb1Drop1 for 5s
+wb1Rinse2        = mix wb1Rinse1 with wb1Drop2 for 5s
+rinsedFixed      = mix wb1Rinse2 with wb1Drop3 for 5s
+
+// ------------------------------------------------------------
+// STEP 7 (DISC): Permeabilize cells.
+//   2.7 uL permeabilization solution (PS): 0.2% Tween-20 in
+//   DPBS. Incubate 10 min at room temperature.
+//   Tween-20 disrupts lipid membranes, enabling intracellular
+//   antibody access to phospho-Akt (S473) and total Akt.
+// ------------------------------------------------------------
+
+permDrop1        = dispense 1 units of PermeabilizationSolution
+permDrop2        = dispense 1 units of PermeabilizationSolution
+permDrop3        = dispense 1 units of PermeabilizationSolution
+
+perm1            = mix rinsedFixed with permDrop1 for 5s
+perm2            = mix perm1 with permDrop2 for 5s
+permCells        = mix perm2 with permDrop3 for 10m
+
+// ------------------------------------------------------------
+// STEP 8 (DISC): Rinse with WB2.
+//   8.1 uL (4.5 unit droplets, rounded to 4 dispensed here)
+//   of WB2 (0.05% Brij 35 in DPBS). Brij 35 is used post-
+//   permeabilization to maintain membrane permeability
+//   without over-solubilizing intracellular structures.
+// ------------------------------------------------------------
+
+wb2Drop1         = dispense 1 units of WashBuffer2
+wb2Drop2         = dispense 1 units of WashBuffer2
+wb2Drop3         = dispense 1 units of WashBuffer2
+wb2Drop4         = dispense 1 units of WashBuffer2
+
+wb2Rinse1        = mix permCells with wb2Drop1 for 5s
+wb2Rinse2        = mix wb2Rinse1 with wb2Drop2 for 5s
+wb2Rinse3        = mix wb2Rinse2 with wb2Drop3 for 5s
+rinsedPerm       = mix wb2Rinse3 with wb2Drop4 for 5s
+
+// ------------------------------------------------------------
+// STEP 9 (DISC): Block cells.
+//   2.7 uL blocking solution (BS): 1% bovine non-fat dried
+//   milk (NFDM) + 0.05% Brij 35 in DPBS.
+//   Incubate 1 h at room temperature. Blocks non-specific
+//   antibody binding sites on fixed, permeabilized cells.
+// ------------------------------------------------------------
+
+blockDrop1       = dispense 1 units of BlockingSolution
+blockDrop2       = dispense 1 units of BlockingSolution
+blockDrop3       = dispense 1 units of BlockingSolution
+
+block1           = mix rinsedPerm with blockDrop1 for 5s
+block2           = mix block1 with blockDrop2 for 5s
+blockedCells     = mix block2 with blockDrop3 for 60m
+
+// ------------------------------------------------------------
+// STEP 10 (DISC): Primary antibody staining.
+//   2.7 uL of primary antibody solution in BS:
+//     - Pan Akt (Mouse mAb, 1:50, CST): detects total Akt.
+//     - p-Akt S473 (Rabbit mAb, 1:200, CST): detects
+//       phosphorylated (active) Akt.
+//   Incubate overnight at 4 C (= 720 min modelled at 4 C).
+//   Dual-antibody approach enables per-cell ratio of
+//   phospho-Akt to total Akt (normalizes expression level).
+// ------------------------------------------------------------
+
+primAbDrop1      = dispense 1 units of PrimaryAntibody_Akt
+primAbDrop2      = dispense 1 units of PrimaryAntibody_Akt
+primAbDrop3      = dispense 1 units of PrimaryAntibody_Akt
+
+primAb1          = mix blockedCells with primAbDrop1 for 5s
+primAb2          = mix primAb1 with primAbDrop2 for 5s
+primAbStained    = mix primAb2 with primAbDrop3 for 5s
+
+// Overnight incubation at 4 C (720 min).
+heat primAbStained at 4c for 720m
+
+// ------------------------------------------------------------
+// STEP 11 (DISC): Rinse unbound primary antibodies.
+//   5.4 uL (3 unit droplets) WB2 (0.05% Brij 35 in DPBS).
+//   Removes unbound primary antibodies; three passive
+//   dispense exchanges -> >99% removal of prior solution.
+// ------------------------------------------------------------
+
+pbwash1          = dispense 1 units of WashBuffer2
+pbwash2          = dispense 1 units of WashBuffer2
+pbwash3          = dispense 1 units of WashBuffer2
+
+pbRinse1         = mix primAbStained with pbwash1 for 5s
+pbRinse2         = mix pbRinse1 with pbwash2 for 5s
+rinsedPrimAb     = mix pbRinse2 with pbwash3 for 5s
+
+// ------------------------------------------------------------
+// STEP 12 (DISC): Secondary antibody staining.
+//   2.7 uL secondary antibody solution in BS:
+//     - Anti-Mouse IgG Alexa Fluor 647 (Fab2, 1:500, CST):
+//       detects pan-Akt primary antibody.
+//     - Anti-Rabbit IgG Alexa Fluor 555 (Fab2, 1:500, CST):
+//       detects p-Akt S473 primary antibody.
+//   Incubate 2 h at room temperature.
+//   Readout: Axon GenePix 4000B scanner (532 nm / 635 nm),
+//   CellProfiler quantifies single-cell p-Akt/total-Akt ratio.
+// ------------------------------------------------------------
+
+secAbDrop1       = dispense 1 units of SecondaryAntibody
+secAbDrop2       = dispense 1 units of SecondaryAntibody
+secAbDrop3       = dispense 1 units of SecondaryAntibody
+
+secAb1           = mix rinsedPrimAb with secAbDrop1 for 5s
+secAb2           = mix secAb1 with secAbDrop2 for 5s
+secAbStained     = mix secAb2 with secAbDrop3 for 120m
+
+// ------------------------------------------------------------
+// STEP 13 (DISC): Detect phospho-Akt signal.
+//   phosphoProteinDetection module abstracts the off-chip
+//   laser scanning cytometry step:
+//     - Top plate removed from device.
+//     - Rinsed in 10x-diluted DPBS/0.5% Tween-20 (30 s).
+//     - Rinsed in DI water (30 s). Air dried in dark.
+//     - Imaged: GenePix 4000B, 5 um resolution, 0 um focus,
+//       532 nm + 635 nm lasers (100% power), PMT 500 V.
+//   QC gate uses the Akt phosphorylation signal at 50 ng/mL
+//   PDGF-BB stimulation (expected: ~3-5x fold change vs.
+//   serum-free negative control, based on Fig 5.3C).
+// ------------------------------------------------------------
+
+phosphoSignal    = detect phosphoProteinDetection on secAbStained for 30s
+
+// ============================================================
+// BB11 / BB12: DISC Phospho-Protein Detection Gate
+// Pass (BB11): phosphoSignal > 0 -> valid phospho-Akt signal;
+//              dispose stained cell droplet.
+// Fail (BB12): phosphoSignal <= 0 -> no signal (staining or
+//              stimulation failure); drain.
+// Both converge at BB13 (finalCleanup).
+// ============================================================
+
+if (phosphoSignal > 0) {
+    dispose secAbStained
+} else {
+    drain secAbStained
+}
+
+// ============================================================
+// BB13: finalCleanup (terminal)
+// Dispose both QC detection signals.
+// Experiment ends.
+// ============================================================
+
+dispose assaySignal
+dispose phosphoSignal
+
+// [terminal -- no further instructions; exit node for CFG]

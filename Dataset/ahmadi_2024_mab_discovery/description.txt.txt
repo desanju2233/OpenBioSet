@@ -1,0 +1,253 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : An Automated Single-Cell Droplet-Digital Microfluidic Platform for Monoclonal Antibody Discovery
+Source Link  : https://onlinelibrary.wiley.com/doi/pdf/10.1002/smll.202308950
+Paper DOI    : https://doi.org/10.1002/smll.202308950
+Journal      : Small, 2024, Vol. 20, Article 2308950
+Authors      : Fatemeh Ahmadi, Hao Tran, Natasha Letourneau, Samuel R. Little,
+               Annie Fortin, Anna N. Moraitis, Steve C. C. Shih
+Platform     : Droplet-Digital (D2) microfluidics (digital microfluidics + droplet-in-channel
+               microfluidics) on EWOD/electrode array
+
+
+OVERVIEW
+--------
+This protocol describes a Droplet-Digital (D2) microfluidic platform for automated monoclonal
+antibody (mAb) discovery. The platform integrates a bottom digital microfluidic (DMF) electrode
+layer (chromium co-planar electrodes on glass + 7 um SU-8 dielectric) with three stacked
+PDMS-based microchannel devices, enabling individual electrode-addressable control of droplets
+flowing inside microfluidic channels -- a configuration combining "droplet-in-flow" techniques
+with digital microfluidics for on-demand droplet generation and manipulation.
+
+The protocol is divided into five functional phases:
+  1. Target cell encapsulation and single-cell sorting (Devices 2 and 3)
+  2. Hybridoma cell staining and hydrodynamic single-cell trapping (Device 1)
+  3. In situ deterministic co-encapsulation by phase change and electrode-actuated merge
+  4. On-chip incubation, droplet disruption, and PBS/Alexa Fluor 647 wash (Device 1)
+  5. Fluorescence-based antibody binding detection and positive hybridoma recovery
+
+The complete workflow from trapping to recovery processes 100 doublets in ~60 min, achieving
+co-encapsulation efficiency of 95 +/- 3.2% -- the highest reported without preliminary sorting
+of both cell types or microvalve-based capture systems. This surpasses the Poisson-based
+nondeterministic co-encapsulation efficiency of ~16%, which is the limit of conventional
+flow-focusing droplet microfluidic approaches.
+
+
+DEVICE ARCHITECTURE
+-------------------
+Layer i   : Chromium electrodes patterned on glass; co-planar ground and actuation electrodes.
+Layer ii  : SU-8 dielectric, 7 um thick; spin-coated and hard-baked.
+Layer iii : Three stacked PDMS-based microchannel devices adhered to the dielectric layer.
+
+Device 1 -- Trapping array:
+  100 traps total (50 per serpentine side); channel height 20 um, channel width 50-75 um;
+  7 um constriction per trap; 2 actuation electrodes + 1 ground electrode per trap;
+  sets of 5 traps bussed together to one potential circuit to reduce electrode density
+  and operational complexity.
+
+Device 2 -- Flow-focusing droplet generator:
+  Generates ~30 pL monodisperse droplets at ~3 kHz throughput;
+  used for target cell encapsulation following Poisson distribution.
+
+Device 3 -- Co-planar binary electrode sorter:
+  Selects single-target-cell droplets by CFSE fluorescence (ex 470 nm / em 520 nm);
+  PMT photon-counting head triggers electrode actuation to sort droplets above single-cell
+  fluorescence threshold and below two-cell threshold.
+
+Inlets  : Inlet 1 (HFE7500 oil, main channel), Inlet 2 (PBS / Alexa647 Ab / target droplets),
+          Inlet 3 (hybridoma cell suspension in IMDM)
+Outlets : Outlet 1 (sample recovery via reverse oil flow, 4 nL/s)
+
+Actuation: 15 kHz AC; 32 Vrms for encapsulation/merge; 64 Vrms for droplet disruption/wash.
+           Electrode actuation controlled through in-house Python-based GUI automation software
+           (open-source: https://bitbucket.org/shihmicrolab/f_ahmadi_2023_uflowcontrol).
+
+
+CELL LINES
+----------
+- Hybridoma cells (confidential line, provided by NRC Canada):
+  Produces monoclonal antibodies (mAbs) that bind to specific membrane-bound antigens on target
+  cells. Cultured in IMDM + 10% heat-inactivated FBS + mouse IL-6 (1 ng/mL) + pen/strep;
+  37 C, 5% CO2. Passaged every 3 days at 8e6 cells/mL. Loaded at 1e6 cells/mL in IMDM
+  (10% FBS + IL-6, no antibiotic). Stained with CellTrace Calcein Red-Orange AM
+  (ex 577 nm / em 590 nm) prior to chip loading.
+
+- Target cells (confidential line, provided by NRC Canada):
+  Express membrane-bound antigens recognised by the desired antigen-specific mAbs.
+  Cultured in DMEM + 10% heat-inactivated FBS + G418 (0.4 mg/mL); 37 C, 5% CO2.
+  Passaged every 3 days at 3e6 cells/mL. Loaded at 1e6 cells/mL in IMDM
+  (10% FBS + IL-6, no antibiotic). Stained with CellTrace CFSE (ex 470 nm / em 520 nm)
+  prior to chip loading for Device 3 sorting.
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Device Priming
+  Reagents  : PBS (Ca2+/Mg2+ free), Pluronics F-127
+  Mix       : 2% Pluronics F-127 in PBS
+  Flow rate : 50 nL/s from inlet 3 for 5 min (outlet 1 closed); then reduced to 1 nL/s
+              and outlet 1 opened
+  Duration  : 5 min (300 s)
+  Purpose   : Reduces non-specific hybridoma cell adhesion to PDMS channel walls.
+
+Step 2 | Target Cell Staining and Encapsulation (Device 2)
+  Cell line      : Target cells
+  Stain          : CellTrace CFSE (5 uM, 1e6 cells/mL in PBS, Ca2+/Mg2+ free)
+  Stain time     : 20 min at 37 C; wash with PBS to remove excess dye
+  Resuspension   : IMDM (10% FBS + mouse IL-6 1 ng/mL, no antibiotic, 1e6 cells/mL)
+  Operation      : Flow-focusing encapsulation (Poisson distribution)
+  Oil            : HFE7500 + 2% Ran Fluoro-surfactant
+  Droplet size   : ~30 pL monodisperse
+  Throughput     : ~3 kHz
+  Purpose        : Encapsulate target cells in small droplets for downstream sorting (Device 3).
+
+Step 3 | Single Target-Cell Droplet Sorting (Device 3)
+  Detection      : CFSE fluorescence (ex 470 nm / em 520 nm) via PMT photon-counting head
+  Sorting gate   : Fluorescence counts above single-cell threshold and below two-cell threshold
+  Action (pass)  : Single-target-cell droplet collected into gas-tight glass syringe with HFE7500
+  Action (fail)  : Empty or multi-cell droplets sent to waste channel
+  Transfer       : Collected droplets bridged to Device 1 inlet 2 via 0.014" OD / 0.006" ID tubing
+  Purpose        : Ensure only droplets with exactly one target cell are used for co-encapsulation.
+
+Step 4 | Hybridoma Cell Staining and Hydrodynamic Trapping (Device 1)
+  Cell line      : Hybridoma cells
+  Stain          : CellTrace Calcein Red-Orange AM (1e6 cells/mL, 20 min at 37 C; PBS wash)
+  Resuspension   : IMDM (10% FBS + IL-6, no antibiotic, 1e6 cells/mL)
+  Flow rate      : 1-5 nL/s; optimal 1 nL/s
+  Trapping eff.  : 98 +/- 3.92% at 1 nL/s (N=5 repeats, n=10 replicates per flow rate)
+  Trap design    : 7 um constriction (smaller than hybridoma cell diameter); hydrodynamic
+                   confinement by fluidic resistance. Open trap Rtrap < Rbypass; when occupied
+                   Rtrap increases, directing flow to next open trap.
+  Trap count     : 100 traps (50 per serpentine side per device)
+  Occupancy check: singleCellTrapDetection module; fluorescence threshold gates single occupancy
+  Purpose        : Isolate single hybridoma cells in addressable traps for deterministic
+                   co-encapsulation and individual droplet-level screening.
+
+Step 5 | In Situ Droplet Generation (Device 1)
+  Method         : Phase change from single-phase aqueous (IMDM) to two-phase (water-in-oil)
+  Oil            : HFE7500 + 2% Ran Fluoro-surfactant, 1 nL/s from inlet 1
+  Electrode      : 32 Vrms, 15 kHz; electrodes below traps actuated to shear aqueous phase
+  Droplet volume : 40-150 pL (varies with oil flow rate)
+  Success rate   : >95% at 1 nL/s
+  Frame sequence : Oil enters main channel while trap electrode holds aqueous phase.
+                   Oil shears aqueous at both trap ends; cell remains inside.
+                   Droplet pinches off; oil continues to next trap.
+  Purpose        : Deterministic encapsulation of single hybridoma cell per trap.
+                   No Poisson statistics. No preliminary sorting of hybridoma cells required.
+
+Step 6 | Deterministic Co-Encapsulation (Droplet Merge, Device 1)
+  Operation      : On-demand electrode-actuated droplet merge
+  Re-injection   : Sorted single-target-cell droplets re-injected from inlet 2 at 5 nL/s
+  Oil spacer     : HFE7500 from a separate inlet at 1 nL/s (spaces droplets entering traps)
+  Electrode      : 32 Vrms, 15 kHz; actuated when target-cell droplet reaches trap proximity
+  Efficiency     : 95 +/- 3.2% co-encapsulation at 5 nL/s re-injection flow rate
+                   (N=5 repeats, n=10 replicates; highest reported without microvalves)
+  Time for 100   : 60 min for 100 two-cell doublets with automated system
+  Notes          : Two separate inlets avoid merging of sequential target-cell droplets.
+                   Electrode actuation pattern detailed in Figure S6 of paper.
+                   Failure mode at >10 nL/s: target droplet coalesces with empty trap droplet.
+
+Step 7 | On-Chip Co-Incubation
+  Temperature    : 25 C (room temperature; no external heating element)
+  Duration       : 30 min (1800 s)
+  Events         : Hybridoma cells secrete mAbs into confined droplet volume.
+                   Antigen-specific mAbs diffuse and bind to membrane-bound antigens on
+                   co-encapsulated target cell surface.
+                   Non-specific mAbs remain free in droplet volume.
+
+Step 8 | Droplet Disruption and PBS / Alexa Fluor 647 Wash (Device 1)
+  Wash solution  : PBS (Ca2+/Mg2+ free) + Alexa Fluor 647-conjugated goat anti-mouse
+                   IgG (H+L) secondary antibody; loaded from inlet 2 at 1-5 nL/s
+  Electrode      : 64 Vrms, 15 kHz; field intensity 2-4 x 10^5 V/m; electrodes below traps
+  Duration       : ~5 min to wash all 50 traps
+  Mechanism      : Electrostatic force perpendicular to droplet interface (Figure S7 of paper)
+                   disrupts IMDM droplet; non-specific mAbs washed out through 7 um constriction.
+                   Hybridoma + target cell retained in trap (antigen-Ab bond maintains target cell;
+                   hybridoma remains by hydrodynamic confinement).
+  Wash efficiency: 96.8% reduction in normalised fluorescence intensity after 1 wash step
+                   (N=15 replicates; Figure 4C of paper)
+  Cell retention : 96 +/- 9.6% at 1-5 nL/s (N=5 repeats, n=10 replicates; Figure 4D)
+  Re-formation   : PBS/Alexa647 flow reduced to 0.1 nL/s; HFE7500 oil flow increased to
+                   5 nL/s to re-form PBS droplet around both cells in situ.
+  Advantage      : Individual droplet disruption by electrostatic forces avoids chemical
+                   demulsifiers (which compromise cell viability) and acoustic/magnetic methods
+                   (which have device material limitations).
+
+Step 9 | Fluorescence Detection and Antibody Binding Screening
+  Channel        : Alexa Fluor 647 (ex 627 nm / em 665 nm); 300 ms exposure
+  Camera         : Hamamatsu ORCA-Flash 4.0 (Township, NJ, USA)
+  Detection      : antibodyBindingDetection module gates on mean fluorescence of cell >
+                   mean fluorescence of surrounding droplet (SNR threshold)
+  Result (pass)  : Localised red fluorescent signal around target cell membrane =
+                   antigen-specific mAb detected; hybridoma is a positive producer
+  Result (fail)  : No localised signal = non-specific mAb producer; droplet drained
+  SNR            : Significant improvement post-wash for antigen-specific vs non-specific
+                   hybridomas (P < 0.05); without washing both types have similar SNR (P > 0.05)
+  Selection rate : 94.00 +/- 1.41% at 100:0 ratio (100% desired); 1.60% at 1:50 ratio
+                   (platform detects rare-cell populations at biologically relevant concentrations
+                   of ~2% antigen-specific B cells from immunised donors)
+  Purpose        : Distinguish antigen-specific from non-specific mAb-producing hybridomas
+                   at the single-cell level without requiring pre-sorting or bulk assays.
+
+Step 10 | Positive Hybridoma Recovery
+  Condition      : antibodySignal > 0 only (antigen-specific mAb detected)
+  Recovery steps :
+    1. Positive droplet released by reverse oil flow at 4 nL/s from outlet 1
+       (inlet 3 briefly opened to remove previously accumulated droplets in that channel)
+    2. Droplet collected into glass capillary pre-filled with HFE7500 2% Ran Fluoro-surfactant
+    3. Capillary contents expelled onto 10-20 uL IMDM complete medium placed on hydrophobic
+       PTFE membrane (0.22 um, Thomas Scientific) secured in custom 3D-printed holder
+    4. ~1 mL Fluorinert FC-40 oil added; FC-40 disrupts surfactant-stabilised emulsion
+       and PTFE membrane absorbs HFE7500 and surfactant
+    5. Aqueous cell droplet released into IMDM complete medium
+    6. Merged droplet transferred to well-plate (e.g. 96-well) using pipette for downstream
+       antibody characterisation (sequencing, ELISA, binding kinetics, SPR, etc.)
+  Downstream     : Antibody characterisation assays (off-chip; not encoded in BioScript).
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : ahmadi_2024_mab_discovery.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 10 basic blocks (BB1-BB10), 3 if/else gates, 12 CFG edges
+DAG file       : ahmadi_2024_mab_discovery_main_dag.dot
+Duration units : All durations in seconds (s) or minutes (m) only
+                 (BioScript compiler supports s and m tokens only; h not supported)
+                 Device priming 5 min   -> 300s   (IR: 300.0SECOND)
+                 Cell staining  20 min  -> 1200s  (IR: 1200.0SECOND, appears x2)
+                 Co-incubation  30 min  -> 1800s  (IR: 1800.0SECOND)
+                 Wash           5 min   -> 300s   (IR: 300.0SECOND)
+                 Recovery mix   1 min   -> 60s    (IR: 60.0SECOND)
+
+Modules        : singleCellTrapDetection  -- used for sort gate (Device 3 CFSE detection)
+                                             AND trap occupancy gate (Device 1 calcein detection)
+               : antibodyBindingDetection -- Alexa Fluor 647 post-wash fluorescence SNR gate
+
+Manifests      : HybridomaCells, TargetCells, IMDM_Medium, PBS, PluronicF127,
+                 HFE7500_Surfactant, AlexaFluor647_SecondaryAb,
+                 CellTrace_CFSE, CalceinAM_RedOrange
+
+Fixes applied  :
+  Fix 1 -- Removed dead module declaration: targetCellSortDetection
+           (declared in header but never called; singleCellTrapDetection covers
+           both the sort gate and trap occupancy gate -- the compiler correctly omitted
+           it from the IR; removed to keep module declarations clean)
+
+  Fix 2 -- Fixed imdmForHybridoma double-consumption in BB5 (trap-pass branch):
+           original code passed a single dispensed unit of imdmForHybridoma into two
+           separate mix operations. Added imdmForHybridoma2 = dispense 1 units of
+           IMDM_Medium inside the if (trapOccupancySignal > 0) block so each mix has
+           its own fresh dispense. SSA compiler correctly emits PHI imdmForHybridoma22
+           at the BB7 join node. Verified in IR: imdmForHybridoma1 consumed only in
+           hybridoma_in_imdm; imdmForHybridoma21 consumed only in trappedHybridoma.
+
+ASCII compliance: All non-ASCII characters replaced with ASCII equivalents for ANTLR4
+                  FileStream compatibility (ANTLR4 raises UnicodeDecodeError on bytes > 0x7F):
+                  em-dash U+2014 (0xE2 0x80 0x94) -> --
+                  arrow  U+2192 (0xE2 0x86 0x92) -> ->
+
+Biological scope: This .bs file encodes the full mAb screening workflow on-chip.
+                  Downstream antibody characterisation assays (ELISA, sequencing,
+                  binding kinetics, SPR) are performed off-chip and are not encoded.

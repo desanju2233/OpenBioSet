@@ -1,0 +1,465 @@
+module colonyDensityDetection
+module sixteenSrRNASequencing
+module dropletViabilityDetection
+
+manifest FetalCellSuspension
+manifest BHIS_Medium
+manifest GMM_Medium
+manifest YCFA_Medium
+manifest FC40_Oil
+manifest HFE7500_Surfactant
+manifest PFO_BreakingAgent
+manifest FDA_PI_Stain
+manifest ASF_FecalPellet
+manifest BHIS_ASF_Medium
+manifest DNAExtractionKit
+
+instructions:
+
+// ============================================================
+// High-throughput Isolation and Sorting of Gut Microbes
+// Reduce Biases of Traditional Cultivation Strategies
+// Watterson et al., bioRxiv 2019 (doi: 10.1101/759969)
+// Tay Lab / Eren Lab, University of Chicago
+//
+// Platform: Droplet microfluidic devices operated inside a
+// vinyl anaerobic chamber (Coy Lab Products) supplied with
+// 86% N2 / 10% O2 / 4% H2. O2 < 1 ppm maintained throughout.
+// Droplets: ~65-115 pL picoliter droplets generated at a
+// flow-focusing junction from liquid culture medium into oil
+// (Bio-Rad Droplet Generation Oil for EvaGreen).
+// Encapsulation: Fecal cell suspensions diluted such that
+// ~20-30% of droplets contain exactly 1 live bacterial cell
+// (Poisson statistics). Sorting: image-based wavelet OD
+// measurement at ~30 Hz; no fluorescent reporters required.
+//
+// PROTOCOL STRUCTURE:
+//   Phase 1 -- ASF model community validation (mouse gut,
+//              8-species Altered Schaedler's Flora).
+//   Phase 2 -- Human stool cultivation across 3 rich media
+//              (BHIS, GMM, YCFA) vs. conventional agar plates.
+//   Phase 3 -- Slow-growing colony sorting by colony density
+//              (wavelet OD between 0.3 and 0.7) to further
+//              amplify rare/low-abundance taxa (<1% in raw
+//              stool amplified to >1% in sorted fraction).
+//   Phase 4 -- Viability confirmation: streaking sorted
+//              droplets onto agar plates for colony growth.
+//
+// NOTE ON ANAEROBIC ABSTRACTION: All `heat` statements at
+// 37c model incubation inside the anaerobic chamber incubator.
+// `mix` steps abstract microfluidic droplet generation and
+// encapsulation events, not DMF electrode mixing.
+//
+// NOTE ON SORTING ABSTRACTION: The wavelet OD-based sorting
+// (LabView, Basler camera at 925 Hz, 672x360 px, 59 us
+// exposure; biorthogonal 3.1 wavelets, LLH subband) is
+// abstracted as a `detect colonyDensityDetection` call
+// followed by an if/else QC gate. Slow-growing colonies
+// satisfy: 0.3 < waveletOD < 0.7.
+//
+// NOTE ON 16S AMPLICON ABSTRACTION: Post-cultivation DNA
+// extraction (PFO emulsion break, DNeasy kit) and 16S V4
+// amplicon sequencing (Illumina MiSeq 2x300 paired-end,
+// primers from Caporaso et al. 2012) followed by MED/
+// oligotyping analysis are abstracted as `detect
+// sixteenSrRNASequencing` calls.
+//
+// CFG STRUCTURE:
+//   BB1  main              -- anaerobic chamber init; ASF
+//                             pure-strain droplet culture;
+//                             ASF mixed-community culture;
+//                             human stool BHIS droplets;
+//                             human stool GMM droplets;
+//                             human stool YCFA droplets;
+//                             community richness QC gate
+//   BB2  richnessPass      -- richnessSignal > 0: richness
+//                             increase confirmed (droplets
+//                             > plates); proceed to sorting
+//   BB3  richnessFail      -- richnessSignal <= 0: no richness
+//                             gain; drain cultivation output
+//   BB4  richnessJoin      -- join: slow-grower sorting branch
+//   BB5  sortingPass       -- sortingSignal > 0: low-density
+//                             colonies successfully sorted;
+//                             proceed to viability check
+//   BB6  sortingFail       -- sortingSignal <= 0: no slow-
+//                             growing colonies in fraction;
+//                             drain sorted emulsion
+//   BB7  sortingJoin       -- join: viability confirmation
+//   BB8  viabilityPass     -- viabilitySignal > 0: bacteria
+//                             viable after droplet cultivation;
+//                             streak onto agar; dispose
+//   BB9  viabilityFail     -- viabilitySignal <= 0: viability
+//                             lost; drain
+//   BB10 finalCleanup      -- terminal: dispose QC signals
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// PHASE 1, STEP 1: Prime anaerobic chamber and microfluidic
+//   device with FC-40 oil to establish anaerobic environment.
+//   O2 < 1 ppm, H2 between 1.5-2.5% maintained throughout.
+//   Devices fabricated by soft lithography (SU-8 3050 molds,
+//   50 um channel height, PDMS bonded to glass). Channels
+//   hydrophobized with Aquapel then Fluorinert FC-40.
+// ------------------------------------------------------------
+
+oilPrime      = dispense 1 units of FC40_Oil
+surfactantPrime = dispense 1 units of HFE7500_Surfactant
+devicePrime   = mix oilPrime with surfactantPrime for 5m
+
+// ------------------------------------------------------------
+// PHASE 1, STEP 2: Prepare ASF model community from fecal
+//   pellet (Taconic Biosciences). Dissociate 3 fecal pellets
+//   in 5 mL BHIS-ASF medium, sediment fecal solids, collect
+//   supernatant, store at -80 C in 25% glycerol/25% BHIS/
+//   50% cell suspension. Dilute 50x for droplet generation.
+//   Note: ASF 360 (L. intestinalis) not detected in pellets;
+//   7 of 8 strains confirmed by species-specific PCR.
+// ------------------------------------------------------------
+
+asfFecalStock  = dispense 1 units of ASF_FecalPellet
+asfMedium      = dispense 1 units of BHIS_ASF_Medium
+asfDiluted     = mix asfFecalStock with asfMedium for 2s
+
+// ------------------------------------------------------------
+// PHASE 1, STEP 3: Generate ASF community droplets in anaerobic
+//   chamber. Flow-focusing junction encapsulates ~20-30%
+//   droplets with a single ASF cell (Poisson statistics).
+//   Droplet volume: ~65-115 pL. Oil phase: HFE7500 with
+//   2% surfactant. Droplet generation rate: ~0.5-1 mL
+//   emulsion in 20 min to 1 hr.
+// ------------------------------------------------------------
+
+asfOilPhase    = dispense 1 units of HFE7500_Surfactant
+asfDroplets    = mix asfDiluted with asfOilPhase for 3s
+
+// ------------------------------------------------------------
+// PHASE 1, STEP 4: Incubate ASF droplets at 37 C for 24 h
+//   inside anaerobic chamber incubator. Single cells grow
+//   clonally within confined droplet volumes, preventing
+//   competitive overgrowth of fast-growing ASF 361
+//   (L. murinus) over ASF 519 (P. goldsteinii) as occurs
+//   in bulk broth. Extremely oxygen-sensitive species (ASF
+//   356, 492, 500, 502) maintained below 1 ppm O2.
+//   24 h = 1440 min.
+// ------------------------------------------------------------
+
+heat asfDroplets at 37c for 1440m
+
+// ------------------------------------------------------------
+// PHASE 1, STEP 5: Quantify ASF community composition by
+//   droplet digital PCR (BioRad QX200). Species-specific
+//   primers from Sarma-Rupavtarm et al. (2004). ddPCR mix:
+//   10 uL QX200 ddPCR EvaGreen Supermix, 200 nM each primer,
+//   thermocycle: 94 C 10 min; 35 cycles (94 C 1 min,
+//   60 C 1 min, 72 C 2 min). Break emulsion with PFO before
+//   DNA extraction (DNeasy Blood & Tissue Kit, 100 uL elution).
+//   Expected: ASF 361 dominates bulk broth; droplets confine
+//   ASF 361 and allow ASF 457 (34%) and ASF 519 (0.96%) to
+//   reach higher relative abundance.
+// ------------------------------------------------------------
+
+asfBreakingAgent = dispense 1 units of PFO_BreakingAgent
+asfKit           = dispense 1 units of DNAExtractionKit
+asfBroken        = mix asfDroplets with asfBreakingAgent for 2s
+asfDNA           = mix asfBroken with asfKit for 30m
+asfComposition   = detect sixteenSrRNASequencing on asfDNA for 30s
+
+// ------------------------------------------------------------
+// PHASE 2, STEP 1: Prepare human fecal cell suspension for
+//   droplet cultivation. Single stool sample from FMT donor
+//   (IRB 132-0212, University of Chicago). Aliquots spun
+//   down in PBS, supernatant stored at -80 C. Live cell
+//   density: 1e9/mL; dead cell density: 3e9/mL (BacLight
+//   Live/Dead assay). Dilute 200x for Poisson-based single-
+//   cell encapsulation (~20-30% droplets with 1 live cell).
+// ------------------------------------------------------------
+
+// Three separate stool aliquots dispensed -- one per media arm.
+// Each aliquot is an independent 200x-diluted glycerol stock
+// unit; dispensing separately avoids reuse of a consumed variable
+// across the three parallel cultivation branches.
+humanStoolBhis   = dispense 1 units of FetalCellSuspension
+humanStoolGmm    = dispense 1 units of FetalCellSuspension
+humanStoolYcfa   = dispense 1 units of FetalCellSuspension
+
+// ------------------------------------------------------------
+// PHASE 2, STEP 2: Generate BHIS droplets from human stool.
+//   Brain Heart Infusion Supplemented (BHIS) medium: 500 mL
+//   water, 18.5 g BHI broth, 2.5 g yeast extract, 0.25 g
+//   L-cysteine, vitamin K (0.1% in 95% ethanol), hemin
+//   (5 mg/mL in 0.1 M NaOH). Spread 100 uL stool on agar
+//   plates (parallel control, 7-day culture). Droplets:
+//   0.5-1 mL emulsion of ~65-115 pL droplets (4-15 million
+//   droplets). Incubate 2 days for droplets, 7 days for plates.
+// ------------------------------------------------------------
+
+bhisMedium       = dispense 1 units of BHIS_Medium
+bhisOil          = dispense 1 units of HFE7500_Surfactant
+bhisSuspension   = mix humanStoolBhis with bhisMedium for 2s
+bhisDroplets     = mix bhisSuspension with bhisOil for 3s
+
+heat bhisDroplets at 37c for 2880m
+
+// ------------------------------------------------------------
+// PHASE 2, STEP 3: Generate GMM droplets from human stool.
+//   Gut Microbiota Medium (GMM) prepared per Goodman et al.
+//   2011 (PNAS 108:6252). Second arm of parallel cultivation.
+//   Incubate 2 days inside anaerobic chamber.
+// ------------------------------------------------------------
+
+gmmMedium        = dispense 1 units of GMM_Medium
+gmmOil           = dispense 1 units of HFE7500_Surfactant
+gmmSuspension    = mix humanStoolGmm with gmmMedium for 2s
+gmmDroplets      = mix gmmSuspension with gmmOil for 3s
+
+heat gmmDroplets at 37c for 2880m
+
+// ------------------------------------------------------------
+// PHASE 2, STEP 4: Generate YCFA droplets from human stool.
+//   Yeast Casitones Fatty Acid (YCFA, modified DSMZ 1611):
+//   10 g casitone, 2.5 g yeast extract, 5 g dextrose,
+//   short-chain fatty acids (acetic, propionic, isobutyric,
+//   n-valeric, iso-valeric acids), NaHCO3, L-cysteine-HCl,
+//   hemin, mucin, vitamin solution (biotin, folate,
+//   pyridoxine-HCl, thiamine-HCl, riboflavin, nicotinic
+//   acid, pantothenate, B12, PABA, thioctic acid).
+//   pH 6.7-6.8. Incubate 2 days inside anaerobic chamber.
+// ------------------------------------------------------------
+
+ycfaMedium       = dispense 1 units of YCFA_Medium
+ycfaOil          = dispense 1 units of HFE7500_Surfactant
+ycfaSuspension   = mix humanStoolYcfa with ycfaMedium for 2s
+ycfaDroplets     = mix ycfaSuspension with ycfaOil for 3s
+
+heat ycfaDroplets at 37c for 2880m
+
+// ------------------------------------------------------------
+// PHASE 2, STEP 5: Break emulsions and extract DNA from all
+//   three droplet cultures. Add equal part PFO to emulsion,
+//   vortex and centrifuge, remove oil+PFO phase. Extract
+//   DNA from aqueous layer using DNeasy Blood & Tissue Kit
+//   (Qiagen); total elution volume: 100 uL per sample.
+//   16S V4 amplicon sequencing (Illumina MiSeq 2x300,
+//   primers from Caporaso et al. 2012) performed at Argonne
+//   National Laboratory ESPSF. 35 PCR cycles; paired-end
+//   joining in illumina-utils (min overlap 45 nt, <2
+//   mismatches); ASVs inferred by MED/oligotyping v2.1;
+//   taxonomy by GAST.
+// ------------------------------------------------------------
+
+bhisBreaker      = dispense 1 units of PFO_BreakingAgent
+gmmBreaker       = dispense 1 units of PFO_BreakingAgent
+ycfaBreaker      = dispense 1 units of PFO_BreakingAgent
+
+bhisBroken       = mix bhisDroplets with bhisBreaker for 2s
+gmmBroken        = mix gmmDroplets with gmmBreaker for 2s
+ycfaBroken       = mix ycfaDroplets with ycfaBreaker for 2s
+
+bhisKit          = dispense 1 units of DNAExtractionKit
+gmmKit           = dispense 1 units of DNAExtractionKit
+ycfaKit          = dispense 1 units of DNAExtractionKit
+
+bhisDNA          = mix bhisBroken with bhisKit for 30m
+gmmDNA           = mix gmmBroken with gmmKit for 30m
+ycfaDNA          = mix ycfaBroken with ycfaKit for 30m
+
+// ------------------------------------------------------------
+// PHASE 2, STEP 6: 16S rRNA amplicon sequencing of all
+//   three media conditions. MED decomposition identifies
+//   ASVs with single-nucleotide resolution. Richness (R),
+//   Shannon index (H'), and low-abundance ASV count (Rlow,
+//   for ASVs < 1% in raw stool) computed per sample.
+//   Expected: 37% (BHIS) to 410% (YCFA) richness increase
+//   in droplets vs. agar plates (p < 0.005, Mann-Whitney U).
+//   Bacteroides oligotype clustering closer to raw stool
+//   in droplet cultures (p < 0.005, multiscale bootstrap).
+// ------------------------------------------------------------
+
+bhisProfile      = detect sixteenSrRNASequencing on bhisDNA for 30s
+gmmProfile       = detect sixteenSrRNASequencing on gmmDNA for 30s
+ycfaProfile      = detect sixteenSrRNASequencing on ycfaDNA for 30s
+
+// Combine media profiles for richness QC gate.
+// richnessSignal > 0 confirms droplets exceed plates in
+// community richness across all three media conditions.
+combinedProfiles   = mix bhisProfile with gmmProfile for 5s
+richnessMeasure    = mix combinedProfiles with ycfaProfile for 5s
+richnessSignal     = detect colonyDensityDetection on richnessMeasure for 30s
+
+// ============================================================
+// BB2 / BB3: Richness QC gate
+// Pass (BB2): richnessSignal > 0 -> droplet richness confirmed
+//             greater than plate richness across media;
+//             proceed to slow-grower sorting (Phase 3).
+// Fail (BB3): richnessSignal <= 0 -> no richness advantage
+//             detected; drain cultivation output.
+// Both branches converge at BB4 (richnessJoin).
+// ============================================================
+
+if (richnessSignal > 0) {
+    dispose bhisDNA
+    dispose gmmDNA
+    dispose ycfaDNA
+} else {
+    drain bhisDNA
+    drain gmmDNA
+    drain ycfaDNA
+}
+
+// ============================================================
+// BB4: richnessJoin
+// Dispose richness QC measurements. Control passes to
+// Phase 3 slow-grower sorting branch (BB5/BB6).
+// ============================================================
+
+dispose richnessSignal
+dispose bhisProfile
+dispose gmmProfile
+dispose ycfaProfile
+
+// ------------------------------------------------------------
+// PHASE 3, STEP 1: Prepare fresh BHIS droplet emulsion for
+//   wavelet OD-based slow-grower sorting. Two independent
+//   sorting experiments performed on human stool in BHIS
+//   droplets. Droplets reinjected at 20 uL/hr with oil
+//   spacing phase at 180 uL/hr. High-frame-rate camera
+//   (Basler acA640-750um, 925 Hz, 672x360 px, 59 us exposure)
+//   captures droplet image at sorting junction. Custom
+//   LabView code applies biorthogonal 3.1 discrete wavelet
+//   frame decomposition (Low Low High subband, 15x15 px
+//   window, step 5 px, 15 gray levels, 3x3 px displacement).
+//   Wavelet OD normalized 0 (empty) to 1 (dense colony).
+//   Slow-growing colonies: 0.3 < waveletOD < 0.7.
+//   Dense colonies: waveletOD > 0.7 -> waste path.
+//   Empty droplets: waveletOD < 0.3 -> waste path.
+//   Sorting rate: ~30 Hz. Electrode actuation: 10 kHz,
+//   800 V p-p, 30% duty cycle, 10 ms per sort event.
+//   False-positive sorting rate: at most 8% upper bound.
+// ------------------------------------------------------------
+
+sortingStool     = dispense 1 units of FetalCellSuspension
+bhisSortMedium   = dispense 1 units of BHIS_Medium
+bhisSortOil      = dispense 1 units of HFE7500_Surfactant
+sortSuspension   = mix sortingStool with bhisSortMedium for 2s
+sortDroplets     = mix sortSuspension with bhisSortOil for 3s
+
+heat sortDroplets at 37c for 1440m
+
+// ------------------------------------------------------------
+// PHASE 3, STEP 2: Image-based sorting via wavelet OD.
+//   colonyDensityDetection module abstracts LabView wavelet
+//   image analysis and electrode deflection of slow-growers
+//   into the "keep" path. Sorted fraction: ~1-10 uL total
+//   volume (thin layer on oil; estimated by pipetting).
+//   Sorting signal > 0 indicates slow-growing colonies
+//   detected and successfully deflected to keep channel.
+//   Expected amplification: 6.5 ASVs amplified from <1% to
+//   >1% (unsorted) vs. 12.5 ASVs (sorted) out of 158 total
+//   ASVs; taxa span wider phylogenetic range after sorting.
+// ------------------------------------------------------------
+
+sortingSignal = detect colonyDensityDetection on sortDroplets for 30s
+
+// ============================================================
+// BB5 / BB6: Sorting QC gate
+// Pass (BB5): sortingSignal > 0 -> slow-growing colonies
+//             detected in keep path; proceed to DNA extraction
+//             and viability confirmation (Phase 4).
+// Fail (BB6): sortingSignal <= 0 -> no qualifying low-density
+//             droplets found; drain sorted emulsion.
+// Both branches converge at BB7 (sortingJoin).
+// ============================================================
+
+if (sortingSignal > 0) {
+    // ------------------------------------------------------------
+    // PHASE 3, STEP 3 (pass path): Break sorted droplet emulsion
+    //   and extract DNA. Due to low sorting rate (~30 Hz) the
+    //   total sorted volume is only ~1-10 uL. Add 150 uL DNA-
+    //   free water + 150 uL PFO to sorted emulsion, vortex,
+    //   centrifuge. Extract with DNeasy kit. Sequence with same
+    //   16S V4 protocol as unsorted samples. Kolmogorov-Smirnov
+    //   test confirms shift in rank-abundance distribution
+    //   between sorted and unsorted (p < 0.005).
+    // ------------------------------------------------------------
+    sortedBreaker    = dispense 1 units of PFO_BreakingAgent
+    sortedKit        = dispense 1 units of DNAExtractionKit
+    sortedBroken     = mix sortDroplets with sortedBreaker for 2s
+    sortedDNA        = mix sortedBroken with sortedKit for 30m
+    sortedProfile    = detect sixteenSrRNASequencing on sortedDNA for 30s
+    dispose sortedDNA
+    dispose sortedProfile
+} else {
+    drain sortDroplets
+}
+
+// ============================================================
+// BB7: sortingJoin
+// Dispose sorting QC signal. Control passes to Phase 4
+// viability confirmation branch (BB8/BB9).
+// ============================================================
+
+dispose sortingSignal
+
+// ------------------------------------------------------------
+// PHASE 4, STEP 1: Confirm bacterial viability post-sorting.
+//   Streak ~10 uL sorted droplet emulsion + oil onto BHIS
+//   agar plate. Culture at 37 C for 2 days (2880 min).
+//   Random picking of 24 colonies for Sanger sequencing
+//   (27F/1492R primers, GoTaq Green Master Mix, 95 C 3 min;
+//   30 cycles: 95 C 30 s, 54 C 30 s, 72 C 1 min; 72 C 10 min).
+//   16S amplicons excised from 2% agarose gel, purified with
+//   QIAquick Gel Extraction Kit (Qiagen), Sanger sequenced
+//   (U. Chicago Comprehensive Cancer Center facility).
+//   BLAST taxonomy assignment: Hafnia (12/24), Enterococcus
+//   (8/24), Bacteroides (4/24).
+//   FDA/PI live-dead staining (BacLight, ThermoFisher) used
+//   as viability readout proxy in dropletViabilityDetection.
+// ------------------------------------------------------------
+
+sortedForViability  = dispense 1 units of FetalCellSuspension
+bhisAgarMedium      = dispense 1 units of BHIS_Medium
+platedSorted        = mix sortedForViability with bhisAgarMedium for 2s
+
+heat platedSorted at 37c for 2880m
+
+fdaPI_Stain         = dispense 1 units of FDA_PI_Stain
+stainedPlated       = mix platedSorted with fdaPI_Stain for 10m
+
+viabilitySignal     = detect dropletViabilityDetection on stainedPlated for 30s
+
+// ============================================================
+// BB8 / BB9: Viability confirmation gate
+// Pass (BB8): viabilitySignal > 0 -> colonies viable post-
+//             sorting (Hafnia, Enterococcus, Bacteroides
+//             confirmed by Sanger sequencing); dispose.
+// Fail (BB9): viabilitySignal <= 0 -> no viable growth
+//             observed on agar; drain.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (viabilitySignal > 0) {
+    dispose stainedPlated
+    dispose platedSorted
+} else {
+    drain stainedPlated
+    drain platedSorted
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose all remaining QC signal droplets.
+// Experiment ends. Pure strain isolates confirmed viable
+// and compatible with downstream microbiology workflows.
+// ============================================================
+
+dispose viabilitySignal
+dispose asfComposition
+dispose asfDNA
+dispose richnessMeasure
+dispose combinedProfiles
+
+// [terminal -- no further instructions; exit node for CFG]

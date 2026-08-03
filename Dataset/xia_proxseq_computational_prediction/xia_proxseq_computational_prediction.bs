@@ -1,0 +1,470 @@
+module proxSeqDetection
+module viabilityDetection
+module plaDetection
+module seqLibraryQC
+
+manifest JurkatCells
+manifest RajiCells
+manifest PBS
+manifest ProxSeqProbeA
+manifest ProxSeqProbeB
+manifest FreeOligoA
+manifest FreeOligoB
+manifest LigationBuffer
+manifest Ligase
+manifest BlockingBuffer
+manifest WashBuffer
+manifest DNALibraryBuffer
+manifest SequencingReagent
+manifest IsotypeControlAntibody
+manifest StopSolution
+
+// ============================================================
+// Computational Prediction of Protein Interactions in Single
+// Cells by Proximity Sequencing.
+// Xia J, Phan HV, Vistain L, Chen M, Khan AA, Tay S (2024)
+// PLoS Comput Biol 20(3): e1011915.
+// DOI: 10.1371/journal.pcbi.1011915
+//
+// This BioScript file encodes the experimental Prox-seq
+// (Proximity Sequencing) protocol as described in the paper.
+// Prox-seq simultaneously measures gene expression, protein
+// expression, and protein complexes on single cells using a
+// proximity ligation assay (PLA) with DNA-conjugated antibody
+// probes (Probe A and Probe B). Ligation occurs only when
+// two protein molecules are within 50-70 nm of each other.
+// PLA products are sequenced alongside scRNA-seq cDNA
+// libraries to yield multi-omic single-cell data.
+//
+// TWO CELL LINE ARMS encoded in sequence:
+//   ARM 1: Jurkat T cells (CD3, CD28, PD1, CD147, ICAM1,
+//           PDL1, HLADR, B7 protein panel)
+//   ARM 2: Raji B cells (same probe panel, different
+//           protein complex landscape)
+//
+// FREE OLIGO MODIFICATION: An experimentally modified
+// Prox-seq procedure measures non-proximal (unligated)
+// probes via FreeOligoA and FreeOligoB. These non-proximal
+// counts are used by the linear regression (LR) method and
+// ensemble method for proximity noise estimation.
+//
+// ISOTYPE CONTROL: IsotypeControlAntibody with
+// oligonucleotide conjugation is included in both probe
+// panels to estimate nonspecific antibody binding
+// probability directly from observed data (Section 2.2).
+//
+// CFG STRUCTURE:
+//   BB1  main              -- entry: cell prep, Prox-seq
+//                             probe staining, ligation, and
+//                             library prep for Jurkat arm
+//   BB2  jurkatLibPass     -- jurkatLibSignal > 0: library
+//                             QC passed; dispose and proceed
+//   BB3  jurkatLibFail     -- jurkatLibSignal <= 0: library
+//                             failed; drain Jurkat products
+//   BB4  jurkatLibJoin     -- join: Raji B cell arm begins
+//   BB5  rajiLibPass       -- rajiLibSignal > 0: library
+//                             QC passed; dispose Raji products
+//   BB6  rajiLibFail       -- rajiLibSignal <= 0: library
+//                             failed; drain Raji products
+//   BB7  finalCleanup      -- terminal: dispose QC signals;
+//                             experiment ends; data sent for
+//                             computational analysis
+//
+// NOTE ON LIGATION DISTANCE: The BioScript ligation step
+// is abstracted via `mix`. Physical ligation occurs in the
+// 50-70 nm proximity window defined by the DNA oligo linker
+// length. Only Probe A + Probe B pairs within this distance
+// produce a PLA product (dual-barcode requirement enforced
+// at sequencing alignment stage, not modelled here).
+//
+// NOTE ON UMI COUNTING: PLA product quantification by
+// counting unique molecular identifiers (UMIs) is performed
+// computationally (off-chip, Python3/Anaconda3 v4.10.3).
+// Code: https://github.com/tay-lab/Prox-seq_computation
+// Raw data: GEO accession GSE196130.
+//
+// NOTE ON DURATION TOKENS: BioScript supports `s` (seconds)
+// and `m` (minutes) only. All incubation times are
+// expressed accordingly.
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// ARM 1 - STEP 1: Prepare Jurkat T cell suspension.
+//   Jurkat cells cultured under standard conditions.
+//   Resuspend in PBS at appropriate concentration for
+//   single-cell staining with Prox-seq probe panel.
+//   Isotype control antibody included in probe panel
+//   to estimate nonspecific binding background (Section 2.2).
+// ------------------------------------------------------------
+
+jurkatCells       = dispense 1 units of JurkatCells
+cellPBS           = dispense 1 units of PBS
+jurkatSuspension  = mix jurkatCells with cellPBS for 5m
+
+// ------------------------------------------------------------
+// ARM 1 - STEP 2: Block nonspecific binding sites.
+//   Incubate cells with blocking buffer for 10 min at 4 C
+//   prior to Prox-seq probe addition. This reduces background
+//   from nonspecific antibody binding (Section 2.2).
+//   Paper notes nonspecific binding constitutes <1% of
+//   both-specific PLA counts for extracellular proteins
+//   (e.g. CD147:CD147 in Jurkat cells, S4 Fig).
+// ------------------------------------------------------------
+
+blockingBuf       = dispense 1 units of BlockingBuffer
+blockedCells      = mix jurkatSuspension with blockingBuf for 10m
+heat blockedCells at 4c for 10m
+
+// ------------------------------------------------------------
+// ARM 1 - STEP 3: Stain with Prox-seq Probe A panel.
+//   Each target protein is stained with a DNA-conjugated
+//   Probe A antibody. Panel targets: CD3, CD28, PD1, CD147,
+//   ICAM1, PDL1, HLADR, B7 (same panel as Ref [4]).
+//   Isotype control antibody (oligonucleotide-conjugated)
+//   included in Probe A panel for nonspecific binding QC.
+//   Incubate 30 min at 4 C.
+// ------------------------------------------------------------
+
+probeAStain       = dispense 1 units of ProxSeqProbeA
+isotypeControl    = dispense 1 units of IsotypeControlAntibody
+probeAWithControl = mix probeAStain with isotypeControl for 5s
+probeAStained     = mix blockedCells with probeAWithControl for 30m
+heat probeAStained at 4c for 30m
+
+// ------------------------------------------------------------
+// ARM 1 - STEP 4: Wash to remove unbound Probe A.
+//   Wash cells 3x with PBS to remove excess unbound
+//   Probe A antibodies. Unbound probes do not contribute
+//   to PLA signal because library preparation and sequence
+//   alignment require barcodes from both Probe A and B.
+// ------------------------------------------------------------
+
+wash1A = dispense 1 units of WashBuffer
+wash2A = dispense 1 units of WashBuffer
+wash3A = dispense 1 units of WashBuffer
+
+washedA1 = mix probeAStained with wash1A for 2m
+washedA2 = mix washedA1 with wash2A for 2m
+jurkatProbeAReady = mix washedA2 with wash3A for 2m
+
+// ------------------------------------------------------------
+// ARM 1 - STEP 5: Stain with Prox-seq Probe B panel.
+//   Each target protein is stained with a DNA-conjugated
+//   Probe B antibody (same protein targets as Probe A panel).
+//   Isotype control antibody (oligonucleotide-conjugated)
+//   included in Probe B panel as well.
+//   Incubate 30 min at 4 C.
+// ------------------------------------------------------------
+
+probeBStain       = dispense 1 units of ProxSeqProbeB
+probeBStained     = mix jurkatProbeAReady with probeBStain for 30m
+heat probeBStained at 4c for 30m
+
+// ------------------------------------------------------------
+// ARM 1 - STEP 6: Wash to remove unbound Probe B.
+//   Wash 3x with PBS. After washing, cells carry both
+//   Probe A and Probe B antibodies on surface proteins.
+// ------------------------------------------------------------
+
+wash1B = dispense 1 units of WashBuffer
+wash2B = dispense 1 units of WashBuffer
+wash3B = dispense 1 units of WashBuffer
+
+washedB1 = mix probeBStained with wash1B for 2m
+washedB2 = mix washedB1 with wash2B for 2m
+jurkatDualStained = mix washedB2 with wash3B for 2m
+
+// ------------------------------------------------------------
+// ARM 1 - STEP 7: Add Free Oligo probes (non-proximal
+//   probe measurement modification).
+//   FreeOligoA and FreeOligoB are added to measure the
+//   non-proximal (unligated) probe counts. Free oligos
+//   are not conjugated to antibodies; they generate
+//   PLA products of the form:
+//     Protein_X : free_oligo_B  (counts non-proximal Probe A)
+//     free_oligo_A : Protein_Y  (counts non-proximal Probe B)
+//   These non-proximal counts are essential for the LR
+//   method and ensemble method (Section: LR method, Eq. 5).
+//   Reference: Vistain et al. Nat Methods 2022 [4].
+// ------------------------------------------------------------
+
+freeOligoADrop = dispense 1 units of FreeOligoA
+freeOligoBDrop = dispense 1 units of FreeOligoB
+
+freeOligoMix = mix freeOligoADrop with freeOligoBDrop for 5s
+jurkatWithFreeOligos = mix jurkatDualStained with freeOligoMix for 10m
+heat jurkatWithFreeOligos at 4c for 10m
+
+// ------------------------------------------------------------
+// ARM 1 - STEP 8: Proximity ligation reaction.
+//   Add ligation buffer and T4 DNA ligase. Ligation occurs
+//   between Probe A oligo and Probe B oligo only when the
+//   two probes are within 50-70 nm of each other (i.e.,
+//   their target proteins are co-localised or in complex).
+//   Ligation distance threshold = 50 nm in simulation model.
+//   Incubate at room temperature (25 C) for 30 min.
+//   NOTE: `mix` abstracts the proximity ligation event.
+//   PLA products (ligated A+B barcodes) are the signal.
+//   Random co-localisation generates proximity noise:
+//   E(X_ij) = (d_ligation^2 / 4R^2) * A_i * B_j
+//   (Methods: Theoretical calculation of proximity noise).
+// ------------------------------------------------------------
+
+ligBuf            = dispense 1 units of LigationBuffer
+ligase            = dispense 1 units of Ligase
+ligationReagents  = mix ligBuf with ligase for 5s
+jurkatLigated     = mix jurkatWithFreeOligos with ligationReagents for 30m
+heat jurkatLigated at 25c for 30m
+
+// ------------------------------------------------------------
+// ARM 1 - STEP 9: Stop ligation and wash.
+//   Add stop solution to quench ligase activity.
+//   Wash 3x with PBS to remove ligation reagents prior
+//   to single-cell encapsulation / library preparation.
+// ------------------------------------------------------------
+
+stopSol       = dispense 1 units of StopSolution
+jurkatStopped = mix jurkatLigated with stopSol for 5m
+
+wash1L = dispense 1 units of WashBuffer
+wash2L = dispense 1 units of WashBuffer
+wash3L = dispense 1 units of WashBuffer
+
+washedL1 = mix jurkatStopped with wash1L for 2m
+washedL2 = mix washedL1 with wash2L for 2m
+jurkatLigatedReady = mix washedL2 with wash3L for 2m
+
+// ------------------------------------------------------------
+// ARM 1 - STEP 10: Single-cell encapsulation and
+//   library preparation (scRNA-seq + Prox-seq).
+//   Cells are encapsulated in individual droplets (10x
+//   Genomics or equivalent microfluidic platform) and
+//   lysed. mRNA is captured by poly-dT oligonucleotides.
+//   PLA products are captured by their barcoded sequences.
+//   cDNA (gene expression) and PLA product libraries are
+//   generated simultaneously and sequenced together.
+//   DNA library buffer is added to prepare the combined
+//   library for sequencing.
+// ------------------------------------------------------------
+
+dnaLibBuf        = dispense 1 units of DNALibraryBuffer
+jurkatLibPrep    = mix jurkatLigatedReady with dnaLibBuf for 30m
+heat jurkatLibPrep at 37c for 30m
+
+seqReagentJ      = dispense 1 units of SequencingReagent
+jurkatSeqReady   = mix jurkatLibPrep with seqReagentJ for 10m
+
+// ------------------------------------------------------------
+// ARM 1 - STEP 11: Library QC detection.
+//   QC check on the Jurkat Prox-seq library before
+//   sequencing. Checks for adequate library complexity,
+//   correct fragment sizes for PLA products and cDNA,
+//   and sufficient UMI diversity.
+//   proxSeqDetection module abstracts fluorometric/
+//   electrophoretic QC (e.g. Bioanalyzer, Qubit).
+// ------------------------------------------------------------
+
+jurkatLibSignal = detect seqLibraryQC on jurkatSeqReady for 30s
+
+// ============================================================
+// BB2 / BB3: Jurkat library QC gate
+// Pass (BB2): jurkatLibSignal > 0 -> library QC passed;
+//             dispose Jurkat library products and proceed
+//             to Raji B cell arm.
+// Fail (BB3): jurkatLibSignal <= 0 -> library prep failed
+//             (low complexity, wrong fragment sizes, or
+//             insufficient UMIs); drain Jurkat products.
+// Both branches converge at BB4 (jurkatLibJoin).
+// ============================================================
+
+if (jurkatLibSignal > 0) {
+    dispose jurkatSeqReady
+} else {
+    drain jurkatSeqReady
+}
+
+// ============================================================
+// BB4: jurkatLibJoin
+// Dispose Jurkat library QC signal. Control falls into
+// Raji B cell arm (BB5/BB6).
+// ============================================================
+
+dispose jurkatLibSignal
+
+// ============================================================
+// ARM 2: Raji B Cell Prox-seq Protocol
+// Identical probe panel and procedural steps as Jurkat arm.
+// Raji cells express ICAM1 (known homodimer on cell surface,
+// Ref [14]), HLADR, PDL1 among other panel proteins.
+// The ensemble method recovers ICAM1:ICAM1 complex
+// in Raji cells (Fig 5d-f, paper Section: Comparison of
+// all three analytical methods to real data).
+// ============================================================
+
+// ------------------------------------------------------------
+// ARM 2 - STEP 1: Prepare Raji B cell suspension.
+// ------------------------------------------------------------
+
+rajiCells        = dispense 1 units of RajiCells
+cellPBS2         = dispense 1 units of PBS
+rajiSuspension   = mix rajiCells with cellPBS2 for 5m
+
+// ------------------------------------------------------------
+// ARM 2 - STEP 2: Block nonspecific binding sites.
+// ------------------------------------------------------------
+
+blockingBuf2     = dispense 1 units of BlockingBuffer
+rajiBlocked      = mix rajiSuspension with blockingBuf2 for 10m
+heat rajiBlocked at 4c for 10m
+
+// ------------------------------------------------------------
+// ARM 2 - STEP 3: Stain with Prox-seq Probe A panel.
+//   Same panel as Jurkat arm (CD3, CD28, PD1, CD147,
+//   ICAM1, PDL1, HLADR, B7 + isotype control).
+//   Note: Raji cells do not express CD3 or PD1;
+//   their PLA products for these targets are near zero,
+//   validating specificity of the probe panel [4].
+// ------------------------------------------------------------
+
+probeAStain2      = dispense 1 units of ProxSeqProbeA
+isotypeControl2   = dispense 1 units of IsotypeControlAntibody
+probeAWithCtrl2   = mix probeAStain2 with isotypeControl2 for 5s
+rajiProbeAStained = mix rajiBlocked with probeAWithCtrl2 for 30m
+heat rajiProbeAStained at 4c for 30m
+
+// ------------------------------------------------------------
+// ARM 2 - STEP 4: Wash to remove unbound Probe A.
+// ------------------------------------------------------------
+
+wash1A2 = dispense 1 units of WashBuffer
+wash2A2 = dispense 1 units of WashBuffer
+wash3A2 = dispense 1 units of WashBuffer
+
+rajiWashedA1 = mix rajiProbeAStained with wash1A2 for 2m
+rajiWashedA2 = mix rajiWashedA1 with wash2A2 for 2m
+rajiProbeAReady = mix rajiWashedA2 with wash3A2 for 2m
+
+// ------------------------------------------------------------
+// ARM 2 - STEP 5: Stain with Prox-seq Probe B panel.
+// ------------------------------------------------------------
+
+probeBStain2      = dispense 1 units of ProxSeqProbeB
+rajiProbeBStained = mix rajiProbeAReady with probeBStain2 for 30m
+heat rajiProbeBStained at 4c for 30m
+
+// ------------------------------------------------------------
+// ARM 2 - STEP 6: Wash to remove unbound Probe B.
+// ------------------------------------------------------------
+
+wash1B2 = dispense 1 units of WashBuffer
+wash2B2 = dispense 1 units of WashBuffer
+wash3B2 = dispense 1 units of WashBuffer
+
+rajiWashedB1 = mix rajiProbeBStained with wash1B2 for 2m
+rajiWashedB2 = mix rajiWashedB1 with wash2B2 for 2m
+rajiDualStained = mix rajiWashedB2 with wash3B2 for 2m
+
+// ------------------------------------------------------------
+// ARM 2 - STEP 7: Add Free Oligo probes.
+//   Same free oligo modification as Jurkat arm.
+//   Non-proximal probe counts for Raji cells are used
+//   to calibrate proximity noise in the LR and ensemble
+//   methods for Raji-specific protein complex detection.
+// ------------------------------------------------------------
+
+freeOligoA2    = dispense 1 units of FreeOligoA
+freeOligoB2    = dispense 1 units of FreeOligoB
+freeOligoMix2  = mix freeOligoA2 with freeOligoB2 for 5s
+rajiWithFreeOligos = mix rajiDualStained with freeOligoMix2 for 10m
+heat rajiWithFreeOligos at 4c for 10m
+
+// ------------------------------------------------------------
+// ARM 2 - STEP 8: Proximity ligation reaction.
+//   Same ligation conditions as Jurkat arm.
+//   Ligation distance = 50 nm threshold.
+//   Proximity noise for Raji arm:
+//   E(X_ij) = (d_ligation^2 / 4R^2) * A_i * B_j
+//   ICAM1:ICAM1 homodimer signal exceeds expected random
+//   ligation background (Fig 5d-f, paper).
+// ------------------------------------------------------------
+
+ligBuf2           = dispense 1 units of LigationBuffer
+ligase2           = dispense 1 units of Ligase
+ligReagents2      = mix ligBuf2 with ligase2 for 5s
+rajiLigated       = mix rajiWithFreeOligos with ligReagents2 for 30m
+heat rajiLigated at 25c for 30m
+
+// ------------------------------------------------------------
+// ARM 2 - STEP 9: Stop ligation and wash.
+// ------------------------------------------------------------
+
+stopSol2       = dispense 1 units of StopSolution
+rajiStopped    = mix rajiLigated with stopSol2 for 5m
+
+wash1L2 = dispense 1 units of WashBuffer
+wash2L2 = dispense 1 units of WashBuffer
+wash3L2 = dispense 1 units of WashBuffer
+
+rajiWashedL1 = mix rajiStopped with wash1L2 for 2m
+rajiWashedL2 = mix rajiWashedL1 with wash2L2 for 2m
+rajiLigatedReady = mix rajiWashedL2 with wash3L2 for 2m
+
+// ------------------------------------------------------------
+// ARM 2 - STEP 10: Single-cell encapsulation and
+//   library preparation.
+//   Same procedure as Jurkat arm.
+//   Combined cDNA + PLA product library generated.
+//   After sequencing, UMI counts per PLA product per
+//   single Raji cell are the primary data for downstream
+//   computational analysis (iterative, LR, ensemble methods).
+// ------------------------------------------------------------
+
+dnaLibBuf2       = dispense 1 units of DNALibraryBuffer
+rajiLibPrep      = mix rajiLigatedReady with dnaLibBuf2 for 30m
+heat rajiLibPrep at 37c for 30m
+
+seqReagentR      = dispense 1 units of SequencingReagent
+rajiSeqReady     = mix rajiLibPrep with seqReagentR for 10m
+
+// ------------------------------------------------------------
+// ARM 2 - STEP 11: Library QC detection.
+//   Same QC procedure as Jurkat arm.
+//   seqLibraryQC module abstracts Bioanalyzer/Qubit QC.
+// ------------------------------------------------------------
+
+rajiLibSignal = detect seqLibraryQC on rajiSeqReady for 30s
+
+// ============================================================
+// BB5 / BB6: Raji library QC gate
+// Pass (BB5): rajiLibSignal > 0 -> library QC passed;
+//             dispose all Raji library products.
+// Fail (BB6): rajiLibSignal <= 0 -> library prep failed;
+//             drain all Raji products.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (rajiLibSignal > 0) {
+    dispose rajiSeqReady
+} else {
+    drain rajiSeqReady
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose library QC signals from both arms.
+// Experiment ends. Sequencing data submitted to
+// computational pipeline for proximity noise removal and
+// protein complex prediction (iterative / LR / ensemble).
+// Code: https://github.com/tay-lab/Prox-seq_computation
+// Data: GEO GSE196130
+// ============================================================
+
+dispose rajiLibSignal
+
+// [terminal -- no further instructions; exit node for CFG]

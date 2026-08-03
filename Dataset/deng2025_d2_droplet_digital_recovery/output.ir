@@ -1,0 +1,88 @@
+bsbbif_2_t:
+	recoveryBufferBead1[0] = dispense(RecoveryBuffer_PBS)
+	mergedBeadDrop1[0] = mix(beadDroplets1[0], recoveryBufferBead1[0]) @ 2.0SECOND
+	dispose(mergedBeadDrop1[0])
+bsbbif_3_f:
+	dispose(beadDroplets1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(beadSignal1[0])
+	gfpCells1[0] = dispense(GFP_HEK293_Cells)
+	wtCells1[0] = dispense(WT_HEK293_Cells)
+	optiprepCell1[0] = dispense(OptiPrep)
+	spikeMix1[0] = mix(gfpCells1[0], wtCells1[0]) @ 5.0SECOND
+	cellSuspension1[0] = mix(spikeMix1[0], optiprepCell1[0]) @ 5.0SECOND
+	oilCell1[0] = dispense(HFE7500_Surfactant)
+	cellDroplets1[0] = mix(cellSuspension1[0], oilCell1[0]) @ 2.0SECOND
+	cellSignal1[0] = detect(singleCellGFPDetection, cellDroplets1[0]) @ 10.0SECOND
+	if cellSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	oilPrime1[0] = dispense(HFE7500_Surfactant)
+	beadSuspension1[0] = dispense(FluoroSpheres_10um)
+	optiprepBead1[0] = dispense(OptiPrep)
+	beadMix1[0] = mix(beadSuspension1[0], optiprepBead1[0]) @ 5.0SECOND
+	oilEncapsulate1[0] = dispense(HFE7500_Surfactant)
+	beadDroplets1[0] = mix(beadMix1[0], oilEncapsulate1[0]) @ 2.0SECOND
+	beadSignal1[0] = detect(singleBeadDetection, beadDroplets1[0]) @ 10.0SECOND
+	if beadSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	recoveryBufferCell1[0] = dispense(RecoveryBuffer_DMEM)
+	mergedCellDrop1[0] = mix(cellDroplets1[0], recoveryBufferCell1[0]) @ 2.0SECOND
+	dispose(mergedCellDrop1[0])
+bsbbif_6_f:
+	dispose(cellDroplets1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(cellSignal1[0])
+	wellEnvironment1[0] = dispense(DMEM_Complete)
+	conditionedMediaHEK1[0] = dispense(ConditionedMedia_HEK)
+	sytoxBlue1[0] = dispense(SYTOX_Blue)
+	cellCultureInit1[0] = mix(wellEnvironment1[0], conditionedMediaHEK1[0]) @ 86400.0SECOND
+	heat(cellCultureInit1[0]) @ 37.0CELSIUS @ 86400.0SECOND
+	stainedCells1[0] = mix(cellCultureInit1[0], sytoxBlue1[0]) @ 30.0SECOND
+	viabilitySignal1[0] = detect(viabilityDetection, stainedCells1[0]) @ 60.0SECOND
+	if viabilitySignal1[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	freshDMEM1[0] = dispense(DMEM_Complete)
+	expandedCell1[0] = mix(stainedCells1[0], freshDMEM1[0]) @ 518400.0SECOND
+	heat(expandedCell1[0]) @ 37.0CELSIUS @ 518400.0SECOND
+	dispose(expandedCell1[0])
+bsbbif_9_f:
+	dispose(stainedCells1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(viabilitySignal1[0])
+	specificHybridoma1[0] = dispense(HybridomaSpecific_Cells)
+	nonspecificHybridoma1[0] = dispense(HybridomaNonSpecific_Cells)
+	calceingAM1[0] = dispense(CalceinAM_RedOrange)
+	il6Supplement1[0] = dispense(IL6_Supplement)
+	optiprepHybrid1[0] = dispense(OptiPrep)
+	stainedSpecific1[0] = mix(specificHybridoma1[0], calceingAM1[0]) @ 1800.0SECOND
+	hybridomaMixRaw1[0] = mix(stainedSpecific1[0], nonspecificHybridoma1[0]) @ 5.0SECOND
+	hybridomaMix1[0] = mix(hybridomaMixRaw1[0], optiprepHybrid1[0]) @ 5.0SECOND
+	hybridomaFinal1[0] = mix(hybridomaMix1[0], il6Supplement1[0]) @ 5.0SECOND
+	targetCells1[0] = dispense(TargetCells)
+	cellTraceBlue1[0] = dispense(CellTrace_Blue)
+	alexaFluor4881[0] = dispense(AlexaFluor488_AntiMouse)
+	optiprepTarget1[0] = dispense(OptiPrep)
+	stainedTargets1[0] = mix(targetCells1[0], cellTraceBlue1[0]) @ 1200.0SECOND
+	targetWithAb1[0] = mix(stainedTargets1[0], alexaFluor4881[0]) @ 5.0SECOND
+	targetFinal1[0] = mix(targetWithAb1[0], optiprepTarget1[0]) @ 5.0SECOND
+	oilCoEncap1[0] = dispense(HFE7500_Surfactant)
+	coEncapDroplets1[0] = mix(hybridomaFinal1[0], targetFinal1[0]) @ 5.0SECOND
+	encapsulatedPairs1[0] = mix(coEncapDroplets1[0], oilCoEncap1[0]) @ 2.0SECOND
+	heat(encapsulatedPairs1[0]) @ 37.0CELSIUS @ 7200.0SECOND
+	oilReinject1[0] = dispense(HFE7500_Surfactant)
+	reinjectedDroplets1[0] = mix(encapsulatedPairs1[0], oilReinject1[0]) @ 2.0SECOND
+	abSignal1[0] = detect(antibodyBindingDetection, reinjectedDroplets1[0]) @ 10.0SECOND
+	if abSignal1[0] > 0	|	true: jump bsbbif_11_t	|	false: jump bsbbif_12_f
+bsbbif_11_t:
+	recoveryBufferIMDM1[0] = dispense(RecoveryBuffer_IMDM)
+	mergedAbDrop1[0] = mix(reinjectedDroplets1[0], recoveryBufferIMDM1[0]) @ 3.0SECOND
+	dispose(mergedAbDrop1[0])
+bsbbif_12_f:
+	dispose(reinjectedDroplets1[0])
+	jump: bsbbif_13_j
+bsbbif_13_j:
+	dispose(abSignal1[0])
+	NOP

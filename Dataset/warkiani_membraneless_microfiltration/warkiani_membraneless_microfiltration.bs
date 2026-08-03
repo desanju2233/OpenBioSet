@@ -1,0 +1,489 @@
+module separationEfficiencyDetection
+module cellViabilityDetection
+module antibodyTiterDetection
+module cellCycleDetection
+
+manifest CHO_Cells
+manifest Yeast_S_cerevisiae
+manifest Hybridoma_Cells
+manifest PBS
+manifest PDMS_PrimingBuffer
+manifest PropidiumIodide
+manifest FDAStain
+manifest HoechstStain
+manifest TrypanBlue
+manifest IgG_ELISA_Reagent
+manifest CompleteDMEM
+manifest ConditionedMedia
+manifest TrypsinEDTA
+manifest BSA_EDTA_Buffer
+
+instructions:
+
+// ============================================================
+// Membrane-less Microfiltration Using Inertial Microfluidics
+// Warkiani, Tay, Guan & Han - Scientific Reports 5:11018 (2015)
+// DOI: 10.1038/srep11018
+//
+// Protocol: Massively parallelised spiral inertial microfluidic
+// device (~200 individual spiral microchannels, PDMS, trapezoidal
+// cross-section) for continuous, membrane-less, size-based cell
+// filtration at macroscopic flow rates (~500 mL/min combined).
+//
+// Three applications are encoded in sequence:
+//   1. CHO cell retention from perfusion bioreactor (filtration mode)
+//   2. Yeast (S. cerevisiae) microfiltration (filtration mode)
+//   3. CHO cell cycle synchronisation (fractionation mode)
+//
+// WORKING PRINCIPLE:
+//   Inertial lift force (F_L ~ a_p^4) and Dean drag force
+//   (F_D ~ a_p^2) act on particles in curvilinear channels.
+//   Trapezoidal cross-section creates stronger Dean vortex cores
+//   near the outer wall, trapping all particles at the outer
+//   outlet (filtration mode, ~6 mL/min per spiral) or focusing
+//   small cells near outer wall and large cells near inner wall
+//   (fractionation mode, ~1.5-2 mL/min per spiral).
+//
+// DEVICE GEOMETRY (CHO):
+//   8-loop spiral, radius 8-24 mm, channel 600 um wide x
+//   80x130 um trapezoidal cross-section; 4 spirals per PDMS
+//   layer, multiplexed to 84 spirals for 500 mL/min throughput.
+//
+// DEVICE GEOMETRY (Yeast):
+//   Channel 450 um wide x 30x70 um trapezoidal cross-section;
+//   8 spirals per layer; 180 spirals for ~320 mL/min.
+//
+// ABSTRACTION NOTE:
+//   `mix` steps abstract hydrodynamic inertial focusing events
+//   (pressure-driven flow through spiral microchannels), not
+//   DMF electrode mixing. Duration encodes residence time /
+//   processing time at the stated flow rate.
+//   `heat` steps encode incubation / culture conditions.
+//
+// CFG STRUCTURE:
+//   BB1  main               -- device priming; CHO filtration loop
+//   BB2  choRetentionPass   -- choSignal > 0: >95% efficiency,
+//                              return cells; continue culture
+//   BB3  choRetentionFail   -- choSignal <= 0: low efficiency; drain
+//   BB4  choRetentionJoin   -- join: viability QC branch
+//   BB5  viabilityPass      -- viabilitySignal > 0: >90% viability; dispose
+//   BB6  viabilityFail      -- viabilitySignal <= 0: low viability; drain
+//   BB7  viabilityJoin      -- join: IgG titer QC branch
+//   BB8  titerPass          -- titerSignal > 0: IgG rising; dispose
+//   BB9  titerFail          -- titerSignal <= 0: no IgG detected; drain
+//   BB10 titerJoin          -- join: yeast filtration branch begins
+//   BB11 yeastPass          -- yeastSignal > 0: >90% efficiency; dispose
+//   BB12 yeastFail          -- yeastSignal <= 0: low efficiency; drain
+//   BB13 yeastJoin          -- join: cell cycle synchronisation branch
+//   BB14 syncPass           -- syncSignal > 0: G0/G1:G2/M >= 5:1; dispose
+//   BB15 syncFail           -- syncSignal <= 0: poor enrichment; drain
+//   BB16 finalCleanup       -- terminal: dispose all QC signals
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// APPLICATION 1: CHO CELL RETENTION FROM PERFUSION BIOREACTOR
+// ------------------------------------------------------------
+
+// ------------------------------------------------------------
+// STEP 1: Prime the spiral microfluidic device with PBS to
+//         wet the PDMS microchannels and eliminate air bubbles.
+//         PDMS surface must be fully wetted before cell loading
+//         to prevent non-specific cell adhesion and bubble-
+//         induced channel blockage. ~2 mL PBS per device at
+//         6 mL/min for 20 s. BSA-EDTA supplemented buffer is
+//         used to prevent non-specific adsorption to PDMS walls
+//         (0.5% BSA, 2 mM EDTA in 1x PBS).
+//         NOTE: `mix` abstracts pressure-driven channel priming.
+// ------------------------------------------------------------
+
+primingBuffer  = dispense 1 units of BSA_EDTA_Buffer
+primingPBS     = dispense 1 units of PBS
+primingMix     = mix primingBuffer with primingPBS for 20s
+
+// ------------------------------------------------------------
+// STEP 2: Prepare CHO cell suspension from spinner flask
+//         bioreactor (AE-1 hybridoma cell line, ATCC HB-72).
+//         Cells cultured in Hybridoma-SFM at 37 C / 5% CO2,
+//         100 rpm magnetic stir. Working concentration:
+//         1e4 - 1e7 cells/mL in BSA-EDTA buffer. Separation
+//         efficiency remains >95% up to 1e7 cells/mL; declines
+//         above this threshold (Fig. 2b).
+//         Cells resuspended in BSA-EDTA buffer to prevent
+//         agglomeration and wall adsorption.
+// ------------------------------------------------------------
+
+choCells       = dispense 1 units of CHO_Cells
+bsaBuffer1     = dispense 1 units of BSA_EDTA_Buffer
+choSuspension  = mix choCells with bsaBuffer1 for 10s
+
+// ------------------------------------------------------------
+// STEP 3: Load CHO cell suspension into multiplexed inertial
+//         filtration system via peristaltic pump (Masterflex,
+//         Cole-Parmer). Flow rate: 6 mL/min per single spiral
+//         (optimised from 1-10 mL/min range, Fig. 2b).
+//         84 spirals multiplexed -> 500 mL/min combined.
+//         At 6 mL/min (filtration mode): inertial lift forces
+//         dominate; all cells focus near outer wall and exit
+//         via outer outlet (cell concentrate / recycle stream).
+//         Clarified culture medium exits via inner outlet
+//         (cell-free filtrate for product harvest).
+//         NOTE: `mix` abstracts inertial focusing through the
+//         8-loop spiral microchannel at the stated flow rate.
+//         Duration = residence time in device at 6 mL/min.
+// ------------------------------------------------------------
+
+choFiltered    = mix choSuspension with primingMix for 5s
+
+// Post-separation: detect separation efficiency using inline
+// flow cytometry or cell counter. >95% efficiency expected
+// at 6 mL/min with <1e7 cells/mL.
+choSignal      = detect separationEfficiencyDetection on choFiltered for 30s
+
+// ============================================================
+// BB2 / BB3: CHO retention QC gate
+// Pass (BB2): choSignal > 0 -> >95% separation efficiency;
+//             enriched cell fraction returned to bioreactor
+//             flask; fresh media replenished; dispose filtrate.
+// Fail (BB3): choSignal <= 0 -> separation efficiency dropped
+//             (likely due to concentration >1e7 cells/mL);
+//             drain and adjust cell concentration.
+// Both branches converge at BB4 (choRetentionJoin).
+// ============================================================
+
+if (choSignal > 0) {
+    // Enriched CHO cells returned to spinner flask bioreactor.
+    // Fresh complete media added to maintain volume and nutrients.
+    freshMedia     = dispense 1 units of CompleteDMEM
+    recycledCells  = mix choFiltered with freshMedia for 1m
+
+    // Continue perfusion culture: 37 C / 5% CO2.
+    // Daily microfiltration cycles performed over 10-day run.
+    // Media replaced, cells recycled each cycle.
+    heat recycledCells at 37c for 1440m
+
+    dispose recycledCells
+} else {
+    drain choFiltered
+}
+
+// ============================================================
+// BB4: choRetentionJoin
+// Dispose CHO separation QC signal. Continue to viability
+// assessment branch (BB5/BB6).
+// ============================================================
+
+dispose choSignal
+
+// ------------------------------------------------------------
+// STEP 4: Cell viability assessment post-inertial filtration.
+//         Hybridoma cells processed at 6 mL/min per spiral
+//         (residence time <0.1 s). Cells stained with
+//         propidium iodide (PI) for dead cell identification
+//         (excluded by intact membranes in live cells) and
+//         FDA (fluorescein diacetate) for live cell
+//         identification (ex 490 nm / em 526 nm).
+//         Viability measured by trypan blue exclusion and
+//         propidium iodide via flow cytometry.
+//         Expected: >90% viability post-separation (Fig. 2c).
+//         c-FOS gene expression confirms no shear-stress
+//         upregulation (short residence time <0.1 s prevents
+//         AP-1 pathway activation compared to CHX control).
+// ------------------------------------------------------------
+
+hybridoma      = dispense 1 units of Hybridoma_Cells
+piStain        = dispense 1 units of PropidiumIodide
+fdaStain       = dispense 1 units of FDAStain
+
+// Trypan blue exclusion to measure live/dead ratio.
+trypan         = dispense 1 units of TrypanBlue
+trypanMix      = mix hybridoma with trypan for 2m
+
+// PI / FDA dual staining for flow cytometry viability analysis.
+piMix          = mix trypanMix with piStain for 5m
+viabilitySample = mix piMix with fdaStain for 10m
+
+viabilitySignal = detect cellViabilityDetection on viabilitySample for 30s
+
+// ============================================================
+// BB5 / BB6: Viability QC gate
+// Pass (BB5): viabilitySignal > 0 -> >90% viable post-sort;
+//             confirms inertial filtration does not perturb
+//             cellular homeostasis; dispose stained sample.
+// Fail (BB6): viabilitySignal <= 0 -> <90% viability;
+//             indicates cellular damage; drain and investigate.
+// Both branches converge at BB7 (viabilityJoin).
+// ============================================================
+
+if (viabilitySignal > 0) {
+    dispose viabilitySample
+} else {
+    drain viabilitySample
+}
+
+// ============================================================
+// BB7: viabilityJoin
+// Dispose viability QC signal. Continue to IgG titer branch.
+// ============================================================
+
+dispose viabilitySignal
+
+// ------------------------------------------------------------
+// STEP 5: IgG antibody titer monitoring (Fig. 2d).
+//         Media samples collected from spinner flask daily
+//         and assessed for IgG1 production by ELISA (Abcam
+//         IgG1 ELISA protocol, Cat. ab100548). Titer expected
+//         to increase steadily over 10-day run (0-50 ug/mL),
+//         confirming that cellular activities involved in IgG
+//         production are minimally affected by inertial
+//         filtration. Both post-sorted and unsorted control
+//         hybridoma cells show similar proliferation and
+//         production rates with no significant decline.
+// ------------------------------------------------------------
+
+mediaSample    = dispense 1 units of ConditionedMedia
+elisaReagent   = dispense 1 units of IgG_ELISA_Reagent
+elisaMix       = mix mediaSample with elisaReagent for 30m
+
+// ELISA incubation: 37 C for 30 min per Abcam protocol.
+heat elisaMix at 37c for 30m
+
+titerSignal    = detect antibodyTiterDetection on elisaMix for 30s
+
+// ============================================================
+// BB8 / BB9: IgG titer QC gate
+// Pass (BB8): titerSignal > 0 -> IgG detected and increasing;
+//             confirms productive perfusion culture; dispose.
+// Fail (BB9): titerSignal <= 0 -> no IgG detected; culture
+//             may have failed; drain and investigate.
+// Both branches converge at BB10 (titerJoin).
+// ============================================================
+
+if (titerSignal > 0) {
+    dispose elisaMix
+} else {
+    drain elisaMix
+}
+
+// ============================================================
+// BB10: titerJoin
+// Dispose titer QC signal. Continue to yeast filtration.
+// ============================================================
+
+dispose titerSignal
+
+// ============================================================
+// APPLICATION 2: YEAST (S. CEREVISIAE) MICROFILTRATION
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 6: Prepare yeast suspension.
+//         Dry strain of Saccharomyces cerevisiae (Sigma-Aldrich)
+//         rehydrated in water at 35 C for 10 min with stirring.
+//         Centrifuged at 2000 g for 15 min, washed twice with
+//         distilled water to remove cell debris. Pellet
+//         resuspended in BSA-EDTA running buffer.
+//         Average yeast cell size: 3-5 um.
+//         Working concentration: 0.05-1 g/L (1e5 cells/mL for
+//         >90% efficiency; up to 1 g/L with reasonable
+//         performance in single cycle, Fig. 3b).
+//         Device geometry: 450 um wide x 30x70 um trapezoidal
+//         cross-section; optimised for 3-5 um particle focusing
+//         near outer wall at 2 mL/min per spiral.
+// ------------------------------------------------------------
+
+yeastCells     = dispense 1 units of Yeast_S_cerevisiae
+bsaBuffer2     = dispense 1 units of BSA_EDTA_Buffer
+yeastSuspension = mix yeastCells with bsaBuffer2 for 10s
+
+// ------------------------------------------------------------
+// STEP 7: Inertial microfiltration of yeast suspension.
+//         Flow rate: 2 mL/min per single spiral (optimised).
+//         Multiplexed system: 180 spirals -> ~320 mL/min.
+//         At 2 mL/min, yeast cells (3-5 um) focus near the
+//         outer wall via Dean vortex trapping (trapezoidal
+//         30x70 um channel). Cells exit via outer outlet as
+//         concentrated yeast fraction; clarified broth
+//         (cell-free) exits via inner outlet.
+//         This enables continuous broth fermentation
+//         clarification without membrane fouling.
+//         NOTE: `mix` abstracts pressure-driven inertial
+//         focusing through the small-dimension yeast spiral
+//         at 2 mL/min. Duration = transit / processing time.
+// ------------------------------------------------------------
+
+yeastPriming   = dispense 1 units of PBS
+yeastFiltered  = mix yeastSuspension with yeastPriming for 5s
+
+// Separation efficiency measured by flow cytometry (BD LSR II).
+// Scatter plots (SSC-A vs FSC-A) used to gate yeast population
+// at inlet, outer outlet, inner outlet (Fig. 3a).
+// Expected: >90% efficiency at 1e5 cells/mL (0.05 g/L).
+// Performance benchmarked against cellulose acetate and Teflon
+// membrane filters in cross-flow mode (Fig. 3c): inertial
+// system maintains constant flux throughout filtration run
+// while membrane flux declines due to progressive fouling.
+yeastSignal    = detect separationEfficiencyDetection on yeastFiltered for 30s
+
+// ============================================================
+// BB11 / BB12: Yeast filtration QC gate
+// Pass (BB11): yeastSignal > 0 -> >90% separation efficiency;
+//              yeast concentrate fraction collected for
+//              downstream use; dispose clarified broth.
+// Fail (BB12): yeastSignal <= 0 -> efficiency dropped (likely
+//              high concentration >1 g/L or channel clogging);
+//              drain and re-run with lower concentration or
+//              additional sorting cycles.
+// Both branches converge at BB13 (yeastJoin).
+// ============================================================
+
+if (yeastSignal > 0) {
+    dispose yeastFiltered
+} else {
+    drain yeastFiltered
+}
+
+// ============================================================
+// BB13: yeastJoin
+// Dispose yeast separation QC signal. Continue to CHO
+// cell cycle synchronisation branch.
+// ============================================================
+
+dispose yeastSignal
+
+// ============================================================
+// APPLICATION 3: CHO CELL CYCLE SYNCHRONISATION (FRACTIONATION)
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 8: Prepare asynchronous CHO-K1 cell suspension for
+//         cell cycle synchronisation via inertial fractionation.
+//         CHO-K1 (ATCC CCL-61) cultured in low-glucose DMEM +
+//         10% FBS + 1% pen/strep at 37 C / 5% CO2.
+//         Sub-confluent monolayers dissociated with 0.01%
+//         trypsin + 5.3 mM EDTA (Lonza).
+//         Cells resuspended in BSA-EDTA buffer at 1e6 cells/mL.
+//
+//         SIZE BASIS OF SYNCHRONISATION:
+//         G0/G1 cells: 11 +/- 2 um (smaller)
+//         G2/M cells:  18 +/- 2 um (larger)
+//         Initial asynchronous G0/G1:G2/M ratio: 1.82:1.
+//         (Fig. 4a, Hoechst DNA staining by FACS).
+//
+//         FRACTIONATION MODE (vs filtration mode):
+//         At low flow rate (~1.5-2 mL/min per spiral), inertial
+//         lift and Dean drag reach separate equilibria for the
+//         two cell size populations:
+//           - Small cells (G0/G1, <14 um): trapped near outer
+//             wall -> exit via outer outlet (enriched G0/G1)
+//           - Large cells (G2/M, >14 um): focused near inner
+//             wall -> exit via inner outlet (enriched G2/M)
+//         NOTE: Same device geometry as CHO filtration (600 um
+//         wide x 80x130 um trapezoidal); only flow rate changed.
+// ------------------------------------------------------------
+
+choSyncCells   = dispense 1 units of CHO_Cells
+trypsin        = dispense 1 units of TrypsinEDTA
+
+// Trypsin dissociation of adherent CHO-K1 monolayer.
+detachedCells  = mix choSyncCells with trypsin for 3m
+
+// Quench trypsin with complete DMEM; pellet and resuspend
+// in BSA-EDTA buffer at 1e6 cells/mL.
+quenchMedia    = dispense 1 units of CompleteDMEM
+bsaBuffer3     = dispense 1 units of BSA_EDTA_Buffer
+
+quenchedCells  = mix detachedCells with quenchMedia for 2m
+syncSuspension = mix quenchedCells with bsaBuffer3 for 5s
+
+// ------------------------------------------------------------
+// STEP 9: Inertial fractionation for cell cycle synchronisation.
+//         Flow rate: 1.5 mL/min per spiral (fractionation mode).
+//         Multiplexed system: 150-200 spirals -> 150-300 mL/min
+//         (sufficient to fractionate 1-5 L perfusion reactor
+//         contents within minutes).
+//         At this low flow rate, Dean number is reduced;
+//         smaller G0/G1 cells remain trapped in Dean vortex
+//         near outer wall while larger G2/M cells migrate to
+//         inner wall equilibrium position.
+//         Throughput per spiral: 1-2 mL/min (up to 1e6 cells/mL).
+//         Multiple sorting rounds improve G0/G1 enrichment:
+//         1 round: G0/G1:G2/M ratio -> 5.02:1 (outer outlet)
+//         G0/G1 purity: ~80% in outer outlet (from ~60% input).
+//         NOTE: `mix` abstracts the size-differential inertial
+//         focusing event at low flow rate fractionation regime.
+// ------------------------------------------------------------
+
+syncPriming    = dispense 1 units of PBS
+fractionatedCells = mix syncSuspension with syncPriming for 8s
+
+// ------------------------------------------------------------
+// STEP 10: Cell cycle phase analysis by Hoechst DNA staining
+//          and flow cytometry (FACS).
+//          Sorted cells fixed in 4% PFA (15 min at 4 C),
+//          pelleted at 600 g for 5 min, stained with:
+//            - 10 ug/mL RNase (i-DNA Biotechnology) to remove RNA
+//            - 3.8 mM sodium citrate
+//            - Hoechst NucBlue LiveReadyProbes (Invitrogen)
+//          in 1x PBS for 30 min at room temperature (25 C).
+//          DNA content measured by BD LSR II flow cytometer.
+//          G0/G1 (2N DNA, low Hoechst signal) and G2/M (4N DNA,
+//          high Hoechst signal) peaks distinguished by FACS.
+//          Data analysed with FlowJo software.
+// ------------------------------------------------------------
+
+hoechstStain   = dispense 1 units of HoechstStain
+bsaBuffer4     = dispense 1 units of BSA_EDTA_Buffer
+
+// Fix cells in PBS at 4 C for 15 min.
+heat fractionatedCells at 4c for 15m
+
+stainBuffer    = mix fractionatedCells with bsaBuffer4 for 5s
+stainedSync    = mix stainBuffer with hoechstStain for 30m
+
+syncSignal     = detect cellCycleDetection on stainedSync for 30s
+
+// ============================================================
+// BB14 / BB15: Cell cycle synchronisation QC gate
+// Pass (BB14): syncSignal > 0 -> G0/G1:G2/M ratio >= 5:1 in
+//              outer outlet fraction; G0/G1 purity ~80%;
+//              synchronised cells suitable for downstream
+//              anti-cancer drug screening or recombinant
+//              protein production (faster-growing G1 phase).
+//              Dispose stained cell sample after FACS readout.
+// Fail (BB15): syncSignal <= 0 -> insufficient enrichment
+//              (<3-fold improvement); drain and repeat
+//              fractionation with additional sorting rounds
+//              (inner outlet fraction from round 1 can be
+//              re-processed as described in paper).
+// Both branches converge at BB16 (finalCleanup).
+// ============================================================
+
+if (syncSignal > 0) {
+    // Synchronised G0/G1 cells collected at outer outlet for
+    // re-inoculation into bioreactor or drug screening assay.
+    // Cells recovered in conditioned media and transferred
+    // to culture vessel for downstream characterisation.
+    conditionedMedia2 = dispense 1 units of ConditionedMedia
+    synchronisedCells = mix stainedSync with conditionedMedia2 for 1m
+
+    // Return synchronised cells to 37 C culture for downstream use.
+    heat synchronisedCells at 37c for 60m
+
+    dispose synchronisedCells
+} else {
+    drain stainedSync
+}
+
+// ============================================================
+// BB16: finalCleanup (terminal)
+// Dispose all remaining QC signal droplets.
+// Experiment ends.
+// ============================================================
+
+dispose syncSignal
+
+// [terminal -- no further instructions; exit node for CFG]

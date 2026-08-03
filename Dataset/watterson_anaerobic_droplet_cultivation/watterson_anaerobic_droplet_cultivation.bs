@@ -1,0 +1,536 @@
+module imagingODDetection
+module waveletODSorting
+module sixteenSrRNASequencing
+module antibioticResistanceDetection
+
+manifest FecalCellSuspension
+manifest BHIS_Medium
+manifest GMM_Medium
+manifest YCFA_Medium
+manifest HFE7500_SurfactantOil
+manifest Ampicillin_BHIS
+manifest Ciprofloxacin_BHIS
+manifest Vancomycin_BHIS
+manifest DNAExtractionBuffer
+manifest PFO_DemulsificationAgent
+
+// ============================================================
+// Droplet-Based High-Throughput Cultivation for Accurate
+// Screening of Antibiotic Resistant Gut Microbes.
+// Watterson et al., eLife 2020;9:e56998.
+// DOI: https://doi.org/10.7554/eLife.56998
+//
+// Platform: Anaerobic vinyl chamber (Coy Laboratory Products),
+// 86% N2 / 10% CO2 / 4% H2 atmosphere, <1 ppm O2. All droplet
+// generation, cultivation, and sorting steps are performed
+// inside the anaerobic chamber. External computer controls
+// syringe pumps, high-frame-rate camera (Basler acA640-750um,
+// 925 Hz, 59 us exposure), and sorting electrodes (10 kHz,
+// 800 V p-p, 30% duty cycle, 10 ms actuation).
+//
+// DROPLET GENERATION: Flow-focusing junction. Oil phase:
+// Bio-Rad Droplet Generation Oil for EvaGreen. Droplet volumes:
+// ~65-115 pL. Fecal cell suspension diluted 200x so that
+// ~2-12% of droplets contain exactly one viable cell
+// (Poisson statistics). ~4-15 million droplets per run.
+//
+// SORTING: Wavelet OD image analysis (discrete wavelet frame
+// decomposition, biorthogonal 3.1 wavelets, LL High subband,
+// 15x15 px window, 5 px step, 15 grey levels, 3x3 px
+// displacement). Wavelet OD in [0.3, 0.7] = sparse/slow-growing
+// colony (KEEP). OD < 0.3 = empty. OD > 0.7 = dense colony.
+// Sorting rate: ~30 Hz. Dielectrophoretic deflection into
+// keep/waste path.
+//
+// SEQUENCING: Paired-end 16S rRNA V4 amplicon sequencing
+// (Illumina MiSeq, 2x151). Library prep by Argonne National
+// Laboratory Earth Microbiome Project protocol. ASVs inferred
+// by Minimum Entropy Decomposition (MED); taxonomy by SILVA.
+//
+// BIOLOGICAL SCOPE: This file encodes the full experiment
+// in sequence:
+//   PROTOCOL 1 - Rich media droplet cultivation (BHIS, GMM,
+//     YCFA), with slow-grower sorting enrichment.
+//   PROTOCOL 2 - Antibiotic resistance screening in droplets
+//     (Ampicillin, Ciprofloxacin, Vancomycin in BHIS).
+// Each protocol block is self-contained with its own QC gate.
+//
+// NOTE ON INCUBATION TIME: BioScript duration tokens are
+// s / m only. All hour-based incubations are converted to
+// minutes. Plates: up to 7 days = 10080 min. Droplets:
+// up to 2 days = 2880 min.
+//
+// NOTE ON DISPENSE ABSTRACTION: `dispense 1 units of X`
+// models the generation of one droplet batch (~0.5-1 mL
+// emulsion) from a given medium/reagent reservoir. Each
+// dispense into oil at the flow-focusing junction produces
+// the full set of encapsulated droplets for that condition.
+// The oil phase (HFE7500_SurfactantOil) is modelled as a
+// co-dispense step via `mix`, abstracting the two-pump
+// (aqueous + oil) flow-focusing generation event.
+//
+// NOTE ON POISSON ENCAPSULATION: Stochastic single-cell
+// isolation by Poisson statistics is implicit in the
+// dispense step. There is no reagent-mixing in the DMF
+// sense; `mix` abstracts a droplet generation/coalescence
+// event at the flow-focusing junction.
+//
+// CFG STRUCTURE:
+//   BB1  main               -- device setup; BHIS rich media
+//                              droplet cultivation
+//   BB2  bhisDropletPass    -- bhisCultSignal > 0: growth
+//                              detected; proceed to sorting
+//   BB3  bhisDropletFail    -- bhisCultSignal <= 0: no growth;
+//                              drain emulsion
+//   BB4  bhisCultJoin       -- join: slow-grower sorting
+//   BB5  bhisSortPass       -- bioxSortSignal > 0: slow-grower
+//                              colonies kept; proceed to seq
+//   BB6  bhisSortFail       -- bioxSortSignal <= 0: sort failed;
+//                              drain sorted fraction
+//   BB7  bhisSortJoin       -- join: GMM cultivation arm
+//   BB8  gmmDropletPass     -- gmmCultSignal > 0: growth; proceed
+//   BB9  gmmDropletFail     -- gmmCultSignal <= 0: no growth; drain
+//   BB10 gmmCultJoin        -- join: YCFA cultivation arm
+//   BB11 ycfaDropletPass    -- ycfaCultSignal > 0: growth; proceed
+//   BB12 ycfaDropletFail    -- ycfaCultSignal <= 0: no growth; drain
+//   BB13 ycfaCultJoin       -- join: antibiotic screening arm
+//   BB14 ampDropletPass     -- ampResistSignal > 0: resistant
+//                              organisms detected; proceed
+//   BB15 ampDropletFail     -- ampResistSignal <= 0: none; drain
+//   BB16 ampScreenJoin      -- join: ciprofloxacin arm
+//   BB17 ciproDropletPass   -- ciproResistSignal > 0: proceed
+//   BB18 ciproDropletFail   -- ciproResistSignal <= 0: drain
+//   BB19 ciproScreenJoin    -- join: vancomycin arm
+//   BB20 vancoDropletPass   -- vancoResistSignal > 0: proceed
+//   BB21 vancoDropletFail   -- vancoResistSignal <= 0: drain
+//   BB22 finalCleanup       -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ============================================================
+// PROTOCOL 1: RICH MEDIA DROPLET CULTIVATION
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 1: Prepare BHIS emulsion.
+//   Fecal cell suspension (FMT donor, previously characterised
+//   by Lee et al. 2017) diluted 200x into Brain Heart Infusion
+//   Supplemented medium (BHIS: 18.5 g BHI broth, 2.5 g yeast
+//   extract, 0.25 g L-cysteine per 500 mL; autoclaved; + 0.5 mL
+//   0.1% Vitamin K + 0.5 mL hemin 5 mg/mL).
+//   Live cell density: ~1.5 +/- 1.0 x10^8 cells/mL.
+//   Poisson loading: ~2-12% of droplets contain one live cell.
+//   Droplet generation flow-focusing junction; HFE7500 oil
+//   phase abstracts the two-pump co-dispense event.
+//   Total emulsion: ~0.5-1 mL of 65-115 pL droplets
+//   (~4-15 million droplets).
+// ------------------------------------------------------------
+
+bhisCells      = dispense 1 units of FecalCellSuspension
+bhisMedium     = dispense 1 units of BHIS_Medium
+bhisOil        = dispense 1 units of HFE7500_SurfactantOil
+
+// Mix abstracts the flow-focusing droplet generation event:
+// aqueous (cells + medium) sheared into oil at junction.
+bhisPreEmulsion  = mix bhisCells with bhisMedium for 5s
+bhisEmulsion     = mix bhisPreEmulsion with bhisOil for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 2: Incubate BHIS droplets.
+//   Emulsion stored in 15 mL snap-cap culture tube at 37 C
+//   inside the anaerobic chamber incubator. Cultured up to
+//   2 days (2880 min). Each isolated droplet acts as an
+//   independent microreactor; slow-growers avoid competitive
+//   overgrowth from fast-growing populations.
+//   NOTE: Droplet volume reduction begins after ~4 days due
+//   to evaporation in the arid anaerobic atmosphere; cultures
+//   are limited to 2 days to avoid this artefact.
+// ------------------------------------------------------------
+
+heat bhisEmulsion at 37c for 2880m
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 3: Image-based colony density detection.
+//   High-frame-rate camera + LabView code detects each droplet
+//   approaching the sorting junction. Wavelet OD computed per
+//   droplet. This detect step abstracts the imaging pass to
+//   assess whether colonies have grown in the emulsion before
+//   sorting. A positive signal (> 0) indicates colonies
+//   present in the emulsion at detectable density.
+// ------------------------------------------------------------
+
+bhisCultSignal = detect imagingODDetection on bhisEmulsion for 30s
+
+// ============================================================
+// BB2 / BB3: BHIS cultivation QC gate
+// Pass (BB2): bhisCultSignal > 0 -> colony-containing droplets
+//             detected; carry emulsion forward to sorting.
+// Fail (BB3): bhisCultSignal <= 0 -> no growth detected;
+//             drain emulsion (all droplets empty).
+// Both branches converge at BB4 (bhisCultJoin).
+// ============================================================
+
+if (bhisCultSignal > 0) {
+    dispose bhisCultSignal
+} else {
+    drain bhisEmulsion
+    dispose bhisCultSignal
+}
+
+// ============================================================
+// BB4: bhisCultJoin
+// Control falls into the slow-grower sorting arm (BB5/BB6).
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 4: Slow-grower sorting in BHIS droplets.
+//   Two independent sorting experiments (biological replicates).
+//   Droplets re-injected at 20 uL/hr; oil spacing phase at
+//   180 uL/hr. Camera detects each droplet; Wavelet OD computed.
+//   Droplets with Wavelet OD in [0.3, 0.7] (sparse colony)
+//   are deflected to the keep path via 10 kHz, 800 V p-p
+//   electrode actuation for 10 ms. Dense colonies (OD > 0.7)
+//   and empty droplets (OD < 0.3) pass to waste.
+//   Sorting rate: ~30 Hz. False positive rate: <= 8%.
+//   Sorted volume much less than 100 uL (limited by ~30 Hz rate);
+//   sorted layer is ~1-10 uL on top of oil.
+//   Result: shift in rank-abundance curve; average amplified
+//   ASVs from <1% to >1%: 6.5 (unsorted) vs 12.5 (sorted)
+//   out of 158 total ASVs detected.
+// ------------------------------------------------------------
+
+bioxSortSignal = detect waveletODSorting on bhisEmulsion for 30s
+
+// ============================================================
+// BB5 / BB6: BHIS slow-grower sort QC gate
+// Pass (BB5): bioxSortSignal > 0 -> slow-grower colonies
+//             successfully isolated in keep path; proceed
+//             to sequencing.
+// Fail (BB6): bioxSortSignal <= 0 -> sort failed (no sparse
+//             colonies present); drain sorted fraction.
+// Both branches converge at BB7 (bhisSortJoin).
+// ============================================================
+
+if (bioxSortSignal > 0) {
+    // --------------------------------------------------------
+    // Recovery and sequencing (pass path only):
+    // Sorted droplets (~1-10 uL) mixed with equal volume of
+    // 1H,1H,2H,2H-Perfluoro-1-octanol (PFO) for demulsification.
+    // Vortex + centrifuge; oil and PFO removed. For sorted
+    // volumes, add 150 uL DNA-free water + 150 uL PFO first.
+    // DNA extracted using Qiagen DNeasy Blood and Tissue Kit.
+    // Paired-end 16S rRNA V4 amplicon sequencing (Illumina
+    // MiSeq 2x151); ASVs by MED; taxonomy by SILVA.
+    // Separately: streaked sorted droplets onto BHIS agar,
+    // cultured 2 days at 37 C; 24 random colonies picked for
+    // Sanger sequencing (16S, 27F/1492R primers).
+    // --------------------------------------------------------
+    pfo1             = dispense 1 units of PFO_DemulsificationAgent
+    dnaBuffer1       = dispense 1 units of DNAExtractionBuffer
+    demulsifiedBHIS  = mix bhisEmulsion with pfo1 for 1m
+    extractedDNA_BHIS = mix demulsifiedBHIS with dnaBuffer1 for 1m
+
+    bhisSeqSignal    = detect sixteenSrRNASequencing on extractedDNA_BHIS for 30s
+    dispose extractedDNA_BHIS
+    dispose bhisSeqSignal
+} else {
+    drain bhisEmulsion
+}
+
+dispose bioxSortSignal
+
+// ============================================================
+// BB7: bhisSortJoin
+// BHIS arm complete. Control falls into GMM cultivation arm.
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 5: Prepare and incubate GMM emulsion.
+//   Gut Microbiota Medium (GMM), prepared per Goodman et al.
+//   2011. Same fecal cell suspension, same Poisson loading
+//   (200x dilution), same droplet volume range (65-115 pL).
+//   Parallel plate cultures also prepared for comparison
+//   (up to 7 days, 10080 min on plates vs 2880 min in droplets).
+//   Droplets show 16S-based richness increase relative to
+//   plate cultures across all media (p<0.005, Mann-Whitney U).
+// ------------------------------------------------------------
+
+gmmCells     = dispense 1 units of FecalCellSuspension
+gmmMedium    = dispense 1 units of GMM_Medium
+gmmOil       = dispense 1 units of HFE7500_SurfactantOil
+
+gmmPreEmulsion  = mix gmmCells with gmmMedium for 5s
+gmmEmulsion     = mix gmmPreEmulsion with gmmOil for 5s
+
+heat gmmEmulsion at 37c for 2880m
+
+gmmCultSignal   = detect imagingODDetection on gmmEmulsion for 30s
+
+// ============================================================
+// BB8 / BB9: GMM cultivation QC gate
+// Pass (BB8): gmmCultSignal > 0 -> growth detected; extract
+//             DNA and sequence.
+// Fail (BB9): gmmCultSignal <= 0 -> no growth; drain.
+// Both converge at BB10 (gmmCultJoin).
+// ============================================================
+
+if (gmmCultSignal > 0) {
+    pfo2              = dispense 1 units of PFO_DemulsificationAgent
+    dnaBuffer2        = dispense 1 units of DNAExtractionBuffer
+    demulsifiedGMM    = mix gmmEmulsion with pfo2 for 1m
+    extractedDNA_GMM  = mix demulsifiedGMM with dnaBuffer2 for 1m
+
+    gmmSeqSignal      = detect sixteenSrRNASequencing on extractedDNA_GMM for 30s
+    dispose extractedDNA_GMM
+    dispose gmmSeqSignal
+} else {
+    drain gmmEmulsion
+}
+
+dispose gmmCultSignal
+
+// ============================================================
+// BB10: gmmCultJoin
+// GMM arm complete. Control falls into YCFA cultivation arm.
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 6: Prepare and incubate YCFA emulsion.
+//   Yeast Casitones Fatty Acid medium (YCFA), modified DSMZ
+//   media 1611: 10 g casitone, 2.5 g yeast extract, 5 g
+//   dextrose, MgSO4, CaCl2, KH2PO4, K2HPO4, NaCl, resazurin,
+//   volatile fatty acids (acetic, propionic, iso-butyric,
+//   n-valeric, iso-valeric); pH 6.7-6.8 + vitamin solution
+//   post-autoclaving.
+//   YCFA showed the largest richness increase (up to 410%)
+//   over plate cultures (p<0.005, Mann-Whitney U test).
+//   Notable lack of Bacteroidetes on YCFA plates (competitive
+//   exclusion) was abolished in droplets (phyla-broad growth).
+// ------------------------------------------------------------
+
+ycfaCells     = dispense 1 units of FecalCellSuspension
+ycfaMedium    = dispense 1 units of YCFA_Medium
+ycfaOil       = dispense 1 units of HFE7500_SurfactantOil
+
+ycfaPreEmulsion  = mix ycfaCells with ycfaMedium for 5s
+ycfaEmulsion     = mix ycfaPreEmulsion with ycfaOil for 5s
+
+heat ycfaEmulsion at 37c for 2880m
+
+ycfaCultSignal   = detect imagingODDetection on ycfaEmulsion for 30s
+
+// ============================================================
+// BB11 / BB12: YCFA cultivation QC gate
+// Pass (BB11): ycfaCultSignal > 0 -> growth detected; extract
+//              DNA and sequence.
+// Fail (BB12): ycfaCultSignal <= 0 -> no growth; drain.
+// Both converge at BB13 (ycfaCultJoin).
+// ============================================================
+
+if (ycfaCultSignal > 0) {
+    pfo3               = dispense 1 units of PFO_DemulsificationAgent
+    dnaBuffer3         = dispense 1 units of DNAExtractionBuffer
+    demulsifiedYCFA    = mix ycfaEmulsion with pfo3 for 1m
+    extractedDNA_YCFA  = mix demulsifiedYCFA with dnaBuffer3 for 1m
+
+    ycfaSeqSignal      = detect sixteenSrRNASequencing on extractedDNA_YCFA for 30s
+    dispose extractedDNA_YCFA
+    dispose ycfaSeqSignal
+} else {
+    drain ycfaEmulsion
+}
+
+dispose ycfaCultSignal
+
+// ============================================================
+// BB13: ycfaCultJoin
+// All rich media cultivation arms complete.
+// Control falls into antibiotic resistance screening arm.
+// ============================================================
+
+// ============================================================
+// PROTOCOL 2: ANTIBIOTIC RESISTANCE SCREENING IN DROPLETS
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 1: Ampicillin resistance screening.
+//   BHIS medium supplemented with ampicillin at 100 ug/mL.
+//   Concentration chosen to be commensurate with commercially
+//   available antibiotic selection plates (Boente et al. 2010).
+//   Same fecal cell suspension; same Poisson loading (200x
+//   dilution); same droplet volume range (65-115 pL).
+//   Cultured for 1 day (1440 min) inside the anaerobic chamber.
+//   After incubation: optical density-based sorting removes
+//   empty droplets (dead/nonviable cells) so that only droplets
+//   with a grown colony contribute to sequencing reads.
+//   Plate control: stool diluted 10000x; plated on BHIS +
+//   ampicillin; cultured 3 days; DNA from plate scraping.
+//   Result: 21 total unique resistant organisms detected only
+//   in droplets across all three antibiotics.
+//   Ampicillin droplets recovered known Bacteroides spp. and
+//   Parabacteroides spp. resistance (Boente et al. 2010) and
+//   revealed novel Pseudomonas spp. and Shewanella spp.
+//   resistance undetected on plates.
+// ------------------------------------------------------------
+
+ampCells     = dispense 1 units of FecalCellSuspension
+ampMedium    = dispense 1 units of Ampicillin_BHIS
+ampOil       = dispense 1 units of HFE7500_SurfactantOil
+
+ampPreEmulsion  = mix ampCells with ampMedium for 5s
+ampEmulsion     = mix ampPreEmulsion with ampOil for 5s
+
+// 1 day incubation = 1440 min.
+heat ampEmulsion at 37c for 1440m
+
+// Sort to remove dead/nonviable droplets (OD < 0.3).
+// Only colony-containing droplets enter the sequencing step.
+ampResistSignal = detect waveletODSorting on ampEmulsion for 30s
+
+// ============================================================
+// BB14 / BB15: Ampicillin screen QC gate
+// Pass (BB14): ampResistSignal > 0 -> resistant colonies
+//              detected and sorted; extract DNA, sequence.
+// Fail (BB15): ampResistSignal <= 0 -> no viable colonies
+//              in ampicillin droplets; drain.
+// Both converge at BB16 (ampScreenJoin).
+// ============================================================
+
+if (ampResistSignal > 0) {
+    pfo4               = dispense 1 units of PFO_DemulsificationAgent
+    dnaBuffer4         = dispense 1 units of DNAExtractionBuffer
+    demulsifiedAMP     = mix ampEmulsion with pfo4 for 1m
+    extractedDNA_AMP   = mix demulsifiedAMP with dnaBuffer4 for 1m
+
+    ampSeqSignal       = detect sixteenSrRNASequencing on extractedDNA_AMP for 30s
+    dispose extractedDNA_AMP
+    dispose ampSeqSignal
+} else {
+    drain ampEmulsion
+}
+
+dispose ampResistSignal
+
+// ============================================================
+// BB16: ampScreenJoin
+// Ampicillin screen complete. Control falls into ciprofloxacin arm.
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 2: Ciprofloxacin resistance screening.
+//   BHIS medium supplemented with ciprofloxacin at 5 ug/mL.
+//   Fluoroquinolone class antibiotic; concentration commensurate
+//   with commercially available selection plates.
+//   Expected resistors: Enterococcus spp. and Enterobacteriaceae
+//   (Hooper 2002; Paterson 2006). Gram-positive bacteria show
+//   reduced susceptibility (Poole 2000).
+//   Droplet screening also reveals Bacteroides spp. and
+//   Parabacteroides spp. fluoroquinolone resistance
+//   (Snydman et al. 2017) undetected on plates.
+//   Plate control: 4 Clostridium spp. showed higher growth on
+//   plates than droplets (only 5 organisms total showed plate
+//   preference across all 3 antibiotics).
+// ------------------------------------------------------------
+
+ciproCells     = dispense 1 units of FecalCellSuspension
+ciproMedium    = dispense 1 units of Ciprofloxacin_BHIS
+ciproOil       = dispense 1 units of HFE7500_SurfactantOil
+
+ciproPreEmulsion  = mix ciproCells with ciproMedium for 5s
+ciproEmulsion     = mix ciproPreEmulsion with ciproOil for 5s
+
+heat ciproEmulsion at 37c for 1440m
+
+ciproResistSignal = detect waveletODSorting on ciproEmulsion for 30s
+
+// ============================================================
+// BB17 / BB18: Ciprofloxacin screen QC gate
+// Pass (BB17): ciproResistSignal > 0 -> resistant colonies
+//              detected and sorted; extract DNA, sequence.
+// Fail (BB18): ciproResistSignal <= 0 -> no viable colonies;
+//              drain.
+// Both converge at BB19 (ciproScreenJoin).
+// ============================================================
+
+if (ciproResistSignal > 0) {
+    pfo5               = dispense 1 units of PFO_DemulsificationAgent
+    dnaBuffer5         = dispense 1 units of DNAExtractionBuffer
+    demulsifiedCIPRO   = mix ciproEmulsion with pfo5 for 1m
+    extractedDNA_CIPRO = mix demulsifiedCIPRO with dnaBuffer5 for 1m
+
+    ciproSeqSignal     = detect sixteenSrRNASequencing on extractedDNA_CIPRO for 30s
+    dispose extractedDNA_CIPRO
+    dispose ciproSeqSignal
+} else {
+    drain ciproEmulsion
+}
+
+dispose ciproResistSignal
+
+// ============================================================
+// BB19: ciproScreenJoin
+// Ciprofloxacin screen complete. Control falls into vancomycin arm.
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 3: Vancomycin resistance screening.
+//   BHIS medium supplemented with vancomycin at 10 ug/mL.
+//   Concentration commensurate with commercially available
+//   selection plates.
+//   Expected resistors: Enterobacteriaceae gen. spp. (intrinsic
+//   resistance; Citron et al. 2012).
+//   Droplet screening additionally revealed Pseudomonas spp.
+//   and Shewanella spp. (Shewanella is a known progenitor of
+//   antibiotic resistance genes in humans; Yousfi et al. 2017)
+//   resistant to vancomycin -- organisms undetected on plates.
+//   These 21 unique droplet-only resistant organisms represent
+//   a significant extension of the plate-based assessment.
+// ------------------------------------------------------------
+
+vancoCells     = dispense 1 units of FecalCellSuspension
+vancoMedium    = dispense 1 units of Vancomycin_BHIS
+vancoOil       = dispense 1 units of HFE7500_SurfactantOil
+
+vancoPreEmulsion  = mix vancoCells with vancoMedium for 5s
+vancoEmulsion     = mix vancoPreEmulsion with vancoOil for 5s
+
+heat vancoEmulsion at 37c for 1440m
+
+vancoResistSignal = detect waveletODSorting on vancoEmulsion for 30s
+
+// ============================================================
+// BB20 / BB21: Vancomycin screen QC gate
+// Pass (BB20): vancoResistSignal > 0 -> resistant colonies
+//              detected and sorted; extract DNA, sequence.
+// Fail (BB21): vancoResistSignal <= 0 -> no viable colonies;
+//              drain.
+// Both converge at BB22 (finalCleanup).
+// ============================================================
+
+if (vancoResistSignal > 0) {
+    pfo6               = dispense 1 units of PFO_DemulsificationAgent
+    dnaBuffer6         = dispense 1 units of DNAExtractionBuffer
+    demulsifiedVANCO   = mix vancoEmulsion with pfo6 for 1m
+    extractedDNA_VANCO = mix demulsifiedVANCO with dnaBuffer6 for 1m
+
+    vancoSeqSignal     = detect sixteenSrRNASequencing on extractedDNA_VANCO for 30s
+    dispose extractedDNA_VANCO
+    dispose vancoSeqSignal
+} else {
+    drain vancoEmulsion
+}
+
+dispose vancoResistSignal
+
+// ============================================================
+// BB22: finalCleanup (terminal)
+// All protocol arms complete. No further instructions.
+// Experiment ends.
+// ============================================================
+
+// [terminal -- no further instructions; exit node for CFG]

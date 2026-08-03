@@ -1,0 +1,286 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Ultra-sensitive Digital Quantification of Proteins and mRNA in Single Cells
+Source Link  : https://www.nature.com/articles/s41467-019-11531-z
+Paper DOI    : https://doi.org/10.1038/s41467-019-11531-z
+Journal      : Nature Communications, 2019, Vol. 10, Article 3544
+Platform     : Automated microfluidic digital proximity ligation assay (u-dPLA); two-layer
+               push-up PDMS device; ddPCR and one-step RT-ddPCR readout (Bio-Rad QX200)
+
+
+OVERVIEW
+--------
+This protocol describes an automated microfluidic system for ultrasensitive, simultaneous
+quantification of protein copy numbers and mRNA in individual mammalian cells, called
+microfluidic digital proximity ligation assay (u-dPLA). The device traps and lyses single
+cells in 7-nL nanoliter chambers, dramatically reducing the dilution factor relative to
+regular well-plate dPLA. All assay steps are executed automatically with nanoliter precision
+using Matlab-controlled pneumatic valve actuation, reducing pipetting errors to <0.1% versus
+~10% for manual pipetting.
+
+Key innovations over regular dPLA:
+  - Up to 55-fold improvement in limit of detection (LOD)
+  - 25-fold improvement in detection efficiency
+  - 100% of single-cell sample used in ddPCR readout (vs 9% in regular dPLA)
+  - Linear dynamic range of 3-4 orders of magnitude
+  - Integrated live-cell time-lapse microscopy and chemical stimulation in the same device
+  - Simultaneous protein and mRNA quantification via duplex one-step RT-ddPCR
+
+The protocol is divided into three functional assay branches:
+  1. Single-cell protein quantification via u-dPLA + ddPCR (FAM channel)
+  2. Simultaneous protein/mRNA quantification via duplex u-dPLA + RT-ddPCR (FAM + VIC)
+  3. HSV-1 viral infection heterogeneity: live-cell ICP4-YFP imaging + viral protein
+     quantification by u-dPLA in the same single cells
+
+
+DEVICE ARCHITECTURE
+-------------------
+Two-layer push-up PDMS device bonded to glass slide (127.76 mm x 85.48 mm x 1 mm).
+Chip capacity: 144 parallel single-cell dPLA assay units.
+
+Fluidic layer (thick, top):
+  - AZ40XT photoresist 18 um (rounded channels for valve sealing)
+  - SU-8 22 um (medium feature channels)
+  - SU-8 70 um two-layer (large reagent channels)
+
+Control layer (thin, bottom):
+  - SU-8 22 um; microfluidic push-up valves (Unger et al. Science 2000)
+  - Pneumatically actuated via Matlab-controlled solenoid valves
+
+Chamber architecture per assay unit (Chambers I-V):
+  Chamber I   : Reagent input and wash channel; reagents introduced via dead-end filling
+  Chamber II  : Single-cell trap (50 um constriction); cell imaged here and then lysed
+  Chamber III : 7-nL lysis chamber; cell contents lysed and retained here; probe mixing zone
+  Chamber IV  : Probe-lysate diffusion mixing extension; valve between III and IV opens
+                during 1-h incubation to allow mixing by diffusion
+  Chamber V   : Ligation reaction chamber; PLA products generated here
+  Output port : 1930 um inner diameter biopsy punch; 9 uL PLA products retrieved per unit
+
+Valve system:
+  - Microfluidic valves separate each chamber to prevent contamination between steps
+  - Dead-end filling delivers precise reagent volumes to empty chambers
+  - Wash channels (MilliQ water) flush channels between reagent steps
+  - Chip automation via Matlab program controlling valve open/close sequences
+
+
+CELL LINES
+----------
+- HEK293T (human embryonic kidney): model cell for CD147/TNFR1 protein quantification
+  and mRNA-protein correlation studies. TNFR1 not detected; consistent with no TNF-a
+  response in NF-kB stimulation experiment.
+  Cultured in DMEM (Cat. No. 11965-092, Life Technologies) + 10% FBS (F9665, Sigma-Aldrich).
+
+- H1299 (human lung epithelial, NSCLC): primary cell line for TNFR1 protein/mRNA
+  co-quantification and Spearman mRNA-protein correlation analysis.
+  Cultured in RPMI-1640 (Cat. No. 11835-030, Life Technologies) + 10% FBS.
+
+- A549 (human lung epithelial, adenocarcinoma): used for HSV-1 infection heterogeneity
+  assay combined with live-cell ICP4-YFP imaging and viral protein u-dPLA.
+  Cultured in DMEM (Cat. No. 86012804, Sigma-Aldrich) + 10% FBS.
+
+All cells dissociated with TrypLE (Cat. No. 12605028, Life Technologies) 5 min at 37C,
+resuspended in sterile PBS, filtered through 40 um cell strainer, diluted to 2x10^5
+cells/mL for on-chip loading at 5 psi input pressure.
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | BSA Surface Blocking
+  Reagents    : 10% BSA in PBS (Cat. No. 37525, Thermo Fisher)
+  Duration    : 1 h (60 min)
+  Temperature : 25C (room temperature)
+  Purpose     : Coat PDMS chip surfaces to minimise non-specific adsorption of PLA probes
+                and cell-lysate proteins to channel walls.
+  Post-block  : Wash with MilliQ water; ventilate with compressed air before cell loading.
+
+Step 2 | On-Chip Calibration Curve
+  Reagents    : Purified protein standard (TNFR1, CD147, or CSTB), PBS, PLA Probes,
+                Ligation Mix, MilliQ water
+  Method      : Serial dilution of pure protein standards loaded into assay chambers via
+                dead-end filling from lowest to highest concentration. 8 min wash between
+                each concentration via Channel I.
+  PLA probes  : 500 pM stock diluted to 2 nM in probe binding buffer (0.1% BSA +
+                0.05% Tween-20 + 100 nM goat IgG + 0.1 g/L sheared salmon sperm DNA in PBS).
+                Channel I flushed 2 min; Channel II flushed 15 min.
+  Probe incub : 37C, 60 min (diffusion mixing)
+  Ligation    : On ice 30 min; 37C 10 min; 65C 5 min (heat inactivation of T4 ligase)
+  Retrieval   : 9 uL per unit, collected for ddPCR
+  Purpose     : Calibration converts ddPCR amplicon counts per uL to absolute protein
+                copy numbers. Run in parallel with single-cell experiments on the same chip.
+  LOD calc    : 3 SD above background reading or y-intercept of fitted linear curve
+                (whichever is higher).
+
+Step 3 | Single-Cell Loading and Hydrodynamic Trapping
+  Reagents    : SingleCell suspension in PBS, PBS
+  Operation   : Pressure-driven flow-through trapping in Chamber II (50 um constriction)
+  Loading     : 5 psi input pressure; 2x10^5 cells/mL
+  Occupancy   : ~90% average single-cell occupancy per chip run
+  Verification: Cell loading confirmed visually under microscope before proceeding
+  Note        : Chip immediately moved to ice after loading confirmed.
+                BioScript mix abstraction represents pressure-driven hydrodynamic trapping;
+                no DMF electrode actuation is involved.
+
+Step 4 | Single-Cell Lysis
+  Reagents    : Lysis buffer (0.3x TM buffer + protease inhibitor in cell resuspension buffer)
+  Operation   : Lysis buffer introduced from Chamber I to push and lyse cell from
+                Chamber II into Chamber III (7 nL)
+  Duration    : 10 min on ice (0C)
+  Verification: Lysis confirmed visually under microscope
+  Key feature : 100% of 7-nL single-cell lysate retained in Chamber III; zero sample loss.
+                Regular dPLA loses 91% of sample (only 9% reaches ddPCR readout).
+                This 11-fold increase in effective sample use is the primary driver of the
+                55-fold LOD improvement.
+
+Step 5 | PLA Probe Incubation with Cell Lysate
+  Reagents    : PLA Probes (2 nM working concentration)
+  Chambers    : III and IV (valve between open during incubation)
+  Duration    : 60 min at 37C; diffusion-based mixing
+  Mechanism   : Each PLA probe pair consists of two oligonucleotide-tagged antibodies
+                recognising two distinct epitopes on the target protein. When both probes
+                bind the same protein molecule, their oligonucleotides are brought within
+                ~3-5 nm, enabling connector-mediated ligation.
+  Probes used :
+    TNFR1 : Biotinylated BAF225 (R&D Systems), streptavidin-biotin conjugation
+    CD147 : Biotinylated BAF972 (R&D Systems), streptavidin-biotin conjugation
+    CSTB  : Commercially available (Cat. No. 4405465, Applied Biosystems)
+    HSV-1 : Anti-HSV-1 polyclonal ab9533 (Abcam), in-house DBCO-NHS/azide click chemistry;
+             detects ~80 HSV-1 viral protein species encoded by HSV-1 genome
+
+Step 6 | Ligation Reaction
+  Reagents    : Ligation Mix (89.1 uL MilliQ water + 10 uL 10x ligase buffer +
+                0.4 uL 1/500-diluted T4 ligase (EL0011, Thermo Scientific) +
+                0.5 uL 1 uM connector oligo TTTCGACACGACACGATTTAGGTC per 100 uL)
+  Operation   : Ligation mix pushes probe-lysate mix from Chambers III/IV into Chamber V
+  On ice      : 30 min for diffusion mixing
+  Ligation    : 37C, 10 min; T4 DNA ligase seals nick in connector-bridged probe pair
+  Inactivation: 65C, 5 min; heat inactivation of T4 ligase
+  Product     : Circular dsDNA PLA product; each molecule = 1 detected protein
+
+Step 7 | PLA Product Retrieval and ddPCR (Protein Quantification Gate)
+  Reagents    : MilliQ water (flush), ddPCR Supermix for Probes (Bio-Rad Cat. No. 1863024),
+                Universal PCR Assay (Cat. No. 4405501, Applied Biosystems),
+                Droplet Generation Oil (Cat. No. 1863005, Bio-Rad)
+  Retrieval   : 9 uL PLA products flushed from Chamber V via water through 1930 um port
+  ddPCR setup : 9 uL products + 10 uL 2x Supermix + 1 uL 20x PCR Assay = 20 uL total;
+                loaded into DG8 cartridge with 65 uL Droplet Generation Oil (QX200, Bio-Rad)
+  PCR program : 95C 10 min; 40x (94C 30s / 60C 1 min); 98C 10 min; ramp 1.5C/s
+  Readout     : FAM channel; positive droplet count = absolute protein copy number
+  ddPCR primers:
+    Forward   : GCATCGTCTCGTGGGCTC
+    Reverse   : TTGTACGCATGTGGACTTTAGACACGACACGA
+  Detection   : ddPCRProteinDetection module; 30 s
+  QC gate     :
+    Pass (BB2): proteinSignal > 0 -> above LOD; dispose ddPCR droplets
+    Fail (BB3): proteinSignal <= 0 -> below LOD; drain
+  Results (selected):
+    CD147 mean: HEK293T 197,785 (N=266); H1299 327,609 (N=96); A549 179,513 (N=98)
+    TNFR1 mean: H1299 14,807 (N=88, range 6,310-33,541); A549 13,017 (N=84)
+    TNFR1 in HEK293T: all below LOD (2,277 molecules); consistent with no NF-kB response
+    Cells above TNFR1 LOD: 86% (149/174); first single-cell TNFR1 counts reported
+
+Step 8 | Duplex Protein/mRNA Quantification (Same Single Cell)
+  Reagents    : RNaseOUT (Cat. No. 10777019, Invitrogen; 20x dilution in all reagent mixes),
+                One-step RT-ddPCR Supermix (5 uL), Reverse Transcriptase (2 uL),
+                DTT 300 mM (Cat. No. 1864021, Bio-Rad; 1 uL),
+                Universal PCR Assay 20x (1 uL),
+                TNFR1 TaqMan Probe 20x (Cat. No. Hs01042313_m1, Applied Biosystems; 1 uL),
+                Nuclease-free water (1 uL); Total: 20 uL
+  Method      : PLA product retrieval (9 uL) includes protected mRNA; RNaseOUT added to all
+                reagent mixes throughout chip steps to protect mRNA integrity
+  Duplex      : FAM channel -> protein (PLA ligation products, same as Step 7)
+                VIC channel -> mRNA (RT-ddPCR amplicons from TNFR1 mRNA)
+  RT program  : 42C 1 h; 95C 10 min; 40x (95C 30s / 60C 1 min); 98C 10 min; ramp 2C/s
+  Crosstalk   : VIC/FAM crosstalk negligible (Supplementary Fig. 5a/b)
+  Detection   : rtDdPCRmRNADetection module (VIC channel); 30 s
+  QC gate     :
+    Pass (BB5): mrnaSignal > 0 -> mRNA detected; dispose duplex droplets
+    Fail (BB6): mrnaSignal <= 0 -> mRNA below detection; drain
+  Results     :
+    Spearman rho (TNFR1 protein vs mRNA, H1299): 0.45 (N=38 single cells)
+    Previous estimates: ~0.1 (Taniguchi 2010, Albayrak 2016, Darmanis 2016)
+    Finding: Including lowly-expressing cells (previously below dPLA LOD) increases
+    mRNA-protein correlation significantly. Spearman coefficient rises as low-protein
+    cells are included in the calculation (Fig. 3e). High-sensitivity quantification is
+    essential for accurate mRNA-protein correlation estimates.
+
+Step 9 | HSV-1 Viral Infection Heterogeneity Assay
+  Reagents    : HSV1_InfectedCell (A549 + HSV-1 ICP4-YFP, MOI 2, overnight), ControlCell
+                (A549, no virus), PBS, LysisBuffer, PLAProbes (HSV-1), LigationMix,
+                MilliQWater, ddPCR_Supermix, UniversalPCRAssay, DropletGenerationOil
+  Cell prep   : HSV-1 stock prepared by Vero cell infection (MOI 0.01), harvested Day 3
+                by three freeze-thaw cycles; stock concentration by plaque assay.
+                A549 infected with 25 uL virus in 2 mL fresh medium overnight (MOI 2).
+  Live imaging:
+    Reporter  : ICP4-YFP; ICP4 expressed immediately upon viral genome nuclear entry,
+                prior to genome replication (DeLuca et al. 1985; 1987).
+                Nuclear YFP signal = infection proceeded to nuclear entry (YFP-positive).
+    Modality  : Time-lapse fluorescence imaging on chip before lysis (liveCellImagingDetection)
+    Calculation: Matlab imfindcircles locates cells; ImageJ Rolling Ball Background
+                 Subtraction; total fluorescence = sum of all YFP pixel values within cell
+  Lysis       : All cells lysed simultaneously with 0.3x TM buffer, on ice, 10 min
+  HSV-1 PLA   : Polyclonal anti-HSV-1 ab9533 (Abcam) conjugated via DBCO-NHS click chemistry;
+                detects ~80 viral protein species; both immediate-early, early, and late proteins
+  Probe incub : 37C, 60 min
+  Ligation    : On ice 30 min; 37C 10 min; 65C 5 min
+  ddPCR       : Same protocol as Step 7; FAM channel; viral protein copy number per cell
+  Detection   : viralProteinDetection module; 30 s
+  QC gate     :
+    Pass (BB8): infectionSignal > 0 -> ICP4-YFP+ (nuclear entry confirmed); dispose
+    Fail (BB9): infectionSignal <= 0 -> uninfected or control (no YFP); drain
+  Results     :
+    N infected (YFP+) cells: 27; N control cells: 19
+    Group difference p-value: 5.356e-11 (two-sided Welch's t test)
+    Spearman rho (ICP4-YFP fluorescence vs total viral protein count): 0.48
+    Interpretation: Not all YFP-positive cells progress past immediate-early protein
+    synthesis stage; partial correlation (rho=0.48) indicates a sub-population undergoes
+    abortive infection. Single-cell viral protein counts span ~5-fold range across
+    infected cells, consistent with prior reports of substantial single-cell heterogeneity
+    in viral progeny release (Heldt 2015, Russell 2018).
+
+
+PERFORMANCE SUMMARY
+-------------------
+Protein target    LOD (on-chip)   LOD (regular)   Det. eff (on-chip)  Det. eff (regular)
+TNFR1             2,277 molecules 66,789 molecules 33 proteins/DNA     741 proteins/DNA
+CD147             2,795 molecules 55,385 molecules 29 proteins/DNA     70 proteins/DNA
+CSTB              18,824 molecules 1,035,991 mol.  304 proteins/DNA    5,024 proteins/DNA
+
+LOD improvement: up to 55-fold  |  Detection efficiency improvement: up to 25-fold
+Dynamic range  : 3-4 orders of magnitude
+Sample recovery: 100% of 7-nL lysate used (vs 9% in regular dPLA)
+Chip capacity  : 144 parallel single-cell assay units
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file   : lin2019_udpla_single_cell_protein_mrna.bs
+Compiler         : lilott8/BioScript (ANTLR4-based)
+IR output        : 10 basic blocks (BB1-BB10), 3 if/else gates, 12 CFG edges
+DAG file         : lin2019_udpla_single_cell_protein_mrna_main_dag.dot
+Duration units   : All durations in s (seconds) or m (minutes); BioScript h token unsupported
+Duration notes   :
+  60 min probe incubation / RT step -> 60m -> IR: 3600.0 SECOND
+  30 min ligation on ice            -> 30m -> IR: 1800.0 SECOND
+  10 min lysis / ligation at 37C   -> 10m -> IR: 600.0 SECOND
+  40 PCR cycles x 90s each         -> 60m -> IR: 3600.0 SECOND (modelled as one heat block)
+Modules          : ddPCRProteinDetection, rtDdPCRmRNADetection,
+                   liveCellImagingDetection, viralProteinDetection
+Manifests        : PBS, LysisBuffer, PLAProbes, LigationMix, MilliQWater,
+                   BSA_BlockingBuffer, SingleCell, PurifiedProteinStandard,
+                   RNaseOUT, RTddPCR_Supermix, ReversTranscriptase, DTT,
+                   UniversalPCRAssay, TaqMan_TNFR1_Probe, ddPCR_Supermix,
+                   DropletGenerationOil, HFE7500_Surfactant,
+                   HSV1_InfectedCell, ControlCell
+Mix abstraction  : `mix X with Y for T` abstracts valve-gated dead-end filling and
+                   diffusion-based mixing inside sealed nanoliter chambers; no DMF electrode
+                   actuation involved; fluid movement is pneumatically driven via
+                   Matlab-controlled valve sequencing.
+Heat abstraction : `heat` abstracts both on-chip incubation (0C ice, 37C, 65C) and
+                   off-chip ddPCR thermal cycling (95C, 94C, 98C) in the QX200 instrument.
+Detect abstraction: `detect` abstracts ddPCR/RT-ddPCR positive-droplet counting (FAM/VIC
+                   channel readouts) performed off-chip after product retrieval.
+ASCII compliance : All Unicode characters replaced with ASCII equivalents for ANTLR4
+                   FileStream compatibility (u for micrometer/microliter; rho for Spearman
+                   correlation symbol). Verified: 0 non-ASCII bytes.

@@ -1,0 +1,361 @@
+{
+  "protocol": {
+    "title": "Sperm-seq wet lab protocol: sperm preparation and droplet-based sequencing library generation",
+    "source": "Research Square (preprint), 2020",
+    "doi": "https://doi.org/10.21203/rs.3.pex-823/v1",
+    "platform": "Droplet-based single-sperm sequencing (10X Genomics GemCode, Option 1)",
+    "authors": ["Avery Davis Bell", "Curtis J. Mello", "Steven A. McCarroll"],
+    "affiliations": [
+      "Department of Genetics, Harvard Medical School",
+      "Program in Medical and Population Genetics, Broad Institute of MIT and Harvard"
+    ],
+    "objective": "High-throughput cell-barcoded single-sperm sequencing library generation via sperm nucleus decondensation followed by droplet-based GEM barcoding on a 10X Genomics GemCode platform",
+
+    "reagents": {
+      "buffer_SMT": {
+        "composition": "250 mM sucrose, 5 mM MgCl2, 10 mM Tris pH 7.5",
+        "purpose": "Freeze-thaw buffer; protects sperm membrane osmolarity during liquid nitrogen cycling",
+        "recipe_10mL": "2500 uL 1M sucrose + 50 uL 1M MgCl2 + 100 uL 1M Tris pH 7.5 + 7350 uL ultrapure water",
+        "sources": ["Montag et al. 1992", "Samocha-Bone et al. 1998"]
+      },
+      "buffer_DB": {
+        "composition": "113 mM KCl, 12.5 mM KH2PO4, 2.5 mM Na2HPO4, 2.5 mM MgCl2, 20 mM Tris pH 7.5",
+        "additives": {
+          "heparin": { "stock_mM": 10, "volume_per_100uL_DB_uL": 1.5, "purpose": "Prevents DNA aggregation" },
+          "BME": { "stock_mM": 100, "volume_per_100uL_DB_uL": 2, "purpose": "Reduces protamine disulfide crosslinks to release sperm chromatin" }
+        },
+        "purpose": "Salt decondensation buffer; freshly prepared with heparin and BME before use",
+        "sources": ["Montag et al. 1992", "Samocha-Bone et al. 1998"]
+      },
+      "heparinase": {
+        "concentration": "0.1 units/uL",
+        "volume_per_sample_uL": 5,
+        "storage": "-20 C",
+        "purpose": "Removes heparin post-decondensation to eliminate PCR inhibition",
+        "source": "Taylor 1997"
+      },
+      "SYBR_green_I": {
+        "working_concentration": "10X (diluted from 10000X stock)",
+        "dilution_for_count": "1:100 (1 uL sperm + 10 uL 10X SYBR + 89 uL PBS)",
+        "stain_duration_min": "5-10",
+        "purpose": "Fluorescent DNA stain for hemocytometer counting; decondensed sperm appear as large bright circles",
+        "catalog": "ThermoFisher Scientific S7563"
+      },
+      "PBS": {
+        "specification": "1X PBS pH 7.4",
+        "catalog": "Life Technologies 10010023"
+      },
+      "GemCode_reagents": {
+        "kit": "10X GemCode (Option 1, early version)",
+        "components": [
+          "GemCode Gel-Bead Kit",
+          "GemCode Chip Kit",
+          "GemCode Library Kit"
+        ],
+        "master_mix_per_sample_uL": {
+          "GemCode_reagent_mix": 32.5,
+          "primer_release_agent": 1.5,
+          "GemCode_polymerase": 9.2,
+          "ultrapure_water": 16.8,
+          "total": 60
+        },
+        "bead_dilution": "1:11 in ultrapure water (>=90 uL per sample); vortex full speed 25 s before dilution",
+        "chip_loading": {
+          "sample_well_uL": 60,
+          "bead_well_uL": 85,
+          "oil_well_uL": 150
+        },
+        "target_cells_for_recovery": 2000,
+        "sperm_input_cells": 10833,
+        "sperm_input_volume_uL": 5
+      }
+    },
+
+    "equipment": {
+      "tubes": "Nonstick 1.5 mL microfuge tubes (ThermoFisher Scientific AM12450)",
+      "hemocytometer": "Fuchs-Rosenthal C-chip hemocytometer (VitaScientific NANC07005)",
+      "GemCode_controller": "10X GemCode controller",
+      "centrifuge": "400g, 4C capable"
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Thaw and transfer sperm aliquot",
+        "bb": "BB1",
+        "operation": "dispense",
+        "inputs": ["SpermAliquot"],
+        "outputs": ["spermRaw"],
+        "minimum_cells": 250000,
+        "typical_volume_uL": 10,
+        "condition": "room temperature thaw; quick spin before transfer to nonstick tube",
+        "notes": "Nonstick tubes critical to minimise cell loss during subsequent washes"
+      },
+      {
+        "id": "S2",
+        "name": "First PBS wash",
+        "bb": "BB1",
+        "operation": "mix + heat (centrifugation abstraction)",
+        "inputs": ["spermRaw", "PBS"],
+        "outputs": ["spermPellet1"],
+        "centrifugation": { "speed_g": 400, "temperature_C": 4, "duration_min": 10 },
+        "resuspension_volume_uL": 10,
+        "bioscript_heat_abstraction": "heat at 4c for 10m models cold centrifugation step",
+        "notes": "Remove supernatant after spin; resuspend in 10 uL PBS"
+      },
+      {
+        "id": "S3",
+        "name": "Second PBS wash",
+        "bb": "BB1",
+        "operation": "mix + heat (centrifugation abstraction)",
+        "inputs": ["spermPellet1", "PBS"],
+        "outputs": ["spermPellet2"],
+        "centrifugation": { "speed_g": 400, "temperature_C": 4, "duration_min": 10 },
+        "notes": "Repeat spin; remove supernatant"
+      },
+      {
+        "id": "S4",
+        "name": "Resuspend in Buffer SMT",
+        "bb": "BB1",
+        "operation": "mix",
+        "inputs": ["spermPellet2", "BufferSMT"],
+        "outputs": ["spermInSMT"],
+        "volume_uL": 2.5,
+        "notes": "Protects membrane integrity during subsequent freeze-thaw cycles"
+      },
+      {
+        "id": "S5",
+        "name": "Freeze-thaw cycles x3",
+        "bb": "BB1",
+        "operation": "heat (x6, alternating freeze/thaw)",
+        "inputs": ["spermInSMT"],
+        "outputs": ["spermInSMT"],
+        "cycles": 3,
+        "freeze_step": { "medium": "liquid nitrogen", "duration_s": "5-10", "bioscript": "heat at 4c for 10s" },
+        "thaw_step": { "method": "hold in fist", "bioscript": "heat at 37c for 30s" },
+        "procedure_per_cycle": "submerge in liquid N2 5-10 s, uncap to de-pressurise, hold in fist until thawed",
+        "bioscript_note": "No loop constructs in BioScript; 3 cycles unrolled as 6 sequential heat calls on spermInSMT"
+      },
+      {
+        "id": "S6",
+        "name": "Prepare Buffer DB with heparin and BME",
+        "bb": "BB1",
+        "operation": "mix (x2)",
+        "inputs": ["BufferDB_Base", "Heparin_10mM", "BME_100mM"],
+        "outputs": ["bufferDBReady"],
+        "recipe_per_100uL_4_samples": {
+          "heparin_10mM_uL": 1.5,
+          "BME_100mM_uL": 2,
+          "BufferDB_Base_uL": 96.5
+        },
+        "notes": "Prepare fresh immediately before use; BME used in fume hood"
+      },
+      {
+        "id": "S7",
+        "name": "Chromatin decondensation in Buffer DB",
+        "bb": "BB1",
+        "operation": "mix + heat",
+        "inputs": ["spermInSMT", "bufferDBReady"],
+        "outputs": ["spermDecondensing"],
+        "volume_per_sample_uL": 22.5,
+        "incubation": { "temperature_C": 37, "duration_min": 45, "bioscript": "heat at 37c for 45m" },
+        "notes": "BME reduces protamine disulfide bonds; heparin prevents chromatin aggregation"
+      },
+      {
+        "id": "S8",
+        "name": "Heparinase treatment",
+        "bb": "BB1",
+        "operation": "mix + heat (RT incubation)",
+        "inputs": ["spermDecondensing", "Heparinase"],
+        "outputs": ["spermDecondensed"],
+        "heparinase_volume_uL": 5,
+        "heparinase_concentration": "0.1 units/uL",
+        "thaw_condition": "on ice during last half of 37C incubation (Step 7)",
+        "incubation": { "temperature_C": 25, "duration_min": 120, "bioscript": "heat at 25c for 120m" },
+        "purpose": "Removes heparin to eliminate PCR inhibition in downstream library generation",
+        "dataflow_note": "spermDecondensed is the terminal output of the full prep chain; consumed directly by Step 11 (library dilution)"
+      },
+      {
+        "id": "S9",
+        "name": "SYBR Green I staining for cell counting",
+        "bb": "BB1",
+        "operation": "mix",
+        "inputs": ["SpermCountAliquot_Decondensed", "SYBRGreenI_10X", "PBS"],
+        "outputs": ["stainedSperm"],
+        "dilution": "1:100 (1 uL sperm + 10 uL 10X SYBR + 89 uL PBS)",
+        "incubation": { "temperature_C": 25, "duration_min": "5-10", "condition": "dark, with or without gentle rotation", "bioscript": "mix for 7m" },
+        "bioscript_abstraction_note": "BioScript has no split operation. The 1 uL counting sub-sample is modelled as SpermCountAliquot_Decondensed (a manifest explicitly named to identify its physical source: post-heparinase decondensed stock). The bulk stock (spermDecondensed) flows unbroken into Step 11."
+      },
+      {
+        "id": "S10",
+        "name": "Hemocytometer cell count",
+        "bb": "BB1",
+        "operation": "detect (spermCountDetection)",
+        "inputs": ["stainedSperm"],
+        "outputs": ["spermCountSignal"],
+        "detection_module": "spermCountDetection",
+        "detection_duration_s": 300,
+        "instrument": "Fuchs-Rosenthal C-chip hemocytometer (VitaScientific NANC07005)",
+        "loading_volume_uL": 20,
+        "counting_method": "5 big squares under green fluorescent light; concentration = count x 100 cells/uL",
+        "target_cells_for_library_uL5": 10833,
+        "morphology_note": "Decondensed sperm appear as large bright fluorescent circles; non-decondensed appear as compact dots",
+        "branch": {
+          "pass": { "condition": "spermCountSignal > 0", "action": "dispose(stainedSperm)", "bb": "BB2", "next": "BB4" },
+          "fail": { "condition": "spermCountSignal <= 0", "action": "drain(stainedSperm)",   "bb": "BB3", "next": "BB4" }
+        }
+      },
+      {
+        "id": "S11",
+        "name": "Dilute sperm to target concentration",
+        "bb": "BB4",
+        "operation": "mix",
+        "inputs": ["spermDecondensed", "UltrapureWater"],
+        "outputs": ["spermDiluted"],
+        "target_cells": 10833,
+        "target_volume_uL": 5,
+        "notes": "spermDecondensed is consumed here -- primary end-to-end dataflow from prep chain to library"
+      },
+      {
+        "id": "S12",
+        "name": "GemCode master mix assembly",
+        "bb": "BB4",
+        "operation": "mix (x3 sequential)",
+        "inputs": ["GemCodeReagentMix", "PrimerReleaseAgent", "GemCodePolymerase", "UltrapureWater"],
+        "outputs": ["masterMix"],
+        "total_volume_uL": 60,
+        "assembly_order": ["reagentMix + primerAgent", "+ polymerase", "+ ultrapure water"]
+      },
+      {
+        "id": "S13",
+        "name": "Combine sperm with master mix",
+        "bb": "BB4",
+        "operation": "mix",
+        "inputs": ["spermDiluted", "masterMix"],
+        "outputs": ["spermMasterMix"],
+        "total_volume_uL": 65,
+        "notes": "Pipette gently with wide-bore tips to prevent shearing of decondensed sperm chromatin"
+      },
+      {
+        "id": "S14",
+        "name": "Prepare GemCode beads",
+        "bb": "BB4",
+        "operation": "mix (x2)",
+        "inputs": ["GemCodeBeads", "UltrapureWater"],
+        "outputs": ["beadsDiluted"],
+        "vortex_duration_s": 25,
+        "vortex_speed": "full",
+        "dilution": "1:11 in ultrapure water",
+        "minimum_volume_uL": 90,
+        "bioscript_note": "Two sequential mix steps chain to accumulate dilution water; compiler ignores multi-unit volume scalars"
+      },
+      {
+        "id": "S15",
+        "name": "Load GemCode chip",
+        "bb": "BB4",
+        "operation": "mix (x2)",
+        "inputs": ["spermMasterMix", "beadsDiluted", "DropletGenerationOil"],
+        "outputs": ["chipLoaded"],
+        "chip_wells": {
+          "sample_uL": 60,
+          "beads_uL": 85,
+          "oil_uL": 150
+        },
+        "notes": "Droplet generation: GemCode controller partitions into GEMs (Gel Bead in Emulsions); single sperm barcoded per GEM"
+      },
+      {
+        "id": "S16",
+        "name": "GEM incubation and library construction",
+        "bb": "BB4",
+        "operation": "heat + detect (libraryQCDetection)",
+        "inputs": ["chipLoaded"],
+        "outputs": ["libraryQCSignal"],
+        "GEM_incubation": { "temperature_C": 37, "duration_min": 180, "bioscript": "heat at 37c for 180m" },
+        "library_construction_reference": "GemCode User Guide Rev C Steps 5.36-6.2.6",
+        "QC_module": "libraryQCDetection",
+        "QC_duration_s": 30,
+        "QC_method": "Bioanalyzer/qPCR fragment size and yield check",
+        "sequencing": "Illumina sequencer; sequence yield improved by slightly increasing input library concentration above Illumina recommendation",
+        "downstream_analysis": "Bell et al. Nature 2020 pipeline (31,228 human sperm genomes)",
+        "branch": {
+          "pass": { "condition": "libraryQCSignal > 0", "action": "dispose(chipLoaded)", "bb": "BB5", "next": "BB7" },
+          "fail": { "condition": "libraryQCSignal <= 0", "action": "drain(chipLoaded)",   "bb": "BB6", "next": "BB7" }
+        }
+      }
+    ],
+
+    "troubleshooting": {
+      "poor_sequence_quality": [
+        "Make fresh Buffer SMT and Buffer DB before Step 1",
+        "Vary BME: try 1 mM final (1 uL of 100 mM per 100 uL DB) instead of 2 mM",
+        "Decrease freeze-thaw cycles (try 2 instead of 3)",
+        "Pipette gently using wide-bore tips at all mixing steps"
+      ]
+    },
+
+    "timing": {
+      "sperm_preparation_h": 3.5,
+      "sperm_quantification_min": 15,
+      "library_preparation_days": "1-3"
+    },
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1", "label": "main",        "type": "entry",        "description": "Sperm prep (Steps 1-8), SYBR staining and count (Steps 9-10), sperm dilution through chip loading (Steps 11-15), GEM incubation and library QC (Step 16)" },
+        { "id": "BB2", "label": "bsbbif_2_t",  "type": "branch_true",  "condition": "spermCountSignal > 0",  "action": "dispose(stainedSperm)" },
+        { "id": "BB3", "label": "bsbbif_3_f",  "type": "branch_false", "condition": "spermCountSignal <= 0", "action": "drain(stainedSperm)" },
+        { "id": "BB4", "label": "bsbbif_4_j",  "type": "join",         "description": "Library generation branch: dilution, master mix, chip loading, GEM incubation, library QC gate" },
+        { "id": "BB5", "label": "bsbbif_5_t",  "type": "branch_true",  "condition": "libraryQCSignal > 0",   "action": "dispose(chipLoaded)" },
+        { "id": "BB6", "label": "bsbbif_6_f",  "type": "branch_false", "condition": "libraryQCSignal <= 0",  "action": "drain(chipLoaded)" },
+        { "id": "BB7", "label": "bsbbif_7_j",  "type": "terminal",     "description": "dispose(libraryQCSignal); NOP" }
+      ],
+      "edges": [
+        ["BB1","BB2"], ["BB1","BB3"],
+        ["BB2","BB4"], ["BB3","BB4"],
+        ["BB4","BB5"], ["BB4","BB6"],
+        ["BB5","BB7"], ["BB6","BB7"]
+      ]
+    },
+
+    "bioscript_compiler_notes": {
+      "file": "bell_sperm_seq_library_generation.bs",
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "ir_output": "7 basic blocks (BB1-BB7), 2 if/else gates, 8 CFG edges",
+      "dag_file": "bell_sperm_seq_library_generation_main_dag.dot",
+      "duration_conversions": {
+        "45_min_decondensation": "45m  (IR: 2700.0 SECOND)",
+        "120_min_heparinase_RT": "120m (IR: 7200.0 SECOND)",
+        "7_min_SYBR_stain":      "7m   (IR: 420.0 SECOND)",
+        "5_min_count_detect":    "5m   (IR: 300.0 SECOND)",
+        "180_min_GEM_incubation":"180m (IR: 10800.0 SECOND)"
+      },
+      "modules": ["spermCountDetection", "libraryQCDetection"],
+      "manifests": [
+        "SpermAliquot",
+        "SpermCountAliquot_Decondensed",
+        "PBS",
+        "BufferSMT",
+        "BufferDB_Base",
+        "Heparin_10mM",
+        "BME_100mM",
+        "Heparinase",
+        "SYBRGreenI_10X",
+        "GemCodeReagentMix",
+        "GemCodePolymerase",
+        "PrimerReleaseAgent",
+        "GemCodeBeads",
+        "UltrapureWater",
+        "DropletGenerationOil"
+      ],
+      "key_constraints_applied": [
+        "Duration tokens s and m only; no h token",
+        "heat is in-place; never assigned to a variable",
+        "detect results assigned once, never reassigned",
+        "No loop constructs; freeze-thaw x3 unrolled as 6 sequential heat calls",
+        "All gate-consumed variables used exactly once",
+        "drain lowered to dispose in IR (known compiler behaviour; bs source is correct)",
+        "SpermCountAliquot_Decondensed models 1 uL sub-sample taken from post-heparinase stock; spermDecondensed flows unbroken into library path (Step 11) to preserve end-to-end dataflow"
+      ]
+    }
+  }
+}

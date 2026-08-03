@@ -1,0 +1,263 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Dried Blood Spot Analysis by Digital Microfluidics Coupled to Nanoelectrospray Ionization Mass Spectrometry
+Source Link  : https://pubs.acs.org/doi/pdf/10.1021/ac300305s?ref=article_openPDF
+Paper DOI    : https://doi.org/10.1021/ac300305s
+Journal      : Analytical Chemistry, 2012, Vol. 84, pp. 3731-3738
+Platform     : Digital microfluidics (DMF) coupled to nanoelectrospray ionization mass spectrometry (nESI-MS) on EWOD electrode array
+
+
+OVERVIEW
+--------
+This protocol describes an automated digital microfluidic (DMF) method for the extraction,
+derivatization, and nanoelectrospray ionization tandem mass spectrometry (nESI-MS/MS)
+quantification of succinylacetone (SA), a biomarker for hepatorenal tyrosinemia (HT,
+tyrosinemia type 1), from 3.2 mm dried blood spot (DBS) punches on Whatman 903 filter paper.
+
+The system integrates a standard two-plate DMF device (patterned chromium electrodes on glass
+bottom plate + unpatterned ITO-coated glass top plate, both Teflon-AF coated) with a pulled-glass
+capillary nanoESI emitter inserted between the two plates. This "sandwich" configuration
+immobilizes the emitter without external seals or gaskets, and allows emitters to be exchanged
+in seconds without disassembling the device.
+
+A key innovation is an impedance-based automated feedback control system (RBBB Arduino
+microcontroller) that detects droplet movement failures and automatically escalates driving
+voltage (50 Vrms steps up to 350 Vrms) until movement succeeds -- achieving 100% droplet
+movement success across DBS punches versus 60% without feedback.
+
+The protocol is divided into three functional phases:
+  1. Sequential methanol pre-extraction (3 cycles) to remove non-SA analytes
+  2. SA extraction and hydrazine derivatization (two-step: evaporate then re-dissolve)
+  3. On-chip nESI-MS/MS quantification with internal standard normalization
+
+An extended protocol (Fig. 6) additionally enables parallel amino acid (AA) analysis from
+the methanol pre-extractate using a second capillary emitter and n-butanol HCl derivatization,
+demonstrating compatibility with multi-analyte newborn screening panels.
+
+The DMF method was validated against the gold-standard NSO technique (paired t-test,
+p = 0.05, t = 0.8177) with no statistically significant difference at 95% CI, using
+75 uL total reagent volume vs 200-310 uL conventionally.
+
+
+DEVICE ARCHITECTURE
+-------------------
+Bottom plate : Chromium electrodes patterned on glass (photolithography + wet etching);
+               22 square actuation electrodes (2.2 x 2.2 mm), 7 reservoir electrodes (5 x 5 mm);
+               interelectrode gaps 30 um; contact pads interface with 40-pin connector.
+               Coated with 7 um Parylene-C (vapor deposition) + 50 nm Teflon-AF (spin-coated).
+
+Top plate    : Unpatterned ITO-coated glass (Delta Technologies Ltd.);
+               37.5 x 25 mm; coated with 50 nm Teflon-AF.
+
+Assembly     : 5 layers double-sided tape spacer (~450 um total gap).
+               Gap > DBS punch thickness (~430 um including blood) to allow punch insertion.
+               15 uL droplets span approximately two 2.2 x 2.2 mm electrodes.
+
+nESI interface: Pulled-glass capillary emitter (New Objective Inc.); 360 um o.d., 50 um i.d.,
+               30 um tip i.d., ~5 cm long; inserted ~2.7 cm between the two plates.
+               Emitter tip positioned ~3 mm from LTQ MS orifice.
+               Droplet fills capillary (~100 nL) by capillary action on contact.
+               DC 1.7-2.2 kV applied to ITO top plate for nanoelectrospray generation.
+               Spray stable >200 s, RSD = 7.3%, fluid consumption ~800 nL/min.
+               Extended protocol uses two emitters (one per end of device, Fig. 6a).
+
+Fabrication  : University of Toronto ECTI cleanroom facility.
+               Photomask printed at Pacific Arts and Design (Markham, ON).
+
+
+REAGENTS
+--------
+- MeOH (neat methanol):
+    Pre-extraction solvent; 15 uL droplets x 3 cycles = 45 uL total.
+    Extracts amino acids and acylcarnitines; SA remains in residual spot.
+
+- HydrazineReagent (SA extraction/derivatization/MS solvent):
+    6.5 mM hydrazine + 15 uM 13C5-SA in 80:20 acetonitrile:H2O + 0.1% v/v formic acid.
+    15 uL droplets x 2 steps = 30 uL total.
+    Derivatizes SA to hydrazone; 13C5-SA serves as internal standard.
+
+- InternalStandard_13C5_SA (3,4,5,6,7-13C-succinylacetone):
+    Supplier: Cambridge Isotope Laboratories (Andover, MA).
+    Concentration: 15 uM. MS transition: m/z 160 -> 142.
+    Co-formulated in HydrazineReagent (modelled separately in BioScript).
+
+- AADerivatizationReagent (extended protocol only):
+    3 N HCl in n-butanol; butyl ester derivatization at 75 C.
+
+- AASolvent (extended protocol only):
+    Acetonitrile:H2O 4:1 v/v; re-dissolution of dried AA derivatives.
+
+- DBSPunch:
+    3.2 mm diameter punch from Whatman 903 filter paper bearing dried blood.
+    Toronto samples: male EDTA blood (Biochemed Services) spiked with SA (5-80 uM) and 13C5-SA.
+    Ottawa samples: NSO standard technique; stored -20 C; pre-fortified with 13C5-SA before use.
+    Note: DBSPunch is a solid-phase persistent object on the DMF bottom plate, not a liquid
+    reagent. Declared as a BioScript manifest to allow mix step referencing.
+
+
+ACTUATION AND FEEDBACK CONTROL
+-------------------------------
+Waveform     : Sine wave, 15 kHz, 150-350 Vrms
+Source       : Function generator (Agilent Technologies) + amplifier
+Contact pads : 40-pin connector; automated droplet control via C++ software / Arduino USB
+
+Feedback control system (new, Table 1):
+  - Buffered impedance measurement circuit managed by RBBB Arduino (Modern Device)
+  - Digital potentiometer (1-10 kOhm) for automatic thresholding per liquid type
+  - Actuation pulse: 505 ms (500 ms drive + 5 ms measure)
+  - Failure response: step-up 50 Vrms per failed pulse (max 350 Vrms)
+  - Relays: 80 AQV259H Panasonic solid-state relays, 2 per output (40 outputs)
+  - Control software: custom C++ program via USB to Arduino
+  - Result: 100% success rate (avg 4.8 +/- 1.3 pulses) vs 60% success (avg 25.6 +/- 4.8
+    pulses) at constant 150 Vrms without feedback. First system with automated
+    feedback-controlled variation of actuation potentials.
+
+
+MS/MS DETECTION
+---------------
+Instrument   : LTQ linear ion trap mass spectrometer (Thermo Scientific)
+Ionization   : Nanoelectrospray (nESI), positive mode
+
+SA quantification (MS/MS):
+  Derivatization   : Hydrazine -> SA hydrazone (reaction: Sander et al. Clin. Chem. 2006)
+  Parent ion scan  : 25% collision-induced dissociation (CID)
+  Scan range       : m/z 100-300
+  SA transition    : m/z 155 -> 137 (neutral loss H2O, -18 m/z)
+  IS transition    : m/z 160 -> 142 (neutral loss H2O, -18 m/z; 13C5-SA)
+  Averaging        : 50 acquisitions per spectrum; >=3 samples per condition
+  Calibration      : SA/13C5-SA intensity ratio vs SA concentration (linear regression)
+  R^2              : 0.9923
+  LOD              : 4.95 uM (2.43 ng)
+  Extraction efficiency: 85.2% (CV = 6.85%)
+  Spray RSD        : 7.3% (TIC, Fig. 1d)
+  HT clinical range: 16-150 uM (well above LOD)
+  Tip washing      : 4-5 rinse droplets reduce SA signal to <LOD (Fig. 5)
+
+AA analysis (extended protocol, MS1, Fig. 6b):
+  Derivatization   : 3 N HCl in n-butanol, 75 C (butyl esters)
+  AAs detected     : VAL, MET, TYR, HIS, GLN, PRO, PHE, ASP
+  Mode             : Proof-of-concept, non-quantitative; primary MS (MS1)
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | MeOH Pre-Extraction Cycle 1
+  Reagents  : MeOH (15 uL), DBSPunch
+  Operation : mix (droplet actuated to DBS punch)
+  Duration  : 15 min (900 s) at room temperature
+  IR op     : preExtract11[0] = mix(meoh11[0], dbsPunch11[0]) @ 900.0SECOND
+  Purpose   : First methanol wash; extracts amino acids, acylcarnitines, and small
+              molecules. SA not efficiently extracted by MeOH; retained in spot.
+  Outcome   : MeOH extractate actuated to waste reservoir (drain).
+
+Step 2 | MeOH Pre-Extraction Cycle 2
+  Reagents  : MeOH (15 uL), DBSPunch (persistent)
+  Operation : mix
+  Duration  : 15 min (900 s) at room temperature
+  IR op     : preExtract21[0] = mix(meoh21[0], dbsPunch11[0]) @ 900.0SECOND
+  Purpose   : Second MeOH wash; DBSPunch reused (solid-phase persistent object).
+  Outcome   : Drain to waste.
+
+Step 3 | MeOH Pre-Extraction Cycle 3
+  Reagents  : MeOH (15 uL), DBSPunch (persistent)
+  Operation : mix
+  Duration  : 15 min (900 s) at room temperature
+  IR op     : preExtract31[0] = mix(meoh31[0], dbsPunch11[0]) @ 900.0SECOND
+  Purpose   : Third and final MeOH wash. Residual punch now ready for SA extraction.
+  Outcome   : Drain to waste.
+
+Step 4 | SA Extraction and Derivatization - Part A (evaporation step)
+  Reagents  : HydrazineReagent (15 uL), InternalStandard_13C5_SA, DBSPunch (persistent)
+  Operation : mix + heat
+  Mix duration  : 15 min (900 s) contact with DBS punch
+  Heat          : 37 C for 15 min (900 s) on hot-plate until evaporation
+  IR ops    : extractionMix11[0] = mix(hydrazineReagent11[0], is11[0]) @ 5.0SECOND
+              saExtraction11[0] = mix(extractionMix11[0], dbsPunch11[0]) @ 900.0SECOND
+              heat(saExtraction11[0]) @ 37.0CELSIUS @ 900.0SECOND
+  Purpose   : 6.5 mM hydrazine extracts SA from residual DBS and derivatizes it to
+              hydrazone. Incubation at 37 C drives evaporation, concentrating product.
+              Internal standard co-dispensed for ratio-metric quantification.
+
+Step 5 | SA Extraction and Derivatization - Part B (circular re-dissolution)
+  Reagents  : HydrazineReagent (15 uL), InternalStandard_13C5_SA, saExtraction1
+  Operation : mix (circular 5-electrode actuation pattern)
+  Duration  : 1 min (60 s) at room temperature
+  IR ops    : extractionMix21[0] = mix(hydrazineReagent21[0], is21[0]) @ 5.0SECOND
+              derivatizedSA1[0] = mix(extractionMix21[0], saExtraction11[0]) @ 60.0SECOND
+  Purpose   : Fresh hydrazine droplet re-dissolves and collects evaporated SA hydrazone.
+              Circular actuation around 5 adjacent electrodes maximises recovery.
+
+Step 6 | nESI-MS/MS Quantification of Derivatized SA
+  Inputs    : derivatizedSA
+  Operation : detect (saAnalysis module)
+  Duration  : 200 s
+  IR op     : saSignal1[0] = detect(saAnalysis, derivatizedSA1[0]) @ 200.0SECOND
+  Purpose   : Droplet driven to capillary emitter inlet; fills by capillary action (~100 nL).
+              DC 1.7-2.2 kV applied to ITO top plate; stable nESI generated into LTQ.
+              MS/MS: 25% CID, neutral loss 18, transitions m/z 155->137 (SA) and 160->142 (IS).
+              SA/IS ratio used for calibration curve quantification (R^2 = 0.9923, LOD 4.95 uM).
+  Branch    :
+    Pass (BB2) : saSignal > 0  -> SA detected above LOD; dispose(derivatizedSA)
+    Fail (BB3) : saSignal <= 0 -> signal below LOD or spray failure; drain(derivatizedSA)
+
+Step 2a | AA Extended Protocol - MeOH Extraction and Evaporation (BB4, post-SA join)
+  Reagents  : MeOH (15 uL), DBSPunch (second punch / conceptual extractate)
+  Operation : mix + heat
+  Mix duration  : 5 min (300 s) [shorter than SA protocol]
+  Heat          : 25 C for 15 min (900 s) [ambient evaporation to dryness]
+  IR ops    : aaExtract1[0] = mix(meoh_aa1[0], dbsPunch21[0]) @ 300.0SECOND
+              heat(aaExtract1[0]) @ 25.0CELSIUS @ 900.0SECOND
+  Purpose   : Isolates MeOH pre-extractate for AA analysis. In paper this is performed
+              concurrently (Fig. 6 setup); linearized in BioScript after SA QC join.
+
+Step 2b | AA Extended Protocol - Butyl Ester Derivatization
+  Reagents  : AADerivatizationReagent (15 uL), aaExtract
+  Operation : mix + heat
+  Mix duration  : 5 s
+  Heat          : 75 C for 15 min (900 s) until dryness
+  IR ops    : aaDerivMix1[0] = mix(aaDerivReagent1[0], aaExtract1[0]) @ 5.0SECOND
+              heat(aaDerivMix1[0]) @ 75.0CELSIUS @ 900.0SECOND
+  Purpose   : 3 N HCl in n-butanol derivatizes amino acids to n-butyl esters at 75 C.
+
+Step 2c | AA Extended Protocol - Re-dissolution and nESI-MS Analysis
+  Reagents  : AASolvent (15 uL), aaDerivMix
+  Operation : mix + detect (aminoAcidAnalysis module)
+  Mix duration  : 1 min (60 s)
+  Detect duration: 200 s
+  IR ops    : aaReadySample1[0] = mix(aaSolventDrop1[0], aaDerivMix1[0]) @ 60.0SECOND
+              aaSignal1[0] = detect(aminoAcidAnalysis, aaReadySample1[0]) @ 200.0SECOND
+  Purpose   : ACN:H2O re-dissolves dry butyl ester derivatives; droplet actuated to
+              second nESI emitter (Fig. 6a, top-left). Primary MS spectrum collected.
+              AAs detected: VAL, MET, TYR, HIS, GLN, PRO, PHE, ASP (Fig. 6b).
+  Branch    :
+    Pass (BB5) : aaSignal > 0  -> AA peaks detected; dispose(aaReadySample)
+    Fail (BB6) : aaSignal <= 0 -> no signal; drain(aaReadySample)
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : shih_dbs_dmf_nesi_ms.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 7 basic blocks (BB1-BB7), 2 if/else gates, 8 CFG edges
+DAG            : shih_dbs_dmf_nesi_ms_main_dag.dot
+Duration units : All durations expressed in seconds (s) or minutes (m)
+                 15 min incubations -> 15m  (IR: 900.0 SECOND)
+                 1 min re-dissolution -> 1m (IR: 60.0 SECOND)
+                 200 s detect windows -> 200s (IR: 200.0 SECOND)
+Modules        : saAnalysis, aminoAcidAnalysis
+Manifests      : MeOH, HydrazineReagent, AADerivatizationReagent, AASolvent,
+                 DBSPunch, InternalStandard_13C5_SA
+drain vs dispose note:
+                 lilott8/BioScript emits dispose() for both drain and dispose in IR.
+                 Semantic intent preserved in .bs source comments only.
+DBS abstraction note:
+                 DBSPunch is a solid-phase persistent object, not a liquid reagent.
+                 Declared as manifest and reused across all mix steps in BB1 (dbsPunch11[0]).
+                 Second DBSPunch dispense (dbsPunch21[0]) in BB4 represents the conceptual
+                 MeOH extractate isolated for AA analysis (linearization of parallel branch).
+AA branch note:
+                 In the paper, AA extraction runs concurrently with SA extraction (Fig. 6).
+                 BioScript's linear execution model requires sequential encoding; AA branch
+                 is placed after the SA QC join (BB4) as the correct approximation.

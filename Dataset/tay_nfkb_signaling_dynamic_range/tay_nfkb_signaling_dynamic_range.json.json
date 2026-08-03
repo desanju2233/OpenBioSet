@@ -1,0 +1,353 @@
+{
+  "protocol": {
+    "title": "NF-kappaB Signaling, Dynamic Range and Stochastic Switching under TNF-alpha and LPS Stimulation",
+    "source": "q-bio.org/w/images/c/c3/038_Tay.pdf",
+    "doi": "N/A",
+    "journal": "IEEE EMBS (conference abstract), Stanford University",
+    "platform": "Fully automated microfluidic cell culture system (Gomez-Sjoberg et al., Anal. Chem. 2007)",
+    "cell_line": "NIH-3T3 stably expressing p65-GFP (NF-kappaB nuclear localisation reporter)",
+    "objective": "Simultaneous measurement of NF-kappaB nuclear localisation dynamics in >3000 mammalian cells under 8 doses of TNF-alpha and LPS spanning 4 orders of magnitude; characterisation of oscillation continuity, dose-response dynamic range, stochastic switching, and analog vs. digital signaling modes",
+
+    "key_findings": {
+      "A_oscillations": "Single-cell NF-kappaB oscillations under TNF-alpha are continuous over 12 h (not damped); confirmed by extended time-lapse measurements",
+      "B_dynamic_range": "Response threshold, dose-dependent activation fraction, and response time (hundreds of min near threshold; <30 min at saturating doses) characterised across 4 orders of magnitude for both ligands",
+      "C_stochastic_switching": "High-dose responses are stereotyped; intermediate and low-dose responses show cell-to-cell variability and stochastic switching arising from small fluctuations in key protein levels (modelled by modified Kearns/Hoffman NF-kappaB ODE with stochastic noise)",
+      "D_analog_vs_digital": "TNF-alpha: analog signaling (graded nuclear localisation intensity proportional to dose). LPS: digital signaling (full nuclear localisation even at lowest doses; all-or-nothing switch). Distinction reflects cell-cell communication (TNF) vs. bacterial infection (LPS) biology."
+    },
+
+    "imaging": {
+      "reporter": "p65-GFP (nuclear localisation = NF-kappaB activation)",
+      "nuclear_marker": "Co-stain for automated cell segmentation and tracking",
+      "temporal_resolution_min": 6,
+      "total_duration_h": 12,
+      "total_duration_min": 720,
+      "cell_count": ">3000 NIH-3T3 cells measured simultaneously per experiment",
+      "software": "Custom cell tracking and nuclear localisation intensity extraction software",
+      "microscope": "Fluorescent time-lapse microscopy"
+    },
+
+    "stimulation": {
+      "ligands": ["TNF-alpha (tumor necrosis factor-alpha)", "LPS (lipopolysaccharide)"],
+      "doses_per_ligand": 8,
+      "dose_range_orders_of_magnitude": 4,
+      "dose_tiers_encoded_in_bs": {
+        "high": "near-saturating (1:1 dilution from stock)",
+        "mid":  "intermediate (1:10 serial dilution; 9 PBS units chained)",
+        "low":  "near-threshold (1:100 via two serial 1:10 dilutions)"
+      }
+    },
+
+    "reagents": {
+      "cells": "NIH-3T3 p65-GFP stable line",
+      "growth_media": "Complete growth media (DMEM + serum)",
+      "priming_agent": "2% Pluronics F-127 in PBS",
+      "stimulants": {
+        "TNFalpha_Stock": "TNF-alpha cytokine stock solution",
+        "LPS_Stock": "Lipopolysaccharide (bacterial product) stock solution"
+      },
+      "nuclear_stain": "Nuclear marker dye for cell segmentation",
+      "imaging_buffer": "Isotonic imaging buffer for time-lapse"
+    },
+
+    "mathematical_model": {
+      "base": "Standard NF-kappaB ODE model (Kearns and Hoffman, J. Biol. Chem. 2009, 284:5439-5443)",
+      "modifications": [
+        "Modified to reproduce dose-dependent reduction in response time",
+        "Stochastic noise terms added to key protein levels (IkBa, IKK) to explain switching at near-threshold doses",
+        "Used to distinguish analog (TNF-alpha) vs. digital (LPS) upstream signaling architectures"
+      ]
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Device priming",
+        "bb": "BB1",
+        "inputs": ["PBS", "PluronicF127"],
+        "operation": "mix",
+        "duration_s": 300,
+        "ir_duration_s": 300.0,
+        "notes": "2% Pluronics F-127 in PBS; reduces non-specific cell adhesion to microfluidic channel walls before cell seeding"
+      },
+      {
+        "id": "S2",
+        "name": "Cell seeding and adhesion",
+        "bb": "BB1",
+        "cell_line": "NIH-3T3 p65-GFP",
+        "inputs": ["NIH3T3_p65GFP_Cells", "CompleteMedia"],
+        "operation": "mix then heat",
+        "adhesion_temperature_C": 37,
+        "adhesion_duration_min": 120,
+        "ir_adhesion_duration_s": 7200.0,
+        "notes": "Cells seeded into microfluidic culture chambers in complete media; 2 h adhesion at 37 C before staining and stimulation"
+      },
+      {
+        "id": "S3",
+        "name": "Nuclear marker staining",
+        "bb": "BB1",
+        "inputs": ["NuclearMarkerDye", "ImagingBuffer"],
+        "operation": "mix then heat",
+        "staining_duration_min": 30,
+        "ir_staining_duration_s": 1800.0,
+        "staining_temperature_C": 37,
+        "notes": "Nuclear marker co-stain enables automated single-cell segmentation and tracking; 30 min incubation at 37 C. p65-GFP nuclear/cytoplasmic ratio extracted per cell at each 6-min frame."
+      },
+      {
+        "id": "S4",
+        "name": "TNF-alpha stimulation -- near-saturating dose (Dose 1, 1:1 dilution)",
+        "bb": "BB1",
+        "ligand": "TNF-alpha",
+        "dose_tier": "high",
+        "dilution": "1:1 (1 unit stock + 1 unit PBS)",
+        "inputs": ["TNFalpha_Stock", "PBS"],
+        "operation": "mix then heat then detect",
+        "timelapse_duration_min": 720,
+        "timelapse_duration_h": 12,
+        "ir_timelapse_duration_s": 43200.0,
+        "imaging_interval_min": 6,
+        "incubation_temperature_C": 37,
+        "detection_module": "nfkbNuclearLocalizationDetection",
+        "ir_detect_duration_s": 43200.0,
+        "expected_response": {
+          "activation_fraction": "~1.0 (all cells respond)",
+          "response_character": "stereotyped single-cell oscillations",
+          "response_time_to_first_peak_min": "<30",
+          "oscillation_type": "continuous (non-damped) over 12 h",
+          "signaling_mode": "analog (graded nuclear localisation proportional to dose)"
+        },
+        "branch": {
+          "pass": { "condition": "tnfHighSignal > 0", "action": "dispose", "bb": "BB2", "ir_label": "bsbbif_2_t" },
+          "fail": { "condition": "tnfHighSignal <= 0", "action": "drain",   "bb": "BB3", "ir_label": "bsbbif_3_f" }
+        }
+      },
+      {
+        "id": "S5",
+        "name": "TNF-alpha stimulation -- intermediate dose (Dose 2, 1:10 dilution)",
+        "bb": "BB4",
+        "ligand": "TNF-alpha",
+        "dose_tier": "mid",
+        "dilution": "1:10 (1 unit stock + 9 units PBS chained)",
+        "serial_dilution_pbs_units": 9,
+        "ir_pbs_variables": ["p11","p21","p31","p41","p51","p61","p71","p81","p91"],
+        "ir_chain_variable": "pbsMix91",
+        "inputs": ["TNFalpha_Stock", "PBS x9", "NIH3T3_p65GFP_Cells", "CompleteMedia", "NuclearMarkerDye", "ImagingBuffer"],
+        "operation": "serial dilution then cell prep then mix then heat then detect",
+        "timelapse_duration_min": 720,
+        "ir_timelapse_duration_s": 43200.0,
+        "incubation_temperature_C": 37,
+        "detection_module": "nfkbNuclearLocalizationDetection",
+        "expected_response": {
+          "activation_fraction": "partial (intermediate between threshold and saturation)",
+          "response_character": "heterogeneous; stochastic switching; some cells oscillate, some remain silent",
+          "response_time_to_first_peak_min": "tens to low hundreds",
+          "signaling_mode": "analog (graded)"
+        },
+        "branch": {
+          "pass": { "condition": "tnfMidSignal > 0", "action": "dispose", "bb": "BB5", "ir_label": "bsbbif_5_t" },
+          "fail": { "condition": "tnfMidSignal <= 0", "action": "drain",   "bb": "BB6", "ir_label": "bsbbif_6_f" }
+        }
+      },
+      {
+        "id": "S6",
+        "name": "TNF-alpha stimulation -- near-threshold dose (Dose 3, 1:100 dilution)",
+        "bb": "BB7",
+        "ligand": "TNF-alpha",
+        "dose_tier": "low",
+        "dilution": "1:100 via two serial 1:10 steps (1:10 x 1:10)",
+        "serial_dilution_steps": 2,
+        "ir_pbs_variables_step1": ["q11","q21","q31","q41","q51","q61","q71","q81","q91"],
+        "ir_pbs_variables_step2": ["r11","r21","r31","r41","r51","r61","r71","r81","r91"],
+        "ir_intermediate_variable": "tnfSerial11",
+        "ir_final_variable": "tnfLowDose1",
+        "inputs": ["TNFalpha_Stock", "PBS x9 (x2 serial steps)", "NIH3T3_p65GFP_Cells", "CompleteMedia", "NuclearMarkerDye", "ImagingBuffer"],
+        "operation": "two-step serial dilution then cell prep then mix then heat then detect",
+        "timelapse_duration_min": 720,
+        "ir_timelapse_duration_s": 43200.0,
+        "incubation_temperature_C": 37,
+        "detection_module": "nfkbNuclearLocalizationDetection",
+        "expected_response": {
+          "activation_fraction": "very low (near threshold)",
+          "response_character": "rare stochastic switching; irregular on/off; majority of cells silent",
+          "response_time_to_first_peak_min": "hundreds",
+          "model_explanation": "Modified NF-kappaB ODE with stochastic IkBa/IKK fluctuations reproduces observed switching statistics"
+        },
+        "branch": {
+          "pass": { "condition": "tnfLowSignal > 0", "action": "dispose", "bb": "BB8", "ir_label": "bsbbif_8_t" },
+          "fail": { "condition": "tnfLowSignal <= 0", "action": "drain",   "bb": "BB9", "ir_label": "bsbbif_9_f" }
+        }
+      },
+      {
+        "id": "S7",
+        "name": "LPS stimulation -- near-saturating dose (Dose 1, 1:1 dilution)",
+        "bb": "BB10",
+        "ligand": "LPS",
+        "dose_tier": "high",
+        "dilution": "1:1 (1 unit stock + 1 unit PBS)",
+        "inputs": ["LPS_Stock", "PBS", "NIH3T3_p65GFP_Cells", "CompleteMedia", "NuclearMarkerDye", "ImagingBuffer"],
+        "operation": "mix then cell prep then mix then heat then detect",
+        "timelapse_duration_min": 720,
+        "ir_timelapse_duration_s": 43200.0,
+        "incubation_temperature_C": 37,
+        "detection_module": "nfkbNuclearLocalizationDetection",
+        "expected_response": {
+          "activation_fraction": "majority of cells",
+          "response_character": "digital ON; full nuclear p65-GFP translocation regardless of dose intensity",
+          "signaling_mode": "digital (all-or-nothing; full localisation in responding cells)",
+          "biological_context": "LPS detected via TLR4/MyD88 producing switch-like IKK activation; reflects pathogen detection vs. cell-cell communication"
+        },
+        "branch": {
+          "pass": { "condition": "lpsHighSignal > 0", "action": "dispose", "bb": "BB11", "ir_label": "bsbbif_11_t" },
+          "fail": { "condition": "lpsHighSignal <= 0", "action": "drain",   "bb": "BB12", "ir_label": "bsbbif_12_f" }
+        }
+      },
+      {
+        "id": "S8",
+        "name": "LPS stimulation -- intermediate dose (Dose 2, 1:10 dilution)",
+        "bb": "BB13",
+        "ligand": "LPS",
+        "dose_tier": "mid",
+        "dilution": "1:10 (1 unit stock + 9 units PBS chained)",
+        "ir_pbs_variables": ["s11","s21","s31","s41","s51","s61","s71","s81","s91"],
+        "ir_chain_variable": "sbsMix91",
+        "inputs": ["LPS_Stock", "PBS x9", "NIH3T3_p65GFP_Cells", "CompleteMedia", "NuclearMarkerDye", "ImagingBuffer"],
+        "operation": "serial dilution then cell prep then mix then heat then detect",
+        "timelapse_duration_min": 720,
+        "ir_timelapse_duration_s": 43200.0,
+        "incubation_temperature_C": 37,
+        "detection_module": "nfkbNuclearLocalizationDetection",
+        "expected_response": {
+          "activation_fraction": "lower than high dose but still digital",
+          "response_character": "digital ON in responding fraction; full nuclear localisation (not graded)",
+          "key_contrast": "At equivalent 1:10 dose, TNF-alpha gives graded partial localisation; LPS gives full localisation in a smaller responding fraction"
+        },
+        "branch": {
+          "pass": { "condition": "lpsMidSignal > 0", "action": "dispose", "bb": "BB14", "ir_label": "bsbbif_14_t" },
+          "fail": { "condition": "lpsMidSignal <= 0", "action": "drain",   "bb": "BB15", "ir_label": "bsbbif_15_f" }
+        }
+      },
+      {
+        "id": "S9",
+        "name": "LPS stimulation -- near-threshold dose (Dose 3, 1:100 dilution)",
+        "bb": "BB16",
+        "ligand": "LPS",
+        "dose_tier": "low",
+        "dilution": "1:100 via two serial 1:10 steps",
+        "ir_pbs_variables_step1": ["t11","t21","t31","t41","t51","t61","t71","t81","t91"],
+        "ir_pbs_variables_step2": ["u11","u21","u31","u41","u51","u61","u71","u81","u91"],
+        "ir_intermediate_variable": "lpsSerial11",
+        "ir_final_variable": "lpsLowDose1",
+        "inputs": ["LPS_Stock", "PBS x9 (x2 serial steps)", "NIH3T3_p65GFP_Cells", "CompleteMedia", "NuclearMarkerDye", "ImagingBuffer"],
+        "operation": "two-step serial dilution then cell prep then mix then heat then detect",
+        "timelapse_duration_min": 720,
+        "ir_timelapse_duration_s": 43200.0,
+        "incubation_temperature_C": 37,
+        "detection_module": "nfkbNuclearLocalizationDetection",
+        "expected_response": {
+          "activation_fraction": "very low (near threshold)",
+          "response_character": "digital ON in rare responding cells; full nuclear localisation even at lowest dose -- key finding",
+          "key_finding": "Even at near-threshold LPS doses, responding cells show complete nuclear localisation (digital). Equivalent TNF-alpha doses give only weak graded responses. This is the core analog-vs-digital distinction."
+        },
+        "branch": {
+          "pass": { "condition": "lpsLowSignal > 0", "action": "dispose", "bb": "BB17", "ir_label": "bsbbif_17_t" },
+          "fail": { "condition": "lpsLowSignal <= 0", "action": "drain",   "bb": "BB18", "ir_label": "bsbbif_18_f" }
+        }
+      }
+    ],
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1",  "label": "main",         "ir_label": "main",         "type": "entry",        "content": "Device priming; cell seeding; nuclear staining; TNF-alpha high dose stimulation and detect" },
+        { "id": "BB2",  "label": "bsbbif_2_t",   "ir_label": "bsbbif_2_t",  "type": "branch_true",  "condition": "tnfHighSignal > 0",  "action": "dispose(tnfHighStim)" },
+        { "id": "BB3",  "label": "bsbbif_3_f",   "ir_label": "bsbbif_3_f",  "type": "branch_false", "condition": "tnfHighSignal <= 0", "action": "drain(tnfHighStim)" },
+        { "id": "BB4",  "label": "bsbbif_4_j",   "ir_label": "bsbbif_4_j",  "type": "join",         "content": "dispose(tnfHighSignal); TNF-alpha mid dose dilution + cell prep + stimulation + detect" },
+        { "id": "BB5",  "label": "bsbbif_5_t",   "ir_label": "bsbbif_5_t",  "type": "branch_true",  "condition": "tnfMidSignal > 0",   "action": "dispose(tnfMidStim)" },
+        { "id": "BB6",  "label": "bsbbif_6_f",   "ir_label": "bsbbif_6_f",  "type": "branch_false", "condition": "tnfMidSignal <= 0",  "action": "drain(tnfMidStim)" },
+        { "id": "BB7",  "label": "bsbbif_7_j",   "ir_label": "bsbbif_7_j",  "type": "join",         "content": "dispose(tnfMidSignal); TNF-alpha low dose 2x serial dilution + cell prep + stimulation + detect" },
+        { "id": "BB8",  "label": "bsbbif_8_t",   "ir_label": "bsbbif_8_t",  "type": "branch_true",  "condition": "tnfLowSignal > 0",   "action": "dispose(tnfLowStim)" },
+        { "id": "BB9",  "label": "bsbbif_9_f",   "ir_label": "bsbbif_9_f",  "type": "branch_false", "condition": "tnfLowSignal <= 0",  "action": "drain(tnfLowStim)" },
+        { "id": "BB10", "label": "bsbbif_10_j",  "ir_label": "bsbbif_10_j", "type": "join",         "content": "dispose(tnfLowSignal); LPS high dose dilution + cell prep + stimulation + detect" },
+        { "id": "BB11", "label": "bsbbif_11_t",  "ir_label": "bsbbif_11_t", "type": "branch_true",  "condition": "lpsHighSignal > 0",  "action": "dispose(lpsHighStim)" },
+        { "id": "BB12", "label": "bsbbif_12_f",  "ir_label": "bsbbif_12_f", "type": "branch_false", "condition": "lpsHighSignal <= 0", "action": "drain(lpsHighStim)" },
+        { "id": "BB13", "label": "bsbbif_13_j",  "ir_label": "bsbbif_13_j", "type": "join",         "content": "dispose(lpsHighSignal); LPS mid dose dilution + cell prep + stimulation + detect" },
+        { "id": "BB14", "label": "bsbbif_14_t",  "ir_label": "bsbbif_14_t", "type": "branch_true",  "condition": "lpsMidSignal > 0",   "action": "dispose(lpsMidStim)" },
+        { "id": "BB15", "label": "bsbbif_15_f",  "ir_label": "bsbbif_15_f", "type": "branch_false", "condition": "lpsMidSignal <= 0",  "action": "drain(lpsMidStim)" },
+        { "id": "BB16", "label": "bsbbif_16_j",  "ir_label": "bsbbif_16_j", "type": "join",         "content": "dispose(lpsMidSignal); LPS low dose 2x serial dilution + cell prep + stimulation + detect" },
+        { "id": "BB17", "label": "bsbbif_17_t",  "ir_label": "bsbbif_17_t", "type": "branch_true",  "condition": "lpsLowSignal > 0",   "action": "dispose(lpsLowStim)" },
+        { "id": "BB18", "label": "bsbbif_18_f",  "ir_label": "bsbbif_18_f", "type": "branch_false", "condition": "lpsLowSignal <= 0",  "action": "drain(lpsLowStim)" },
+        { "id": "BB19", "label": "bsbbif_19_j",  "ir_label": "bsbbif_19_j", "type": "terminal",     "content": "dispose(lpsLowSignal); NOP" }
+      ],
+      "edges": [
+        ["BB1","BB2"],  ["BB1","BB3"],
+        ["BB2","BB4"],  ["BB3","BB4"],
+        ["BB4","BB5"],  ["BB4","BB6"],
+        ["BB5","BB7"],  ["BB6","BB7"],
+        ["BB7","BB8"],  ["BB7","BB9"],
+        ["BB8","BB10"], ["BB9","BB10"],
+        ["BB10","BB11"],["BB10","BB12"],
+        ["BB11","BB13"],["BB12","BB13"],
+        ["BB13","BB14"],["BB13","BB15"],
+        ["BB14","BB16"],["BB15","BB16"],
+        ["BB16","BB17"],["BB16","BB18"],
+        ["BB17","BB19"],["BB18","BB19"]
+      ],
+      "edge_count": 24,
+      "node_count": 19
+    },
+
+    "bioscript_compiler_notes": {
+      "bs_file": "tay_nfkb_signaling_dynamic_range.bs",
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "ir_output": "tay_nfkb_signaling_dynamic_range.ir",
+      "dot_output": "tay_nfkb_signaling_dynamic_range_main_dag.dot",
+      "basic_blocks": 19,
+      "if_else_gates": 6,
+      "cfg_edges": 24,
+      "terminal_instruction": "NOP",
+      "duration_unit_notes": {
+        "120min_adhesion": "120m in .bs -> 7200.0 SECOND in IR",
+        "30min_staining":  "30m in .bs  -> 1800.0 SECOND in IR",
+        "5min_priming":    "5m in .bs   -> 300.0 SECOND in IR",
+        "720min_timelapse":"720m in .bs -> 43200.0 SECOND in IR",
+        "1min_stain_mix":  "1m in .bs   -> 60.0 SECOND in IR",
+        "5s_mix":          "5s in .bs   -> 5.0 SECOND in IR"
+      },
+      "serial_dilution_approach": "BioScript does not support numeric looping. 1:10 dilutions encoded as chained dispense of 9 PBS units (p1-p9, q1-q9, etc.) merged sequentially. 1:100 achieved by two successive 1:10 serial steps.",
+      "ascii_constraint": "ANTLR4 FileStream requires pure ASCII. All Greek letters replaced: alpha -> alpha, kappa -> kappa, em-dash -> --",
+      "modules": [
+        "nfkbNuclearLocalizationDetection",
+        "cellTrackingAnalysis",
+        "doseResponseDetection"
+      ],
+      "manifests": [
+        "NIH3T3_p65GFP_Cells",
+        "PBS",
+        "CompleteMedia",
+        "PluronicF127",
+        "TNFalpha_Stock",
+        "LPS_Stock",
+        "NuclearMarkerDye",
+        "ImagingBuffer",
+        "FC40_Oil"
+      ]
+    },
+
+    "references": [
+      {
+        "id": 1,
+        "citation": "Hayden MS, Ghosh S (2004) Signaling to NF-kappaB. Genes Dev. 18, 2195-2224."
+      },
+      {
+        "id": 2,
+        "citation": "Gomez-Sjoberg R, Leyrat A, Pirone DM, Chen CS, Quake SR (2007) Versatile, fully automated, microfluidic cell culture system. Anal. Chem. 10, 1021-1028."
+      },
+      {
+        "id": 3,
+        "citation": "Tay S, Lee TK, Hughey J, Leyrat A, Covert M, Quake SR. NF-kappaB signaling dynamic range in response to TNF and LPS (in preparation)."
+      },
+      {
+        "id": 4,
+        "citation": "Kearns JD, Hoffman A (2009) Integrating computational and biochemical studies to explore mechanisms in NF-kappaB signaling. J. Biol. Chem. 284, 5439-5443."
+      }
+    ]
+  }
+}

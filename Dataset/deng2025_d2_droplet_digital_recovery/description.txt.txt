@@ -1,0 +1,309 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Recovery of Phenotypically Sorted Cells Using Droplet-Digital Microfluidics
+Source Link  : https://rscj.silverchair-cdn.com/rscj/content_public/journal/lc/25/17/10.1039_d5lc00415b/1/d5lc00415b.pdf
+Paper DOI    : https://doi.org/10.1039/d5lc00415b
+Journal      : Lab on a Chip, 2025, Vol. 25, pp. 4410-4421
+Platform     : Droplet-Digital (D2) microfluidics (flow-focusing droplet-in-channel + DMF electrode array)
+
+
+OVERVIEW
+--------
+This protocol describes a fully integrated Droplet-Digital (D2) microfluidic platform for the
+isolation and recovery of rare single cells and beads from individually processed droplets. The
+system combines high-throughput fluorescence-activated droplet sorting (FADS) with on-demand
+digital microfluidic (DMF) control at the collection site, enabling direct, precise, and automated
+transfer of sorted single-cell-containing droplets into conventional 96-well culture plates.
+
+The core innovation is the elimination of tubing at the collection step, replacing it with an
+open-access semicircular outlet where a 3 uL recovery buffer droplet is pre-generated and
+parked on-chip. After each sorting event, the sorted ~1 nL droplet is merged with the recovery
+buffer via DMF electrode actuation (140 Vrms, 15 kHz, 3 x 500 ms), and the merged ~4 uL
+volume is manually pipetted directly into a well. This approach removes the two primary failure
+modes of conventional tubing collection: (i) droplet trapping in the PDMS-tubing arc and
+(ii) droplet coalescence/cross-talk between adjacent sorted droplets in contact.
+
+The protocol is divided into three experimental sub-protocols encoded sequentially in the
+BioScript file, sharing the same D2 device (except Protocol 3 Step 1, which uses a separate
+co-encapsulation chip for hybridoma-target cell pairing):
+
+  1. Fluorescent bead recovery benchmark (pooled and single recovery vs tubing method)
+  2. Low-input rare GFP HEK293 single-cell sorting, recovery, and 7-day viability
+  3. Rare specific-antibody-secreting hybridoma cell screening and recovery
+     (antibody discovery application; off-chip 2 h co-incubation + on-chip re-injection sort)
+
+Key performance results:
+  - Single bead recovery:    ~87% (D2) vs ~5% (tubing); p < 0.0001
+  - Pooled bead recovery:    ~93.5% (D2) vs ~78.5% (tubing); SD 5.29% vs 26.1%
+  - GFP HEK293 recovery:     >80% across all ratios (1:400, 1:1000) and cell inputs (1e4, 1e5)
+  - Post-sort viability:     ~90% over 7 days; cells exhibit spreading by day 1
+  - Hybridoma 1:400 ratio:   ~88% recovery
+  - Hybridoma 1:1000 ratio:  ~78% recovery
+  - Overall improvement:     18-fold over conventional methods
+
+
+DEVICE ARCHITECTURE
+-------------------
+Layer i   : Chromium electrodes patterned on 50x75 mm glass slides (Telic, Valencia, CA).
+            S1811 positive photoresist; UV exposure 7 s at 38-50 mW/cm2; developed MF-321;
+            etched CR-4 chromium etchant; stripped AZ-300T photoresist stripper.
+            Chromium contact pads covered with Scotch 3M tape during spin coating.
+
+Layer ii  : PDMS dielectric, ~7 um thick. 1:10 w/w curing agent:prepolymer (DOW Silicones)
+            spin-coated at 4500 rpm for 90 s; baked 90 C for 1 h.
+
+Layer iii : PDMS channel layer. Two-layer SU-8 2075 master on 100 mm Si wafer (each layer
+            ~100 um; spin: 10 s at 500 rpm, 30 s at 2000 rpm, 10 s at 500 rpm). Master
+            silanised with chlorotrimethylsilane vapour 45 min. PDMS (1:10 w/w) poured and
+            cured at room temperature >= 48 h to prevent shrinkage. Bonded to substrate after
+            15 s O2 plasma treatment; baked 60 C for 30 min. Channels treated with Aquapel
+            1 min, dried, baked 85 C for 20 min.
+
+Device sections:
+  - Flow-focusing droplet generator (two inlets: oil I1, aqueous cells/beads I2)
+  - Fiber-optic PMT detection zone (200 um core multimode fiber, 0.49 NA, Thorlabs)
+  - DMF binary sorting junction (patterned electrodes beneath channel)
+  - Six pairs of arrest electrodes in sorting channel (hold sorted droplet in transit)
+  - Two 200x200 um merging electrodes at channel-collection interface
+  - Semicircular open-access collection outlet (3 mm biopsy punch + razor-excised semicircle)
+  - Recovery buffer inlet (500 uL gastight syringe, 1/32-inch PEEK tubing)
+  - Withdraw/waste channel (2.5 mL gastight syringe, -0.15 uL/s default)
+
+Inlets  : I1 (2.5 mL gastight, HFE7500 + 2% surfactant, Tygon 0.06-inch OD),
+          I2 (1 mL BD plastic, cells/beads, Tygon 0.06-inch OD),
+          I3 (500 uL gastight, recovery buffer, 1/32-inch PEEK)
+Outlets : O1 (waste/withdraw, 2.5 mL gastight, 1/32-inch PEEK),
+          O2 (semicircular open-access collection site, direct pipette access)
+
+Electrode actuation: 140 Vrms, 15 kHz AC, via optocoupler switches controlled by Teensy 4.1
+                     microcontroller + port expander + Keysight 33210A function generator +
+                     Advanced Energy PZD700A amplifier.
+Pump system        : Cetoni neMESYS low-pressure syringe pump (automated flow control).
+Microscope         : Olympus IX73 inverted, vibration-dampened bench (Thorlabs).
+Imaging (wells)    : EVOS M5000 imaging system (Thermo Fisher Scientific).
+Software           : uflowcontrol (Python, open-source):
+                     https://bitbucket.org/shihmicrolab/uflowcontrol
+CAD files          : https://osf.io/jmxc6/
+
+
+CELL LINES AND REAGENTS
+-----------------------
+Bead model   : FluoSpheres polystyrene microspheres, 10 um, blue-green fluorescent (430/465 nm),
+               Thermo Fisher Scientific. Washed 3x PBS; diluted to 1e6 beads/mL; 16% OptiPrep added.
+
+HEK293 cells : GFP-expressing and wild-type HEK293 (gift from Dr. Elena Kuzmin / Dr. Alisa
+               Piekny lab, Concordia University). Cultured in DMEM + 10% heat-inactivated FBS
+               + 1% penicillin/streptomycin; 37 C, 5% CO2; passage every 2 days at 80% confluency.
+               Dissociated with trypsin (2 mL, 5 min, 37 C); quenched with 8 mL DMEM + 10% FBS;
+               centrifuged 1000 rpm 5 min; resuspended in PBS for sorting.
+               Spike ratios: 1:400 and 1:1000 (GFP:WT); inputs: 10,000 and 100,000 cells.
+               80 uL OptiPrep added to 400 uL cell suspension (density matching).
+
+Hybridoma    : Two lines provided by National Research Council Canada (NRC).
+               Specific-Ab producer: secretes mAbs binding surface antigen of target cells;
+                 stained calcein-AM red-orange (Thermo Fisher Scientific).
+               Non-specific-Ab producer: secretes non-binding mAbs; unstained.
+               Cultured in IMDM + 10% FBS + IL-6 1 ng/mL + 1% P/S; passage every 3 days
+               at 8x10^5 cells/mL in T-25 flasks. Used at mid-logarithmic, passage < 12.
+               Spike ratios: 1:400 (0.25%) and 1:1000 (0.1%) specific:nonspecific.
+               Sort buffer: IMDM (no phenol red) + 10% FBS + IL-6 1 ng/mL (no antibiotics).
+               11% w/v OptiPrep added; 3x prewash with neat IMDM to remove FBS.
+
+Target cells : Antigen-overexpressing line (provided by NRC). Cultured DMEM + 10% FBS +
+               G418 0.4 mg/mL; 37 C, 5% CO2. Dissociated with non-enzymatic cell
+               dissociation solution (1x, pre-warmed 37 C) to preserve surface antigen.
+               Resuspended at 3x10^6 cells/mL in IMDM (no phenol red) + 10% FBS + IL-6 1 ng/mL.
+               Stained CellTrace Blue (Thermo Fisher Scientific).
+
+Reagents     : HFE 7500 (3M Novec, M.G. Chemicals) + 2% 008-fluoro-surfactant (RAN Biotechnologies)
+               OptiPrep iodixanol density gradient medium (Sigma-Aldrich)
+               Alexa Fluor 488 goat anti-mouse IgG (H+L), 2.5 ug/mL (Thermo Fisher Scientific)
+               SYTOX Blue dead cell stain (Thermo Fisher Scientific)
+               Recombinant mouse IL-6 carrier-free (Wisent Inc.)
+               Aquapel (channel surface passivation)
+               OptiPrep (Sigma-Aldrich); 16% for beads, 11% w/v for hybridoma/target cells
+
+Recovery     : PBS (beads), DMEM (HEK293 cells), IMDM + 10% FBS + 1 ng/mL IL-6 (hybridoma)
+buffers        3 uL on-chip; 100 uL pre-loaded in 96-well plate per well.
+               Conditioned media (HEK293 post-sort, first 24 h): 30% spent eGFP HEK supernatant
+               (0.22 um filtered) + 70% fresh DMEM + 10% FBS + 1% P/S.
+
+
+PROTOCOL STEPS
+--------------
+
+--- PROTOCOL 1: Fluorescent Bead Recovery ---
+
+Step 1 | Device Priming and Baseline Flow
+  Reagents  : HFE 7500 + 2% 008-fluoro-surfactant
+  Operation : Inject oil at 0.15 uL/s via oil inlet; set waste syringe to -0.15 uL/s.
+              All droplets routed to waste by default before any sorting event is triggered.
+  Purpose   : Prime all channels; establish baseline flow direction.
+
+Step 2 | Bead Suspension Preparation
+  Reagents  : FluoSpheres 10 um blue-green, PBS, OptiPrep 16%
+  Operation : Wash beads 3x PBS; dilute to 1e6 beads/mL; add 16% OptiPrep; load 1 mL BD syringe.
+  Purpose   : OptiPrep prevents bead clumping and sedimentation during chip operation.
+
+Step 3 | Bead Encapsulation in ~1 nL Droplets
+  Flow rates : Oil 0.15 uL/s; aqueous bead phase 0.05 uL/s
+  Droplet    : ~1 nL, monodisperse, ~50 Hz generation rate
+  Sorting    : PMT threshold 7e3 to 2e4 photon counts; selects single-bead droplets.
+               Below lower bound = empty droplet; above upper bound = multi-bead droplet.
+
+Step 4 | PMT Detection, Sorting, and Recovery (Pooled or Single)
+  Excitation : 470 nm (X-Cite XLED1); emission ~520 nm; detected by Hamamatsu H11890 PMT.
+  Trigger    : Fluorescence peak within threshold window actuates sorting electrode.
+  Recovery   : 3 uL PBS buffer generated at 1 uL/s; parked at semicircular outlet.
+               7 s delay post-sort; 3x electrode actuation (140 Vrms, 15 kHz, 500 ms each).
+               Merged ~4 uL transferred via P20 pipette (5 uL) to 96-well plate well
+               pre-loaded with 100 uL PBS. Transfer time: ~10 s per well.
+  Pooled     : 50 sorted droplets -> 1 well; then limiting dilution (1 bead/well).
+  Single     : 1 sorted droplet -> 1 well (50 individual transfer operations).
+
+  Results (pooled):  D2 ~93.5% vs tubing ~78.5%; D2 SD 5.29% vs tubing SD 26.1%.
+  Results (single):  D2 ~87% vs tubing ~5%; p < 0.0001 (unpaired t-test).
+
+
+--- PROTOCOL 2: Low-Input Rare GFP HEK293 Cell Recovery ---
+
+Step 5 | Rare GFP Cell Mixture Preparation
+  Cell lines : GFP-expressing HEK293 and WT HEK293; both at 1e6 cells/mL.
+  Ratios     : 1:400 and 1:1000 (GFP:WT); total inputs 10,000 and 100,000 cells.
+  Buffer     : PBS (Ca2+/Mg2+ free) + 80 uL OptiPrep per 400 uL suspension; gentle vortex.
+  Syringe    : 480 uL loaded into 1 mL BD plastic syringe.
+
+Step 6 | GFP Cell Encapsulation and Sorting
+  Sorting threshold : 1e3 to 2.5e3 photon counts (lower than bead threshold; single GFP cell
+                      fluorescence is weaker than bead signal).
+  Detection         : singleCellGFPDetection module; 10 s detection window per droplet.
+  Recovery          : Same D2 workflow as Step 4 but with 3 uL DMEM recovery buffer.
+                      Well plate pre-loaded: 100 uL DMEM per well.
+
+Step 7 | Post-Sort Conditioned Media Culture (First 24 h)
+  Media      : 150 uL conditioned media per well (30% spent eGFP HEK supernatant,
+               0.22 um filtered, + 70% fresh DMEM + 10% FBS + 1% P/S).
+  Incubation : 24 h at 37 C, 5% CO2 (= 1440 min; IR: 86400 s).
+  Purpose    : Conditioned media supports single-cell survival in the immediate post-sort period.
+
+Step 8 | Viability Monitoring (SYTOX Blue, Days 1-7)
+  Stain      : SYTOX Blue dead cell stain; 10 wells per time point per manufacturer protocol.
+  Imaging    : EVOS M5000; every 24 h.
+  Viability  : (non-blue wells) / (total stained wells) x 100.
+  Detection  : viabilityDetection module; 60 s read.
+
+Step 9 | 7-Day Clonal Expansion
+  Media      : 50 uL fresh DMEM + 10% FBS + 1% P/S added every 48 h.
+  Duration   : 6 remaining days after 24 h conditioned media phase = 8640 min (IR: 518400 s).
+  Imaging    : EVOS M5000 bright-field + GFP fluorescence; every 24 h.
+  Incubation : 37 C, 5% CO2.
+
+  Results: >80% recovery across all ratios and cell inputs. ~90% viability over 7 days.
+           Cells exhibit spreading by day 1 (positive viability indicator).
+           Example: 1:1000 ratio, 6 GFP cells sorted and recovered in ~1 h operation.
+
+
+--- PROTOCOL 3: Rare Antibody-Secreting Hybridoma Screening and Recovery ---
+
+Step 10 | Hybridoma and Target Cell Preparation
+  Hybridoma  : Specific (calcein-AM red, 1e6 cells/mL) + nonspecific (unstained) mixed at
+               1:400 or 1:1000 in IMDM (no phenol red) + 10% FBS + IL-6 1 ng/mL + 11% OptiPrep.
+  Target     : 3e6 cells/mL in IMDM (no phenol red) + 10% FBS + IL-6 1 ng/mL +
+               Alexa Fluor 488 anti-mouse IgG 2.5 ug/mL + 11% OptiPrep. Stained CellTrace Blue.
+  Prewash    : Both cell types washed 3x neat IMDM to remove FBS before experiment.
+  Staining   : Calcein-AM red-orange (hybridoma); CellTrace Blue (target) per manufacturer protocol.
+
+Step 11 | Co-Encapsulation (Separate Co-Encapsulation Chip)
+  Chip       : Flow-focusing co-encapsulation chip (two cell inlets).
+  Flow rates : Hybridoma 0.3 uL/s; target + secondary Ab 0.3 uL/s; oil 0.8 uL/s;
+               withdrawal syringe (BD 1 mL plastic) at 1.4 uL/s.
+  Occupancy  : 5-10% double-cell droplets (hybridoma + target) by Poisson statistics.
+  Oil        : HFE 7500 + 2% 008-fluoro-surfactant (RAN Biotechnologies).
+
+Step 12 | Off-Chip Droplet Incubation
+  Duration   : 2 h at 37 C, 5% CO2 (= 120 min; IR: 7200 s).
+  Collection : Withdrawal syringe (BD 1 mL plastic) incubated in mammalian cell incubator.
+  Mechanism  : Specific mAbs secreted by hybridoma cells bind surface antigen of co-encapsulated
+               target cells. Pre-added Alexa Fluor 488 secondary antibodies bind primary mAbs,
+               generating sharp high-intensity green fluorescence (>18,000 counts) uniquely in
+               specific-Ab + target cell doublet droplets.
+  Signal logic:
+    Specific-Ab producer + target cell  : >18,000 photon counts (Alexa Fluor 488 surface-bound)
+    Non-specific hybridoma only          : medium fluorescence (free secondary Ab baseline)
+    Target cell only or empty            : background fluorescence
+
+Step 13 | Re-Injection into D2 Sorting Chip
+  Flow rates : Droplet re-injection 0.02 uL/s; spacing oil 0.15 uL/s; waste -0.12 uL/s.
+               Slower re-injection rate maintains droplet integrity post-off-chip incubation.
+  Throughput : ~50 Hz sorting; ~1 nL monodisperse droplets.
+
+Step 14 | Antibody-Binding Sort and Single-Pair Recovery
+  Detection  : antibodyBindingDetection module; 488 nm excitation; 520 nm emission.
+               Sorting threshold: 1.8e4 to 3e4 photon counts (green channel).
+  Recovery   : 3 uL IMDM + 10% FBS + IL-6 1 ng/mL recovery buffer generated at 1 uL/s.
+               7-9 s delay post-sort; 3x electrode actuation (140 Vrms, 15 kHz, 500 ms each).
+               Merged contents pipetted (P20, 5 uL) to 96-well plate pre-loaded with 100 uL
+               IMDM + 10% FBS + IL-6 1 ng/mL + 1% P/S. Plate to incubator immediately.
+  Imaging    : EVOS M5000; confirm specific-Ab hybridoma by:
+               calcein-AM red (hybridoma) + CellTrace Blue (target) + Alexa Fluor 488 green (bound Ab).
+
+  Results: 1:400 ratio ~88% recovery; 1:1000 ratio ~78% recovery.
+           Compared to ~30% conventional droplet recovery (Clausell-Tormos et al.).
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : deng2025_d2_droplet_digital_recovery_v2.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : deng2025_d2_droplet_digital_recovery.ir
+DAG output     : deng2025_d2_droplet_digital_recovery_main_dag.dot
+Basic blocks   : 13 (BB1-BB13); 3 if/else sort gates; 16 CFG edges
+Duration units : All durations converted to minutes (m) for compiler compatibility
+                 (BioScript supports s and m only; h token not supported)
+                 1440m  -> 24 h conditioned media incubation   (IR: 86400.0 SECOND)
+                 8640m  -> 6-day clonal expansion remainder     (IR: 518400.0 SECOND)
+                 120m   -> 2 h off-chip droplet incubation     (IR: 7200.0 SECOND)
+                 1800m  -> 30 min calcein-AM staining          (IR: 1800.0 SECOND -- note: 30m)
+                 1200m  -> 20 min CellTrace Blue staining      (IR: 1200.0 SECOND -- note: 20m)
+Modules        : fluorescenceActivatedDropletSorting, singleBeadDetection,
+                 singleCellGFPDetection, antibodyBindingDetection, viabilityDetection
+Manifests      : PBS, DMEM_Complete, IMDM_Complete, IMDM_NoPhenolRed, HFE7500_Surfactant,
+                 OptiPrep, GFP_HEK293_Cells, WT_HEK293_Cells, FluoroSpheres_10um,
+                 CalceinAM_RedOrange, CellTrace_Blue, AlexaFluor488_AntiMouse,
+                 HybridomaSpecific_Cells, HybridomaNonSpecific_Cells, TargetCells,
+                 SYTOX_Blue, ConditionedMedia_HEK, RecoveryBuffer_PBS,
+                 RecoveryBuffer_DMEM, RecoveryBuffer_IMDM, IL6_Supplement
+
+Key compiler observations (v2, confirmed clean):
+  - drain normalised to dispose in IR -- expected behaviour; confirmed by reference files
+  - alexaFluor4881[0] in IR is variable 'alexaFluor488' + instance suffix '1'; not stale
+    (digits in variable name cause regex false positive; raw IR confirms single instance)
+  - All variable instance indices are 1 throughout IR; no phantom/stale variables
+  - undefined-before-use flags on branch-target blocks are text-order artifacts;
+    IR is not in execution order; all variables defined in 'main' before any branch executes
+  - v1 bug fixed in v2: mergedCellDrop was disposed inside BB5 pass branch but referenced
+    again in BB7; replaced with fresh wellEnvironment = dispense DMEM_Complete dispense
+  - BioScript has no loop construct; one representative sort cycle per protocol encoded,
+    consistent with reference files (samlali_hybrid_microfluidics_isoclone.bs,
+    moazami_world_to_chip_dmf.bs)
+  - Biological scope: all three experimental protocols (bead, HEK293, hybridoma) encoded
+    in a single sequential .bs file sharing one CFG entry point (main)
+
+CFG edge map:
+  BB1  -> BB2  (beadSignal > 0: pass)
+  BB1  -> BB3  (beadSignal <= 0: fail)
+  BB2  -> BB4  (join)
+  BB3  -> BB4  (join)
+  BB4  -> BB5  (cellSignal > 0: pass)
+  BB4  -> BB6  (cellSignal <= 0: fail)
+  BB5  -> BB7  (join)
+  BB6  -> BB7  (join)
+  BB7  -> BB8  (viabilitySignal > 0: pass)
+  BB7  -> BB9  (viabilitySignal <= 0: fail)
+  BB8  -> BB10 (join)
+  BB9  -> BB10 (join)
+  BB10 -> BB11 (abSignal > 0: pass)
+  BB10 -> BB12 (abSignal <= 0: fail)
+  BB11 -> BB13 (terminal join)
+  BB12 -> BB13 (terminal join)

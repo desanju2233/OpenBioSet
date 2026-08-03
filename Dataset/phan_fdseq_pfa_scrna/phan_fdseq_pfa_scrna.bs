@@ -1,0 +1,431 @@
+module barcodeIntegrityDetection
+module wqaQCDetection
+
+manifest PFA_4pct
+manifest PBS
+manifest BSA_Wash_Buffer
+manifest TritonX100_01pct
+manifest BSA_001pct
+manifest LysisBuffer_DTT_ProtK
+manifest DropSeq_Beads
+manifest Oil_BioRad
+manifest Perfluorooctan1ol
+manifest SSC_6X
+manifest RT_Mix
+manifest ExoI_Mix
+manifest WTA_PCR_Mix
+manifest NTBuffer
+manifest TagmentDNAMix
+manifest AmpliconTagmentMix
+manifest P5TSO_Primer
+manifest NexteraN7XX_Primer
+manifest NexteraPCRMasterMix
+
+instructions:
+
+// ============================================================
+// FD-seq: Droplet-based single-cell RNA sequencing of
+// paraformaldehyde-fixed cells.
+// Phan et al., Research Square preprint, Oct 2021.
+// DOI: 10.21203/rs.3.pex-1604/v1
+//
+// Platform: Drop-seq microfluidic chip (Macosko 2015).
+// Key innovation: PFA-fixed, stained, sorted cells are
+// compatible with droplet-based scRNA-seq via a cross-link
+// reversal step (56 C, 60 min) performed inside intact
+// droplets before breaking.
+//
+// COMPILER CONSTRAINTS (lilott8/BioScript):
+//   - Duration tokens: `s` and `m` only (no `h`).
+//     All hours converted: 60 min = 60m, 90 min = 90m.
+//   - `heat` is void and in-place; no assignment.
+//   - `detect` result assigned once; never reassigned.
+//   - No loop constructs; all washes unrolled explicitly.
+//   - `drain` used for failed QC paths.
+//   - `dispose` used for waste from passing QC paths.
+//
+// CFG STRUCTURE:
+//   BB1  main              -- entry: fixation, permeabilization,
+//                             droplet generation, cross-link
+//                             reversal, droplet breaking, RT,
+//                             Exo I digestion, WTA PCR
+//   BB2  barcodePass       -- barcodeSignal > 0: bead-cell
+//                             pairing valid; proceed to
+//                             tagmentation
+//   BB3  barcodeFail       -- barcodeSignal <= 0: failed
+//                             encapsulation QC; drain
+//   BB4  barcodeJoin       -- join: tagmentation branch begins
+//   BB5  libraryPass       -- librarySignal > 0: valid WTA
+//                             library; dispose all
+//   BB6  libraryFail       -- librarySignal <= 0: WTA failure;
+//                             drain
+//   BB7  finalCleanup      -- terminal: dispose QC signals
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// PHASE 1: Cell fixation
+//   Wash cells once with 1% BSA in PBS (400g, 5 min).
+//   Fix with 4% PFA in PBS at RT for 15 min.
+//   Wash once with wash buffer (400g, 5 min).
+//
+//   NOTE: wash steps modelled as timed mix ops at 25 C
+//   (BioScript has no centrifuge primitive; wash incubation
+//   time is the relevant biological constraint).
+// ------------------------------------------------------------
+
+cellSample      = dispense 1 units of PBS
+bsaWash1        = dispense 1 units of BSA_Wash_Buffer
+washedCells1    = mix cellSample with bsaWash1 for 5m
+
+pfa             = dispense 1 units of PFA_4pct
+fixedCells      = mix washedCells1 with pfa for 15m
+
+bsaWash2        = dispense 1 units of BSA_Wash_Buffer
+washedFixed     = mix fixedCells with bsaWash2 for 5m
+
+// ------------------------------------------------------------
+// PHASE 2: Permeabilization
+//   Permeabilize with 0.1% Triton X-100 in wash buffer
+//   at RT for 15 min.
+//   Wash twice with wash buffer (400g, 5 min each).
+//   (Optional intracellular staining follows permeabilization;
+//   abstracted here as the pre-droplet-generation state.)
+// ------------------------------------------------------------
+
+triton          = dispense 1 units of TritonX100_01pct
+permeabilized   = mix washedFixed with triton for 15m
+
+bsaWash3        = dispense 1 units of BSA_Wash_Buffer
+washed3         = mix permeabilized with bsaWash3 for 5m
+
+bsaWash4        = dispense 1 units of BSA_Wash_Buffer
+washed4         = mix washed3 with bsaWash4 for 5m
+
+// ------------------------------------------------------------
+// PHASE 3: Pre-droplet preparation
+//   Wash PFA-fixed cells 3x with 0.01% BSA (2 ml each).
+//   Resuspend at 100,000 cells/ml in 0.01% BSA.
+//   Drop-seq beads resuspended in lysis buffer + DTT +
+//   Proteinase K at 120,000 beads/ml (kept on ice).
+//
+//   NOTE: Three 0.01% BSA washes unrolled explicitly
+//   (compiler has no loop construct).
+// ------------------------------------------------------------
+
+bsa001_w1       = dispense 1 units of BSA_001pct
+prefixed_w1     = mix washed4 with bsa001_w1 for 2m
+
+bsa001_w2       = dispense 1 units of BSA_001pct
+prefixed_w2     = mix prefixed_w1 with bsa001_w2 for 2m
+
+bsa001_w3       = dispense 1 units of BSA_001pct
+cellsReady      = mix prefixed_w2 with bsa001_w3 for 2m
+
+lysisBeads      = dispense 1 units of LysisBuffer_DTT_ProtK
+dropseqBeads    = dispense 1 units of DropSeq_Beads
+beadsReady      = mix lysisBeads with dropseqBeads for 2m
+
+// ------------------------------------------------------------
+// PHASE 4: Droplet generation
+//   Cell syringe: 3 ml/h. Bead syringe: 3 ml/h.
+//   Oil syringe (Bio-Rad): 12 ml/h.
+//   Co-encapsulation of single cell + single bead in
+//   nanoliter droplet. Collection ~20 min.
+//   Modelled as mix of cells + beads (co-encapsulation
+//   abstraction) then merge with oil (emulsification).
+//
+//   NOTE: syringe pump flow and microfluidic chip geometry
+//   are not primitives in BioScript. The merge sequence
+//   (cells -> beads -> oil) captures the reagent assembly
+//   order. Timing (20m) models collection duration.
+// ------------------------------------------------------------
+
+cellBeadMix     = mix cellsReady with beadsReady for 20m
+
+oil             = dispense 1 units of Oil_BioRad
+emulsion        = mix cellBeadMix with oil for 20m
+
+// ------------------------------------------------------------
+// PHASE 5: Cross-link reversal (in-droplet)
+//   Incubate emulsion at 56 C for 60 min.
+//   PFA cross-links reversed inside intact droplets by
+//   proteinase K + heat. This is the key FD-seq step
+//   enabling scRNA-seq of fixed cells.
+//   Cool at RT for 10 min, then on ice for 5 min.
+//   (RT and ice steps modelled as heat at 25 C and 4 C.)
+// ------------------------------------------------------------
+
+heat emulsion at 56c for 60m
+heat emulsion at 25c for 10m
+heat emulsion at 4c for 5m
+
+// ------------------------------------------------------------
+// PHASE 6: Droplet breaking
+//   Remove excess oil from 50 ml tube.
+//   Add 30 ml 6X SSC + 1 ml Perfluorooctan-1-ol.
+//   Shake, spin (1000g, 1 min) -> break emulsion.
+//   Transfer supernatant twice (30 ml each) to recover beads.
+//   Spin (1000g, 3 min); pool beads into 1.5 ml LoBind tube.
+//   Wash 2x with 6X SSC, then 1x with 5X Maxima RT buffer.
+//
+//   Modelled as sequential mix ops representing the
+//   chemical breaking and wash cascade.
+// ------------------------------------------------------------
+
+ssc1            = dispense 1 units of SSC_6X
+pfol            = dispense 1 units of Perfluorooctan1ol
+brokenEmulsion  = mix emulsion with ssc1 for 1m
+brokenEmulsion2 = mix brokenEmulsion with pfol for 1m
+
+ssc2            = dispense 1 units of SSC_6X
+beadFraction1   = mix brokenEmulsion2 with ssc2 for 3m
+
+ssc3            = dispense 1 units of SSC_6X
+beadWash1       = mix beadFraction1 with ssc3 for 1m
+
+ssc4            = dispense 1 units of SSC_6X
+beadWash2       = mix beadWash1 with ssc4 for 1m
+
+dispose brokenEmulsion
+
+// ------------------------------------------------------------
+// PHASE 7: Reverse transcription
+//   RT mix (200 ul): nuclease-free water, 5X Maxima H- RT
+//   buffer, 20% Ficoll, 10 mM dNTPs, RNase inhibitor,
+//   100 uM TSO_RNAhybrid, Maxima H- reverse transcriptase.
+//   Incubate: 25 C for 30 min (primer annealing / RT init),
+//   then 42 C for 90 min (cDNA synthesis).
+//   Wash: 1x TE-SDS, 2x TE-TW, 1x 10 mM Tris pH 8.0.
+//
+//   All wash steps unrolled explicitly.
+//   Duration constraint: 90 min = 90m.
+// ------------------------------------------------------------
+
+rtMix           = dispense 1 units of RT_Mix
+beadsInRT       = mix beadWash2 with rtMix for 30m
+
+heat beadsInRT at 25c for 30m
+heat beadsInRT at 42c for 90m
+
+// Wash post-RT (unrolled; TE-SDS and TE-TW not listed as
+// separate manifests -- modelled via BSA_Wash_Buffer
+// as generic aqueous wash proxy; biological identity
+// annotated in comments).
+//   Wash 1: TE-SDS
+rtWash1         = dispense 1 units of BSA_Wash_Buffer
+rtWashed1       = mix beadsInRT with rtWash1 for 1m
+//   Wash 2: TE-TW
+rtWash2         = dispense 1 units of BSA_Wash_Buffer
+rtWashed2       = mix rtWashed1 with rtWash2 for 1m
+//   Wash 3: TE-TW
+rtWash3         = dispense 1 units of BSA_Wash_Buffer
+rtWashed3       = mix rtWashed2 with rtWash3 for 1m
+//   Wash 4: 10 mM Tris pH 8.0
+rtWash4         = dispense 1 units of BSA_Wash_Buffer
+rtWashed4       = mix rtWashed3 with rtWash4 for 1m
+
+// ------------------------------------------------------------
+// PHASE 8: Exonuclease I digestion
+//   Exo I mix (200 ul): nuclease-free water, 10X Exo I buffer,
+//   Exo I (NEB M0293S).
+//   Incubate at 37 C for 45 min with rotation.
+//   Removes residual unextended primers from bead surface.
+//   Wash: 1x TE-SDS, 2x TE-TW.
+// ------------------------------------------------------------
+
+exoMix          = dispense 1 units of ExoI_Mix
+beadsInExo      = mix rtWashed4 with exoMix for 5m
+
+heat beadsInExo at 37c for 45m
+
+//   Wash 1: TE-SDS
+exoWash1        = dispense 1 units of BSA_Wash_Buffer
+exoWashed1      = mix beadsInExo with exoWash1 for 1m
+//   Wash 2: TE-TW
+exoWash2        = dispense 1 units of BSA_Wash_Buffer
+exoWashed2      = mix exoWashed1 with exoWash2 for 1m
+//   Wash 3: TE-TW
+exoWash3        = dispense 1 units of BSA_Wash_Buffer
+exoWashed3      = mix exoWashed2 with exoWash3 for 1m
+
+// Resuspend beads in nuclease-free water for WTA.
+wta_water       = dispense 1 units of PBS
+beadsForWTA     = mix exoWashed3 with wta_water for 2m
+
+// ------------------------------------------------------------
+// PHASE 9: Whole transcriptome amplification (WTA)
+//   5,000 beads per 24.6 ul reaction in 96-well plate.
+//   PCR mix: Kapa HiFi Readymix + TSO_PCR primer.
+//   Program: 95 C 3 min; 4 cycles (98/65/72); 10 cycles
+//   (98/67/72); 72 C 5 min.
+//   Modelled as sequential heat steps representing the
+//   thermocycler program phases:
+//     Denaturation init: 95 C, 3 min
+//     Cycle set 1 annealing phase (4x): 65 C, 4x3 = 12m
+//     Cycle set 2 annealing phase (10x): 67 C, 10x1 = 10m
+//     Final extension: 72 C, 5 min
+//
+//   NOTE: BioScript has no PCR primitive or loop. Each
+//   thermocycler phase is encoded as a heat step. The four
+//   `heat` calls represent: initial denaturation, low-cycle
+//   annealing phase (aggregate), high-cycle annealing phase
+//   (aggregate), and final extension.
+// ------------------------------------------------------------
+
+wtaMix          = dispense 1 units of WTA_PCR_Mix
+wtaReaction     = mix beadsForWTA with wtaMix for 2m
+
+heat wtaReaction at 95c for 3m
+heat wtaReaction at 65c for 12m
+heat wtaReaction at 67c for 10m
+heat wtaReaction at 72c for 5m
+
+// ------------------------------------------------------------
+// Barcode / bead QC detection (proxy for Ampure XP
+// purification and Qubit quantification step).
+//   barcodeIntegrityDetection module abstracts:
+//   - AMpure XP 0.6X cleanup of WTA products
+//   - Qubit quantification (expected peak 600-700 bp
+//     by TapeStation, Figure 1 in paper)
+//   Signal > 0: valid WTA library with correct size profile.
+//   Signal <= 0: amplification failure or bead quality issue.
+// ------------------------------------------------------------
+
+barcodeSignal   = detect barcodeIntegrityDetection on wtaReaction for 10m
+
+// ============================================================
+// BB2 / BB3: Barcode / WTA QC gate
+// Pass (BB2): barcodeSignal > 0 -> valid WTA product;
+//             proceed to tagmentation.
+// Fail (BB3): barcodeSignal <= 0 -> WTA failure; drain.
+// Both branches converge at BB4 (barcodeJoin).
+// ============================================================
+
+if (barcodeSignal > 0) {
+    dispose wtaReaction
+} else {
+    drain wtaReaction
+}
+
+// ============================================================
+// BB4: barcodeJoin
+// Dispose barcode QC signal. Control falls into tagmentation
+// (BB5/BB6).
+// ============================================================
+
+dispose barcodeSignal
+
+// ------------------------------------------------------------
+// PHASE 10: Tagmentation (Nextera XT)
+//   Input: 450 pg WTA product per reaction (2 reactions).
+//   Step 1: Tagment DNA mix (10 ul) + WTA product (5 ul)
+//           + Amplicon Tagment mix (5 ul) -> 55 C, 5 min.
+//   Step 2: Neutralise with NT buffer (5 ul), RT 5 min.
+//   Step 3: PCR with P5-TSO + Nextera_N7XX primers,
+//           Nextera PCR master mix.
+//           95 C 30s; 12 cycles (95/55/72); 72 C 5 min.
+//   Ampure XP 0.6X cleanup -> store at -20 C.
+//   Library peak ~400 bp (Fragment Analyzer, Figure 2).
+//
+//   NOTE: Two tagmentation reactions run in parallel on
+//   the same WTA pool; encoded as two independent reaction
+//   arms (tagReaction1, tagReaction2).
+// ------------------------------------------------------------
+
+wtaForTag1      = dispense 1 units of WTA_PCR_Mix
+wtaForTag2      = dispense 1 units of WTA_PCR_Mix
+
+tdm1            = dispense 1 units of TagmentDNAMix
+tdm2            = dispense 1 units of TagmentDNAMix
+
+atm1            = dispense 1 units of AmpliconTagmentMix
+atm2            = dispense 1 units of AmpliconTagmentMix
+
+tagStep1a       = mix wtaForTag1 with tdm1 for 1m
+tagStep1b       = mix wtaForTag2 with tdm2 for 1m
+
+tagWithATM1     = mix tagStep1a with atm1 for 1m
+tagWithATM2     = mix tagStep1b with atm2 for 1m
+
+heat tagWithATM1 at 55c for 5m
+heat tagWithATM2 at 55c for 5m
+
+nt1             = dispense 1 units of NTBuffer
+nt2             = dispense 1 units of NTBuffer
+
+neutralised1    = mix tagWithATM1 with nt1 for 5m
+neutralised2    = mix tagWithATM2 with nt2 for 5m
+
+p5tso1          = dispense 1 units of P5TSO_Primer
+p5tso2          = dispense 1 units of P5TSO_Primer
+n7xx1           = dispense 1 units of NexteraN7XX_Primer
+n7xx2           = dispense 1 units of NexteraN7XX_Primer
+npm1            = dispense 1 units of NexteraPCRMasterMix
+npm2            = dispense 1 units of NexteraPCRMasterMix
+
+tagPCRmix1      = mix neutralised1 with p5tso1 for 30s
+tagPCRmix1b     = mix tagPCRmix1 with n7xx1 for 30s
+tagReaction1    = mix tagPCRmix1b with npm1 for 30s
+
+tagPCRmix2      = mix neutralised2 with p5tso2 for 30s
+tagPCRmix2b     = mix tagPCRmix2 with n7xx2 for 30s
+tagReaction2    = mix tagPCRmix2b with npm2 for 30s
+
+// Tagmentation PCR thermocycler:
+//   95 C 30s (denaturation init)
+//   12 cycles (95/55/72) -> annealing phase: 12 x 30s = 6m
+//   72 C 5 min (final extension)
+heat tagReaction1 at 95c for 30s
+heat tagReaction1 at 55c for 6m
+heat tagReaction1 at 72c for 5m
+
+heat tagReaction2 at 95c for 30s
+heat tagReaction2 at 55c for 6m
+heat tagReaction2 at 72c for 5m
+
+// ------------------------------------------------------------
+// Library QC detection (proxy for Ampure XP 0.6X cleanup +
+// BioAnalyzer quantification).
+//   wqaQCDetection module abstracts:
+//   - Ampure XP cleanup of tagmented library
+//   - BioAnalyzer quantification (expected peak ~400 bp,
+//     Figure 2 in paper)
+//   - NextSeq library loading at appropriate molarity
+//   Signal > 0: library passes size + concentration QC.
+//   Signal <= 0: tagmentation failure; drain.
+// ------------------------------------------------------------
+
+librarySignal   = detect wqaQCDetection on tagReaction1 for 10m
+
+// ============================================================
+// BB5 / BB6: Library QC gate
+// Pass (BB5): librarySignal > 0 -> valid tagmented library
+//             (~400 bp peak); dispose all.
+// Fail (BB6): librarySignal <= 0 -> tagmentation failure;
+//             drain all.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (librarySignal > 0) {
+    dispose tagReaction1
+    dispose tagReaction2
+} else {
+    drain tagReaction1
+    drain tagReaction2
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose library QC signal. Experiment ends.
+// Sequencing: NextSeq, >=75 cycles, paired-end,
+//   read1 = 20bp (cell barcode + UMI), read2 = 60bp (cDNA),
+//   index1 = 8bp (N7XX sample index).
+// ============================================================
+
+dispose librarySignal
+
+// [terminal -- no further instructions; exit node for CFG]

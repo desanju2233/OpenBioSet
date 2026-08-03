@@ -1,0 +1,474 @@
+{
+  "protocol": {
+    "title": "Deciphering Microbial Interactions in Synthetic Human Gut Microbiome Communities",
+    "source": "Molecular Systems Biology (2018) 14: e8157",
+    "doi": "10.15252/msb.20178157",
+    "platform": "Automated liquid-handling robotic platform (Biomek) + 96-well deep-well microplate array",
+    "community": "12-member synthetic human gut microbiome (Bacteroidetes, Firmicutes, Actinobacteria, Proteobacteria)",
+    "objective": "Time-resolved monospecies and pairwise community characterisation, gLV model construction and validation, and exo-metabolomics profiling to decipher microbial interaction networks and ecological design principles",
+
+    "species": {
+      "Bacteroidetes": [
+        { "id": "BT", "name": "Bacteroides thetaiotaomicron", "strain": "ATCC 29148", "growth_category": "fast" },
+        { "id": "BO", "name": "Bacteroides ovatus",           "strain": "ATCC 8483",  "growth_category": "fast" },
+        { "id": "BU", "name": "Bacteroides uniformis",        "strain": "DSM 6597",   "growth_category": "fast" },
+        { "id": "BV", "name": "Bacteroides vulgatus",         "strain": "ATCC 8482",  "growth_category": "fast" }
+      ],
+      "Firmicutes": [
+        { "id": "BH", "name": "Blautia hydrogenotrophica",    "strain": "DSM 10507",  "growth_category": "slow" },
+        { "id": "CH", "name": "Clostridium hiranonis",        "strain": "DSM 13275",  "growth_category": "fast" },
+        { "id": "ER", "name": "Eubacterium rectale",          "strain": "ATCC 33656", "growth_category": "slow" },
+        { "id": "FP", "name": "Faecalibacterium prausnitzii", "strain": "DSM 17677",  "growth_category": "slow" }
+      ],
+      "Actinobacteria": [
+        { "id": "CA", "name": "Collinsella aerofaciens",      "strain": "DSM 3979",   "growth_category": "slow" },
+        { "id": "EL", "name": "Eggerthella lenta",            "strain": "DSM 2243",   "growth_category": "fast" }
+      ],
+      "Proteobacteria": [
+        { "id": "DP", "name": "Desulfovibrio piger",          "strain": "ATCC 29098", "growth_category": "slow" }
+      ],
+      "Prevotellaceae": [
+        { "id": "PC", "name": "Prevotella copri",             "strain": "DSM 18205",  "growth_category": "slow" }
+      ]
+    },
+
+    "growth_conditions": {
+      "atmosphere": "Anaerobic (85% N2, 5% H2, 10% CO2)",
+      "chamber": "Coy Lab Products anaerobic chamber",
+      "temperature_C": 37,
+      "shaking": false,
+      "media": "Anaerobic Basal Broth (ABB, Oxoid)",
+      "plate_format": "96-well deep-well plate (gas-permeable Breathe Easy seal)",
+      "od600_monitoring": "Tecan Infinite F200 Pro plate reader (384-well absorbance plate), 30 min intervals",
+      "16S_sequencing": {
+        "region": "V3-V4",
+        "platform": "Illumina MiSeq 300 bp paired-end",
+        "primers": "Dual-indexed 90-99 bp; 6 bp forward / 8 bp reverse indices; 1536 samples/run",
+        "sampling_interval_h": 12,
+        "alignment_tool": "USEARCH v8.0 global alignment, 97.5% threshold",
+        "merge_tool": "PEAR v0.9.0"
+      },
+      "serial_transfer": {
+        "dilution_ratio": "1:20",
+        "interval_h": 24,
+        "total_duration_h": 72,
+        "transfers": 3,
+        "robot": "Biomek liquid-handling robot"
+      }
+    },
+
+    "inoculation": {
+      "slow_growth_species": {
+        "members": ["BH", "FP", "CA", "PC", "ER", "DP"],
+        "preincubation_h": 41,
+        "preincubation_m": 2460
+      },
+      "fast_growth_species": {
+        "members": ["BU", "BV", "BT", "BO", "CH", "EL"],
+        "preincubation_h": 16,
+        "preincubation_m": 960
+      },
+      "od600_per_species": 0.01,
+      "stock": "200 uL single-use 25% glycerol cryo-stocks into 15 mL ABB"
+    },
+
+    "datasets": {
+      "M":   { "label": "Monospecies dataset",       "n_conditions": 12,  "initial_ratio": "monoculture" },
+      "PW1": { "label": "Pairwise dataset 1",        "n_conditions": 66,  "initial_ratio": "1:1 by OD600" },
+      "PW2": { "label": "Pairwise dataset 2",        "n_conditions": 15,  "initial_ratio": "95:5 and 5:95 by OD600",
+               "major_od600": 0.0158, "minor_od600": 0.0008 },
+      "EV3": { "label": "Validation communities",   "n_conditions": 13,  "description": "Full 12-member + 12 single-species dropout (11-member) communities" },
+      "EV4": { "label": "Exo-metabolomics dataset", "n_species": 11,     "description": "97 metabolites; DP excluded (insufficient biomass within 24 h)" }
+    },
+
+    "model": {
+      "type": "Generalised Lotka-Volterra (gLV)",
+      "equation": "dxi/dt = xi(li + sum_j(aij*xj))",
+      "parameters": { "total": 156, "formula": "n^2 + n", "n_species": 12 },
+      "regularisation": "L1 (lasso); lambda = 0.0077 (optimal)",
+      "training_sets": {
+        "T1": ["M"],
+        "T2": ["M", "PW1"],
+        "T3": ["M", "PW1", "PW2"],
+        "T4": ["M", "PW1", "PW2", "Full community"]
+      },
+      "validation_metrics": {
+        "T1_median_pearson_r": 0.53,
+        "T2_median_pearson_r": 0.79,
+        "T3_median_pearson_r": 0.85,
+        "T4_median_pearson_r": 0.90,
+        "T4_variance_explained_pct": 81
+      },
+      "network_connectivity_pct": 77,
+      "interaction_signs": {
+        "negative_pct": 56,
+        "positive_pct": 21
+      },
+      "interaction_topologies": {
+        "unidirectional_negative_pct": 36,
+        "bidirectional_negative_pct": 32,
+        "positive_negative_pct": 26
+      },
+      "parameter_uncertainty": {
+        "method": "Metropolis-Hastings MCMC",
+        "iterations": 670000,
+        "burnin": 100000,
+        "used_iterations": 570000,
+        "cv_below_0_5_pct": 90,
+        "chains": 5,
+        "convergence_metric": "Gelman-Rubin PSRF"
+      }
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Starter culture preparation — slow-growth species",
+        "bb": "BB1 (main)",
+        "operation": "mix + heat",
+        "species": ["BH", "FP", "CA", "PC", "ER", "DP"],
+        "inoculum": "200 uL 25% glycerol stock into 15 mL ABB",
+        "temperature_C": 37,
+        "preincubation_h": 41,
+        "preincubation_m": 2460,
+        "bioscript_heat_s": 147600,
+        "notes": "No shaking; anaerobic chamber. Ensures slow-growth species reach comparable phase to fast-growth species at t=0."
+      },
+      {
+        "id": "S2",
+        "name": "Starter culture preparation — fast-growth species",
+        "bb": "BB1 (main)",
+        "operation": "mix + heat",
+        "species": ["BU", "BV", "BT", "BO", "CH", "EL"],
+        "inoculum": "200 uL 25% glycerol stock into 15 mL ABB",
+        "temperature_C": 37,
+        "preincubation_h": 16,
+        "preincubation_m": 960,
+        "bioscript_heat_s": 57600,
+        "notes": "No shaking; anaerobic chamber."
+      },
+      {
+        "id": "S3",
+        "name": "Phase 1 — Monospecies growth characterisation (M dataset)",
+        "bb": "BB1 (main)",
+        "operation": "mix + detect + serial transfer x3",
+        "species_encoded": ["BT", "FP", "EL"],
+        "species_note": "All 12 monospecies follow identical pattern; BT, FP, EL shown as representative",
+        "initial_od600": 0.01,
+        "serial_transfer": {
+          "dilution": "1:20 (1 unit community + 19 units fresh ABB)",
+          "interval_h": 24,
+          "interval_m": 1440,
+          "transfers": 3,
+          "total_h": 72,
+          "total_m": 4320
+        },
+        "sampling": {
+          "od600_interval_h": 0.5,
+          "od600_interval_m": 30,
+          "16S_interval_h": 12,
+          "16S_interval_m": 720
+        },
+        "bioscript_detect_duration_s": 43200,
+        "key_findings": {
+          "BT_CV": "lowest (fitness least altered by co-species)",
+          "FP_CV": "bimodal; receives 5 positive interactions in gLV model",
+          "EL_role": "key ecological driver; absence reduces community productivity 28-46%"
+        }
+      },
+      {
+        "id": "S4",
+        "name": "Monospecies QC gate",
+        "bb": "BB2 (bsbbif_2_t) / BB3 (bsbbif_3_f) -> BB4 (bsbbif_4_j)",
+        "operation": "detect -> if/else -> join",
+        "detection_module": "monospeciesGrowthDetection",
+        "branch": {
+          "pass": { "condition": "monoQCSignal > 0", "action": "dispose(monoBT_T3, monoFP_T3, monoEL_T3)", "bb": "BB2" },
+          "fail": { "condition": "monoQCSignal <= 0", "action": "drain(monoBT_T3, monoFP_T3, monoEL_T3)",   "bb": "BB3" }
+        }
+      },
+      {
+        "id": "S5",
+        "name": "Phase 2 — Pairwise co-cultures 1:1 ratio (PW1 dataset)",
+        "bb": "BB4 (bsbbif_4_j)",
+        "operation": "mix + detect + serial transfer x3",
+        "n_combinations": 66,
+        "initial_ratio": "1:1 by OD600 (each species 0.01 OD600; total 0.02)",
+        "serial_transfer": { "dilution": "1:20", "interval_h": 24, "transfers": 3, "total_h": 72 },
+        "pairs_encoded": [
+          {
+            "pair": "BT + FP",
+            "topology": "BT inhibits FP (negative outgoing from BT); FP receives 5 positive interactions in full community",
+            "behaviour": "BT dominance; FP fitness context-dependent"
+          },
+          {
+            "pair": "CH + ER",
+            "topology": "+/- (CH inhibits ER; ER stimulates CH)",
+            "behaviour": "Stable coexistence; converges to ~1:1 from distinct initial conditions",
+            "fig_ref": "Fig 4B, 4C"
+          },
+          {
+            "pair": "EL + BH",
+            "topology": "mutualism (+/+)",
+            "behaviour": "Highest pairwise productivity enhancement vs null model"
+          }
+        ],
+        "community_behaviours_at_72h": {
+          "dominance_pct": 50,
+          "stable_coexistence_pct": 24,
+          "history_dependence_pct": 12
+        },
+        "bioscript_detect_duration_s": 43200
+      },
+      {
+        "id": "S6",
+        "name": "PW1 QC gate",
+        "bb": "BB5 (bsbbif_5_t) / BB6 (bsbbif_6_f) -> BB7 (bsbbif_7_j)",
+        "operation": "detect -> if/else -> join",
+        "detection_module": "communityCompositionDetection",
+        "branch": {
+          "pass": { "condition": "pw1QCSignal > 0", "action": "dispose(pw1_BT_FP_T3, pw1_CH_ER_T3, pw1_EL_BH_T3)", "bb": "BB5" },
+          "fail": { "condition": "pw1QCSignal <= 0", "action": "drain(pw1_BT_FP_T3, pw1_CH_ER_T3, pw1_EL_BH_T3)",   "bb": "BB6" }
+        }
+      },
+      {
+        "id": "S7",
+        "name": "Phase 3 — Pairwise co-cultures asymmetric ratio (PW2 dataset)",
+        "bb": "BB7 (bsbbif_7_j)",
+        "operation": "mix + detect + serial transfer x3",
+        "n_combinations": 15,
+        "initial_conditions": [
+          { "label": "Condition A", "species_A_pct": 95, "species_B_pct": 5, "major_od600": 0.0158, "minor_od600": 0.0008 },
+          { "label": "Condition B", "species_A_pct": 5,  "species_B_pct": 95, "major_od600": 0.0008, "minor_od600": 0.0158 }
+        ],
+        "pair_encoded": {
+          "pair": "BO + BT",
+          "condition_A": "BO major (95%), BT minor (5%)",
+          "condition_B": "BT major (95%), BO minor (5%)",
+          "topology": "bidirectional negative (-/-)",
+          "behaviour": "History-dependence due to slow relaxation to monostable equilibrium (NOT bistability)",
+          "fig_ref": "Fig 4A"
+        },
+        "bioscript_encoding_note": "Asymmetry encoded via dispense 19 units (95%) vs dispense 1 units (5%); compiler resolves to scalar [0] index",
+        "bistability_analysis": {
+          "history_dependent_pairs_total": 8,
+          "driven_by_bistability": 1,
+          "driven_by_slow_relaxation": 5,
+          "note": "BU+BT: parameter set on bistable boundary but not robust. Majority of history dependence from slow convergence, not true bistability."
+        }
+      },
+      {
+        "id": "S8",
+        "name": "PW2 QC gate",
+        "bb": "BB8 (bsbbif_8_t) / BB9 (bsbbif_9_f) -> BB10 (bsbbif_10_j)",
+        "operation": "detect -> if/else -> join",
+        "detection_module": "communityCompositionDetection",
+        "branch": {
+          "pass": { "condition": "pw2QCSignal > 0", "action": "dispose(pw2_BO_BT_A_T3, pw2_BO_BT_B_T3)", "bb": "BB8" },
+          "fail": { "condition": "pw2QCSignal <= 0", "action": "drain(pw2_BO_BT_A_T3, pw2_BO_BT_B_T3)",   "bb": "BB9" }
+        }
+      },
+      {
+        "id": "S9",
+        "name": "Phase 4a — Full 12-member community validation",
+        "bb": "BB10 (bsbbif_10_j)",
+        "operation": "chain mix (11 binary merges) + detect + serial transfer x3",
+        "n_species": 12,
+        "initial_od600_per_species": 0.01,
+        "total_od600": 0.12,
+        "bioscript_merge_chain": "11 sequential binary mix ops (BT+BO -> +BU -> +BV -> +BH -> +CA -> +CH -> +DP -> +EL -> +ER -> +FP -> +PC)",
+        "serial_transfer": { "dilution": "1:20", "interval_h": 24, "transfers": 3, "total_h": 72 },
+        "key_findings": {
+          "model_pearson_r_T3": 0.85,
+          "model_pearson_r_T4": 0.90,
+          "variance_explained_T4_pct": 81,
+          "BU_contamination_note": "BU contamination detected in BU- dropout at 47.5 h (0.4%); persisted to 2% at 72 h",
+          "EL_impact": "Community productivity 28-46% lower in EL- across all growth stages",
+          "community_vs_metagenomics": "Pearson r = 0.79 (p < 0.05) between synthetic community and human metagenomics dataset (Balzola et al. 2010)"
+        }
+      },
+      {
+        "id": "S10",
+        "name": "Phase 4b — Single-species dropout community (EL- representative)",
+        "bb": "BB10 (bsbbif_10_j)",
+        "operation": "chain mix (10 binary merges, EL omitted) + detect + serial transfer x3",
+        "n_species": 11,
+        "dropout_species": "EL",
+        "n_dropout_communities": 12,
+        "bioscript_merge_chain": "10 sequential binary mix ops (BT+BO -> +BU -> +BV -> +BH -> +CA -> +CH -> +DP -> +ER -> +FP -> +PC; EL absent)",
+        "key_findings": {
+          "most_influential_dropouts": ["EL", "BO", "BU"],
+          "EL_minus": {
+            "community_assembly_impact": "highest of all 12 dropouts",
+            "shannon_equitability": "reduced at later time points vs null model",
+            "productivity_reduction_pct": [28, 45, 46],
+            "growth_rate_reduction_pct": [33, 19],
+            "species_impact_score_pearson_r": 0.67
+          },
+          "BO_minus": "higher diversity vs null (BO reduces diversity)",
+          "species_impact_score_metric": "relative abundance at 72h + sum of outgoing gLV coefficients"
+        }
+      },
+      {
+        "id": "S11",
+        "name": "Validation QC gate",
+        "bb": "BB11 (bsbbif_11_t) / BB12 (bsbbif_12_f) -> BB13 (bsbbif_13_j)",
+        "operation": "detect -> if/else -> join",
+        "detection_module": "communityCompositionDetection",
+        "branch": {
+          "pass": { "condition": "valQCSignal > 0", "action": "dispose(fullComm_T3, dropoutEL_T3)", "bb": "BB11" },
+          "fail": { "condition": "valQCSignal <= 0", "action": "drain(fullComm_T3, dropoutEL_T3)",   "bb": "BB12" }
+        }
+      },
+      {
+        "id": "S12",
+        "name": "Phase 5 — Exo-metabolomics profiling (Dataset EV4)",
+        "bb": "BB13 (bsbbif_13_j)",
+        "operation": "mix + heat (saturation) + detect",
+        "species_encoded": ["BT", "FP", "EL", "BU", "CH"],
+        "species_excluded": ["DP"],
+        "exclusion_reason": "Insufficient biomass accumulation within 24 h window",
+        "n_metabolites": 97,
+        "significance_threshold": "twofold change (log2 fold change, initial vs final)",
+        "saturation_culture": {
+          "duration_h": 72,
+          "duration_m": 4320,
+          "bioscript_heat_s": 259200,
+          "temperature_C": 37,
+          "replicates": 3,
+          "volume_mL": 30,
+          "format": "4-well plate (E&K Scientific)"
+        },
+        "supplementation": {
+          "species": ["ER", "FP"],
+          "supplement": "33 mM sodium acetate in ABB"
+        },
+        "sample_prep": {
+          "centrifuge": "6000g, 5 min",
+          "filter": "0.22 um filter unit (EMD Millipore)",
+          "storage": "-80 C",
+          "lyophilisation": "Labconco 6.5 L, until dry",
+          "resuspension": "200 uL MeOH + internal standards (25 uM each: 3,6-dihydroxy-4-methylpyridazine, 4-(3,3-dimethylureido)benzoic acid, d5-benzoic acid, 9-anthracene carboxylic acid, 13C-glucose, 13C15N-phenylalanine)",
+          "sonication": "20 min bath sonicator",
+          "filtration": "0.22 um PVDF membrane (Pall)"
+        },
+        "lc_ms": {
+          "system": "Agilent 1290 UHPLC + Agilent 6550 Q-TOF (dual AJS ESI)",
+          "column": "SeQuant ZIC-pHILIC, 5 um, 200 A, 150 x 2.1 mm + guard column 20 mm",
+          "temperature_C": 40,
+          "flow_rate_mL_min": 0.25,
+          "injection_volume_uL": 2,
+          "gradient": "100% B (90:10 ACN:H2O, 5 mM ammonium acetate) -> 50% A (H2O, 5 mM ammonium acetate) over 23.5 min -> 65% A over 1 min, hold 6 min; re-equilibrate 100% B 1 min, hold 7 min",
+          "scan_rate_per_s": 2,
+          "ms_range_positive_mz": "30-1200",
+          "ms_range_negative_mz": "60-1200",
+          "ms_ms_isolation_window_mz": 1.3,
+          "collision_energies_V": [10, 20, 40],
+          "identification": "Exact mass + retention time matched to purchased standards; MS/MS vs METLIN or in-house database",
+          "data_analysis": "Agilent MassHunter + Metabolite Atlas workflow (Yao et al. 2015)"
+        },
+        "key_findings": {
+          "CH": "Largest metabolite consumer (hub); biomass not proportional to metabolite consumption -> energy diverted to non-growth processes",
+          "BU": "Major metabolite secretor; consistent with large impact on community assembly",
+          "FP": "Predicted to utilise metabolites from BU, BO, PC, BT, CH -> molecular basis of positive incoming interactions",
+          "EL": "Metabolite profiles fail to predict EL ecological influence -> interactions likely beyond resource competition",
+          "resource_competition_metabolites": {
+            "methyl_5_thioadenosine": "55 species pairs",
+            "N_methylanthranilic_acid": "6 pairs",
+            "dihexose": "3 pairs"
+          },
+          "secretion_metabolites_3plus_interactions": ["cytidine", "adenine", "2-ketobutyric acid"],
+          "metabolite_secretion_correlations": {
+            "total_biomass_spearman_r": 0.83,
+            "full_community_relative_abundance_spearman_r": 0.66,
+            "negative_interactions_spearman_r": 0.65,
+            "growth_rate_spearman_r": 0.74
+          }
+        }
+      },
+      {
+        "id": "S13",
+        "name": "Metabolomics QC gate",
+        "bb": "BB14 (bsbbif_14_t) / BB15 (bsbbif_15_f) -> BB16 (bsbbif_16_j)",
+        "operation": "detect -> if/else -> join -> NOP (terminal)",
+        "detection_module": "exoMetabolomicsDetection",
+        "branch": {
+          "pass": { "condition": "metaQCSignal > 0", "action": "dispose(metaBT, metaFP, metaEL, metaBU, metaCH)", "bb": "BB14" },
+          "fail": { "condition": "metaQCSignal <= 0", "action": "drain(metaBT, metaFP, metaEL, metaBU, metaCH)",   "bb": "BB15" }
+        },
+        "terminal": "BB16 (bsbbif_16_j) disposes all 5 metaSignal droplets; ends with NOP"
+      }
+    ],
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1",  "label": "main",          "type": "entry",        "description": "Starter cultures + M dataset + PW1 dataset + PW2 dataset + validation + metabolomics" },
+        { "id": "BB2",  "label": "bsbbif_2_t",    "type": "branch_true",  "condition": "monoQCSignal > 0",  "action": "dispose(monoBT_T3, monoFP_T3, monoEL_T3)" },
+        { "id": "BB3",  "label": "bsbbif_3_f",    "type": "branch_false", "condition": "monoQCSignal <= 0", "action": "dispose(monoBT_T3, monoFP_T3, monoEL_T3)" },
+        { "id": "BB4",  "label": "bsbbif_4_j",    "type": "join",         "description": "monoJoin; PW1 branch begins" },
+        { "id": "BB5",  "label": "bsbbif_5_t",    "type": "branch_true",  "condition": "pw1QCSignal > 0",   "action": "dispose(pw1_BT_FP_T3, pw1_CH_ER_T3, pw1_EL_BH_T3)" },
+        { "id": "BB6",  "label": "bsbbif_6_f",    "type": "branch_false", "condition": "pw1QCSignal <= 0",  "action": "dispose(pw1_BT_FP_T3, pw1_CH_ER_T3, pw1_EL_BH_T3)" },
+        { "id": "BB7",  "label": "bsbbif_7_j",    "type": "join",         "description": "pw1Join; PW2 branch begins" },
+        { "id": "BB8",  "label": "bsbbif_8_t",    "type": "branch_true",  "condition": "pw2QCSignal > 0",   "action": "dispose(pw2_BO_BT_A_T3, pw2_BO_BT_B_T3)" },
+        { "id": "BB9",  "label": "bsbbif_9_f",    "type": "branch_false", "condition": "pw2QCSignal <= 0",  "action": "dispose(pw2_BO_BT_A_T3, pw2_BO_BT_B_T3)" },
+        { "id": "BB10", "label": "bsbbif_10_j",   "type": "join",         "description": "pw2Join; validation branch begins" },
+        { "id": "BB11", "label": "bsbbif_11_t",   "type": "branch_true",  "condition": "valQCSignal > 0",   "action": "dispose(fullComm_T3, dropoutEL_T3)" },
+        { "id": "BB12", "label": "bsbbif_12_f",   "type": "branch_false", "condition": "valQCSignal <= 0",  "action": "dispose(fullComm_T3, dropoutEL_T3)" },
+        { "id": "BB13", "label": "bsbbif_13_j",   "type": "join",         "description": "validationJoin; metabolomics branch begins" },
+        { "id": "BB14", "label": "bsbbif_14_t",   "type": "branch_true",  "condition": "metaQCSignal > 0",  "action": "dispose(metaBT, metaFP, metaEL, metaBU, metaCH)" },
+        { "id": "BB15", "label": "bsbbif_15_f",   "type": "branch_false", "condition": "metaQCSignal <= 0", "action": "dispose(metaBT, metaFP, metaEL, metaBU, metaCH)" },
+        { "id": "BB16", "label": "bsbbif_16_j",   "type": "terminal",     "description": "Dispose all 5 metaSignal droplets; NOP exit" }
+      ],
+      "edges": [
+        ["BB1","BB2"],  ["BB1","BB3"],
+        ["BB2","BB4"],  ["BB3","BB4"],
+        ["BB4","BB5"],  ["BB4","BB6"],
+        ["BB5","BB7"],  ["BB6","BB7"],
+        ["BB7","BB8"],  ["BB7","BB9"],
+        ["BB8","BB10"], ["BB9","BB10"],
+        ["BB10","BB11"],["BB10","BB12"],
+        ["BB11","BB13"],["BB12","BB13"],
+        ["BB13","BB14"],["BB13","BB15"],
+        ["BB14","BB16"],["BB15","BB16"]
+      ],
+      "n_nodes": 16,
+      "n_edges": 20,
+      "n_qc_gates": 5
+    },
+
+    "bioscript": {
+      "file": "venturelli_gut_microbiome_glv.bs",
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "ir_file": "venturelli_gut_microbiome_glv.ir",
+      "dag_file": "venturelli_gut_microbiome_glv_main_dag.dot",
+      "modules": [
+        "communityCompositionDetection",
+        "monospeciesGrowthDetection",
+        "exoMetabolomicsDetection"
+      ],
+      "manifests": [
+        "BT_Cells", "BO_Cells", "BU_Cells", "BV_Cells",
+        "BH_Cells", "CA_Cells", "CH_Cells", "DP_Cells",
+        "EL_Cells", "ER_Cells", "FP_Cells", "PC_Cells",
+        "ABB_Media", "GlycerolStock"
+      ],
+      "duration_conversions": {
+        "note": "BioScript supports s and m tokens only; all durations converted accordingly",
+        "41h_slow_starter":     { "m": 2460,  "s_in_ir": 147600 },
+        "16h_fast_starter":     { "m": 960,   "s_in_ir": 57600  },
+        "12h_sampling_window":  { "m": 720,   "s_in_ir": 43200  },
+        "72h_metabolomics_sat": { "m": 4320,  "s_in_ir": 259200 }
+      },
+      "compiler_constraints_handled": [
+        "No n-ary merge: 12-member community built via 11 chained binary mix ops",
+        "No array indexing: all droplets are scalars; dispense 19 units resolves to single [0] index",
+        "dispense 19 units used for 1:20 dilution serial transfer and PW2 95% major species",
+        "DP excluded from metabolomics phase (biomass constraint)",
+        "drain vs dispose: both lower to same IR disposal op in lilott8/BioScript"
+      ],
+      "ir_verified": true,
+      "dag_verified": true,
+      "terminal_nop": true
+    }
+  }
+}

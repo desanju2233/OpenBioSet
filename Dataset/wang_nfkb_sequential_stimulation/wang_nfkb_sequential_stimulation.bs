@@ -1,0 +1,391 @@
+module nfkbTranslocationDetection
+module cellViabilityDetection
+module rnaSeqDetection
+
+manifest RelA_DsRed_3T3_Cells
+manifest TNFalpha_HighDose
+manifest TNFalpha_MidDose
+manifest TNFalpha_LowDose
+manifest IL1beta_HighDose
+manifest IL1beta_MidDose
+manifest IL1beta_LowDose
+manifest LPS_HighDose
+manifest LPS_MidDose
+manifest LPS_LowDose
+manifest PAM_HighDose
+manifest PAM_MidDose
+manifest PAM_LowDose
+manifest FluoroBriteDMEM
+manifest PS1145_Inhibitor
+manifest TrypLE_Express
+manifest CompleteDMEM
+manifest PBS
+manifest FDA_PI_Stain
+manifest TrizolReagent
+
+// ============================================================
+// NF-kappaB Memory Coordinates Transcriptional Responses to
+// Dynamic Inflammatory Stimuli
+// Wang, Son, Kenna, Thom, Tay - Cell Reports 40, 111159 (2022)
+// DOI: https://doi.org/10.1016/j.celrep.2022.111159
+//
+// Protocol: High-throughput microfluidic live-cell imaging of
+// single-cell NF-kappaB responses to 24 non-repeating sequential
+// combinations of four inflammatory ligands (TNF-alpha, IL-1beta,
+// LPS, PAM) at three dose levels (high, mid, low) in RelA^-/-
+// NIH/3T3 mouse embryonic fibroblasts expressing RelA-DsRed.
+//
+// EXPERIMENTAL OVERVIEW:
+//   - Cell line: RelA^-/- NIH/3T3 (3T3s) stably expressing
+//     RelA-DsRed, JNK-KTR-mCerulean3, H2B-GFP.
+//   - Platform: automated microfluidic device (14 inputs, 64
+//     chambers, 3.5 x 0.8 x 0.035 mm each, >500 cells/chamber).
+//   - Device primed with fibronectin (0.25 mg/mL in PBS),
+//     then FluoroBrite DMEM.
+//   - Cells loaded at ~50% confluency, equilibrated for 5 h.
+//   - Each ligand provided for 2 h intervals (S1 -> S2 -> S3 -> S4),
+//     total imaging window of 8 h (480 min), images every 6 min.
+//   - NF-kappaB readout: nuclear/cytoplasmic RelA-DsRed ratio by
+//     time-lapse epifluorescence microscopy (Nikon Ti2, 20X,
+//     ORCA-Flash4.0 V2, 555 nm excitation, 0.5-1 s exposure).
+//   - >10,000 single cells analysed across 72 conditions
+//     (24 sequences x 3 dose levels).
+//
+// DOSE LEVELS (high / mid / low):
+//   TNF-alpha:  90 / 30 / 3     ng/mL  (TNFR agonist)
+//   IL-1beta:    3 / 0.2 / 0.05 ng/mL  (IL-1R / MyD88-dependent)
+//   LPS:       400 / 100 / 12.5 ng/mL  (TLR4 / MyD88-dependent)
+//   PAM:         1 / 0.2 / 0.01 ng/mL  (TLR2/6 / MyD88-dependent)
+//
+// NOTE ON MICROFLUIDIC ABSTRACTION:
+//   `mix` steps abstract automated reagent delivery via the
+//   microfluidic control layer (MATLAB-driven pneumatic valves,
+//   4 psi input pressure, PEEK tubing delivery). There is no
+//   DMF electrode mixing. Each `mix` models a media exchange
+//   event within the imaging chamber.
+//
+// NOTE ON SEQUENTIAL STIMULUS CHAINING:
+//   Each stimulus interval (S1 -> S2 -> S3 -> S4) uses a fresh
+//   ligand dispense mixed into a carry-forward chamber variable.
+//   To avoid consuming the chamber variable inside an if/else
+//   branch (which would leave it undefined at the join point),
+//   only the ligand droplet and the QC signal are disposed/drained
+//   inside branches. The chamber itself is carried forward via
+//   a new variable assigned before each branch.
+//
+// NOTE ON DOSE ENCODING:
+//   This file encodes the MID-DOSE arm as the canonical protocol
+//   (Figs. 2B, 3, 4B, 5, 6). Swap _MidDose manifests for
+//   _HighDose or _LowDose to run the other dose arms with the
+//   identical CFG topology.
+//
+// IKK INHIBITION SUB-PROTOCOL:
+//   Encodes the PS1145 (IKK-beta inhibitor) experiment (Fig. 5A):
+//   40 uM PS1145 pre-treatment 90 min -> LPS 240 min -> wash
+//   2x15 min -> IL-1beta 3 ng/mL restimulation. PS1145-treated
+//   cells show significantly stronger IL-1beta response after
+//   LPS vs untreated (***p < 1e-4).
+//
+// CFG STRUCTURE:
+//   BB1  main           -- device prep, cell loading, S1 stimulation
+//   BB2  s1Pass         -- s1Signal > 0: dispose ligand; continue
+//   BB3  s1Fail         -- s1Signal <= 0: drain; continue
+//   BB4  s1Join         -- dispose signal; S2 begins
+//   BB5  s2Pass         -- s2Signal > 0: dispose ligand; continue
+//   BB6  s2Fail         -- s2Signal <= 0: drain; continue
+//   BB7  s2Join         -- dispose signal; S3 begins
+//   BB8  s3Pass         -- s3Signal > 0: dispose ligand; continue
+//   BB9  s3Fail         -- s3Signal <= 0: drain; continue
+//   BB10 s3Join         -- dispose signal; S4 begins
+//   BB11 s4Pass         -- s4Signal > 0: cell retrieval for RNA-seq
+//   BB12 s4Fail         -- s4Signal <= 0: drain
+//   BB13 ikkProtocol    -- IKK inhibitor sub-protocol (Fig. 5A)
+//   BB14 ikkPass        -- ikkSignal > 0: rescued IL-1beta response
+//   BB15 ikkFail        -- ikkSignal <= 0: no rescue; drain
+//   BB16 finalCleanup   -- terminal: dispose QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// Device preparation, cell loading, equilibration, S1 stimulus
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prime device chambers with fibronectin in PBS.
+//         Both components dispensed as variables before mixing.
+//         `mix` abstracts channel perfusion, not DMF mixing.
+//         FIX: fibronectin PBS uses two dispensed variables --
+//         bare manifest names are not valid mix arguments.
+// ------------------------------------------------------------
+
+fibronectinPBS  = dispense 1 units of PBS
+primerFlush     = dispense 1 units of PBS
+devicePrime     = mix fibronectinPBS with primerFlush for 5m
+
+// ------------------------------------------------------------
+// STEP 2: Flush chambers with FluoroBrite DMEM supplemented
+//         with 10% FBS, 1% GlutaMAX, 100 U/mL Pen-Strep to
+//         displace fibronectin and equilibrate culture conditions.
+//         Incubator set to 37c, 100% humidity, 5% CO2.
+// ------------------------------------------------------------
+
+mediumFlush         = dispense 1 units of FluoroBriteDMEM
+equilibratedChamber = mix devicePrime with mediumFlush for 5m
+
+// ------------------------------------------------------------
+// STEP 3: Load RelA-DsRed / JNK-KTR / H2B-GFP 3T3 cells.
+//         Cells resuspended at 5e6 cells/mL in FluoroBrite DMEM,
+//         loaded at ~50% confluency. Equilibrate 5 h (300 min)
+//         at 37c before stimulation and imaging begin.
+//         NOTE: 5 h = 300 min (BioScript s/m tokens only).
+// ------------------------------------------------------------
+
+cells         = dispense 1 units of RelA_DsRed_3T3_Cells
+loadedChamber = mix cells with equilibratedChamber for 2s
+
+heat loadedChamber at 37c for 300m
+
+// ------------------------------------------------------------
+// STEP 4: S1 -- First stimulus (120 min interval).
+//         Mid-dose IL-1beta (0.2 ng/mL) as S1 ligand.
+//         MATLAB valve script switches input from media to
+//         ligand at t=0. Live-cell imaging begins simultaneously.
+//         nfkbTranslocationDetection abstracts nuclear/cytoplasmic
+//         RelA-DsRed quantification at 6 timepoints (20, 30, 40,
+//         50, 70, 90 min) used in information theory analysis
+//         (Fig. 3A). s1Active carries the chamber forward past
+//         the QC branch so it remains in scope for S2.
+// ------------------------------------------------------------
+
+s1Ligand  = dispense 1 units of IL1beta_MidDose
+s1Active  = mix loadedChamber with s1Ligand for 120m
+
+s1Signal  = detect nfkbTranslocationDetection on s1Active for 90s
+
+// ============================================================
+// BB2 / BB3: S1 QC gate
+// Pass (BB2): s1Signal > 0 -> valid naive NF-kappaB response;
+//             dispose only the ligand variable (s1Active carries
+//             the live chamber through to S2).
+// Fail (BB3): s1Signal <= 0 -> no response; drain ligand.
+// NOTE: s1Active is NOT disposed/drained inside either branch
+//       so it remains defined at BB4 (s1Join).
+// ============================================================
+
+if (s1Signal > 0) {
+    dispose s1Ligand
+} else {
+    drain s1Ligand
+}
+
+// ============================================================
+// BB4: s1Join
+// Dispose S1 QC signal. S2 stimulus begins using s1Active.
+// ============================================================
+
+dispose s1Signal
+
+// ------------------------------------------------------------
+// STEP 5: S2 -- Second stimulus (120 min interval).
+//         Mid-dose LPS (100 ng/mL) as S2 ligand.
+//         Valve switches from IL-1beta to LPS at t=120 min.
+//         Prior IL-1beta (S1) expected to produce MyD88-dependent
+//         IRAK1 auto-inhibition, attenuating LPS response at
+//         mid dose (Fig. 4B/E). s2Active carries chamber to S3.
+// ------------------------------------------------------------
+
+s2Ligand  = dispense 1 units of LPS_MidDose
+s2Active  = mix s1Active with s2Ligand for 120m
+
+s2Signal  = detect nfkbTranslocationDetection on s2Active for 90s
+
+// ============================================================
+// BB5 / BB6: S2 QC gate
+// Pass (BB5): s2Signal > 0 -> attenuated but measurable S2
+//             response; dispose ligand and continue to S3.
+// Fail (BB6): s2Signal <= 0 -> complete attenuation; drain.
+// s2Active is NOT disposed inside either branch.
+// ============================================================
+
+if (s2Signal > 0) {
+    dispose s2Ligand
+} else {
+    drain s2Ligand
+}
+
+// ============================================================
+// BB7: s2Join
+// Dispose S2 QC signal. S3 stimulus begins using s2Active.
+// ============================================================
+
+dispose s2Signal
+
+// ------------------------------------------------------------
+// STEP 6: S3 -- Third stimulus (120 min interval).
+//         Mid-dose PAM (0.2 ng/mL, PAM2CSK4) as S3 ligand.
+//         Prior LPS + IL-1beta history (S1+S2) produces
+//         downstream NF-kappaB-dependent negative feedback
+//         (A20, IkappaBepsilon upregulation). Channel capacity
+//         (CC) remains elevated at S3 vs S1, encoding prior
+//         history information (Fig. 3B/C).
+//         Valve switches to PAM input at t=240 min.
+//         s3Active carries chamber to S4.
+// ------------------------------------------------------------
+
+s3Ligand  = dispense 1 units of PAM_MidDose
+s3Active  = mix s2Active with s3Ligand for 120m
+
+s3Signal  = detect nfkbTranslocationDetection on s3Active for 90s
+
+// ============================================================
+// BB8 / BB9: S3 QC gate
+// Pass (BB8): s3Signal > 0 -> detectable S3 response; dispose
+//             ligand and continue to S4.
+// Fail (BB9): s3Signal <= 0 -> fully attenuated; drain.
+// s3Active is NOT disposed inside either branch.
+// ============================================================
+
+if (s3Signal > 0) {
+    dispose s3Ligand
+} else {
+    drain s3Ligand
+}
+
+// ============================================================
+// BB10: s3Join
+// Dispose S3 QC signal. S4 stimulus begins using s3Active.
+// ============================================================
+
+dispose s3Signal
+
+// ------------------------------------------------------------
+// STEP 7: S4 -- Fourth stimulus (120 min interval).
+//         Mid-dose TNF-alpha (30 ng/mL) as S4 ligand.
+//         TNF-alpha signals via TNFR (not MyD88), bypassing
+//         accumulated IRAK1 auto-inhibition and downstream
+//         MyD88-dependent negative feedbacks from S1-S3.
+//         TNF-alpha responses are therefore only weakly
+//         attenuated regardless of prior MyD88 history
+//         (Figs. 2B, 4B/D, blue violin).
+//         Valve switches to TNF-alpha input at t=360 min.
+// ------------------------------------------------------------
+
+s4Ligand  = dispense 1 units of TNFalpha_MidDose
+s4Active  = mix s3Active with s4Ligand for 120m
+
+s4Signal  = detect nfkbTranslocationDetection on s4Active for 90s
+
+// ============================================================
+// BB11 / BB12: S4 QC gate
+// Pass (BB11): s4Signal > 0 -> TNF-alpha response detected;
+//              collect cells for downstream RNA-seq readout.
+// Fail (BB12): s4Signal <= 0 -> no detectable S4 response;
+//              drain ligand.
+// ============================================================
+
+if (s4Signal > 0) {
+    // --------------------------------------------------------
+    // STEP 8 (pass path): Cell retrieval for gene expression.
+    //         TrypLE Express for 1 min detaches cells from
+    //         fibronectin. PBS wash collects ~1500 cells/replicate
+    //         into ice-cold lysis buffer (0.1% Triton-X100 +
+    //         RNase inhibitor). Stored at -80c for SMART-Seq2
+    //         and Illumina HiSEQ4000 sequencing (Fig. 6;
+    //         STAR Methods RNA-seq section).
+    // --------------------------------------------------------
+    trypsin        = dispense 1 units of TrypLE_Express
+    detachedCells  = mix s4Active with trypsin for 1m
+
+    lysisBuffer    = dispense 1 units of PBS
+    collectedCells = mix detachedCells with lysisBuffer for 30s
+
+    rnaSignal      = detect rnaSeqDetection on collectedCells for 30s
+
+    dispose collectedCells
+    dispose rnaSignal
+} else {
+    drain s4Ligand
+}
+
+// ============================================================
+// BB13: IKK inhibition sub-protocol (Fig. 5A, Supp. Fig. 6C/D)
+// Fresh chamber: PS1145 (40 uM) pre-treatment blocks IKK-beta
+// during LPS; drug washed before IL-1beta rechallenge.
+// Demonstrates NF-kappaB-mediated gene expression is required
+// for asymmetric LPS-dependent attenuation of MyD88 signalling.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 9: Load fresh 3T3 cells and equilibrate as in STEP 3.
+// ------------------------------------------------------------
+
+ikkCells     = dispense 1 units of RelA_DsRed_3T3_Cells
+ikkMedium    = dispense 1 units of FluoroBriteDMEM
+ikkChamber   = mix ikkCells with ikkMedium for 2s
+
+heat ikkChamber at 37c for 300m
+
+// ------------------------------------------------------------
+// STEP 10: PS1145 pre-treatment (40 uM, 90 min).
+//          Blocks IKK-beta activity prior to LPS stimulus.
+// ------------------------------------------------------------
+
+inhibitor    = dispense 1 units of PS1145_Inhibitor
+ikkPretreat  = mix ikkChamber with inhibitor for 90m
+
+// ------------------------------------------------------------
+// STEP 11: LPS stimulus + PS1145 (240 min).
+//          NF-kappaB translocation significantly reduced during
+//          LPS due to IKK-beta inhibition (Supp. Fig. 6D).
+// ------------------------------------------------------------
+
+lpsIkk       = dispense 1 units of LPS_MidDose
+ikkLps       = mix ikkPretreat with lpsIkk for 240m
+
+// ------------------------------------------------------------
+// STEP 12: Wash out PS1145 (2 x 15 min with complete media)
+//          before IL-1beta rechallenge.
+// ------------------------------------------------------------
+
+wash1        = dispense 1 units of CompleteDMEM
+wash2        = dispense 1 units of CompleteDMEM
+ikkWash1     = mix ikkLps with wash1 for 15m
+ikkWash2     = mix ikkWash1 with wash2 for 15m
+
+// ------------------------------------------------------------
+// STEP 13: IL-1beta rechallenge (3 ng/mL, high dose, 120 min).
+//          PS1145-treated cells show significantly stronger
+//          NF-kappaB response vs untreated (***p < 1e-4, Fig. 5A),
+//          confirming NF-kappaB-mediated gene expression drives
+//          LPS-specific asymmetric attenuation of MyD88 signalling.
+// ------------------------------------------------------------
+
+il1bRechallenge = dispense 1 units of IL1beta_HighDose
+ikkRechallenge  = mix ikkWash2 with il1bRechallenge for 120m
+
+ikkSignal = detect nfkbTranslocationDetection on ikkRechallenge for 90s
+
+// ============================================================
+// BB14 / BB15: IKK inhibition QC gate
+// Pass (BB14): ikkSignal > 0 -> rescued IL-1beta response;
+//              dispose chamber.
+// Fail (BB15): ikkSignal <= 0 -> no rescue; drain.
+// ============================================================
+
+if (ikkSignal > 0) {
+    dispose ikkRechallenge
+} else {
+    drain ikkRechallenge
+}
+
+// ============================================================
+// BB16: finalCleanup (terminal)
+// Dispose remaining QC signal droplets. Experiment ends.
+// ============================================================
+
+dispose s4Signal
+dispose ikkSignal
+
+// [terminal -- no further instructions; exit node for CFG]

@@ -1,0 +1,399 @@
+module chemiluminescenceDetection
+
+manifest MagneticParticles
+manifest Sample_E2
+manifest Sample_TSH
+manifest WashBuffer
+manifest ConjugateE2_HRP
+manifest ConjugateAntiTSH_HRP
+manifest H2O2
+manifest Luminol_Enhancer
+manifest PluronicL64
+
+// ============================================================
+// Digital Microfluidic Magnetic Separation for Particle-Based
+// Immunoassays. Ng et al., Anal. Chem. 2012, 84, 8805-8812.
+// DOI: 10.1021/ac3020627
+//
+// Two immunoassay protocols encoded in sequence:
+//
+// PROTOCOL 1: Competitive immunoassay for 17beta-estradiol (E2).
+//   Competitive mode: exogenous E2-HRP conjugate competes with
+//   unlabeled E2 in sample for binding sites on anti-E2 capture
+//   antibodies immobilised on paramagnetic microparticles.
+//   Signal (chemiluminescence) is INVERSELY proportional to
+//   analyte concentration.
+//   Calibration range: 10-1000 pg/mL.
+//
+// PROTOCOL 2: Noncompetitive (sandwich) immunoassay for
+//   Thyroid Stimulating Hormone (TSH).
+//   Noncompetitive mode: labeled anti-TSH-HRP antibody and
+//   capture antibody bind TSH at different epitopes, forming
+//   antibody-antigen-antibody complex on the particle surface.
+//   Signal (chemiluminescence) is DIRECTLY proportional to
+//   analyte concentration.
+//   Calibration range: 0.4-20 uIU/mL.
+//
+// PARTICLE WASHING: "Supernatant separation" method used
+//   throughout (NOT serial dilution). Magnet immobilises
+//   particles as a pellet; DMF actuates the supernatant droplet
+//   away to waste; magnet removed; fresh droplet passed over
+//   pellet and shuttled in circular motion (4 electrodes) to
+//   resuspend. Achieves >90% removal of unbound reagents in
+//   one step. Requires >=3.0x10^8 particles/mL and a movable
+//   permanent magnet (N48, ~470 uN force on pellet).
+//   NOTE: `mix` with WashBuffer abstracts each supernatant-
+//   separation wash cycle (separate + reconstitute in one step).
+//
+// FOULING MITIGATION: Pluronic L64 at 0.05% (v/v) included
+//   in all reagents. Custom DMF-compatible particle diluent,
+//   conjugate diluent, and wash buffer formulated with L64
+//   as sole surfactant. TSH particles blocked with nonfat
+//   dried milk prior to use to reduce nonspecific adsorption.
+//
+// DETECTION: Chemiluminescence. Particles reconstituted in
+//   H2O2 (2 min), then merged with luminol/enhancer to
+//   activate HRP-driven chemiluminescence. Measured with
+//   Pherastar plate reader (LUM module, gain=3600, 1 min
+//   endpoint). Device affixed to 96-well Stripwell plate;
+//   detection zone aligned per-well.
+//
+// DROPLET VOLUMES: Unit droplet = ~800 nL. Sample: 3 unit
+//   droplets (2.4 uL total). All other reagents: 1 unit droplet.
+//   100-fold reagent reduction vs. well-plate ELISA
+//   (2.4 uL vs. 50 uL sample; 11.2 uL vs. 1.2 mL total).
+//
+// DMF DEVICE: 96 actuation electrodes, 10 reservoirs,
+//   4 assay regions, 1 shared detection region. Movable
+//   N48 neodymium magnet (5/8 in x 1/4 in) in manifold
+//   below device. Air-matrix (no oil carrier fluid).
+//
+// CFG STRUCTURE:
+//   BB1  main             -- entry: E2 competitive immunoassay
+//   BB2  e2Pass           -- e2Signal > 0: valid E2 assay signal;
+//                           dispose and proceed to TSH branch
+//   BB3  e2Fail           -- e2Signal <= 0: no signal; drain
+//   BB4  e2Join           -- join: TSH immunoassay branch begins
+//   BB5  tshPass          -- tshSignal > 0: valid TSH signal;
+//                           dispose all TSH droplets
+//   BB6  tshFail          -- tshSignal <= 0: invalid signal; drain
+//   BB7  finalCleanup     -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ============================================================
+// PROTOCOL 1: Competitive Immunoassay for 17beta-Estradiol (E2)
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1 (E2): Particle separation from diluent.
+//   Dispense 1 unit droplet of anti-E2 paramagnetic particle
+//   suspension from reservoir. Magnet positioned to immobilise
+//   particles as a pellet on the device surface. Supernatant
+//   (particle diluent) is actuated away from the pellet to waste.
+//   Particles remain as a dry pellet, retaining ~5% residual
+//   liquid. All solutions contain 0.05% Pluronic L64 (v/v).
+//   NOTE: PluronicL64 droplet models the surfactant pre-mix
+//   step; in practice L64 is co-formulated into each reagent
+//   rather than dispensed separately on-chip.
+// ------------------------------------------------------------
+
+e2_particles       = dispense 1 units of MagneticParticles
+e2_pluronic        = dispense 1 units of PluronicL64
+e2_particleMix     = mix e2_particles with e2_pluronic for 5s
+
+// ------------------------------------------------------------
+// STEP 2 (E2): Sample incubation (3 unit droplets, 6 min).
+//   Three 800 nL droplets of E2 sample (total 2.4 uL) are
+//   sequentially dispensed and delivered to the immobilised
+//   particle pellet for resuspension and incubation.
+//   In competitive mode, sample E2 and E2-HRP conjugate
+//   (added in Step 4) compete for binding sites on anti-E2
+//   capture antibodies on particle surfaces.
+//   6 min incubation saturates analyte binding on particles.
+//   NOTE: Three `mix` steps model sequential delivery of
+//   the three sample unit droplets to accumulate 2.4 uL.
+// ------------------------------------------------------------
+
+e2_sample1         = dispense 1 units of Sample_E2
+e2_sample2         = dispense 1 units of Sample_E2
+e2_sample3         = dispense 1 units of Sample_E2
+
+e2_sampleMix1      = mix e2_particleMix with e2_sample1 for 6m
+e2_sampleMix2      = mix e2_sampleMix1 with e2_sample2 for 1s
+e2_sampleMix3      = mix e2_sampleMix2 with e2_sample3 for 1s
+
+// ------------------------------------------------------------
+// STEP 3 (E2): Post-sample wash x 4 (supernatant separation).
+//   Magnet immobilises particles. Supernatant actuated to waste.
+//   Fresh wash buffer droplet passed over pellet; circular
+//   motion across 4 electrodes resuspends particles.
+//   Repeated 4 times. Removes >90% unbound sample matrix
+//   per wash cycle (vs. >=6 serial dilution cycles for same).
+//   Each `mix` step = one complete separate + reconstitute cycle.
+// ------------------------------------------------------------
+
+e2_wash1_buf       = dispense 1 units of WashBuffer
+e2_wash2_buf       = dispense 1 units of WashBuffer
+e2_wash3_buf       = dispense 1 units of WashBuffer
+e2_wash4_buf       = dispense 1 units of WashBuffer
+
+e2_washed1         = mix e2_sampleMix3 with e2_wash1_buf for 5s
+e2_washed2         = mix e2_washed1 with e2_wash2_buf for 5s
+e2_washed3         = mix e2_washed2 with e2_wash3_buf for 5s
+e2_washed4         = mix e2_washed3 with e2_wash4_buf for 5s
+
+// ------------------------------------------------------------
+// STEP 4 (E2): Conjugate incubation (2 min).
+//   1 unit droplet of E2-HRP conjugate (E2 antigen labeled
+//   with horseradish peroxidase) at 1 ug/mL delivered to
+//   washed particles for resuspension and incubation.
+//   Optimal E2-HRP concentration is 1 ug/mL (higher
+//   concentrations collapse the dynamic range: 50 pg/mL and
+//   500 pg/mL become indistinguishable at high conjugate).
+//   E2-HRP competes with sample E2 for residual anti-E2
+//   binding sites remaining after sample incubation.
+// ------------------------------------------------------------
+
+e2_conjugate       = dispense 1 units of ConjugateE2_HRP
+e2_conjugateMix    = mix e2_washed4 with e2_conjugate for 2m
+
+// ------------------------------------------------------------
+// STEP 5 (E2): Post-conjugate wash x 4 (supernatant separation).
+//   Four wash cycles remove unbound E2-HRP conjugate.
+//   Same supernatant separation protocol as Step 3.
+// ------------------------------------------------------------
+
+e2_cwash1_buf      = dispense 1 units of WashBuffer
+e2_cwash2_buf      = dispense 1 units of WashBuffer
+e2_cwash3_buf      = dispense 1 units of WashBuffer
+e2_cwash4_buf      = dispense 1 units of WashBuffer
+
+e2_cwashed1        = mix e2_conjugateMix with e2_cwash1_buf for 5s
+e2_cwashed2        = mix e2_cwashed1 with e2_cwash2_buf for 5s
+e2_cwashed3        = mix e2_cwashed2 with e2_cwash3_buf for 5s
+e2_cwashed4        = mix e2_cwashed3 with e2_cwash4_buf for 5s
+
+// ------------------------------------------------------------
+// STEP 6 (E2): H2O2 rinse x 2 (supernatant separation).
+//   Two H2O2 wash steps remove residual wash buffer prior to
+//   substrate addition. Prevents wash buffer from diluting or
+//   interfering with the H2O2/luminol chemiluminescent reaction.
+//   This replaces the manufacturer-recommended pre-mix of
+//   H2O2 and luminol, which caused high inter-assay variability.
+// ------------------------------------------------------------
+
+e2_h2o2wash1       = dispense 1 units of H2O2
+e2_h2o2wash2       = dispense 1 units of H2O2
+
+e2_h2owashed1      = mix e2_cwashed4 with e2_h2o2wash1 for 5s
+e2_h2owashed2      = mix e2_h2owashed1 with e2_h2o2wash2 for 5s
+
+// ------------------------------------------------------------
+// STEP 7 (E2): Substrate incubation - H2O2 (2 min).
+//   Particles delivered to the shared detection region.
+//   1 unit droplet of H2O2 reconstitutes particle pellet
+//   and incubates for 2 min in the detection zone.
+//   H2O2 serves as the oxidising co-substrate for HRP.
+// ------------------------------------------------------------
+
+e2_h2o2_substrate  = dispense 1 units of H2O2
+e2_h2o2Mix         = mix e2_h2owashed2 with e2_h2o2_substrate for 2m
+
+// ------------------------------------------------------------
+// STEP 8 (E2): Chemiluminescence activation and detection.
+//   1 unit droplet of luminol/enhancer solution merged
+//   on-chip with the H2O2/particle droplet. HRP catalyses
+//   oxidation of luminol by H2O2, generating chemiluminescence.
+//   Incubated 1 min (signal saturates at 1 min endpoint).
+//   Detection: Pherastar plate reader, LUM module, gain=3600,
+//   focal height=8.6 mm, device taped to empty 96-well plate.
+// ------------------------------------------------------------
+
+e2_luminol         = dispense 1 units of Luminol_Enhancer
+e2_detectionMix    = mix e2_h2o2Mix with e2_luminol for 1m
+
+e2Signal = detect chemiluminescenceDetection on e2_detectionMix for 60s
+
+// ============================================================
+// BB2 / BB3: E2 assay QC gate
+// Pass (BB2): e2Signal > 0 -> valid chemiluminescence detected;
+//             dispose assay droplet and proceed to TSH branch.
+// Fail (BB3): e2Signal <= 0 -> no signal (assay or reagent
+//             failure); drain assay droplet.
+// Both branches converge at BB4 (e2Join).
+//
+// NOTE ON COMPETITIVE SIGNAL POLARITY: In competitive format,
+// higher analyte concentration produces LOWER RLU signal.
+// The QC gate here tests only for signal presence (> 0),
+// i.e. that HRP activity was detected at all. Quantification
+// and curve fitting (4-parameter logistic) occur off-chip.
+// ============================================================
+
+if (e2Signal > 0) {
+    dispose e2_detectionMix
+} else {
+    drain e2_detectionMix
+}
+
+// ============================================================
+// BB4: e2Join
+// Dispose E2 assay QC signal. Control falls into the TSH
+// immunoassay branch (BB5/BB6).
+// ============================================================
+
+dispose e2Signal
+
+// ============================================================
+// PROTOCOL 2: Noncompetitive Immunoassay for TSH
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1 (TSH): Particle separation from diluent.
+//   Dispense 1 unit droplet of anti-beta-TSH paramagnetic
+//   particle suspension (pre-blocked with nonfat dried milk
+//   to reduce nonspecific adsorption of anti-TSH-HRP conjugate
+//   onto particle surfaces). Magnet immobilises particles;
+//   particle diluent supernatant actuated to waste.
+//   NOTE: Nonfat dried milk blocking is performed off-chip
+//   prior to dispensing; it is not modelled as a separate
+//   on-chip dispense step.
+// ------------------------------------------------------------
+
+tsh_particles      = dispense 1 units of MagneticParticles
+tsh_pluronic       = dispense 1 units of PluronicL64
+tsh_particleMix    = mix tsh_particles with tsh_pluronic for 5s
+
+// ------------------------------------------------------------
+// STEP 2 (TSH): Sample incubation (3 unit droplets, 6 min).
+//   Three 800 nL droplets of TSH sample (total 2.4 uL)
+//   delivered sequentially to immobilised particles.
+//   In noncompetitive mode, TSH antigen binds the capture
+//   anti-beta-TSH antibody on particle surfaces, forming the
+//   first arm of the sandwich complex.
+//   Normal serum TSH range: 0.4-3.0 uIU/mL.
+// ------------------------------------------------------------
+
+tsh_sample1        = dispense 1 units of Sample_TSH
+tsh_sample2        = dispense 1 units of Sample_TSH
+tsh_sample3        = dispense 1 units of Sample_TSH
+
+tsh_sampleMix1     = mix tsh_particleMix with tsh_sample1 for 6m
+tsh_sampleMix2     = mix tsh_sampleMix1 with tsh_sample2 for 1s
+tsh_sampleMix3     = mix tsh_sampleMix2 with tsh_sample3 for 1s
+
+// ------------------------------------------------------------
+// STEP 3 (TSH): Post-sample wash x 4 (supernatant separation).
+//   Four supernatant-separation wash cycles remove unbound
+//   TSH and sample matrix proteins.
+// ------------------------------------------------------------
+
+tsh_wash1_buf      = dispense 1 units of WashBuffer
+tsh_wash2_buf      = dispense 1 units of WashBuffer
+tsh_wash3_buf      = dispense 1 units of WashBuffer
+tsh_wash4_buf      = dispense 1 units of WashBuffer
+
+tsh_washed1        = mix tsh_sampleMix3 with tsh_wash1_buf for 5s
+tsh_washed2        = mix tsh_washed1 with tsh_wash2_buf for 5s
+tsh_washed3        = mix tsh_washed2 with tsh_wash3_buf for 5s
+tsh_washed4        = mix tsh_washed3 with tsh_wash4_buf for 5s
+
+// ------------------------------------------------------------
+// STEP 4 (TSH): Conjugate incubation (2 min).
+//   1 unit droplet of anti-TSH-HRP labeled detection antibody
+//   delivered to washed particles for resuspension and incubation.
+//   Anti-TSH-HRP binds TSH at a different epitope from the
+//   capture antibody, completing the sandwich complex:
+//   anti-beta-TSH [particle] -- TSH -- anti-TSH-HRP.
+//   TSH immunoassays are very sensitive to nonspecific
+//   adsorption of conjugated antibodies; milk-blocking
+//   in Step 1 mitigates this background noise.
+// ------------------------------------------------------------
+
+tsh_conjugate      = dispense 1 units of ConjugateAntiTSH_HRP
+tsh_conjugateMix   = mix tsh_washed4 with tsh_conjugate for 2m
+
+// ------------------------------------------------------------
+// STEP 5 (TSH): Post-conjugate wash x 4 (supernatant separation).
+//   Four wash cycles remove unbound anti-TSH-HRP.
+// ------------------------------------------------------------
+
+tsh_cwash1_buf     = dispense 1 units of WashBuffer
+tsh_cwash2_buf     = dispense 1 units of WashBuffer
+tsh_cwash3_buf     = dispense 1 units of WashBuffer
+tsh_cwash4_buf     = dispense 1 units of WashBuffer
+
+tsh_cwashed1       = mix tsh_conjugateMix with tsh_cwash1_buf for 5s
+tsh_cwashed2       = mix tsh_cwashed1 with tsh_cwash2_buf for 5s
+tsh_cwashed3       = mix tsh_cwashed2 with tsh_cwash3_buf for 5s
+tsh_cwashed4       = mix tsh_cwashed3 with tsh_cwash4_buf for 5s
+
+// ------------------------------------------------------------
+// STEP 6 (TSH): H2O2 rinse x 2 (supernatant separation).
+//   Two H2O2 wash steps remove residual wash buffer before
+//   chemiluminescent substrate delivery. Same rationale as
+//   E2 Step 6: prevents high inter-assay variability observed
+//   when H2O2 and luminol were pre-mixed before dispensing.
+// ------------------------------------------------------------
+
+tsh_h2o2wash1      = dispense 1 units of H2O2
+tsh_h2o2wash2      = dispense 1 units of H2O2
+
+tsh_h2owashed1     = mix tsh_cwashed4 with tsh_h2o2wash1 for 5s
+tsh_h2owashed2     = mix tsh_h2owashed1 with tsh_h2o2wash2 for 5s
+
+// ------------------------------------------------------------
+// STEP 7 (TSH): Substrate incubation - H2O2 (2 min).
+//   Particles delivered to shared detection region.
+//   1 unit H2O2 droplet reconstitutes pellet for 2 min.
+//   Detection zone pre-rinsed with H2O2 between assays.
+// ------------------------------------------------------------
+
+tsh_h2o2_substrate = dispense 1 units of H2O2
+tsh_h2o2Mix        = mix tsh_h2owashed2 with tsh_h2o2_substrate for 2m
+
+// ------------------------------------------------------------
+// STEP 8 (TSH): Chemiluminescence activation and detection.
+//   1 unit luminol/enhancer droplet merged on-chip with
+//   H2O2/particle droplet. 1 min incubation to saturation.
+//   Detection: same Pherastar reader setup as E2 assay.
+//   TSH calibration curve fitted with linear equation
+//   (vs. 4-parameter logistic for E2).
+//   LOD (DMF): 0.83 uIU/mL (concentration); 2.0 nIU (absolute).
+//   Clinical utility: diagnosis of hypothyroidism (TSH > 3.0
+//   uIU/mL) is within the detectable range of this system.
+// ------------------------------------------------------------
+
+tsh_luminol        = dispense 1 units of Luminol_Enhancer
+tsh_detectionMix   = mix tsh_h2o2Mix with tsh_luminol for 1m
+
+tshSignal = detect chemiluminescenceDetection on tsh_detectionMix for 60s
+
+// ============================================================
+// BB5 / BB6: TSH assay QC gate
+// Pass (BB5): tshSignal > 0 -> valid chemiluminescence detected;
+//             dispose assay droplet.
+// Fail (BB6): tshSignal <= 0 -> no signal (HRP inactive or
+//             reagent failure); drain assay droplet.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (tshSignal > 0) {
+    dispose tsh_detectionMix
+} else {
+    drain tsh_detectionMix
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose TSH assay QC signal. Experiment ends.
+// ============================================================
+
+dispose tshSignal
+
+// [terminal -- no further instructions; exit node for CFG]

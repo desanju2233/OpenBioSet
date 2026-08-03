@@ -1,0 +1,395 @@
+{
+  "protocol": {
+    "title": "Sensitive Detection and Quantification of SARS-CoV-2 in Saliva",
+    "source": "Scientific Reports (2021) 11:12425",
+    "doi": "10.1038/s41598-021-91835-7",
+    "platform": "Saliva-based nucleic acid testing pipeline (RT-PCR + ddPCR); BSL3 RNA extraction, BSL1 analysis",
+    "institution": "University of Chicago Medical Center (IRB 20-0520)",
+    "cohorts": [
+      { "type": "Curbside outpatients", "n": 137, "symptomatic": 92, "asymptomatic_preop": 45 },
+      { "type": "COVID-19 inpatients", "n": 29 }
+    ],
+    "objective": "Validate saliva as an alternative specimen for sensitive SARS-CoV-2 detection using RT-PCR and ddPCR, benchmarked against EUA-certified nasal swab testing by a CLIA-certified clinical microbiology laboratory (CML)",
+
+    "specimen_collection": {
+      "saliva": {
+        "method": "Self-collection by drool technique (spitting into sterile tube to 2 mL line)",
+        "stabilisation": "2 mL Zymo DNA/RNA Shield (ZymoR1100-50) added immediately at collection",
+        "transport": "To BSL3 facility for RNA extraction"
+      },
+      "nasal_swab": {
+        "method": "Anterior nares nasal swab (NS) collected by research team",
+        "transport_medium": "1 mL Amies transport solution (Thermo Scientific)",
+        "clinical_analysis": "CML using FDA-EUA Cepheid Xpert Xpress (targets N2 + E gene; positive if Ct < 45 for either)"
+      }
+    },
+
+    "reagents": {
+      "rna_extraction": {
+        "primary_method": "TRIzol-based RNA extraction (TRE); 17% relative efficiency vs QVK",
+        "trizol_reagent": "TRIzol LS (Thermo Fisher Scientific, #10296010)",
+        "chloroform": "0.6 mL per 1 mL sample",
+        "isopropanol": "1 mL for RNA precipitation",
+        "glycogen": "1 uL co-precipitant for improved pellet recovery at low RNA concentrations",
+        "ethanol": "75% ethanol, 2 mL wash",
+        "resuspension": "50 uL RNase-free water",
+        "qc_kit": "Qubit RNA HS Kit",
+        "storage": "-80 C",
+        "alternative_kits_evaluated": [
+          "QIAmp MinElute Virus DNA/RNA Spin Kit (QVDRK)",
+          "QIAmp Viral RNA Mini Kit (QVK)"
+        ]
+      },
+      "rt_pcr": {
+        "master_mix": "TaqPath One-Step RT-PCR Master Mix (Thermo Fisher Scientific)",
+        "probe_primer_sets": "IDT 2019-nCoV CDC EUA (#10006770): N1, N2, RnaseP",
+        "precision_blue_dye": "Precision Blue Real-Time PCR Dye (Bio-Rad), 0.1 uL per reaction",
+        "positive_control_rna": "SARS-CoV-2 RNA Standard (Exact Diagnostics, #COV019)",
+        "positive_control_dna": "2019-nCoV_N_Positive Control (IDT, #10006625)",
+        "negative_control": "Millipore nuclease-free water processed with RNA extraction methods",
+        "instrument": "CFX384 Touch Real-time PCR Detection System (Bio-Rad)",
+        "software": "CFX Maestro"
+      },
+      "ddpcr": {
+        "supermix": "One-step ddPCR Supermix (Bio-Rad), 5 uL per reaction",
+        "reverse_transcriptase": "2 uL reverse transcriptase (Bio-Rad)",
+        "dtt": "1 uL 300 mM DTT (Bio-Rad)",
+        "probe_primer_sets": "IDT (#10006770): N1, N2, RnaseP (same as RT-PCR)",
+        "droplet_generator": "Bio-Rad QX200 (manual or automated); ~20,000 nanoliter-sized droplets per reaction",
+        "droplet_reader": "Bio-Rad QX200 droplet reader",
+        "analysis_software": "Quantasoft (Bio-Rad)"
+      }
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Saliva specimen receipt",
+        "bb": "BB1",
+        "inputs": ["SalivaSpecimen"],
+        "operation": "dispense",
+        "volume_mL": 1,
+        "notes": "1 mL aliquot of pre-stabilised saliva (already combined with Zymo DNA/RNA Shield at collection) enters TRIzol extraction protocol. BioScript `dispense` abstracts receipt of specimen into the extraction workflow."
+      },
+      {
+        "id": "S2",
+        "name": "TRIzol LS addition",
+        "bb": "BB1",
+        "inputs": ["SalivaSpecimen", "TrizolLS_Reagent"],
+        "operation": "mix",
+        "duration_s": 30,
+        "volumes": { "sample_mL": 1, "trizol_mL": 3 },
+        "notes": "3 mL TRIzol LS added to 1 mL sample (saliva or nasal swab per paper Methods). Brief vortexing to homogenise. Guanidinium thiocyanate denatures proteins and protects RNA from RNases."
+      },
+      {
+        "id": "S3",
+        "name": "Chloroform addition and phase emulsification",
+        "bb": "BB1",
+        "inputs": ["trizolLysate", "Chloroform"],
+        "operation": "mix",
+        "duration_s": 15,
+        "volumes": { "chloroform_mL": 0.6 },
+        "notes": "0.6 mL chloroform added; brief vortexing creates water-in-organic emulsion for phase separation. Chloroform separates RNA (aqueous upper phase) from protein and DNA (organic/interphase lower phases)."
+      },
+      {
+        "id": "S4",
+        "name": "Phase separation centrifugation",
+        "bb": "BB1",
+        "inputs": ["phaseMixture"],
+        "operation": "heat (abstracts centrifugation)",
+        "temperature_C": 4,
+        "duration_s": 900,
+        "centrifugation": { "speed_xg": 12000, "temperature_C": 4, "duration_min": 15 },
+        "notes": "Centrifuge 15 min at 12,000xg, 4 C. Three phases form: (1) colourless upper aqueous phase (RNA), (2) white interphase (DNA/protein), (3) red-pink organic phase (protein/lipid). BioScript `heat at 4c for 15m` abstracts centrifugation (no native primitive in BioScript)."
+      },
+      {
+        "id": "S5",
+        "name": "Aqueous phase transfer and RNA precipitation setup",
+        "bb": "BB1",
+        "inputs": ["phaseMixture", "Isopropanol", "Glycogen"],
+        "operation": "mix (x2, sequential)",
+        "duration_s": 10,
+        "volumes": { "aqueous_phase_mL": 0.8, "isopropanol_mL": 1, "glycogen_uL": 1 },
+        "notes": "0.8 mL colourless upper aqueous phase carefully transferred to new tube (avoid interphase). 1 mL isopropanol and 1 uL glycogen added. Glycogen acts as co-precipitant to improve RNA pellet visibility and yield at low concentrations. BioScript `mix` abstracts manual transfer and addition."
+      },
+      {
+        "id": "S6",
+        "name": "Overnight RNA precipitation at -20 C",
+        "bb": "BB1",
+        "inputs": ["rnaPrecipMix2"],
+        "operation": "heat (abstracts cold precipitation)",
+        "temperature_C": 4,
+        "duration_s": 43200,
+        "actual_condition": "-20 C overnight (minimum 12 h)",
+        "notes": "Paper states 'kept at -20 C overnight or at room temperature for 10 min.' Cold path encoded (higher yield). BioScript encodes as `heat at 4c for 720m` (43200 s in IR). Negative temperatures not tested with lilott8/BioScript compiler; 4 C used as functional cold abstraction."
+      },
+      {
+        "id": "S7",
+        "name": "RNA pellet collection centrifugation",
+        "bb": "BB1",
+        "inputs": ["rnaPrecipMix2"],
+        "operation": "heat (abstracts centrifugation)",
+        "temperature_C": 4,
+        "duration_s": 600,
+        "centrifugation": { "speed_xg": 12000, "temperature_C": 4, "duration_min": 10 },
+        "notes": "Centrifuge 10 min at 12,000xg, 4 C to pellet RNA. Supernatant discarded. BioScript `heat at 4c for 10m` (600 s in IR)."
+      },
+      {
+        "id": "S8",
+        "name": "75% ethanol wash",
+        "bb": "BB1",
+        "inputs": ["rnaPrecipMix2", "Ethanol_75pct"],
+        "operation": "mix",
+        "duration_s": 30,
+        "volumes": { "ethanol_mL": 2 },
+        "notes": "2 mL 75% ethanol added to pellet; vortexed to wash away residual isopropanol and salts. Salivary fluids are known PCR inhibitors (paper ref. 14: Ochert et al., PCR Methods Appl. 1994). Ethanol wash removes inhibitory substances."
+      },
+      {
+        "id": "S9",
+        "name": "Ethanol wash centrifugation",
+        "bb": "BB1",
+        "inputs": ["rnaEthanolWash"],
+        "operation": "heat (abstracts centrifugation)",
+        "temperature_C": 4,
+        "duration_s": 300,
+        "centrifugation": { "speed_g": 7500, "temperature_C": 4, "duration_min": 5 },
+        "notes": "Centrifuge 5 min at 7500g, 4 C to re-pellet RNA. Supernatant discarded. BioScript `heat at 4c for 5m` (300 s in IR)."
+      },
+      {
+        "id": "S10",
+        "name": "Ethanol evaporation",
+        "bb": "BB1",
+        "inputs": ["rnaEthanolWash"],
+        "operation": "heat",
+        "temperature_C": 25,
+        "duration_s": 600,
+        "actual_condition": "5-10 min at room temperature",
+        "notes": "Pellet air-dried at room temperature for 5-10 min to evaporate residual ethanol. Over-drying reduces solubility; under-drying causes ethanol carry-over PCR inhibition. Upper bound (10 min) encoded. BioScript `heat at 25c for 10m` (600 s in IR)."
+      },
+      {
+        "id": "S11",
+        "name": "RNA resuspension and QC",
+        "bb": "BB1",
+        "inputs": ["rnaEthanolWash", "RNaseFreeWater", "QubitRNA_HS_Reagent"],
+        "operation": "mix + detect",
+        "resuspension_volume_uL": 50,
+        "storage": "-80 C",
+        "qc_module": "ddPCR_RnaseP_Detection (used as proxy for Qubit fluorometric QC)",
+        "notes": "Pellet resuspended in 50 uL RNase-free water. Quantity and quality assessed by Qubit RNA HS Kit. BioScript models Qubit QC as a detect step using the RnaseP module as a proxy for RNA integrity. rnaQcMix disposed after detection; rnaExtract used in downstream PCR steps."
+      },
+      {
+        "id": "S12",
+        "name": "RT-PCR reaction assembly (N1, N2, RnaseP channels)",
+        "bb": "BB1",
+        "inputs": [
+          "SalivaSpecimen (x3 aliquots)",
+          "TaqPath_MasterMix (x3)",
+          "N1_ProbePrimerSet", "N2_ProbePrimerSet", "RnaseP_ProbePrimerSet",
+          "PrecisionBlue_RTDye (x3)"
+        ],
+        "operation": "mix (sequential, 3 parallel channels)",
+        "reaction_volume_uL": 20,
+        "reaction_components": {
+          "TaqPath_master_mix_uL": 5,
+          "probe_primer_set_uL": 2,
+          "precision_blue_dye_uL": 0.1,
+          "rna_extract_uL": 6.4,
+          "pcr_grade_water_uL": 6.5
+        },
+        "notes": "Three parallel RT-PCR reactions assembled targeting N1, N2, and RnaseP (internal control). Serial dilution of SARS-CoV-2 RNA Standard run alongside each plate as positive control. BioScript `dispense SalivaSpecimen` (x3) models aliquoting from the same RNA extract into three separate reactions. Assembly sequence: masterMix + primerSet (5s) -> add RT dye (5s) -> add RNA aliquot (10s)."
+      },
+      {
+        "id": "S13",
+        "name": "RT-PCR thermocycling (CFX384 Touch, Bio-Rad)",
+        "bb": "BB1",
+        "inputs": ["rtPCR_rxn_N1", "rtPCR_rxn_N2", "rtPCR_rxn_RnaseP"],
+        "operation": "heat (x4 stages per channel)",
+        "protocol": "CDC 2019-nCoV RT-PCR diagnostic panel (Revision 3, 2020)",
+        "stages": [
+          { "stage": 1, "name": "Reverse transcription",    "temp_C": 25, "duration_s": 120  },
+          { "stage": 2, "name": "RT incubation",            "temp_C": 50, "duration_s": 900  },
+          { "stage": 3, "name": "Polymerase activation",    "temp_C": 95, "duration_s": 120  },
+          { "stage": 4, "name": "45 cycles (PCR, compressed)", "temp_C": 55, "duration_s": 2700,
+            "actual_cycles": 45,
+            "cycle_steps": [
+              { "step": "Denaturation",        "temp_C": 95, "duration_s": 3  },
+              { "step": "Anneal/Extension",    "temp_C": 55, "duration_s": 30 }
+            ]
+          }
+        ],
+        "performance": {
+          "efficiency_N1_pct": ">99.25",
+          "efficiency_N2_pct": ">99.25",
+          "lod_copies_per_reaction": 1,
+          "ct_at_1_copy_N1": 38.2,
+          "ct_at_1_copy_N2": 38.6
+        },
+        "notes": "45-cycle PCR amplification compressed into single `heat at 55c for 45m` block (2700 s in IR). This is a standard BioScript thermocycler abstraction: the compiler has no cycle-loop primitive; each isothermal stage is emitted as a separate heat instruction. Same pattern used in moazami reference file (heat-shock stages encoded as discrete heat calls)."
+      },
+      {
+        "id": "S14",
+        "name": "RT-PCR fluorescence readout and positive calling",
+        "bb": "BB1",
+        "inputs": ["rtPCR_rxn_N1", "rtPCR_rxn_N2", "rtPCR_rxn_RnaseP"],
+        "operation": "detect (x3)",
+        "detection_duration_s": 30,
+        "modules": ["rtPCR_N1_Detection", "rtPCR_N2_Detection", "rtPCR_RnaseP_Detection"],
+        "positive_calling_rule": "Ct < 40 for N1 OR N2 (CDC recommendation; same threshold for saliva and NS)",
+        "undetermined_ct": 45,
+        "channels": {
+          "FAM": "N1 and N2 TaqMan probes (SARS-CoV-2 targets)",
+          "internal_control": "RnaseP (extraction quality control)"
+        },
+        "branch": {
+          "pass": {
+            "condition": "rtPCR_N1_Signal > 0",
+            "action": "dispose(rtPCR_rxn_N1, rtPCR_rxn_N2, rtPCR_rxn_RnaseP)",
+            "bb": "BB2",
+            "result_curbside": "16/16 CML-positive samples detected (100% concordance; Fig. 2c,d)"
+          },
+          "fail": {
+            "condition": "rtPCR_N1_Signal <= 0",
+            "action": "drain(rtPCR_rxn_N1, rtPCR_rxn_N2, rtPCR_rxn_RnaseP)",
+            "bb": "BB3"
+          }
+        },
+        "notes": "N1 used as primary gate (stronger LOD). BioScript does not support compound OR conditionals in a single if statement; N1 is primary signal per CDC positive-calling logic (positive if N1 OR N2 < 40). RnaseP result not used in QC gate but encoded for completeness."
+      },
+      {
+        "id": "S15",
+        "name": "ddPCR reaction assembly (N1, N2, RnaseP channels)",
+        "bb": "BB4",
+        "inputs": [
+          "SalivaSpecimen (x3 aliquots)",
+          "ddPCR_Supermix_OneStep (x3)",
+          "ReverseTranscriptase_DTT (x3)",
+          "N1_ProbePrimerSet", "N2_ProbePrimerSet", "RnaseP_ProbePrimerSet"
+        ],
+        "operation": "mix (sequential, 3 parallel channels)",
+        "reaction_volume_uL": 20,
+        "reaction_components": {
+          "one_step_ddPCR_supermix_uL": 5,
+          "reverse_transcriptase_uL": 2,
+          "dtt_300mM_uL": 1,
+          "probe_primer_set_uL": 2,
+          "rna_extract_uL": 6.4
+        },
+        "notes": "Same IDT probe/primer sets (#10006770) as RT-PCR. Three parallel reactions targeting N1, N2, and RnaseP assembled from the same RNA extract. BioScript `dispense SalivaSpecimen` (x3) models aliquoting. Assembly sequence: supermix + RT/DTT (5s) -> add primer set (5s) -> add RNA aliquot (10s)."
+      },
+      {
+        "id": "S16",
+        "name": "Droplet generation (~20,000 droplets per reaction)",
+        "bb": "BB4",
+        "inputs": ["ddPCR_rxn_N1", "ddPCR_rxn_N2", "ddPCR_rxn_RnaseP", "DropletGeneratorOil (x3)"],
+        "operation": "mix (abstracts water-in-oil emulsification)",
+        "duration_s": 120,
+        "droplets_per_reaction": "~20,000 nanoliter-sized",
+        "oil": "Bio-Rad ddPCR droplet generation oil for probes (#1863005)",
+        "plate": "96-well plate, sealed after transfer",
+        "notes": "Each assembled reaction fractionated into ~20,000 nanoliter-sized droplets at the QX200 droplet generator. Each droplet contains zero or one target RNA molecule, enabling absolute digital quantification without standard curve. `mix ddPCR_rxn with DropletGeneratorOil for 2m` abstracts emulsification at droplet generator."
+      },
+      {
+        "id": "S17",
+        "name": "ddPCR thermocycling (C-1000 thermal cycler, Bio-Rad)",
+        "bb": "BB4",
+        "inputs": ["ddEmulsion_N1", "ddEmulsion_N2", "ddEmulsion_RnaseP"],
+        "operation": "heat (x6 stages per channel)",
+        "ramping_speed_C_per_s": 2.5,
+        "stages": [
+          { "stage": 1, "name": "Initial hold",              "temp_C": 25, "duration_s": 120  },
+          { "stage": 2, "name": "Reverse transcription",     "temp_C": 50, "duration_s": 3600 },
+          { "stage": 3, "name": "Polymerase activation",     "temp_C": 95, "duration_s": 600  },
+          { "stage": 4, "name": "45 cycles (PCR, compressed)", "temp_C": 55, "duration_s": 2700,
+            "actual_cycles": 45,
+            "cycle_steps": [
+              { "step": "Denaturation",     "temp_C": 95, "duration_s": 30 },
+              { "step": "Anneal/Extension", "temp_C": 55, "duration_s": 60 }
+            ]
+          },
+          { "stage": 5, "name": "Signal stabilisation",      "temp_C": 98, "duration_s": 600  },
+          { "stage": 6, "name": "Hold (4 C)",                "temp_C":  4, "duration_s": 3600 }
+        ],
+        "performance": {
+          "lod_N1_CN_per_uL": 0.06,
+          "lod_N2_CN_per_uL": 0.21,
+          "dilution_series_lod": "N1 target detected at 1:1,000,000 dilution in pool of negatives (Supplementary Table 1)",
+          "inhibitor_resistance": "ddPCR concentrates targets in smaller reactions, reducing bias from salivary PCR inhibitors (refs 20-22)"
+        },
+        "notes": "4 C hold encoded as `heat at 4c for 60m` (3600 s in IR); paper protocol allows overnight hold. 45-cycle PCR compressed to single heat block at 55 C (2700 s). Ramping speed 2.5 C/s applied between all stages."
+      },
+      {
+        "id": "S18",
+        "name": "Droplet reading and positive calling (QX200, Quantasoft)",
+        "bb": "BB4",
+        "inputs": ["ddEmulsion_N1", "ddEmulsion_N2", "ddEmulsion_RnaseP"],
+        "operation": "detect (x3)",
+        "detection_duration_s": 30,
+        "modules": ["ddPCR_N1_Detection", "ddPCR_N2_Detection", "ddPCR_RnaseP_Detection"],
+        "output_metrics": ["CN/uL (copy number per microlitre)", "positive droplet count per reaction"],
+        "positive_calling_rule_NS": "CN/uL > 0.1 AND > 2 positive droplets for N1 OR N2 (Bio-Rad manufacturer recommendation for nasal swab)",
+        "positive_calling_rule_saliva": "BOTH CN/uL AND positive droplet count exceed empirical threshold (mean + 2*SD from 45 pre-operative SARS-CoV-2 negative individuals; Supplementary Table 2)",
+        "empirical_threshold_derivation": "45 asymptomatic pre-operative participants, all SARS-CoV-2 negative by CML nasal swab; standard formula: mean + 2*SD (Supplementary Fig. 7)",
+        "channels": {
+          "FAM": "N1 and N2 TaqMan probes (SARS-CoV-2 targets)",
+          "internal_control": "RnaseP (extraction quality; Supplementary Fig. 3)"
+        },
+        "branch": {
+          "pass": {
+            "condition": "ddPCR_N1_Signal > 0",
+            "action": "dispose(ddEmulsion_N1, ddEmulsion_N2, ddEmulsion_RnaseP)",
+            "bb": "BB5",
+            "result_curbside": "15/16 CML-positive samples detected (93.75% concordance); 31/92 total positives vs 16/92 by CML NS assay (Fig. 2e,f)",
+            "result_inpatients": "11/14 CML positives; 17 total positives identified (Fig. 5)"
+          },
+          "fail": {
+            "condition": "ddPCR_N1_Signal <= 0",
+            "action": "drain(ddEmulsion_N1, ddEmulsion_N2, ddEmulsion_RnaseP)",
+            "bb": "BB6"
+          }
+        },
+        "reproducibility": "Independent re-test of 46 saliva specimens (19 positive, 27 negative) confirmed 91.3% concordance (Supplementary Fig. 8). RNA degradation after ~5 months storage explains 4 discordant samples.",
+        "notes": "N1 used as primary QC gate (LOD 0.06 CN/uL vs N2 at 0.21 CN/uL). ddPCR identified 15 more positives than CML NS assay (curbside cohort), especially at low viral copy numbers (black circles, Fig. 2b). Viral load range spans 10^6-fold across patients (Supplementary Table 4); supercarriers defined as >10,000 CN/mL."
+      }
+    ],
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1", "label": "main",         "type": "entry",        "content": "TRIzol RNA extraction (S1-S11) + RT-PCR assembly and thermocycle (S12-S14) + ddPCR assembly and thermocycle (S15-S17)" },
+        { "id": "BB2", "label": "bsbbif_2_t",   "type": "branch_true",  "condition": "rtPCR_N1_Signal > 0", "action": "dispose(rtPCR_rxn_N1, rtPCR_rxn_N2, rtPCR_rxn_RnaseP)" },
+        { "id": "BB3", "label": "bsbbif_3_f",   "type": "branch_false", "condition": "rtPCR_N1_Signal <= 0","action": "drain(rtPCR_rxn_N1, rtPCR_rxn_N2, rtPCR_rxn_RnaseP)" },
+        { "id": "BB4", "label": "bsbbif_4_j",   "type": "join",         "content": "dispose RT-PCR signals; ddPCR reaction assembly + droplet generation + thermocycle + readout (S15-S18)" },
+        { "id": "BB5", "label": "bsbbif_5_t",   "type": "branch_true",  "condition": "ddPCR_N1_Signal > 0", "action": "dispose(ddEmulsion_N1, ddEmulsion_N2, ddEmulsion_RnaseP)" },
+        { "id": "BB6", "label": "bsbbif_6_f",   "type": "branch_false", "condition": "ddPCR_N1_Signal <= 0","action": "drain(ddEmulsion_N1, ddEmulsion_N2, ddEmulsion_RnaseP)" },
+        { "id": "BB7", "label": "bsbbif_7_j",   "type": "terminal",     "content": "dispose(ddPCR_N1_Signal, ddPCR_N2_Signal, ddPCR_RnaseP_Signal, rnaQcSignal, rnaExtract); NOP" }
+      ],
+      "edges": [
+        ["BB1","BB2"], ["BB1","BB3"],
+        ["BB2","BB4"], ["BB3","BB4"],
+        ["BB4","BB5"], ["BB4","BB6"],
+        ["BB5","BB7"], ["BB6","BB7"]
+      ],
+      "cfg_shape": "Diamond-diamond (two sequential QC gates, each with true/false branches converging at a join node)",
+      "compiler_verified": true,
+      "ir_terminal": "NOP (compiler standard exit node marker)"
+    },
+
+    "results_summary": {
+      "curbside_N92": {
+        "rt_pcr_saliva_sensitivity": "100% (16/16 CML positives detected)",
+        "rt_pcr_saliva_additional_positives": 7,
+        "ddpcr_saliva_sensitivity": "93.75% (15/16 CML positives detected)",
+        "ddpcr_saliva_total_positives": 31,
+        "cml_ns_positives": 16
+      },
+      "inpatients_N29": {
+        "rt_pcr_saliva_sensitivity": "100% (14/14 CML positives detected)",
+        "rt_pcr_saliva_additional_positives": 9,
+        "ddpcr_saliva_positives": 17,
+        "cml_ns_positives": 14
+      },
+      "viral_load_range": "10^6-fold between individual patients (Supplementary Table 4)",
+      "supercarriers_defined_as": ">10,000 CN/mL sample",
+      "saliva_distribution": "More uniform viral load distribution vs nasal swabs (less operator variability in collection volume)"
+    }
+  }
+}

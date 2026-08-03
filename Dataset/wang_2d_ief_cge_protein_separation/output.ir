@@ -1,0 +1,46 @@
+bsbbif_2_t:
+	dispose(iefChannel1[0])
+bsbbif_3_f:
+	dispose(iefChannel1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(iefSignal1[0])
+	isolatedPeaks1[0] = dispense(GFP_Sample)
+	cgeEquil1[0] = dispense(CGE_GelBuffer)
+	equilibrated1[0] = mix(isolatedPeaks1[0], cgeEquil1[0]) @ 30.0SECOND
+	heat(equilibrated1[0]) @ 37.0CELSIUS @ 360.0SECOND
+	cgeSignal1[0] = detect(cgeDetection, equilibrated1[0]) @ 30.0SECOND
+	if cgeSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	coatingBase1[0] = dispense(AcrylamideCoating)
+	viscosityAdd1[0] = dispense(GlycerolMethylcellulose)
+	coatingMix1[0] = mix(coatingBase1[0], viscosityAdd1[0]) @ 5.0SECOND
+	heat(coatingMix1[0]) @ 25.0CELSIUS @ 1800.0SECOND
+	cgeGelBuffer1[0] = dispense(CGE_GelBuffer)
+	gelLoadedChannel1[0] = mix(coatingMix1[0], cgeGelBuffer1[0]) @ 10.0SECOND
+	ampholyteMix1[0] = dispense(Ampholyte_3_10)
+	glycerolMC1[0] = dispense(GlycerolMethylcellulose)
+	iefBase1[0] = mix(ampholyteMix1[0], glycerolMC1[0]) @ 5.0SECOND
+	gfpSample1[0] = dispense(GFP_Sample)
+	ovalSample1[0] = dispense(OvalSample)
+	ldlpSample1[0] = dispense(LDLPSample)
+	tiSample1[0] = dispense(TrypsinInhibitorSample)
+	sampleMix11[0] = mix(gfpSample1[0], ovalSample1[0]) @ 5.0SECOND
+	sampleMix21[0] = mix(ldlpSample1[0], tiSample1[0]) @ 5.0SECOND
+	proteinPool1[0] = mix(sampleMix11[0], sampleMix21[0]) @ 5.0SECOND
+	iefSample1[0] = mix(iefBase1[0], proteinPool1[0]) @ 10.0SECOND
+	anolyte1[0] = dispense(AnolyteSolution)
+	catholyte1[0] = dispense(CatholyteSolution)
+	anolyteLoad1[0] = mix(iefSample1[0], anolyte1[0]) @ 5.0SECOND
+	iefChannel1[0] = mix(anolyteLoad1[0], catholyte1[0]) @ 5.0SECOND
+	heat(iefChannel1[0]) @ 37.0CELSIUS @ 130.0SECOND
+	iefSignal1[0] = detect(iefFocusingDetection, iefChannel1[0]) @ 30.0SECOND
+	if iefSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(equilibrated1[0])
+bsbbif_6_f:
+	dispose(equilibrated1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(cgeSignal1[0])
+	NOP

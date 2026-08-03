@@ -1,0 +1,357 @@
+module icpBoundaryDetection
+module concentrationDetection
+module cellCountDetection
+
+manifest FluoresceinSodiumSalt
+manifest rGFP
+manifest FITC_Lectin_pH87
+manifest FITC_Lectin_pH74
+manifest RedBloodCells
+manifest EColi_ER2738
+manifest Phosphate_Buffer_1mM_pH87
+manifest Phosphate_Buffer_1mM_pH74
+manifest PBS_150mM
+manifest PluronicF108
+manifest BSA_Solution
+manifest LB_Tet_Medium
+manifest NafionMembrane
+
+// ============================================================
+// Continuous-Flow Biomolecule and Cell Concentrator by Ion
+// Concentration Polarization
+// Kwak, Kim, Han -- Anal. Chem. 2011, 83, 7348-7355
+// DOI: 10.1021/ac2012619
+//
+// Device: PDMS microfluidic chip with Nafion nanojunction
+//   (cation-selective membrane) patterned at 30 deg angle
+//   along the concentrated channel. Main channel bifurcates
+//   into a narrow concentrated channel and a wider filtered
+//   channel.
+//
+// Principle: ICP (ion concentration polarization) generates a
+//   depletion zone near the Nafion junction. Charged biomolecules
+//   and cells are blocked by the depletion force and guided
+//   hydrodynamically into the concentrated channel, achieving
+//   continuous-flow concentration without trapping (unlike
+//   batch-type preconcentrators).
+//
+// Concentration factor r = 1 + (R1 / R2), where R1 and R2 are
+//   hydrodynamic resistances of the concentrated and filtered
+//   channels respectively. Controlled by width ratio
+//   w' = (w1+w2)/w1 (tested: 10, 20, 50, 100) and length ratio
+//   l' = L1/L2 (tested: 0.3, 0.7, 2). Factors from 1 to ~200.
+//
+// Operating conditions: 0-150 V applied voltage, 0-5 uL/min
+//   flow rate (syringe pump). Max voltage capped at 150 V/cm
+//   (~1000x below PDMS breakdown voltage of ~25 V/um).
+//
+// NOTE ON BioScript ABSTRACTION:
+//   ICP is an electrokinetic phenomenon in a continuous-flow
+//   microchannel. `mix` steps below abstract the hydrodynamic
+//   merging of the sample stream with the ICP depletion zone
+//   boundary at the Nafion junction, driving concentration.
+//   `heat` steps model TEC/oven incubations where applicable.
+//   `detect` abstracts the epifluorescence CCD readout
+//   (Olympus IX-71, Hamamatsu CCD, ImageJ or hemocytometer
+//   for cells).
+//
+// CFG STRUCTURE:
+//   BB1  main                 -- device priming, fluorescein/rGFP
+//                                preconcentration demonstration,
+//                                ionic strength characterisation
+//   BB2  concentrationPass    -- concSignal > 0: valid concentration
+//                                enhancement detected; dispose
+//   BB3  concentrationFail    -- concSignal <= 0: ICP boundary
+//                                unstable or no signal; drain
+//   BB4  concentrationJoin    -- join: polarity assay branch begins
+//   BB5  polarityPass         -- polaritySignal > 0: lectin
+//                                concentrated successfully; dispose
+//   BB6  polarityFail         -- polaritySignal <= 0: nonspecific
+//                                binding loss or instability; drain
+//   BB7  polarityJoin         -- join: cell concentration branch begins
+//   BB8  cellPass             -- cellSignal > 0: RBC/E.coli density
+//                                increase confirmed; dispose
+//   BB9  cellFail             -- cellSignal <= 0: concentration
+//                                not achieved; drain
+//   BB10 finalCleanup         -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prepare sample solution.
+//   3 pM fluorescein sodium salt (Sigma-Aldrich) in 1 mM
+//   dibasic sodium phosphate buffer at pH 8.7.
+//   3 pM rGFP (BD Bioscience) prepared in the same buffer.
+//   Both are negatively charged at pH 8.7 and trackable by
+//   epifluorescence (ex/em: 490/514 nm for fluorescein;
+//   488/507 nm for GFP).
+//   NOTE: fluorescein and rGFP are run in separate experiments;
+//   this file encodes the fluorescein arm as the primary
+//   demonstration. rGFP shares identical protocol parameters.
+// ------------------------------------------------------------
+
+sampleFluorescein = dispense 1 units of FluoresceinSodiumSalt
+bufferMain        = dispense 1 units of Phosphate_Buffer_1mM_pH87
+
+sampleMix = mix sampleFluorescein with bufferMain for 5s
+
+// ------------------------------------------------------------
+// STEP 2: Prime device with buffer.
+//   Flow 1 mM phosphate buffer (pH 8.7) through the main
+//   channel and buffer channel to equilibrate the Nafion
+//   nanojunction and eliminate air bubbles.
+//   Flow rate: ~2 uL/min (syringe pump, Harvard PHD 2200).
+//   Duration: 2 min (sufficient to fill and equilibrate a
+//   1 cm inlet-to-bifurcation channel at 2 uL/min).
+// ------------------------------------------------------------
+
+primingBuffer = dispense 1 units of Phosphate_Buffer_1mM_pH87
+
+// `mix` abstracts buffer flushing through the microchannel
+// to equilibrate the Nafion nanojunction before voltage is
+// applied. No chemical reaction occurs.
+primedDevice = mix primingBuffer with sampleMix for 2m
+
+// ------------------------------------------------------------
+// STEP 3: Apply electric field and hydrodynamic pressure to
+//   initiate ICP-based continuous-flow concentration.
+//   Applied voltage: 80 V (for w'=50, l'=0.7 demonstration).
+//   Flow rate: 5 uL/min (syringe pump).
+//   The ICP depletion zone forms along the Nafion junction
+//   at 30 deg, blocking charged fluorescein from entering
+//   the filtered channel and directing it into the 20 um-wide
+//   concentrated channel continuously.
+//   Steady state achieved within the first 30 min of operation;
+//   device operated stably for >30 min without ICP boundary
+//   compromise.
+//   `mix` abstracts the continuous-flow concentration event
+//   (electrokinetic + hydrodynamic force balance at junction).
+// ------------------------------------------------------------
+
+// `heat` at 25c models room-temperature steady-state operation
+// during voltage application (no thermal step in paper;
+// used here to anchor the 30 min concentration window).
+heat primedDevice at 25c for 30m
+
+concentratedFlow = mix primedDevice with bufferMain for 30m
+
+// ------------------------------------------------------------
+// STEP 4: Detect concentration enhancement.
+//   Fluorescence intensity measured by inverted epifluorescence
+//   microscope (Olympus IX-71) with thermoelectrically cooled
+//   CCD (Hamamatsu). Internal reference: known concentrations
+//   (0.03, 0.3, 3, 30 pM; 0.3, 3, 30 nM) for calibration.
+//   Concentration factor measured by comparing fluorescence
+//   intensity of concentrated channel to sample flow.
+//   Expected result: ~50-fold enhancement at w'=50, l'=0.7
+//   (rtheoretical=62; experimental ~50-fold for fluorescein).
+//   QC gate: concSignal > 0 if fluorescence intensity in
+//   concentrated channel exceeds sample flow baseline.
+// ------------------------------------------------------------
+
+concSignal = detect concentrationDetection on concentratedFlow for 30s
+
+// ============================================================
+// BB2 / BB3: Concentration QC gate
+// Pass (BB2): concSignal > 0 -> valid concentration enhancement
+//             detected (concentrated channel fluorescence above
+//             sample baseline); dispose and proceed.
+// Fail (BB3): concSignal <= 0 -> ICP boundary unstable or
+//             no enhancement; drain (high ionic strength or
+//             voltage instability regime).
+// Both branches converge at BB4 (concentrationJoin).
+// ============================================================
+
+if (concSignal > 0) {
+    dispose concentratedFlow
+} else {
+    drain concentratedFlow
+}
+
+// ============================================================
+// BB4: concentrationJoin
+// Dispose concentration QC signal. Control falls into the
+// polarity assay branch (BB5/BB6) for FITC-lectin tests.
+// ============================================================
+
+dispose concSignal
+
+// ------------------------------------------------------------
+// STEP 5: Prepare FITC-lectin samples for polarity assay.
+//   FITC-conjugated lectin from Lens culinaris (lentil),
+//   MW ~49 kDa, pI ~8.0-8.8 (Sigma-Aldrich, 5 ug/mL).
+//
+//   Condition A (negatively charged): 1 mM phosphate pH 8.7.
+//     Zeta potential: -18.8 mV (-1.464e-8 m2/V.s).
+//     Lectin is above pI -> net negative charge.
+//   Condition B (positively charged): 1 mM phosphate pH 7.4.
+//     Zeta potential: +3.35 mV (+0.263e-8 m2/V.s).
+//     Lectin is below pI -> net positive charge.
+//   0.1% BSA added to pH 7.4 buffer to prevent nonspecific
+//   electrostatic binding to negatively charged PDMS/Nafion.
+//
+//   Three concentration factors tested: 12-fold (w'=10,
+//   l'=0.7, w1=20 um), 46-fold (w'=20, l'=0.7, w1=10 um),
+//   130-fold (w'=50, l'=0.7, w1=10 um).
+//   Flow rate: 1 uL/min; height: 15 um; voltage: 0-150 V.
+//   This step encodes the 46-fold (w'=20) condition as
+//   representative for both pH arms.
+// ------------------------------------------------------------
+
+lectinNeg  = dispense 1 units of FITC_Lectin_pH87
+lectinPos  = dispense 1 units of FITC_Lectin_pH74
+bsaBuffer  = dispense 1 units of BSA_Solution
+bufferPH74 = dispense 1 units of Phosphate_Buffer_1mM_pH74
+
+// Positive lectin sample prepared with BSA to prevent
+// nonspecific binding (paper Section 2.2, Fig. 4).
+lectinPosMix = mix lectinPos with bsaBuffer for 5s
+
+// Negative lectin run directly in pH 8.7 buffer.
+lectinNegMix = mix lectinNeg with bufferMain for 5s
+
+// ------------------------------------------------------------
+// STEP 6: ICP concentration of FITC-lectin (both polarities).
+//   Voltage adjusted 0-150 V to generate stable ICP boundary
+//   at 1 uL/min flow rate and 15 um channel height.
+//   Concentrated flow velocity vc = (Q1+Q2)/(r_theoretical *
+//   w1 * h1) used to quantify nonspecific binding risk
+//   (lower vc -> higher nonspecific binding for positive lectin).
+//
+//   Key finding: positive lectin (pH 7.4) shows larger drop
+//   from theoretical concentration factor than negative lectin
+//   (pH 8.7) due to electrostatic nonspecific binding to
+//   negatively charged PDMS/Nafion walls, especially at
+//   slow concentrated flow velocities (130-fold condition).
+//   `mix` abstracts continuous-flow concentration event.
+// ------------------------------------------------------------
+
+concentratedLectinNeg = mix lectinNegMix with bufferMain for 30m
+concentratedLectinPos = mix lectinPosMix with bufferPH74 for 30m
+
+// Fluorescence internal references: 0.5, 5, 50, 100, 500 ug/mL
+// FITC-lectin used for calibration (paper M&M Section).
+polaritySignal = detect concentrationDetection on concentratedLectinNeg for 30s
+
+// ============================================================
+// BB5 / BB6: Polarity QC gate
+// Pass (BB5): polaritySignal > 0 -> FITC-lectin concentration
+//             enhancement confirmed for at least the negative
+//             (pH 8.7) condition; dispose both concentrated flows.
+// Fail (BB6): polaritySignal <= 0 -> no concentration signal
+//             (BSA suppression failure or ICP instability);
+//             drain both.
+// Both branches converge at BB7 (polarityJoin).
+// ============================================================
+
+if (polaritySignal > 0) {
+    dispose concentratedLectinNeg
+    dispose concentratedLectinPos
+} else {
+    drain concentratedLectinNeg
+    drain concentratedLectinPos
+}
+
+// ============================================================
+// BB7: polarityJoin
+// Dispose polarity QC signal. Control falls into the cell
+// concentration branch (BB8/BB9).
+// ============================================================
+
+dispose polaritySignal
+
+// ------------------------------------------------------------
+// STEP 7: Prepare cell samples for cell preconcentration demo.
+//   Red Blood Cells (RBCs): human whole blood, 2000x dilution
+//   (Hoechst, Innovative Research) in 1x PBS (~150 mM).
+//   0.2% Pluronic F108 added to prevent osmosis hemolysis,
+//   nonspecific binding, and aggregation.
+//   Cell Tracker Orange CMRA (3 uM, Molecular Probes) used
+//   for fluorescence tracking in supporting information video.
+//   Zeta potential of RBCs: -13.3 mV (Zetasizer nano ZS).
+//
+//   E. coli ER2738 (New England BioLabs): cultured in LB-Tet
+//   medium (50 mL LB + 50 uL Tet, 37 C, 24 h). Mixed 1:10
+//   with RBCs in 1x PBS + LB-Tet (final ~168 mM ionic strength).
+//   Zeta potential of E. coli: -15.5 mV.
+//
+//   Device: w'=10, l'=1.2; 20-fold concentrator.
+//   RBC+E.coli co-concentration experiment (Fig. 6).
+// ------------------------------------------------------------
+
+rbcSample    = dispense 1 units of RedBloodCells
+ecoliSample  = dispense 1 units of EColi_ER2738
+pbsBuffer    = dispense 1 units of PBS_150mM
+pluronicF108 = dispense 1 units of PluronicF108
+lbTetMedium  = dispense 1 units of LB_Tet_Medium
+
+// Prepare RBC suspension with Pluronic F108.
+rbcBuffer   = mix pbsBuffer with pluronicF108 for 5s
+rbcMix      = mix rbcSample with rbcBuffer for 5s
+
+// Prepare E. coli in LB-Tet mixed buffer (1x PBS + LB-Tet).
+ecoliBuffer = mix pbsBuffer with lbTetMedium for 5s
+ecoliMix    = mix ecoliSample with ecoliBuffer for 5s
+
+// Co-mix RBCs and E. coli at 1:10 volume ratio
+// (paper: mixed buffer ~168 mM ionic strength).
+cellMix = mix rbcMix with ecoliMix for 5s
+
+// ------------------------------------------------------------
+// STEP 8: ICP-based continuous-flow cell concentration.
+//   Applied voltage: 14 V; flow rate: 0.1 uL/min (Fig. 6).
+//   (Separate RBC-only run: 90 V, 5 uL/min, Fig. 5.)
+//   Both RBCs and E. coli are negatively charged -> blocked
+//   by ICP depletion zone -> guided into concentrated channel.
+//   Leakage rate to filtered flow: 0% during 120 s observation
+//   (live imaging, paper Section Results & Discussion).
+//
+//   Cell density quantification:
+//     RBCs: hemocytometer (SKC Inc.) for sample and filtered
+//           channels; ImageJ phase contrast cell counting for
+//           concentrated channel (due to low output volume
+//           ~0.05 uL/min).
+//     E. coli: ImageJ phase contrast counting.
+//   Expected result: RBC density 7.3e5 -> 1.4e7 cells/mL (19x);
+//     E. coli density 3.2e7 -> 6.5e8 cells/mL (20x). Both
+//     match theoretical 20-fold concentration factor. (Fig. 6)
+// ------------------------------------------------------------
+
+// `heat` at 25c models room-temperature continuous-flow
+// operation during ICP voltage application for cell concentration.
+heat cellMix at 25c for 2m
+
+concentratedCells = mix cellMix with pbsBuffer for 30m
+
+cellSignal = detect cellCountDetection on concentratedCells for 120s
+
+// ============================================================
+// BB8 / BB9: Cell concentration QC gate
+// Pass (BB8): cellSignal > 0 -> cell density increase confirmed
+//             in concentrated outlet (RBC: ~19-fold;
+//             E. coli: ~20-fold by ImageJ counting); dispose.
+// Fail (BB9): cellSignal <= 0 -> no density difference detected
+//             (ICP unstable at 168 mM ionic strength or
+//             voltage too low); drain.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (cellSignal > 0) {
+    dispose concentratedCells
+} else {
+    drain concentratedCells
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose cell count QC signal. Experiment ends.
+// ============================================================
+
+dispose cellSignal
+
+// [terminal -- no further instructions; exit node for CFG]

@@ -1,0 +1,376 @@
+{
+  "protocol": {
+    "title": "High-Content Quantification of Single-Cell Immune Dynamics",
+    "source": "Cell Reports 15, 411-422, April 12, 2016",
+    "doi": "10.1016/j.celrep.2016.03.033",
+    "platform": "Two-layer PDMS microfluidic chip (continuous-flow, valve-controlled)",
+    "cell_line": "RAW 264.7 (mouse macrophage)",
+    "objective": "Deliver precisely defined dynamic inflammatory inputs to single isolated macrophages while simultaneously measuring NF-kB (RelA) transcription factor dynamics and TNF cytokine secretion from the same cells over 20 hr",
+
+    "device": {
+      "design": "Melin & Quake two-layer PDMS microfluidic chip",
+      "layers": [
+        "Flow layer: cell chambers, binding chambers, bead storage chambers, peristaltic pump channels",
+        "Control layer: membrane valves actuated pneumatically for fluid routing"
+      ],
+      "cell_chambers": {
+        "count": 40,
+        "volume_nL": 1.35,
+        "addressing": "individually addressable via binary multiplexer"
+      },
+      "trap_type": "Weir-type trap (slits without bypass) for non-adherent cells",
+      "functional_units_per_column": [
+        "Cell chamber / trap",
+        "Binding chamber (for bead-medium incubation)",
+        "Bead storage chambers (one per time point per column)"
+      ],
+      "inlets": 16,
+      "pumping": "On-chip peristaltic pump; input switching time < 5 s",
+      "bead_retention": "4 um PDMS slits retain beads during loading and transfer",
+      "microscope": "Nikon Eclipse Ti (inverted epifluorescence)",
+      "enclosure": "Life Imaging Services atmospheric enclosure",
+      "control_software": "Custom MATLAB GUI (Gomez-Sjoberg et al. 2007; Kellogg et al. 2014)",
+      "imaging_resolution_min": 6
+    },
+
+    "reagents": {
+      "cells": {
+        "line": "RAW 264.7",
+        "species": "Mouse macrophage",
+        "reporter": "RelA-GFP fusion protein (NF-kB nuclear localization reporter)",
+        "detachment": "Versene (Life Technologies 15040-033)",
+        "filter": "20 um (CellTrics 04-004-2325)",
+        "loading_concentration_cells_mL": "1e5-3.5e5"
+      },
+      "culture_medium": {
+        "base": "DMEM (Sigma Aldrich D6429)",
+        "supplements": ["10% FBS (Sigma F9665)", "1% GlutaMax (Life Technologies 35050-038)", "2% HEPES (Life Technologies 15630-056)"],
+        "co2_equilibrated": true
+      },
+      "surface_coating": {
+        "agent": "Pluronic F-127 (Life Technologies P6867)",
+        "concentration_mg_mL": 2,
+        "solvent": "deionised water",
+        "purpose": "Prevent protein adsorption and non-specific cell/bead adhesion to PDMS",
+        "application": "Coat all surfaces except cell chambers; rinse overnight with PBS via control script"
+      },
+      "stimulant": {
+        "name": "LPS (lipopolysaccharide)",
+        "catalog": "Sigma Aldrich L4524",
+        "concentration_ng_mL": 500,
+        "input_profile": "Single 2 hr pulse (mimics brief pathogen exposure)",
+        "switchover_time_s": "<5"
+      },
+      "tnf_assay": {
+        "capture_beads": {
+          "catalog": "Spherotech SVP-100-4",
+          "diameter_um": 10.3,
+          "functionalization": "Streptavidin",
+          "capture_antibody": "Biotinylated anti-TNF (United States Biological T9160-14)",
+          "coupling_buffer": "PBS pH 5.5"
+        },
+        "detection_antibody": {
+          "catalog": "genwaybio GWB-489500",
+          "concentration_ug_mL": 3.19
+        },
+        "secondary_antibody": {
+          "catalog": "United States Biological I1903-12H",
+          "concentration_ug_mL": 3.3,
+          "type": "Fluorescent"
+        },
+        "wash_buffer": "PBS-Tween (0.563 mg/mL)",
+        "tnf_calibrant": "Life Technologies PMC3014 (diluted in PBS + 1 mg/mL BSA)",
+        "lod_molecules": 60000,
+        "calibration_r2": 0.9984,
+        "mixing_duration_min": 90,
+        "detection_ab_incubation_min": 30,
+        "secondary_ab_incubation_min": 30,
+        "rinse_duration_min": 30,
+        "time_resolution_hr": 2
+      },
+      "multiplexed_cytokines_tested": ["TNF", "IL-6", "IL-10", "IL-12", "MCP-1", "IFN-gamma"]
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Chip surface preparation",
+        "bb": "BB1",
+        "bs_var": "devicePrimed",
+        "inputs": ["PluronicF127", "PBS"],
+        "operation": "mix",
+        "duration_m": 720,
+        "duration_s_ir": 43200.0,
+        "notes": "2 mg/mL Pluronic F-127 in DI water; coat all internal surfaces except cell chambers overnight via MATLAB control script; rinse extensively with PBS before cell loading"
+      },
+      {
+        "id": "S2",
+        "name": "Cell loading",
+        "bb": "BB1",
+        "bs_var": "cellsLoaded",
+        "inputs": ["RAW2647_Macrophages", "devicePrimed"],
+        "operation": "mix (abstracts flow-through weir trapping)",
+        "duration_m": 10,
+        "duration_s_ir": 600.0,
+        "cell_concentration_cells_mL": "1e5-3.5e5",
+        "loading_time_min": "<10",
+        "notes": "Cells flowed through inlets; binary multiplexer directs cells to individual chambers; weir-type trap (slits without bypass) retains non-adherent macrophages"
+      },
+      {
+        "id": "S3",
+        "name": "Post-loading equilibration",
+        "bb": "BB1",
+        "bs_var": "cellsEq",
+        "inputs": ["cellsLoaded", "CultureMedium"],
+        "operation": "mix + heat",
+        "temperature_C": 37,
+        "duration_m": 120,
+        "duration_s_ir": 7200.0,
+        "notes": "Fresh medium pumped into sealed chambers; cells equilibrate at 37 C / 5% CO2; baseline state established before stimulation"
+      },
+      {
+        "id": "S4",
+        "name": "Baseline TNF bead capture (t = 0-2 hr, pre-LPS)",
+        "bb": "BB1",
+        "bs_vars": ["sampleT0", "bead1Bound", "bead1Washed"],
+        "inputs": ["cellsEq", "CultureMedium", "TNF_CaptureBeads", "PBSTween"],
+        "operation": "mix (medium sampling) + mix (bead binding) + mix (bead rinse)",
+        "sampling_duration_m": 120,
+        "bead_mixing_duration_m": 90,
+        "rinse_duration_m": 5,
+        "duration_s_ir": {"sample": 7200.0, "bead_bind": 5400.0, "rinse": 300.0},
+        "notes": "Pre-stimulus baseline; peristaltic pump transfers medium to binding chamber; bead circularly mixed for 90 min; rinsed with PBS-Tween; returned to storage. bead1Washed held alive as TNF QC gate key."
+      },
+      {
+        "id": "S5",
+        "name": "LPS stimulation (2 hr pulse)",
+        "bb": "BB1",
+        "bs_var": "cellsStim",
+        "inputs": ["bead1Washed", "LPS_500ngmL"],
+        "operation": "mix + heat",
+        "concentration_ng_mL": 500,
+        "duration_m": 120,
+        "temperature_C": 37,
+        "duration_s_ir": 7200.0,
+        "notes": "LPS injected via 16-inlet binary multiplexer; switching time < 5 s; 2 hr pulse mimics brief bacterial encounter; corresponds to single-pulse condition (Fig 4B left)"
+      },
+      {
+        "id": "S6",
+        "name": "LPS washout",
+        "bb": "BB1",
+        "bs_var": "cellsWashed",
+        "inputs": ["cellsStim", "CultureMedium"],
+        "operation": "mix",
+        "duration_m": 10,
+        "duration_s_ir": 600.0,
+        "notes": "Multiplexer switches back to medium inlet; LPS-free medium flows through chamber; switchover time < 5 s"
+      },
+      {
+        "id": "S7",
+        "name": "TNF bead capture -- time point 1 (0-2 hr post-LPS)",
+        "bb": "BB1",
+        "bs_vars": ["sampleTP1", "bead2Bound", "bead2Washed"],
+        "inputs": ["cellsWashed", "CultureMedium", "TNF_CaptureBeads", "PBSTween"],
+        "operation": "mix + mix + mix + heat",
+        "sampling_duration_m": 120,
+        "bead_mixing_duration_m": 90,
+        "rinse_duration_m": 5,
+        "incubation_duration_m": 120,
+        "temperature_C": 37,
+        "duration_s_ir": {"sample": 7200.0, "bead_bind": 5400.0, "rinse": 300.0, "incubation": 7200.0}
+      },
+      {
+        "id": "S8",
+        "name": "TNF bead capture -- time point 2 (2-4 hr post-LPS)",
+        "bb": "BB1",
+        "bs_vars": ["sampleTP2", "bead3Bound", "bead3Washed"],
+        "inputs": ["bead2Washed", "CultureMedium", "TNF_CaptureBeads", "PBSTween"],
+        "operation": "mix + mix + mix + heat",
+        "sampling_duration_m": 120,
+        "bead_mixing_duration_m": 90,
+        "rinse_duration_m": 5,
+        "incubation_duration_m": 120,
+        "temperature_C": 37,
+        "duration_s_ir": {"sample": 7200.0, "bead_bind": 5400.0, "rinse": 300.0, "incubation": 7200.0}
+      },
+      {
+        "id": "S9",
+        "name": "TNF bead capture -- time point 3 (4-6 hr post-LPS)",
+        "bb": "BB1",
+        "bs_vars": ["sampleTP3", "bead4Bound", "bead4Washed"],
+        "inputs": ["bead3Washed", "CultureMedium", "TNF_CaptureBeads", "PBSTween"],
+        "operation": "mix + mix + mix + heat",
+        "sampling_duration_m": 120,
+        "bead_mixing_duration_m": 90,
+        "rinse_duration_m": 5,
+        "incubation_duration_m": 120,
+        "temperature_C": 37,
+        "duration_s_ir": {"sample": 7200.0, "bead_bind": 5400.0, "rinse": 300.0, "incubation": 7200.0}
+      },
+      {
+        "id": "S10",
+        "name": "TNF bead capture -- time point 4 (6-8 hr post-LPS)",
+        "bb": "BB1",
+        "bs_vars": ["sampleTP4", "bead5Bound", "bead5Washed"],
+        "inputs": ["bead4Washed", "CultureMedium", "TNF_CaptureBeads", "PBSTween"],
+        "operation": "mix + mix + mix + heat",
+        "sampling_duration_m": 120,
+        "bead_mixing_duration_m": 90,
+        "rinse_duration_m": 5,
+        "incubation_duration_m": 120,
+        "temperature_C": 37,
+        "duration_s_ir": {"sample": 7200.0, "bead_bind": 5400.0, "rinse": 300.0, "incubation": 7200.0}
+      },
+      {
+        "id": "S11",
+        "name": "TNF bead capture -- time point 5 (8-10 hr post-LPS)",
+        "bb": "BB1",
+        "bs_vars": ["sampleTP5", "bead6Bound", "bead6Washed"],
+        "inputs": ["bead5Washed", "CultureMedium", "TNF_CaptureBeads", "PBSTween"],
+        "operation": "mix + mix + mix + heat",
+        "sampling_duration_m": 120,
+        "bead_mixing_duration_m": 90,
+        "rinse_duration_m": 5,
+        "incubation_duration_m": 120,
+        "temperature_C": 37,
+        "duration_s_ir": {"sample": 7200.0, "bead_bind": 5400.0, "rinse": 300.0, "incubation": 7200.0}
+      },
+      {
+        "id": "S12",
+        "name": "TNF bead capture -- time point 6 (10-12 hr post-LPS)",
+        "bb": "BB1",
+        "bs_vars": ["sampleTP6", "bead7Bound", "bead7Washed"],
+        "inputs": ["bead6Washed", "CultureMedium", "TNF_CaptureBeads", "PBSTween"],
+        "operation": "mix + mix + mix",
+        "sampling_duration_m": 120,
+        "bead_mixing_duration_m": 90,
+        "rinse_duration_m": 5,
+        "duration_s_ir": {"sample": 7200.0, "bead_bind": 5400.0, "rinse": 300.0},
+        "notes": "Final medium sampling window; bead7Washed carries cell-thread terminal state into sandwich completion"
+      },
+      {
+        "id": "S13",
+        "name": "Sandwich assay completion -- detection antibodies",
+        "bb": "BB1",
+        "bs_vars": ["detStep", "sandwichDone"],
+        "inputs": ["bead7Washed", "TNF_DetectionAntibody", "SecondaryFluorescentAntibody"],
+        "operation": "mix + mix",
+        "detection_ab_incubation_m": 30,
+        "secondary_ab_incubation_m": 30,
+        "duration_s_ir": {"detection_ab": 1800.0, "secondary_ab": 1800.0},
+        "detection_ab_catalog": "genwaybio GWB-489500",
+        "detection_ab_concentration_ug_mL": 3.19,
+        "secondary_ab_catalog": "USB I1903-12H",
+        "secondary_ab_concentration_ug_mL": 3.3,
+        "notes": "Applied over all 7 stored beads simultaneously after all time-point captures complete; beads imaged in storage chambers post-completion"
+      },
+      {
+        "id": "S14",
+        "name": "NF-kB (RelA) localization -- aggregate QC readout",
+        "bb": "BB1",
+        "bs_var": "nfkbSignal",
+        "inputs": ["sandwichDone"],
+        "operation": "detect nfkbLocalizationDetection",
+        "detection_duration_s": 30,
+        "imaging_interval_min": 6,
+        "imaging_channels": ["GFP (RelA-GFP nuclear localization)", "Brightfield (morphology, migration)"],
+        "threshold": "> 2 SD above pre-stimulus baseline",
+        "nfkb_positive_pct": 93.6,
+        "n_cells": 46,
+        "pearson_r_nfkb_vs_tnf": -0.06,
+        "branch": {
+          "pass": {"condition": "nfkbSignal > 0", "action": "dispose(sandwichDone)", "bb": "BB2", "label": "bsbbif_2_t"},
+          "fail": {"condition": "nfkbSignal <= 0", "action": "drain(sandwichDone)",  "bb": "BB3", "label": "bsbbif_3_f"}
+        },
+        "notes": "Continuous time-lapse throughout 20 hr run; nfkbLocalizationDetection abstracts the binary nuclear-peak determination from MATLAB image analysis"
+      },
+      {
+        "id": "S15",
+        "name": "TNF secretion fluorescence readout",
+        "bb": "BB4",
+        "bs_var": "tnfSignal",
+        "inputs": ["bead1Washed"],
+        "operation": "detect tnfSecretionDetection",
+        "detection_duration_s": 30,
+        "lod_molecules": 60000,
+        "calibration_r2": 0.9984,
+        "tnf_positive_pct": 93.5,
+        "mean_total_tnf_molecules_14hr": "4.9e6",
+        "branch": {
+          "pass": {"condition": "tnfSignal > 0", "action": "dispose(bead1Washed)", "bb": "BB5", "label": "bsbbif_5_t"},
+          "fail": {"condition": "tnfSignal <= 0", "action": "drain(bead1Washed)",   "bb": "BB6", "label": "bsbbif_6_f"}
+        },
+        "notes": "bead1Washed (baseline bead) used as QC gate key; tnfSecretionDetection returns > 0 if any time-point bead exceeds LOD; bead fluorescence correlated to on-chip calibration curve (Fig 2B)"
+      }
+    ],
+
+    "tnf_secretion_subpopulations": {
+      "stimulation": "2 hr LPS pulse, 500 ng/mL",
+      "n_cells": 46,
+      "subsets": [
+        {"name": "1 Peak", "n": 21, "description": "Single temporally limited TNF pulse within 2 hr"},
+        {"name": "Extended", "n": 8,  "description": "TNF release for extended period within 4 hr"},
+        {"name": "Other",    "n": 14, "description": "Multi-peak or other temporal profiles"},
+        {"name": "No secretion", "n": 3, "description": "No detectable TNF above LOD"}
+      ],
+      "total_tnf_distribution": "Log-normal; mean 4.9e6 molecules over 14 hr"
+    },
+
+    "nfkb_subpopulations": {
+      "stimulation": "2 hr LPS pulse, 500 ng/mL",
+      "n_cells": 42,
+      "subsets": [
+        {"name": "1 Peak",    "n": 7,  "description": "Single NF-kB peak"},
+        {"name": "Late Rise", "n": 9,  "description": "Single peak followed by later rise"},
+        {"name": "Multi Peak","n": 23, "description": "Single peak followed by oscillations"},
+        {"name": "Minimal",   "n": 3,  "description": "No or minimal NF-kB response"}
+      ]
+    },
+
+    "cfg": {
+      "basic_blocks": [
+        {"id": "BB1", "label": "main",        "ir_label": "main",        "type": "entry",        "contents": "S1-S14 (chip prep through NF-kB detect)"},
+        {"id": "BB2", "label": "nfkbPass",    "ir_label": "bsbbif_2_t", "type": "branch_true",  "condition": "nfkbSignal > 0",  "action": "dispose(sandwichDone)"},
+        {"id": "BB3", "label": "nfkbFail",    "ir_label": "bsbbif_3_f", "type": "branch_false", "condition": "nfkbSignal <= 0", "action": "dispose(sandwichDone) [drain in .bs; lowered to dispose in IR -- known compiler behavior]"},
+        {"id": "BB4", "label": "nfkbJoin",    "ir_label": "bsbbif_4_j", "type": "join",         "contents": "dispose(nfkbSignal); detect tnfSecretionDetection on bead1Washed"},
+        {"id": "BB5", "label": "tnfPass",     "ir_label": "bsbbif_5_t", "type": "branch_true",  "condition": "tnfSignal > 0",   "action": "dispose(bead1Washed)"},
+        {"id": "BB6", "label": "tnfFail",     "ir_label": "bsbbif_6_f", "type": "branch_false", "condition": "tnfSignal <= 0",  "action": "dispose(bead1Washed) [drain in .bs; lowered to dispose in IR -- known compiler behavior]"},
+        {"id": "BB7", "label": "finalCleanup","ir_label": "bsbbif_7_j", "type": "terminal",     "contents": "dispose(tnfSignal); NOP"}
+      ],
+      "edges": [
+        ["BB1","BB2"], ["BB1","BB3"],
+        ["BB2","BB4"], ["BB3","BB4"],
+        ["BB4","BB5"], ["BB4","BB6"],
+        ["BB5","BB7"], ["BB6","BB7"]
+      ],
+      "node_count": 7,
+      "edge_count": 8,
+      "topology": "Two-level diamond (two sequential if/else QC gates)"
+    },
+
+    "bioscript_compiler_notes": {
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "bs_file": "junkin_single_cell_immune_dynamics.bs",
+      "ir_file": "junkin_single_cell_immune_dynamics.ir",
+      "dag_file": "junkin_single_cell_immune_dynamics_main_dag.dot",
+      "modules": ["nfkbLocalizationDetection", "tnfSecretionDetection"],
+      "manifests": ["RAW2647_Macrophages", "PluronicF127", "PBS", "CultureMedium", "LPS_500ngmL", "TNF_CaptureBeads", "TNF_DetectionAntibody", "SecondaryFluorescentAntibody", "PBSTween"],
+      "known_compiler_behaviors": {
+        "drain_to_dispose": "drain in .bs source is correctly lowered to dispose() in IR; .bs source is semantically correct",
+        "true_branch_no_jump": "True-branch blocks (bsbbif_2_t, bsbbif_5_t) emit no unconditional jump instruction in IR text; DOT graph resolves edges correctly",
+        "h_token_unsupported": "h duration token unsupported; all durations converted to m (120m = 2 hr; 90m = 90 min; 720m = 12 hr overnight)"
+      },
+      "cell_thread_design": "mix is a consuming operation on both operands; cell-state carried as a linear fluid variable re-produced at each pump cycle by mixing with incoming medium or bead-wash product; maintains single ownership chain across 12+ sequential steps",
+      "bead1Washed_design": "bead1Washed (baseline bead, STEP 4) intentionally held alive through the entire protocol to serve as TNF QC gate target in BB5/BB6 after NF-kB gate resolves",
+      "duration_conversions_s": {
+        "720m_overnight_rinse": 43200.0,
+        "120m_sampling_or_stimulation": 7200.0,
+        "90m_bead_binding": 5400.0,
+        "30m_antibody_incubation": 1800.0,
+        "10m_loading_or_wash": 600.0,
+        "5m_bead_rinse": 300.0,
+        "30s_detect": 30.0
+      }
+    }
+  }
+}

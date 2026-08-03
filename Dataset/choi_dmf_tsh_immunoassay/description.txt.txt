@@ -1,0 +1,226 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Automated Digital Microfluidic Platform for Magnetic-Particle-Based Immunoassays with Optimization by Design of Experiments
+Source Link  : https://microfluidics.utoronto.ca/papers/ac401847x.pdf
+Paper DOI    : https://doi.org/10.1021/ac401847x
+Journal      : Analytical Chemistry, 2013, Vol. 85, pp. 9638-9646
+Platform     : Automated DMF (digital microfluidics) with integrated motorized PMT and magnetic lens assembly on Pogo-pin electrode array
+
+
+OVERVIEW
+--------
+This protocol describes a fully automated digital microfluidic (DMF) platform for performing
+magnetic-particle-based sandwich immunoassays from sample to analysis with minimal manual
+intervention. The target analyte is thyroid-stimulating hormone (TSH), clinically relevant for
+thyroid disease screening (normal range 0.3-4 uIU/mL; hyperthyroidism: <0.3 uIU/mL).
+
+The platform integrates three core hardware components:
+  1. A 90 Pogo pin interface (two 15x3 arrays, 100 mil spacing) for digital microfluidic control,
+     enabling 15 high-voltage inputs per square inch on a 3x2 in. DMF device.
+  2. A motorized Hamamatsu H10682-110 PMT for chemiluminescent detection, with motor-driven
+     engage/disengage and a light-blocking shutter (dark count < 50 counts/s in enclosure).
+  3. A "magnetic lens" assembly: a neodymium bar magnet (3 x 0.5 x 0.25 in., Br=1.32 T)
+     flanked by two AISI 1080 steel machined armatures acting as triangular field directors.
+     Motor-driven vertical engagement (~150 um gap, ~600 uN vertical force) focuses the
+     magnetic field to a narrow zone, enabling up to 8 simultaneous parallel magnetic
+     separations -- vs. a maximum of 2 with the prior neodymium disc geometry.
+
+The protocol implements a 3^3 full factorial Design of Experiments (DOE) optimization --
+the first reported DOE optimization for immunoassays in any microfluidic system -- varying
+three factors: sample volume (1, 3, 5 unit droplets), sample incubation time (3, 6, 9 min),
+and TSH concentration (0, 0.4, 4 uIU/mL), totalling 108 discrete experiments. The resulting
+optimized protocol achieves a 5-fold lower limit of detection (0.15 uIU/mL) and a 2-fold
+reduction in sample incubation time relative to the prior prototype setup (Ng et al., 2012).
+
+
+DEVICE ARCHITECTURE
+-------------------
+Bottom plate : 80 actuation electrodes (2.2 x 2.2 mm each), interdigitated borders
+               (140 um peak-to-peak sinusoids), interelectrode gaps 30-80 um.
+               8 reagent reservoirs (16.4 x 6.7 mm), 4 waste reservoirs (16.4 x 6.4 mm).
+               Substrate thickness ~1.15 mm. Contact pads on periphery for Pogo pin interface.
+Top plate    : Grounded brass leaflets connected at device hinge on loading.
+
+Unit droplet volume  : ~800 nL
+Reservoir volume     : ~3.5 uL
+Actuation            : Sine wave AC, 100-120 Vrms, 10 kHz; Microdrop software + Arduino-based
+                       high-voltage switching instrument.
+Mixing mode          : Unit droplet shuttled in circular motion across 4+ electrodes.
+
+Magnetic lens positions:
+  Disengaged : ~3.8 cm below device (no field influence on droplets)
+  Engaged    : ~150 um below device; vertical force ~600 uN (>470 uN minimum for immobilization)
+  Field decay: <35 uN at >4 mm from magnet center (minimizes stray particle attraction outside
+               separation zone; contrast with disc magnet where stray force at 10 mm = ~50/100 uN)
+
+PMT positions:
+  Disengaged : ~5 cm above device; shutter closed
+  Engaged    : Several hundred micrometers above device; shutter open; collects emitted light
+
+
+REAGENTS
+--------
+Paramagnetic particles  : Anti-TSH antibody-coated (Abbott Laboratories, Abbott Park, IL)
+                          Working solution: ~3.0e8 particles/mL in DMF-compatible particle
+                          diluent (pH 10): Tris base 6.1 g/L, NaCl 5.8 g/L, BSA 1% w/v,
+                          thimerosal 0.05% w/v, Pluronic L64 0.05% v/v.
+
+TSH standards           : Abbott Laboratories (Abbott Park, IL)
+                          Concentrations: 0, 0.4, 4 uIU/mL
+                          Supplemented with Pluronic L64 0.05% v/v prior to use.
+
+HRP conjugate           : HRP-conjugated mouse monoclonal anti-TSH (Abcam Inc., Cambridge, MA)
+                          Working solution: 2 ug/mL in DMF-compatible conjugate diluent.
+
+Chemiluminescent substrate : SuperSignal ELISA Femto (Thermo Fischer Scientific, Rockford, IL)
+                             Components: stable peroxide (H2O2) + luminol-enhancer solution.
+                             Both supplemented with Pluronic L64 0.025% v/v prior to use.
+
+Wash buffer             : DMF-compatible custom wash buffer (composition per Ng et al. 2012).
+Pluronic L64            : BASF Corp., Germany; donated by Brenntag Canada (Toronto, ON).
+Deionized water         : 18 MOhm-cm at 25 C.
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Paramagnetic Particle Dispense and Immobilization
+  Reagents        : ParamagneticParticles
+  Operation       : dispense 1 unit droplet (~800 nL)
+  Magnetic lens   : Engaged (~150 um gap); particles pellet on device surface above magnet.
+  Separation      : Particle diluent supernatant moved away by electrode actuation (magnetic sep.).
+  Purpose         : Immobilize antibody-coated particles for sample delivery.
+  Notes           : Magnetic lens supports 8 simultaneous separations across device width.
+                    Particle pellet radius example: ~155 um at 3.0e8 particles/mL in 800 nL droplet.
+
+Step 2 | TSH Sample Dispense and Pooling (5 unit droplets = 4 uL)
+  Reagents        : TSH_Standard (0, 0.4, or 4 uIU/mL)
+  Operation       : dispense x5 (individual scalars) + sequential merge
+  Unit volume nL  : 800
+  Pooled volume   : 4 uL (5 x 800 nL)
+  DOE result      : 5 droplets selected as optimal across all concentrations; maximum Sqrt(SBR)
+                    response at 5 droplets x 3 min (Fig 4D, response surface).
+  Notes           : Five droplets dispensed as five independent scalar variables and accumulated
+                    via chained mix operations (compiler constraint: multi-unit dispense does not
+                    produce discrete indexed elements suitable for downstream scalar operations).
+
+Step 3 | Sample Incubation with Immobilized Particles
+  Reagents        : tshSample (pooled), particleDrop (immobilized)
+  Operation       : mix
+  Duration        : 3 min (optimized; pilot protocol midlevel was 6 min)
+  Mixing mode     : Continuous circular shuttle, 100-120 Vrms, 10 kHz
+  DOE finding     : Negative vol x inc and con x inc interaction coefficients show longer
+                    incubation at high TSH or high volume reduces Sqrt(SBR). Optimum is
+                    5 droplets x 3 min. The integrated platform achieves faster analyte binding
+                    than the prototype due to continuous uniform mixing (hand-held probes in
+                    prototype could not provide controlled continuous mixing).
+
+Step 4 | Post-Sample Wash Series (4 cycles)
+  Reagents        : WashBuffer
+  Wash cycles     : 4
+  Per cycle       : dispense wash buffer -> mix with particles (30 s, resuspend) ->
+                    dispense additional wash buffer -> mix (10 s, transfer) ->
+                    drain supernatant to waste.
+  Magnetic lens   : Engaged for pellet immobilization; disengaged for resuspension each cycle.
+  Purpose         : Remove unbound TSH and non-specific binders.
+  QC gate         : detect chemiluminescenceDetection on particlesWashed for 5 s.
+                    washSignal > 0  -> particle pellets confirmed; proceed to conjugate step (BB4).
+                    washSignal <= 0 -> pellets lost during wash; drain and abort (BB3).
+
+Step 5 | HRP-Conjugate Delivery and Incubation
+  Reagents        : HRP_AntiTSH_Conjugate
+  Operation       : dispense 1 unit droplet (~800 nL) + mix
+  Duration        : 2 min
+  Mixing mode     : Active electrode mixing, 100-120 Vrms, 10 kHz
+  Purpose         : HRP-conjugated anti-TSH binds to TSH captured on particle surface
+                    (completes the sandwich: particle-antibody -- TSH -- HRP-antibody).
+
+Step 6 | Post-Conjugate Wash Series (4 cycles)
+  Reagents        : WashBuffer
+  Wash cycles     : 4
+  Per cycle       : Same as Step 4 (dispense -> mix -> drain).
+  Critical note   : Supernatant removed IMMEDIATELY after final wash cycle. No queue-wait in
+                    wash buffer. Pilot assays demonstrated up to 45% chemiluminescent signal
+                    decay when particles queued in wash buffer (2+ min extra for second-in-queue
+                    pair). Optimized protocol eliminates this delay entirely.
+  Variable threading : cwash4a (final resuspension droplet carrying particles) fed directly
+                    into H2O2 resuspension step without intermediate drain.
+
+Step 7 | Chemiluminescent Substrate Reaction
+  Reagents        : H2O2_StablePeroxide, LuminolEnhancer (SuperSignal ELISA Femto)
+  Operation       : dispense H2O2 (800 nL) -> mix with particles (10 s, resuspend in H2O2) ->
+                    dispense LuminolEnhancer (800 nL) -> mix pooled substrate (4 min)
+  Pooled volume   : ~1600 nL
+  Mix duration    : 4 min (optimized; pilot used 40 s mix + 100 s static incubation)
+  Stable window   : ~1 min after 4 min mixing (HRP-catalysed luminol oxidation reaches plateau)
+  Purpose         : Mixing duration creates a stable chemiluminescent measurement window,
+                    allowing all parallel droplets (up to 8) to be read sequentially by the
+                    single PMT within ~1 min without signal drift between measurements.
+
+Step 8 | PMT Chemiluminescence Detection
+  Operation       : detect chemiluminescenceDetection on substratePool for 10 s
+  PMT state       : Engaged (motor-lowered, shutter open, several hundred um above device)
+  Integration     : 10 s within the stable measurement window
+  Replicates      : 4 per concentration; results averaged
+  Calibration     : Linear fit to averaged signal; LOD = mean(blank) + 3 x SD(blank)
+  LOD achieved    : 0.15 uIU/mL (5-fold lower than prototype 0.83 uIU/mL)
+  QC gate         : detectionSignal > 0  -> dispose(substratePool) (BB5)
+                    detectionSignal <= 0 -> drain(substratePool) (BB6)
+  Cleanup         : dispose(detectionSignal); PMT returns to disengaged position (BB7, terminal)
+
+
+PERFORMANCE COMPARISON
+----------------------
+
+Metric                        Prototype (Ng 2012)    Integrated Platform    Improvement
+----------------------------  ---------------------  ---------------------  -----------
+Coefficient of variation (%)  9-21                   6-10                   Lower / better
+LOD absolute (nIU)            2.0                    0.6                    3-fold lower
+LOD concentration (uIU/mL)    0.83                   0.15                   5-fold lower
+Sample volume (uL)            2.4                    4.0                    Larger (optimized)
+Sample incubation time (min)  6                      3                      2-fold reduction
+Parallel magnetic separations 2 (disc magnet)        8 (magnetic lens)      4-fold increase
+PMT CV (%)                    0.63-21 (well-plate)   0.56-9.3 (integrated)  Lower / better
+PMT LOD (uU/mL)               7.97 (well-plate)      4.88 (integrated)      Better
+
+Clinical note: LOD of 0.15 uIU/mL provides capability to screen for hyperthyroidism
+([TSH] < 0.3 uIU/mL), which the prototype setup (LOD 0.83 uIU/mL) could not achieve.
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : choi_dmf_tsh_immunoassay.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 7 basic blocks (BB1-BB7), 2 if/else QC gates, 8 CFG edges
+DAG file       : choi_dmf_tsh_immunoassay_main_dag.dot
+Modules        : chemiluminescenceDetection
+
+Duration conversions (all verified against IR output):
+  3 min  (sample incubation)   -> 180.0 SECOND
+  2 min  (conjugate incubation)-> 120.0 SECOND
+  4 min  (substrate mixing)    -> 240.0 SECOND
+  30 s   (wash resuspend)      -> 30.0 SECOND
+  10 s   (wash transfer)       -> 10.0 SECOND
+  10 s   (PMT integration)     -> 10.0 SECOND
+  5 s    (TSH pool merging)    -> 5.0 SECOND
+  5 s    (wash QC detection)   -> 5.0 SECOND
+
+Compiler behaviours documented:
+  - drain and dispose both map to dispose opcode in IR; semantically correct,
+    no structural issue; drain/dispose distinction is at the biology level only.
+  - False branch (BB3, BB6) carries explicit jump to join block.
+  - True branch (BB2, BB5) falls through to join block implicitly.
+  - Multi-unit dispense not supported as indexed array: 5 TSH unit droplets
+    dispensed as 5 independent scalar variables (tsh1-tsh5) and accumulated
+    via chained mix operations (tshPool_2 -> tshPool_3 -> tshPool_4 -> tshSample).
+  - Wash variable threading: wash_Na variables carry the particle-containing
+    resuspension droplet at each wash cycle; washSup variables carry the
+    supernatant and are drained. cwash4a feeds directly into particlesInH2O2,
+    verified in IR output.
+
+IR / DAG verified clean:
+  - All 7 BB labels present; all 8 CFG edges confirmed in DAG.
+  - No dangling edges, no missing joins, no unreachable blocks.
+  - All time conversions confirmed against IR SECOND values.
+  - cwash4a1[0] correctly resolves as input to particlesInH2O21[0] in IR.

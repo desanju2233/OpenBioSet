@@ -1,0 +1,301 @@
+module eclDetection
+
+manifest MagneticParticles
+manifest TargetSequence
+manifest HybridizationBuffer
+manifest RuPhen3Cl2
+manifest PBS
+manifest TPA
+manifest PluronicF68
+
+instructions:
+
+// ============================================================
+// Electrochemiluminescence on Digital Microfluidics for
+// microRNA Analysis
+// Shamsi, Choi, Ng, Chamberlain, Wheeler
+// Biosensors and Bioelectronics, 2015
+// DOI: 10.1016/j.bios.2015.10.036
+//
+// Protocol: Magnetic particle-based oligonucleotide
+// hybridization assay on DMF coupled to ECL detection.
+// miRNA-143 (ds-143) is captured by ss-143-modified
+// Dynabeads M-280 Streptavidin and detected via
+// [Ru(Phen)3]Cl2 intercalation and TPA co-reactant
+// at ITO working electrodes on the DMF top-plate.
+//
+// REAGENT NOTES:
+//   MagneticParticles: 4.5 uL aliquots of Dynabeads M-280
+//     Streptavidin (10 mg/mL, ~6-7e8 particles/mL in PBS,
+//     0.1% BSA, 0.02% NaN3) pre-coated with ss-143 probe
+//     DNA via avidin-biotin chemistry. All solutions
+//     supplemented with 0.05% Pluronics F68 v/v.
+//   TargetSequence: ds-143 in hybridization buffer (0, 10,
+//     100, or 1000 nM). For cell lysate assays, MCF-7 or
+//     MDA-MB-231 lysate diluted 1:10 in sample dilution
+//     buffer (pH 8.0, Tris-base 7.7 mM, Tris-HCl 12.2 mM,
+//     NaCl 200 mM, MgCl2 5 mM, BSA 4% w/v, Pluronic L64
+//     0.05% w/v).
+//   HybridizationBuffer: 20 mM Tris-HCl, 0.2 M NaCl,
+//     5 mM MgCl2, pH 8.0.
+//   RuPhen3Cl2: 200 uM [Ru(Phen)3]Cl2 in PBS (1x), pH 7.5.
+//   PBS: phosphate buffered saline (1x), pH 7.5.
+//   TPA: 20 mM tripropylamine in PBS (1x), pH 7.5.
+//   PluronicF68: 0.05% v/v in all above solutions.
+//
+// ECL DETECTION NOTE:
+//   eclDetection module abstracts the ITO working electrode
+//   (WE, 800 um dia.) and Ag/Au/ITO counter/pseudoreference
+//   (CE/RE, 560 um x 560 um) on the DMF top-plate. 1.5 V
+//   DC applied for 45 s; maximum ECL photon count recorded
+//   within the first 10 s via PMT (CV ~10%).
+//   Ru(Phen)3(2+) intercalates dsDNA (4 bp per ion); signal
+//   is proportional to hybridized ds-143 captured on beads.
+//   LOD: 1.1 nM (CLOD), 1.5 femtomoles (absolute). Total
+//   assay time: ~40 min for two parallel assays.
+//
+// MAGNETIC SEPARATION NOTE:
+//   All `heat` steps marked "magnet" abstract the permanent
+//   magnet positioned below the DMF bottom plate to
+//   immobilize Dynabeads while the supernatant droplet is
+//   transported away by electrode actuation. The temperature
+//   parameter (25c) reflects ambient/room temperature;
+//   no thermal effect is intended at these steps.
+//
+// PRE-ASSAY STEP (off-chip, not encoded in BioScript):
+//   Cathodic electrochemical cleaning of ITO WEs:
+//   cyclic voltammetry in 20 uL PBS (1x) on DMF top-plate,
+//   10 cycles from -1 V to 0 V at 100 mV/s using ITO WE
+//   and Ag/Au/ITO CE/RE.
+//
+// CFG STRUCTURE:
+//   BB1  main              -- entry: particle dispense and
+//                             magnetic separation; target
+//                             hybridization; wash x4;
+//                             Ru(Phen)3 labeling; wash x2;
+//                             TPA addition; ECL detection
+//   BB2  eclPass           -- eclSignal > 0: valid ECL above
+//                             blank; dispose final droplet
+//   BB3  eclFail           -- eclSignal <= 0: no signal
+//                             (below LOD or reagent failure);
+//                             drain final droplet
+//   BB4  finalCleanup      -- terminal: dispose ECL signal
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Dispense magnetic particle droplets and merge.
+//   Paper M&M Sec 2.3: "three unit droplets containing
+//   magnetic particles were dispensed from their reservoir
+//   and merged." (For cell lysate assays, five unit droplets
+//   were used instead of three; three used here for the
+//   standard synthetic target protocol.)
+//   Each unit droplet ~1.8 uL; three merged = ~5.4 uL total.
+// ------------------------------------------------------------
+
+beads1 = dispense 1 units of MagneticParticles
+beads2 = dispense 1 units of MagneticParticles
+beads3 = dispense 1 units of MagneticParticles
+
+beadsMerge1 = mix beads1 with beads2 for 5s
+beadsMerged = mix beadsMerge1 with beads3 for 5s
+
+// ------------------------------------------------------------
+// STEP 2: Magnetic separation - pellet beads, remove
+//   supernatant (storage buffer). Magnet applied below device;
+//   supernatant droplet actuated away from bead pellet.
+//   `heat` at 25c for 30s abstracts magnet hold time.
+// ------------------------------------------------------------
+
+heat beadsMerged at 25c for 30s
+dispose beadsMerged
+
+// ------------------------------------------------------------
+// STEP 3: Dispense target sequence droplets and merge.
+//   Paper M&M Sec 2.3: "two unit droplets of target sequence
+//   solution were dispensed, merged, and delivered to the
+//   immobilized particles for resuspension and incubation
+//   for 15 min."
+//   TargetSequence reservoir: ds-143 in hybridization buffer
+//   at test concentration (10/100/1000 nM) or cell lysate.
+// ------------------------------------------------------------
+
+target1 = dispense 1 units of TargetSequence
+target2 = dispense 1 units of TargetSequence
+
+targetMerged = mix target1 with target2 for 5s
+
+// ------------------------------------------------------------
+// STEP 4: Hybridization incubation.
+//   Deliver merged target droplet to bead pellet; resuspend
+//   by electrode actuation (mixing) and incubate for 15 min.
+//   ds-143 hybridizes to ss-143 immobilized on beads.
+//   `mix` abstracts both resuspension and incubation; the
+//   15m duration encodes the hybridization dwell time.
+//
+//   NOTE: beadsMerged was disposed after magnetic separation
+//   (step 2). The bead pellet physically remains on-device
+//   at the electrode; targetMerged is merged with a freshly
+//   dispensed bead pellet representation. In BioScript,
+//   re-dispense from MagneticParticles models the pellet
+//   being resuspended by the incoming target droplet, which
+//   is the physical reality of the protocol (the magnet is
+//   removed and electrode actuation drives resuspension).
+// ------------------------------------------------------------
+
+pelletForHybrid = dispense 1 units of MagneticParticles
+hybridDroplet   = mix pelletForHybrid with targetMerged for 15m
+
+// ------------------------------------------------------------
+// STEP 5: Magnetic separation - remove unbound target.
+//   Magnet applied; beads pellet; supernatant (unbound ds-143)
+//   actuated away. `heat` at 25c for 30s = magnet hold.
+// ------------------------------------------------------------
+
+heat hybridDroplet at 25c for 30s
+dispose hybridDroplet
+
+// ------------------------------------------------------------
+// STEP 6: Wash cycle x4 (hybridization buffer).
+//   Paper M&M Sec 2.3: "particles were washed four times in
+//   series by re-suspending and mixing with one unit droplet
+//   of hybridization buffer followed by magnetic separation
+//   from the supernatant."
+//   Each wash: dispense 1 unit HybridizationBuffer, mix 1m
+//   to resuspend beads, apply magnet 30s, dispose supernatant.
+//   Four serial wash cycles encoded explicitly below.
+//
+//   As in STEP 4, pellet re-dispense from MagneticParticles
+//   models the retained bead pellet at each wash cycle.
+// ------------------------------------------------------------
+
+// Wash 1
+pelletW1   = dispense 1 units of MagneticParticles
+washBuf1   = dispense 1 units of HybridizationBuffer
+washMix1   = mix pelletW1 with washBuf1 for 1m
+heat washMix1 at 25c for 30s
+dispose washMix1
+
+// Wash 2
+pelletW2   = dispense 1 units of MagneticParticles
+washBuf2   = dispense 1 units of HybridizationBuffer
+washMix2   = mix pelletW2 with washBuf2 for 1m
+heat washMix2 at 25c for 30s
+dispose washMix2
+
+// Wash 3
+pelletW3   = dispense 1 units of MagneticParticles
+washBuf3   = dispense 1 units of HybridizationBuffer
+washMix3   = mix pelletW3 with washBuf3 for 1m
+heat washMix3 at 25c for 30s
+dispose washMix3
+
+// Wash 4
+pelletW4   = dispense 1 units of MagneticParticles
+washBuf4   = dispense 1 units of HybridizationBuffer
+washMix4   = mix pelletW4 with washBuf4 for 1m
+heat washMix4 at 25c for 30s
+dispose washMix4
+
+// ------------------------------------------------------------
+// STEP 7: [Ru(Phen)3]Cl2 intercalation labeling.
+//   Paper M&M Sec 2.3: "two unit droplets of [Ru(Phen)3]Cl2
+//   solution were dispensed, merged, and delivered to the
+//   particles, where they were re-suspended and mixed for
+//   2 min. The particles were then separated from the
+//   supernatant droplet."
+//   Ru(Phen)3(2+) intercalates into dsDNA (4 bp per ion);
+//   does not bind ssDNA or RNA. Signal is proportional to
+//   amount of hybridized ds-143 on bead surface.
+// ------------------------------------------------------------
+
+pelletForRu  = dispense 1 units of MagneticParticles
+ruDrop1      = dispense 1 units of RuPhen3Cl2
+ruDrop2      = dispense 1 units of RuPhen3Cl2
+
+ruMerged     = mix ruDrop1 with ruDrop2 for 5s
+ruLabelMix   = mix pelletForRu with ruMerged for 2m
+
+// Magnetic separation: remove unbound Ru(Phen)3(2+).
+heat ruLabelMix at 25c for 30s
+dispose ruLabelMix
+
+// ------------------------------------------------------------
+// STEP 8: PBS wash x2 (remove excess Ru(Phen)3(2+)).
+//   Paper M&M Sec 2.3: "particles were washed two times with
+//   2 droplets of PBS as in step 3."
+//   Each wash: 1 unit PBS, mix 1m, magnet 30s, dispose.
+// ------------------------------------------------------------
+
+// PBS Wash 1
+pelletPW1  = dispense 1 units of MagneticParticles
+pbsWash1   = dispense 1 units of PBS
+pbsMix1    = mix pelletPW1 with pbsWash1 for 1m
+heat pbsMix1 at 25c for 30s
+dispose pbsMix1
+
+// PBS Wash 2
+pelletPW2  = dispense 1 units of MagneticParticles
+pbsWash2   = dispense 1 units of PBS
+pbsMix2    = mix pelletPW2 with pbsWash2 for 1m
+heat pbsMix2 at 25c for 30s
+dispose pbsMix2
+
+// ------------------------------------------------------------
+// STEP 9: TPA co-reactant addition.
+//   Paper M&M Sec 2.3: "two droplets of TPA solution were
+//   dispensed, merged, and delivered to the particles, where
+//   they were re-suspended and mixed for 1 min."
+//   TPA (tripropylamine) is the ECL co-reactant; oxidized
+//   simultaneously with Ru(Phen)3(2+) at the ITO WE.
+//   The TPA(+) radical reduces the luminophore to the
+//   excited state that emits at ~610 nm.
+// ------------------------------------------------------------
+
+pelletForTPA = dispense 1 units of MagneticParticles
+tpaDrop1     = dispense 1 units of TPA
+tpaDrop2     = dispense 1 units of TPA
+
+tpaMerged    = mix tpaDrop1 with tpaDrop2 for 5s
+finalDroplet = mix pelletForTPA with tpaMerged for 1m
+
+// ------------------------------------------------------------
+// STEP 10: ECL measurement.
+//   Paper M&M Sec 2.3: "the final droplet containing TPA and
+//   Ru(Phen)3(2+)-labeled DNA modified particles was actuated
+//   to the ECL electrodes on the top-plate for ECL
+//   measurements."
+//   1.5 V DC applied between ITO WE and Ag/Au/ITO CE/RE
+//   for 45 s. Maximum ECL counts recorded within first 10 s.
+//   eclDetection module abstracts the PMT readout.
+//   LOD: CLOD = 1.1 nM; absolute LOD = 1.5 femtomoles.
+// ------------------------------------------------------------
+
+eclSignal = detect eclDetection on finalDroplet for 45s
+
+// ============================================================
+// BB2 / BB3: ECL QC gate
+// Pass (BB2): eclSignal > 0 -> ECL counts above blank
+//             (hybridization detected); dispose final droplet.
+// Fail (BB3): eclSignal <= 0 -> signal at or below blank
+//             (no hybridization or below LOD); drain.
+// Both branches converge at BB4 (finalCleanup).
+// ============================================================
+
+if (eclSignal > 0) {
+    dispose finalDroplet
+} else {
+    drain finalDroplet
+}
+
+// ============================================================
+// BB4: finalCleanup (terminal)
+// Dispose ECL signal droplet. Experiment ends.
+// ============================================================
+
+dispose eclSignal
+
+// [terminal -- no further instructions; exit node for CFG]

@@ -1,0 +1,464 @@
+module nfkbTranslocationDetection
+module geneExpressionDetection
+module cellViabilityDetection
+
+manifest TNFalpha
+manifest IL1beta
+manifest LPS
+manifest PAM2CSK4
+manifest PBS
+manifest CompleteMedia
+manifest PluronicF127
+manifest FluorescentNFkBCells
+manifest FDA_PI_Stain
+
+instructions:
+
+// ============================================================
+// Processing Stimulus Dynamics by the NF-kB Network in
+// Single Cells.
+// Son, Wang, Keisham, Tay - Experimental & Molecular Medicine
+// (2023) 55:2531-2540.
+// DOI: 10.1038/s12276-023-01133-7
+//
+// This BioScript encodes the core microfluidic single-cell
+// NF-kB signaling protocol described in the review, covering:
+//   (1) Device priming and single-cell loading
+//   (2) Pulsatile TNF-a stimulation (low vs. high frequency)
+//   (3) Sequential multi-ligand stimulation
+//         (TNF-a -> IL-1b -> LPS -> PAM2CSK4)
+//   (4) NF-kB translocation detection at single-cell resolution
+//   (5) Downstream gene expression readout
+//   (6) Cell viability QC gate
+//
+// BIOLOGICAL CONTEXT:
+//   Cells used are mouse fibroblasts (or equivalent cell line)
+//   stably expressing fluorescently tagged NF-kB (e.g. p65-RFP
+//   or p65-GFP) enabling real-time nuclear translocation
+//   tracking by live fluorescence microscopy. The microfluidic
+//   device provides high-throughput, precise temporal control
+//   over cytokine delivery to cells in isolated chambers
+//   (up to 64 experimental conditions in parallel, Son et al.
+//   Sci. Signal. 2021).
+//
+// STIMULATION STRATEGY:
+//   The paper tests three classes of dynamic input:
+//     (A) Pulsatile: repeated short TNF-a exposures at varying
+//         inter-pulse intervals (60, 100, 200 min periods).
+//     (B) Increasing dose: stepwise or ramp increases in TNF-a
+//         or IL-1b, revealing differentiator-like NF-kB behaviour
+//         (response tracks change in level, not absolute dose).
+//     (C) Sequential multi-ligand: TNF-a followed by IL-1b,
+//         LPS, and PAM2CSK4 in defined 8 h sequences, encoding
+//         stimulus identity and order into NF-kB dynamics via
+//         ligand-specific feedback memory (IRAK1, IkBd, A20).
+//
+// NOTE ON STIMULATION ABSTRACTION:
+//   `mix` operations model microfluidic perfusion of stimulus
+//   into a cell-containing channel chamber. They do not
+//   represent DMF electrode mixing. Each `dispense` abstracts
+//   a programmable microfluidic valve-controlled bolus.
+//   Duration arguments to `mix` encode the perfusion window
+//   (i.e. the pulse duration or the incubation period).
+//
+// NOTE ON TIME UNITS:
+//   BioScript supports `s` (seconds) and `m` (minutes) only.
+//   All durations are expressed in `m` or `s` accordingly.
+//   Inter-pulse recovery periods (e.g. 200 min) are encoded
+//   as `heat` steps at physiological temperature (37 C) to
+//   model the incubation/wash period between pulses.
+//
+// CFG STRUCTURE:
+//   BB1  main                -- entry: priming, cell loading,
+//                               pulsatile stimulation arm,
+//                               NF-kB translocation detection
+//   BB2  nfkbPass            -- nfkbSignal > 0: oscillatory
+//                               NF-kB response confirmed;
+//                               proceed to sequential stimulation
+//   BB3  nfkbFail            -- nfkbSignal <= 0: no translocation
+//                               detected; drain cells
+//   BB4  nfkbJoin            -- join: sequential ligand arm begins
+//   BB5  seqPass             -- seqSignal > 0: sequence-encoded
+//                               NF-kB dynamics confirmed;
+//                               proceed to gene expression readout
+//   BB6  seqFail             -- seqSignal <= 0: no sequence
+//                               encoding detected; drain
+//   BB7  seqJoin             -- join: gene expression & viability
+//   BB8  expressionPass      -- expressionSignal > 0: target gene
+//                               upregulation confirmed; dispose
+//   BB9  expressionFail      -- expressionSignal <= 0: no
+//                               expression; drain
+//   BB10 finalCleanup        -- terminal: dispose all QC signals
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prime microfluidic device.
+//   2% Pluronics F-127 in PBS perfused for 5 min to prevent
+//   non-specific cell adhesion to PDMS channel walls.
+//   Consistent with standard microfluidic cell culture setup
+//   (Son et al. Biosens. Bioelectron. 2023; Samlali et al.
+//   Small 2020).
+// ------------------------------------------------------------
+
+primingPBS      = dispense 1 units of PBS
+primingPluronic = dispense 1 units of PluronicF127
+primingMix      = mix primingPBS with primingPluronic for 5m
+
+// ------------------------------------------------------------
+// STEP 2: Load fluorescently tagged NF-kB reporter cells.
+//   Cells expressing p65-RFP (or equivalent) are flowed into
+//   individual microfluidic chambers at low density to achieve
+//   single-cell isolation per chamber. This enables real-time
+//   tracking of NF-kB nuclear translocation by fluorescence
+//   microscopy (Nelson et al. J. Cell Sci. 2002; Tay et al.
+//   Nature 2010).
+//   NOTE: `mix` abstracts channel-based cell loading; no
+//   reagent mixing in the DMF sense occurs at this step.
+// ------------------------------------------------------------
+
+reporterCells   = dispense 1 units of FluorescentNFkBCells
+loadedCells     = mix reporterCells with primingMix for 2m
+
+// ------------------------------------------------------------
+// STEP 3: Equilibration.
+//   Allow cells to settle and adhere in chambers at 37 C,
+//   5% CO2 for 30 min prior to stimulation. Ensures baseline
+//   NF-kB is cytoplasmic before stimulus delivery.
+// ------------------------------------------------------------
+
+heat loadedCells at 37c for 30m
+
+// ============================================================
+// PULSATILE STIMULATION ARM (Pulse 1 of 3)
+// Low-frequency pulsatile TNF-a (200 min inter-pulse period).
+// From Ashall et al. Science 2009 and Kellogg & Tay Cell 2015.
+// Low-frequency pulses (>200 min period) allow full NF-kB
+// system reset between pulses, maintaining full-amplitude
+// response across repeated stimulations.
+//
+// Protocol: 15 min TNF-a pulse -> 185 min wash/recovery ->
+//           repeat x3. 15-min pulses at ~10 ng/mL TNF-a.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 4: Pulsatile TNF-a - Pulse 1.
+//   Deliver TNF-a (10 ng/mL) for 15 min via programmable
+//   valve. Continuous TNF-a is required for oscillatory
+//   NF-kB dynamics; brief pulses elicit single translocation
+//   events (Nelson et al. Science 2004; Turner et al.
+//   J. Cell Sci. 2010).
+// ------------------------------------------------------------
+
+tnfPulse1       = dispense 1 units of TNFalpha
+stimulation1    = mix loadedCells with tnfPulse1 for 15m
+
+// ------------------------------------------------------------
+// STEP 5: Inter-pulse wash and recovery (Pulse 1 -> Pulse 2).
+//   Replace TNF-a with PBS to terminate stimulation.
+//   185 min recovery at 37 C allows NF-kB to return to
+//   cytoplasm, IKK to reset via A20/IkBa negative feedback,
+//   and cells to exit the refractory state before next pulse.
+//   Total inter-pulse period = 185 + 15 = 200 min.
+// ------------------------------------------------------------
+
+washPBS1        = dispense 1 units of PBS
+washedCells1    = mix stimulation1 with washPBS1 for 5m
+heat washedCells1 at 37c for 185m
+
+// ------------------------------------------------------------
+// STEP 6: Pulsatile TNF-a - Pulse 2.
+//   Second 15 min TNF-a pulse. At 200 min period, NF-kB
+//   oscillation is fully reset; second pulse produces
+//   full-amplitude response (Ashall et al. Science 2009).
+// ------------------------------------------------------------
+
+tnfPulse2       = dispense 1 units of TNFalpha
+stimulation2    = mix washedCells1 with tnfPulse2 for 15m
+
+washPBS2        = dispense 1 units of PBS
+washedCells2    = mix stimulation2 with washPBS2 for 5m
+heat washedCells2 at 37c for 185m
+
+// ------------------------------------------------------------
+// STEP 7: Pulsatile TNF-a - Pulse 3.
+//   Third 15 min TNF-a pulse. Confirms entrainment or
+//   persistent NF-kB response amplitude at low-frequency
+//   pulsatile regime. Kellogg & Tay (Cell 2015) showed noise
+//   in NF-kB oscillation facilitates entrainment and
+//   downstream gene expression over a range of frequencies.
+// ------------------------------------------------------------
+
+tnfPulse3       = dispense 1 units of TNFalpha
+stimulation3    = mix washedCells2 with tnfPulse3 for 15m
+
+washPBS3        = dispense 1 units of PBS
+washedCells3    = mix stimulation3 with washPBS3 for 5m
+
+// ------------------------------------------------------------
+// STEP 8: NF-kB translocation detection (pulsatile arm).
+//   nfkbTranslocationDetection module abstracts live-cell
+//   fluorescence imaging of p65-RFP nuclear-to-cytoplasmic
+//   ratio (N:C ratio) measured in single cells at each time
+//   point. Translocation confirmed by N:C ratio > 1 at peak.
+//   Image acquisition: every 3-5 min over the full 8 h
+//   stimulation window (consistent with Ashall et al. and
+//   Kellogg & Tay protocols).
+//   Detection window: 90 s per chamber scan.
+// ------------------------------------------------------------
+
+nfkbSignal      = detect nfkbTranslocationDetection on washedCells3 for 90s
+
+// ============================================================
+// BB2 / BB3: NF-kB translocation QC gate (pulsatile arm)
+// Pass (BB2): nfkbSignal > 0 -> oscillatory NF-kB translocation
+//             confirmed across all three pulses; proceed to
+//             sequential ligand stimulation arm (BB4).
+// Fail (BB3): nfkbSignal <= 0 -> no detectable translocation;
+//             cells may be unhealthy or reporter not expressed;
+//             drain and discard this chamber population.
+// Both branches converge at BB4 (nfkbJoin).
+// ============================================================
+
+if (nfkbSignal > 0) {
+    dispose washedCells3
+} else {
+    drain washedCells3
+}
+
+// ============================================================
+// BB4: nfkbJoin
+// Dispose pulsatile arm NF-kB signal. Control falls into
+// the sequential multi-ligand stimulation arm (BB5/BB6).
+// A fresh population of loaded cells is used for this arm
+// (independent experimental condition on same device).
+// ============================================================
+
+dispose nfkbSignal
+
+// ============================================================
+// SEQUENTIAL MULTI-LIGAND STIMULATION ARM
+// From Wang, Son et al. Cell Rep. 2022 (ref 15 in paper).
+// Four-ligand sequence over 8 h: TNF-a -> IL-1b -> LPS -> PAM.
+// Each ligand delivered for ~2 h (120 min) then washed off.
+// NF-kB dynamics encode stimulus identity and sequence via
+// ligand-specific negative feedback memory:
+//   - IRAK1 autophosphorylation: encodes IL-1b / LPS memory
+//     (cross-tolerance between IL-1b and LPS; not TNF-a)
+//   - IkBd (p100 homodimer): broad cross-tolerance on 24 h scale
+//   - A20: upstream of IKK; inhibits signaling from most ligands
+// The sequence produces distinct NF-kB oscillation patterns
+// for each ligand-order combination (Wang et al. Cell Rep. 2022).
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 9: Load fresh reporter cells for sequential arm.
+//   New cell chamber or washed chamber re-loaded with
+//   p65-RFP reporter cells. Same priming and equilibration
+//   as Steps 1-3.
+//   NOTE: primingMix2 / loadedCells2 are independent variables;
+//   they do not reuse the pulsatile arm cell population.
+// ------------------------------------------------------------
+
+primingPBS2     = dispense 1 units of PBS
+primingPluronic2 = dispense 1 units of PluronicF127
+primingMix2     = mix primingPBS2 with primingPluronic2 for 5m
+
+reporterCells2  = dispense 1 units of FluorescentNFkBCells
+loadedCells2    = mix reporterCells2 with primingMix2 for 2m
+heat loadedCells2 at 37c for 30m
+
+// ------------------------------------------------------------
+// STEP 10: Sequential stimulus 1 - TNF-a (0-120 min).
+//   TNF-a (10 ng/mL) delivered for 120 min.
+//   TNF-a signals via TNFR -> TRADD/RIP1/TRAF2/5 -> TAK1 -> IKK.
+//   Does NOT activate IRAK1/MyD88 myddosome pathway.
+//   Primary NF-kB response: damped oscillation, 1-3 peaks.
+//   A20 induced as negative feedback, partially suppressing
+//   subsequent TRAF2/5-dependent signals.
+// ------------------------------------------------------------
+
+tnfSeq          = dispense 1 units of TNFalpha
+seqStim1        = mix loadedCells2 with tnfSeq for 120m
+
+washSeq1        = dispense 1 units of PBS
+seqWashed1      = mix seqStim1 with washSeq1 for 5m
+
+// ------------------------------------------------------------
+// STEP 11: Sequential stimulus 2 - IL-1b (120-240 min).
+//   IL-1b (10 ng/mL) delivered for 120 min beginning at t=120m.
+//   IL-1b signals via IL-1R -> MyD88/IRAK1/TRAF6 (myddosome).
+//   After prior TNF-a, A20 levels are elevated. However,
+//   IL-1b can overcome A20 inhibition (different receptor
+//   complex) and produce NF-kB reactivation without attenuation
+//   (Adamson et al. Nat. Commun. 2016; DeFelice et al.
+//   Sci. Signal. 2019 - ref 64 in paper).
+//   IRAK1 begins to autophosphorylate, encoding IL-1b memory.
+// ------------------------------------------------------------
+
+il1bSeq         = dispense 1 units of IL1beta
+seqStim2        = mix seqWashed1 with il1bSeq for 120m
+
+washSeq2        = dispense 1 units of PBS
+seqWashed2      = mix seqStim2 with washSeq2 for 5m
+
+// ------------------------------------------------------------
+// STEP 12: Sequential stimulus 3 - LPS (240-360 min).
+//   LPS (100 ng/mL) delivered for 120 min beginning at t=240m.
+//   LPS signals via TLR4 -> MyD88/IRAK1/TRAF6 (myddosome) AND
+//   TRIF-TRAM pathway (after TLR4 endocytosis).
+//   LPS and IL-1b share the IRAK1/MyD88 myddosome. If IRAK1 is
+//   autophosphorylated and aggregated from prior IL-1b stimulation,
+//   cells enter cross-tolerance state: LPS-driven NF-kB response
+//   is attenuated (DeFelice et al. Sci. Signal. 2019 - ref 64).
+//   Dose-dependent: 100 ng/mL LPS drives stronger IRAK1
+//   clustering than lower doses, deepening cross-tolerance.
+// ------------------------------------------------------------
+
+lpsSeq          = dispense 1 units of LPS
+seqStim3        = mix seqWashed2 with lpsSeq for 120m
+
+washSeq3        = dispense 1 units of PBS
+seqWashed3      = mix seqStim3 with washSeq3 for 5m
+
+// ------------------------------------------------------------
+// STEP 13: Sequential stimulus 4 - PAM2CSK4 (360-480 min).
+//   PAM2CSK4 (100 ng/mL) delivered for 120 min (t=360-480m).
+//   PAM2CSK4 signals via TLR1/2 -> MyD88/IRAK1/TRAF6 (same
+//   myddosome as IL-1b and LPS). After IRAK1 clustering from
+//   prior IL-1b + LPS, PAM response is significantly attenuated.
+//   Son et al. (Sci. Signal. 2021 - ref 13 in paper) showed
+//   PAM exhibits a differentiator-like NF-kB response to
+//   concentration CHANGES but NOT to absolute levels, unlike
+//   TNF-a and IL-1b. Sequence memory in IRAK1 further modulates
+//   PAM response amplitude in a dose-dependent manner.
+//   Full 8 h sequence total: TNF(2h) -> IL-1b(2h) -> LPS(2h) ->
+//   PAM(2h), encoding 4-ligand sequential identity as distinct
+//   NF-kB oscillation patterns (Wang et al. Cell Rep. 2022).
+// ------------------------------------------------------------
+
+pamSeq          = dispense 1 units of PAM2CSK4
+seqStim4        = mix seqWashed3 with pamSeq for 120m
+
+washSeq4        = dispense 1 units of PBS
+seqWashed4      = mix seqStim4 with washSeq4 for 5m
+
+// ------------------------------------------------------------
+// STEP 14: NF-kB translocation detection (sequential arm).
+//   Same nfkbTranslocationDetection module applied to the
+//   sequential stimulation cell population. Readout captures
+//   the composite NF-kB dynamics across all 4 ligands:
+//   oscillation period, amplitude, damping coefficient, and
+//   inter-peak intervals encode the stimulus sequence and
+//   feedback memory state of each cell.
+//   Detection window: 90 s per chamber (consistent with Step 8).
+// ------------------------------------------------------------
+
+seqSignal       = detect nfkbTranslocationDetection on seqWashed4 for 90s
+
+// ============================================================
+// BB5 / BB6: Sequential stimulation NF-kB QC gate
+// Pass (BB5): seqSignal > 0 -> sequence-encoded NF-kB dynamics
+//             detected; distinct oscillation patterns for each
+//             ligand confirmed; proceed to gene expression arm.
+// Fail (BB6): seqSignal <= 0 -> NF-kB not responding to any
+//             ligand in sequence; drain this chamber population.
+// Both branches converge at BB7 (seqJoin).
+// ============================================================
+
+if (seqSignal > 0) {
+    dispose seqWashed4
+} else {
+    drain seqWashed4
+}
+
+// ============================================================
+// BB7: seqJoin
+// Dispose sequential arm NF-kB signal. Control falls into
+// the downstream gene expression and viability QC arm
+// (BB8/BB9).
+// ============================================================
+
+dispose seqSignal
+
+// ============================================================
+// DOWNSTREAM GENE EXPRESSION AND CELL VIABILITY ARM
+// The paper demonstrates that distinct NF-kB oscillation
+// dynamics (amplitude, duration, period) produce distinct
+// transcriptional outputs. Lane et al. (Cells 2017 - ref 120)
+// linked NF-kB dynamics to proinflammatory gene expression
+// profiles in single cells. Cheng et al. (Science 2021 - ref
+// 14) showed macrophage NF-kB oscillations produce lasting
+// epigenetic changes. This arm validates gene expression
+// downstream of the sequential stimulation.
+//
+// Cell viability is assessed with FDA/PI staining consistent
+// with Samlali et al. (Small 2020) to confirm stimulation
+// protocol does not induce significant apoptosis.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 15: Downstream gene expression readout.
+//   After 8 h multi-ligand sequential stimulation, cells are
+//   lysed (or fixed for smFISH) to assess mRNA levels of
+//   NF-kB target genes (e.g. IL-6, CXCL8/IL-8, IkBa, A20,
+//   TNF-a). geneExpressionDetection abstracts quantitative
+//   RT-PCR or single-molecule FISH readout, normalised to
+//   housekeeping genes. NF-kB oscillation period and amplitude
+//   in the preceding imaging window are correlated with
+//   target gene expression levels at the single-cell level
+//   (Lane et al. Cells 2017; Wang et al. Cell Rep. 2022).
+//   Detection window: 30 min for lysis + qPCR abstraction.
+// ------------------------------------------------------------
+
+expressCells    = dispense 1 units of FluorescentNFkBCells
+expressMedia    = dispense 1 units of CompleteMedia
+expressMix      = mix expressCells with expressMedia for 5m
+
+expressionSignal = detect geneExpressionDetection on expressMix for 30m
+
+// ============================================================
+// BB8 / BB9: Gene expression QC gate
+// Pass (BB8): expressionSignal > 0 -> NF-kB target gene
+//             upregulation confirmed (IL-6, CXCL8, IkBa
+//             elevated above baseline); dispose cells.
+// Fail (BB9): expressionSignal <= 0 -> no detectable gene
+//             expression response; cells may be refractory
+//             or dead; drain.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (expressionSignal > 0) {
+    // --------------------------------------------------------
+    // Cell viability QC (pass path only):
+    //   FDA (live, green) and PI (dead, red) staining to
+    //   confirm >80% viability across the 8 h stimulation.
+    //   Viability is critical for interpreting NF-kB dynamics
+    //   as true signaling responses, not death signals.
+    //   (Son et al. Sci. Signal. 2021 - ref 13)
+    //   Incubate stain for 10 min at room temperature.
+    // --------------------------------------------------------
+    fdaPiStain      = dispense 1 units of FDA_PI_Stain
+    stainedCells    = mix expressMix with fdaPiStain for 10m
+
+    viabilitySignal = detect cellViabilityDetection on stainedCells for 30s
+
+    dispose stainedCells
+    dispose viabilitySignal
+    dispose expressMix
+} else {
+    drain expressMix
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose all remaining QC signal droplets.
+// Experiment ends. NF-kB stimulus dynamics protocol complete.
+// ============================================================
+
+dispose expressionSignal
+
+// [terminal -- no further instructions; exit node for CFG]

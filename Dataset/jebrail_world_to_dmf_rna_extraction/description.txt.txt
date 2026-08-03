@@ -1,0 +1,267 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : World-to-Digital-Microfluidic Interface Enabling Extraction and Purification of RNA from Human Whole Blood
+Source Link  : https://pubs.acs.org/doi/10.1021/ac404085p
+Paper DOI    : https://doi.org/10.1021/ac404085p
+Journal      : Analytical Chemistry, 2014, Vol. 86, pp. 3856-3862
+Authors      : Mais J. Jebrail, Anupama Sinha, Samantha Vellucci, Ronald F. Renzi, Cesar Ambriz,
+               Carmen Gondhalekar, Joseph S. Schoeniger, Kamlesh D. Patel, Steven S. Branda
+Institution  : Sandia National Laboratories, Livermore, California
+Platform     : World-to-DMF (macroscale Extraction Module + DMF-based Purification Module,
+               peristaltic pump driven, 10 uL Bridging Droplet interface)
+
+
+OVERVIEW
+--------
+This protocol describes the first "world-to-DMF" interface: an engineered system that drives
+a large-volume real-world sample (human whole blood lysate, 110-380 uL) repeatedly through a
+10 uL droplet region on a digital microfluidic (DMF) device, enabling inline concentration of
+RNA-bound magnetic beads from the macroscale volume directly onto the DMF chip surface.
+Downstream purification (two washes + elution) is then performed entirely in microscale volumes
+(5-15 uL) within the DMF Purification Module.
+
+The protocol achieves >2-fold faster processing and 12-fold reagent reduction compared to
+conventional bench-scale preparations, while producing RNA of equivalent yield and quality
+(A260/A280, RIN) suitable for qRT-PCR and RNA-Seq analyses. The BioScript file encodes
+the 50 uL blood specimen arm as the representative protocol (intermediate of the three
+volumes tested: 25, 50, and 100 uL).
+
+Key innovation: Inline (on-DMF-device) concentration of sample analytes, as opposed to
+off-device pre-concentration, eliminates manual handling steps, reduces contamination risk,
+and removes worker exposure to biological samples.
+
+
+SYSTEM ARCHITECTURE
+-------------------
+The world-to-DMF system has three components:
+
+Extraction Module:
+  - Two 500 uL microcentrifuge tubes: Reaction Chamber and Waste Chamber
+  - One peristaltic pump connected via Connector Tubes to both chambers
+  - Transfer Tube 1 and Transfer Tube 2: conduct fluid between Reaction Chamber
+    and the Module Interface (Bridging Electrode)
+  - Transfer Tube 1 preloaded: Lysis Solution (130 uL) | 20 uL air gap | RNA Binding Beads (20 uL)
+  - Pump drives pressure-driven convective flow of the full 200 uL lysate through the
+    10 uL Bridging Droplet (3 passes); convective transport increases bead capture efficiency
+    vs. diffusion-only conventional method
+
+Purification Module (DMF device, fabricated in-house):
+  - Bottom plate: 40 chromium electrode pads (6x6 mm, 40 um interelectrode gaps) on glass;
+    photolithography + etching
+  - Dielectric: 7 um Parylene-C (vapor deposition)
+  - Hydrophobic: 50 nm Teflon-AF (spin-coat)
+  - Top plate: ITO-coated glass + 50 nm Teflon-AF
+  - Air gap: 300 um (three layers double-sided tape spacer)
+  - Actuation: AC electrowetting, 100 Vrms
+  - On-device reservoirs preloaded: Wash 1 (15 uL), Wash 2 (15 uL), Elution Buffer (10 uL)
+
+Module Interface (Bridging Droplet):
+  - Bridging Electrode: working electrode pad at the periphery of the DMF device; top plate
+    recessed to expose ~1 mm x 6 mm of the electrode surface
+  - Transfer Tubes contact the Bridging Electrode at ~70 degrees (adjustable magnetic stand +
+    custom spacing manifold)
+  - Bridging Droplet (10 uL): formed by coordinating three forces simultaneously --
+    dispensation from Transfer Tube 1, aspiration into Transfer Tube 2, and AC actuation of
+    the Bridging Electrode (100 Vrms)
+  - External movable magnet positioned directly beneath Bridging Electrode to immobilise
+    bead-bound analytes as the macroscale volume passes through the droplet
+  - Three strategies for reliable Bridging Droplet formation:
+      (1) Organic solvents (>=15%; ethanol/isopropanol in lysis buffer) reduce surface tension
+          to allow fluid entry into the air gap
+      (2) Top plate recessed 1 mm to expose Bridging Electrode for direct Transfer Tube access
+      (3) Coordinated choreography of pump and electrode actuation
+
+
+REAGENTS
+--------
+Whole blood         : 50 uL (healthy volunteer donors, ProMedDx, Norton MA)
+Lysis Solution      : MagMAX-Blood lysis buffer, 130 uL (Life Technologies, Grand Island NY);
+                      contains chaotropic salts; prepared per manufacturer's instructions
+RNA Binding Beads   : MagMAX silica-coated magnetic beads, 20 uL (MagMAX-Blood RNA Isolation Kit)
+Wash 1 Solution     : MagMAX Wash 1 Solution, 15 uL (on-device reservoir)
+                      [conventional method uses 150 uL per wash; 10-fold reduction]
+Wash 2 Solution     : MagMAX Wash 2 Solution, 15 uL (on-device reservoir)
+                      [removes residual chaotropic salts and ethanol from Wash 1]
+Elution Buffer      : MagMAX Elution Buffer + 0.1% w/v Pluronic F127, 10 uL (on-device)
+                      [Pluronic F127 added per ref 20 to maintain droplet actuation fidelity
+                      on Teflon-AF surface; conventional method uses 30 uL]
+Filler fluid        : Fluorinert FC-40 (Sigma Chemical, St. Louis MO)
+Surfactant          : Pluronic F127 (Sigma Chemical); 0.1% w/v in Elution Buffer;
+                      also mixed with FC-40 to prime DMF air gap
+Parylene C dimer    : Specialty Coating Systems, Indianapolis IN (dielectric deposition)
+Teflon-AF           : DuPont, Wilmington DE (hydrophobic coating)
+
+
+PROTOCOL STEPS
+--------------
+
+Step 0 | Device Initialisation
+  Reagents  : FluorinertFC40, PluronicF127, Wash1Solution, Wash2Solution, ElutionBuffer
+  Operation : Dispense FC-40 + Pluronic F127; mix 30 s to prime DMF air gap.
+              Dispense Wash 1, Wash 2, and Elution Buffer into on-device reservoirs.
+  Setup     : Adjust magnetic stand so Transfer Tubes contact Bridging Electrode at ~70 degrees.
+              AC 100 Vrms actuation enabled.
+  Notes     : BioScript variable `devicePrime` (FC-40 + Pluronic F127 mix) is reused throughout
+              the protocol as the second argument to `mix` calls that abstract magnet
+              engage/disengage steps and bead pellet progression. This is a compiler-driven
+              abstraction; physically, these steps involve only the bead pellet and the
+              immediately preceding droplet.
+
+Step 1 | Blood Specimen Introduction
+  Reagent   : WholeBlood
+  Volume    : 50 uL
+  Operation : Dispense into Reaction Chamber (500 uL microcentrifuge tube) by pipetting.
+  Notes     : Specimens from healthy volunteer donors (ProMedDx, Norton MA).
+              Other arms: 25 uL (total lysate 110 uL) or 100 uL (total lysate 380 uL).
+
+Step 2 | Lysis and Mixing
+  Reagent   : LysisSolution (130 uL for 50 uL blood; 2.6:1 v/v lysis:blood ratio)
+  Duration  : 30 s
+  Mechanism : Peristaltic pump aspirates Lysis Solution from Transfer Tube 1 into Reaction
+              Chamber; bolus shuttled rapidly between Transfer Tube 1 and Reaction Chamber
+              for 30 s to mix thoroughly.
+  Output    : bloodLysate (homogeneous blood + lysis buffer mixture)
+
+Step 3 | RNA Binding Bead Addition and Incubation
+  Reagent     : RNABindingBeads (20 uL MagMAX silica-coated magnetic beads)
+  Mix         : 30 s (shuttle bolus between Transfer Tube 1 and Reaction Chamber)
+  Incubation  : 5 min (300 s) at room temperature (25 C) -- RNA binds to bead surface
+  Total volume: 200 uL (50 + 130 + 20 uL)
+  BioScript   : `heat beadLysateMix at 25c for 300s` models the bead-binding incubation.
+
+Step 4 | World-to-DMF Transition: Bridging Droplet Formation and Bead Capture (3 Passes)
+  Operation : Pressure-driven convective flow-through (abstracted as `mix` in BioScript)
+  Passes    : 3 (bidirectional: Transfer Tube 1 -> Bridging Droplet -> Transfer Tube 2, then back)
+  Per-pass  :
+    - Pump drives full 200 uL lysate through the 10 uL Bridging Droplet on Bridging Electrode
+    - AC 100 Vrms applied to Bridging Electrode to pin the droplet (prevent spread)
+    - External magnet beneath Bridging Electrode engaged to immobilise bead-bound RNA
+    - `heat at 25c for 60s` models magnet engagement per pass
+  After 3 passes:
+    - RNA Binding Beads with bound RNA are immobilised on Bridging Electrode surface
+    - Lysate supernatant is directed to Waste Chamber
+    - `beadCapture` is the BioScript handle for the bead pellet going forward
+  Notes     : Convective (pressure-driven) transport is more efficient than the diffusion-only
+              transport in the conventional method; accounts for the slightly better RNA yield
+              observed at 100 uL blood volume (p=0.03, Student t-test).
+              bridgingDroplet1/2/3 each consumed as input to successor mix call; must not
+              be re-read. beadCapture is introduced as a clean handle post-disposal.
+
+Step 5 | Wash 1
+  Reagent   : Wash1Solution (15 uL, on-device reservoir)
+  Operation :
+    1. heat wash1Reservoir at 25c for 10s -- models magnet disengage (bead resuspension)
+    2. mix wash1Reservoir with beadCapture for 30s -- bead-wash mixing via Transfer Tube shuttle
+    3. heat wash1Mix at 25c for 30s -- models mixing/washing contact time
+    4. wash1Beads = mix wash1Mix with devicePrime for 5s -- magnet re-engage; bead pellet captured
+    5. dispose wash1Mix -- wash fluid sent to Waste Chamber
+  Output    : wash1Beads (bead pellet proceeding to Wash 2)
+  Note      : 15 uL vs. 150 uL in conventional method (10-fold reduction per wash).
+
+Step 6 | Wash 2
+  Reagent   : Wash2Solution (15 uL, on-device reservoir)
+  Operation : Identical four-step sequence as Wash 1 (disengage -> mix -> re-engage -> dispose).
+  Purpose   : Removes residual chaotropic salts and ethanol carried over from Wash 1.
+  Output    : wash2Beads (bead pellet proceeding to Elution)
+
+Step 7 | Elution
+  Reagent       : ElutionBuffer (10 uL + 0.1% Pluronic F127, on-device reservoir)
+  Operation     :
+    1. heat elutionReservoir at 25c for 10s -- magnet disengage; beads resuspend
+    2. mix elutionReservoir with wash2Beads for 30s -- bead-eluate mixing
+    3. heat elutionMix at 25c for 120s -- 2 min incubation; RNA released from bead surface
+    4. heat elutionMix at 25c for 30s -- magnet re-engage; eluate separated from beads
+  Collection    : RNA-containing eluate driven to recovery site within Purification Module;
+                  collected by pipetting for off-device analysis.
+  Eluate volume : 10 uL (vs. 30 uL conventional; 3-fold reduction in elution volume)
+  Total time    : ~20 min (vs. 45 min conventional; >2-fold faster)
+
+
+QC AND DOWNSTREAM ANALYSIS
+---------------------------
+
+Step 8 | RNA Yield QC  [BioScript: BB1 -> BB2/BB3 -> BB4]
+  Module    : rnaYieldDetection
+  Method    : NanoDrop 2000 UV-vis spectrophotometry (A260) or Qubit 2.0 fluorometry (off-device)
+  Duration  : 30 s detection
+  Results   :
+    25 uL blood: comparable yield (p=0.16, World-to-DMF vs. conventional)
+    50 uL blood: comparable yield (p=0.45)
+    100 uL blood: slightly better yield with World-to-DMF (p=0.03)
+    All yields within literature range for fingerstick blood volumes.
+  BioScript gate (BB2/BB3):
+    - Both pass and fail branches: dispose(yieldSignal)
+    - elutionMix NOT disposed in this gate; must remain live for purity detect in BB4
+    - 'drain' keyword not emitted by lilott8/BioScript compiler; both branches use dispose
+
+Step 9 | RNA Purity and Integrity QC  [BioScript: BB4 -> BB5/BB6 -> BB7]
+  Module    : rnaPurityDetection
+  Methods   :
+    - A260/A280 ratio (NanoDrop 2000, off-device); acceptable >= 1.8
+    - RNA integrity number (RIN; Agilent 2100 Bioanalyzer, RNA 6000 Pico Chip)
+    - Fragment size distribution (28S and 18S rRNA peaks confirmed by Bioanalyzer)
+  Duration  : 30 s detection
+  Results   : All preparations (World-to-DMF and conventional) comparably high quality
+              (Table S-1, paper); RIN values comparable; 28S and 18S peaks present in all samples.
+  BioScript gate (BB5/BB6):
+    - Pass: puritySignal > 0 -> dispose(elutionMix); RNA preparation verified
+    - Fail: puritySignal <= 0 -> dispose(elutionMix); low purity (salt/protein carryover)
+    - Terminal BB7: dispose(puritySignal); NOP
+
+Downstream Validation:
+  qRT-PCR:
+    Targets     : B2M, GAPDH, PPIB (housekeeping genes)
+    Template    : Total RNA from 50 uL blood; SuperScript III reverse transcriptase;
+                  TaqMan reagents + SsoFast Probes Supermix (BioRad)
+    Replicates  : 4 independent experiments x 3 reactions per target per RNA sample (N=3 donors)
+    Result      : Ct values essentially identical regardless of preparation method (p >= 0.07);
+                  no statistically significant difference; expression levels match literature.
+
+  RNA-Seq:
+    Library     : Peregrine cDNA library preparation; HAC molecular normalisation (rRNA depletion)
+    Sequencer   : Illumina MiSeq, 50 bp single-end, 15 pM, duplicated run
+    QC          : 95-96% reads passed Qfilter; ~99% reads mapped to hg19 (UCSC) via TopHat v2.0.9
+    Abundance   : FPKM calculated by Cufflinks v2.1.1
+    Similarity  : R^2 ~0.85 (Log10 FPKM scatter) between World-to-DMF and conventional;
+                  no strong bias imposed by RNA preparation method (Table S-2, Figures 4 and S-4)
+    Conclusion  : World-to-DMF RNA is fully compatible with both PCR-based and non-PCR-based
+                  analytical methods; PCR inhibitors present in blood are eliminated/inactivated.
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : jebrail_world_to_dmf_rna_extraction.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 7 basic blocks (BB1-BB7), 2 if/else gates, 8 CFG edges
+DAG            : jebrail_world_to_dmf_rna_extraction_main_dag.dot
+Duration units : All durations in seconds (s); BioScript supports s and m only; no h token
+Blood arm      : 50 uL blood (130 uL lysis + 20 uL beads = 200 uL total through Bridging Droplet)
+Modules        : rnaYieldDetection, rnaPurityDetection
+Manifests      : WholeBlood, LysisSolution, RNABindingBeads, Wash1Solution, Wash2Solution,
+                 ElutionBuffer, FluorinertFC40, PluronicF127
+
+Bugs fixed across three compiler iterations:
+  Bug 1 -- Stale variable reuse (Iteration 1 -> Iteration 2):
+    wash1Mix mixed with bridgingDroplet2[0] and wash2Mix/elutionMix mixed with bridgingDroplet1[0]
+    after those variables had already been consumed as inputs to their successor mix calls.
+    Fix: introduced beadCapture after dispose of bridgingDroplet3; threaded wash1Beads ->
+    wash2Beads as linear chain through the bead-pellet progression.
+
+  Bug 2 -- Phantom SSA variable elutionMix2[0] (Iteration 2 -> Iteration 3):
+    elutionMix disposed inside both yield QC branches (BB2/BB3); then re-read by purity
+    detect in BB4 after the join. Compiler created unreachable SSA version elutionMix2[0].
+    Fix: removed dispose(elutionMix) from yield gate entirely; only yieldSignal disposed in
+    BB2/BB3; elutionMix kept live across the join into BB4 purity detect.
+
+  Bug 3 -- drain not emitted by compiler (Iteration 2 -> Iteration 3):
+    BioScript compiler converts drain to dispose in IR output regardless of source keyword.
+    Source used drain in else branches causing source/IR semantic mismatch.
+    Fix: replaced all drain with dispose in both yield and purity QC false branches.
+
+Validated IR (Iteration 3):
+  Phantom variables   : NONE
+  drain in IR         : NONE
+  elutionMix SSA vers.: 1 (elutionMix1[0] only; appears 7x, all legitimate)
+  CFG shape           : correct (8 edges, 7 nodes, double-diamond)
+  All vars assigned   : before first use -- confirmed

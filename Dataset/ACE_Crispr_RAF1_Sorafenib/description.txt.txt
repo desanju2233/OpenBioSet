@@ -1,0 +1,282 @@
+================================================================================
+PROTOCOL: Automated CRISPR-Cas9 RAF1 Knockout + Sorafenib Dose-Response
+         on a Digital Microfluidic (DMF) ACE Platform
+================================================================================
+
+SOURCE LINK  : https://pubs.rsc.org/en/content/articlepdf/2018/lc/c8lc00470f
+PAPER DOI    : https://doi.org/10.1039/c8lc00470f
+CITATION     : Sinha H, Quach ABV, Vo PQN, Shih SCC. An automated microfluidic
+               gene-editing platform for deciphering cancer genes.
+               Lab Chip. 2018;18:2300-2312.
+PLATFORM     : Digital Microfluidics (DMF) — ACE (Automated CRISPR Editing)
+               platform, DropBot-compatible, open-source automation system.
+BS_FILE      : ace_crispr_raf1_sorafenib_corrected.bs
+JSON_FILE    : ace_crispr_raf1_sorafenib.json
+DOT_FILE     : ace_crispr_raf1_sorafenib_main_dag.dot
+
+--------------------------------------------------------------------------------
+OVERVIEW
+--------------------------------------------------------------------------------
+
+This protocol implements the first fully automated CRISPR-Cas9 gene-editing
+assay on a digital microfluidic platform. The ACE platform automates all steps
+— cell seeding, culture, lipid-mediated transfection, CRISPR-Cas9 knockout, drug
+inhibition, and fluorescence-based viability readout — for lung cancer cells on a
+single device.
+
+The specific assay interrogates the MAPK/ERK (RAS-RAF-MEK-ERK) signaling
+pathway by knocking out the RAF1 gene in NCI-H1299 lung squamous cell carcinoma
+cells using CRISPR-Cas9, combined with dose-response treatment using the RAF
+kinase inhibitor Sorafenib Tosylate. The combination of genomic disruption and
+enzymatic inhibition results in lower IC50 values compared to inhibitor treatment
+alone, confirming successful on-device gene editing.
+
+--------------------------------------------------------------------------------
+CELL LINE AND REAGENTS
+--------------------------------------------------------------------------------
+
+Cell Line       : NCI-H1299 human lung squamous cell carcinoma, dual-labeled
+                  stable line (Genecopoeia SL001). Stably expresses eGFP at AAVS1
+                  locus and mCherry. Grown in RPMI-1640 + 10% FBS, no antibiotics,
+                  37 degrees C, 5% CO2.
+
+Plasmids        :
+  - pCRISPR_ctrl  : All-in-one pCRISPR/Cas9 plasmid (~10.5 kb) with sgRNA
+                    targeting eGFP (non-genomic control, AAVS1 locus).
+  - pCRISPR_RAF1  : All-in-one pCRISPR/Cas9 plasmid (~10.5 kb) with sgRNA
+                    RAF1_sg94 targeting the human RAF1 genomic locus.
+                    Designed via Benchling; assembled by restriction
+                    digestion/ligation into All-in-one_CRISPR/Cas9_LacZ backbone.
+
+Transfection    : Invitrogen Lipofectamine 3000 + P3000 reagent (Thermo Fisher).
+                  On-device optimum lipid:media ratio is 1:1 (not the off-chip
+                  manufacturer default of 1:10). The 1:1 ratio compensates for
+                  the increased surface-area-to-volume ratio at microscale and
+                  yields ~65% transfection efficiency vs ~15% at 1:10 (Fig. 2d).
+
+Drug            : Sorafenib Tosylate (Selleckchem). RAF kinase inhibitor targeting
+                  the MAPK/ERK pathway upstream at BRAF/RAF1.
+                  Six concentrations: 0, 7.5, 15, 30, 60, 120 uM in complete media.
+
+Stains          :
+  - Hoechst 33342 (1 uM): nuclear stain; used ONLY at Day-1 transfection-
+                           efficiency checkpoint. lambda_ex=350nm, lambda_em=461nm.
+  - Calcein-AM violet (5 uM): live-cell esterase viability probe; used ONLY at
+                               Day-5 readout. lambda_ex=408nm, lambda_em=450nm.
+                               NOTE: Hoechst and Calcein-AM must NOT be used at
+                               the same timepoint due to spectral overlap at ~450-
+                               461nm.
+
+--------------------------------------------------------------------------------
+DEVICE DESCRIPTION
+--------------------------------------------------------------------------------
+
+The DMF device consists of two parallel plates separated by a 140 um spacer.
+The bottom plate contains chromium-patterned electrodes with dielectric and
+hydrophobic layers (DuPont AF) for droplet actuation via electrowetting-on-
+dielectric (EWOD) at ~200 VRMS, 10 kHz. Electrode boundaries are interlaced to
+improve droplet movement for protein-rich solutions over multi-day culture.
+
+The top plate (ITO-coated) contains six 1.2 mm diameter hydrophilic spots
+microfabricated for adherent cell culture. Cells are passively dispensed onto
+these spots; a fraction of the moving 690 nL droplet pins to the hydrophilic
+site, forming a ~160 nL culture microvessel. Devices are incubated inverted in
+a 3D-printed humidified chamber at 37 degrees C.
+
+Reservoirs hold: cell suspension, Lipofectamine, Opti-MEM, plasmid DNA, P3000
+reagent, complete media, Hoechst stain, Calcein-AM stain, and Sorafenib Tosylate.
+A waste reservoir collects excess liquid from passive dispensing steps.
+
+--------------------------------------------------------------------------------
+EXPERIMENTAL DESIGN
+--------------------------------------------------------------------------------
+
+Arms            : 2 (Ctrl sgRNA arm / RAF1_sg94 arm)
+Sites per arm   : 6 (one per drug concentration)
+Total sites     : 12
+Drug doses (uM) : 120, 60, 30, 15, 7.5, 0
+Duration        : 5 days (Day 0 seeding through Day 5 viability readout)
+Readout         : Calcein-AM violet fluorescence cell count, normalised to
+                  vehicle control (0 uM site) for each arm.
+Analysis        : Sigmoid dose-response curve fit; IC50 extracted per arm;
+                  F-test for significance in linear region (2.5-50 uM, P<0.05).
+
+QC gates        : Two independent QC branches in the CFG:
+                  - Ctrl arm: gated on signalCtrl6 (0 uM Ctrl sgRNA vehicle).
+                  - RAF1 arm: gated on signalRaf6 (0 uM RAF1_sg94 vehicle).
+                  Pass = positive fluorescence signal (dispose viability droplets,
+                  data accepted). Fail = zero/negative signal (drain droplets,
+                  arm flagged). The two gates are independent; failure of one arm
+                  does not invalidate the other.
+
+--------------------------------------------------------------------------------
+PROTOCOL STEPS
+--------------------------------------------------------------------------------
+
+DAY 0 — CELL SEEDING
+  1. Grow NCI-H1299 cells in T-75 flasks, rinse with PBS, trypsinize, centrifuge
+     at 1000 x g for 5 min, resuspend in complete media + 0.05% w/v Pluronics
+     F-68 to ~1.75e6 cells/mL.
+  2. Pipette 2 uL of cell suspension onto the ITO reservoir edge. Apply ~200 VRMS
+     at 10 kHz to actively dispense 690 nL unit droplets. Passively dispense onto
+     each of the 12 hydrophilic spots to form 160 nL culture microvessels.
+  3. Invert device into 3D-printed humidified chamber. Incubate at 37 degrees C,
+     5% CO2, 16h overnight to allow H1299 cell adhesion to hydrophilic spots.
+
+DAY 1 — TRANSFECTION (7-STEP ACTUATION SEQUENCE)
+  Step 1: Dilute Lipofectamine 3000 in Opti-MEM. Add 2 uL of the dilution to
+          a reservoir. Actively dispense 360 nL Lipofectamine-Opti-MEM droplets
+          per site (12 total, 6 per arm).
+  Step 2: Mix 500 ng/uL of pCRISPR plasmid (ctrl or RAF1) with 1 uL P3000
+          reagent in 25 uL Opti-MEM. Add to a separate reservoir. Actively
+          dispense 360 nL DNA-P3000-Opti-MEM droplets per site.
+          Ctrl arm: pCRISPR_ctrl (eGFP sgRNA).
+          RAF1 arm: pCRISPR_RAF1 (RAF1_sg94 sgRNA).
+  Step 3: Merge lipid droplet with DNA droplet on 2x2 electrode array. Mix in
+          square configuration for 10 min to form lipid-DNA complexes.
+  Step 4: Dilute complexes 1:1 by merging with a 690 nL Opti-MEM unit droplet.
+          (On-device optimum: 1:1 ratio yields ~65% transfection efficiency.)
+  Step 5: Passively dispense 6x160 nL of diluted complexes onto each hydrophilic
+          cell culture spot.
+  Step 6: Incubate 24h overnight at 37 degrees C, 5% CO2.
+  Step 7: Transfection-efficiency checkpoint — dispense 1 uM Hoechst 33342 in
+          liquid media (6x160 nL per site). Incubate 30 min. Image with
+          fluorescence microscope (UV filter: 250 ms, GFP filter: 500 ms, mCherry
+          filter: 1000 ms) using custom 3D-printed microscope holder.
+          Analyse with CellProfiler transfection pipeline (Fig. 2a):
+            Module 1: Gaussian smooth (sigma=1), Otsu global threshold, detect
+                      nuclei 20-100 px, declump by intensity.
+            Module 2: Threshold mCherry image (TCF=1.0), binarize.
+            Module 3: Overlap — mask nuclei with mCherry-positive regions.
+            Module 4: Efficiency (%) = overlapping nuclei / total nuclei x 100.
+          Dispose all Hoechst/detection droplets before Day 2.
+
+DAY 2 — MEDIA MAINTENANCE
+  1. Remove lipid-DNA complexes and Hoechst stain by passively dispensing fresh
+     complete media (6x160 nL per site) to wash. Drain spent droplets to waste.
+  2. Replenish each site with fresh complete media (6x160 nL). Maintain cells
+     at 37 degrees C, 5% CO2 for 24h.
+
+DAY 3 — SORAFENIB DRUG DOSING
+  1. Prepare Sorafenib Tosylate serial dilutions on-device:
+     Stock -> 120 uM -> 60 uM -> 30 uM -> 15 uM -> 7.5 uM -> 0 uM (vehicle).
+     Each step: actively dispense drug droplet, merge with complete media droplet,
+     mix for 30s. Split each concentration into one Ctrl-arm aliquot, one RAF1-arm
+     aliquot, and one carry for the next dilution step. The 0 uM step requires no
+     carry (terminal step).
+  2. Passively dispense one drug aliquot (0.7 uL) onto each cell culture spot:
+     Sites 1 and 1: 120 uM (highest dose)
+     Sites 2 and 2: 60 uM
+     Sites 3 and 3: 30 uM
+     Sites 4 and 4: 15 uM
+     Sites 5 and 5: 7.5 uM
+     Sites 6 and 6: 0 uM (vehicle control, QC baseline)
+  3. Incubate 48h at 37 degrees C, 5% CO2 (bridges Day 3 to Day 5 readout).
+
+DAY 5 — CALCEIN-AM VIABILITY ASSAY AND DETECTION
+  1. Prepare 5 uM Calcein-AM violet in complete media. Passively dispense 6x unit
+     droplets to each of the 12 cell culture spots.
+  2. Incubate 30 min at 37 degrees C.
+  3. Image using single-module CellProfiler pipeline (Fig. 4 imaging pipeline):
+     Gaussian smooth (sigma=1), Otsu global threshold, detect objects 20-100 px
+     (TCF=1.25), declump by intensity. Count viable cells per site.
+  4. Normalise cell counts at each drug concentration to the vehicle control
+     (0 uM site) for the respective arm to obtain % cell survival.
+  5. QC gate — Ctrl arm: if signalCtrl6 > 0 (vehicle baseline positive), data
+     accepted (dispose viability droplets). If signalCtrl6 <= 0, arm flagged
+     bad (drain droplets).
+  6. QC gate — RAF1 arm: independent gate on signalRaf6 using same logic.
+  7. Dispose all signal droplets. Experiment ends.
+
+--------------------------------------------------------------------------------
+IMAGING AND ANALYSIS
+--------------------------------------------------------------------------------
+
+Microscope      : Olympus IX73 inverted fluorescence microscope with Hamamatsu
+                  C1140-42U digital camera, HC ImageLive software.
+Filter sets     : UV (250 ms), GFP (500 ms), mCherry (1000 ms).
+                  Hoechst: lambda_ex=350nm, lambda_em=461nm.
+                  GFP:     lambda_ex=488nm, lambda_em=509nm.
+                  mCherry: lambda_ex=585nm, lambda_em=608nm.
+                  Calcein-AM violet: lambda_ex=408nm, lambda_em=450nm.
+
+Transfection    : CellProfiler 2.2.0 r9969F42 transfection pipeline.
+efficiency      : Efficiency (%) = mCherry-positive nuclei / total nuclei x 100.
+                  Corrected against non-transfected negative control.
+
+Knockout        : CellProfiler knockout pipeline.
+efficiency      : Knockout (%) = GFP-negative nuclei / total nuclei x 100.
+                  GFP threshold: Otsu method (2-class, TCF=0.65).
+                  Cells with >90% GFP-positive pixel overlap are not counted as
+                  knocked out.
+
+Viability       : Calcein-AM violet fluorescence cell count normalised to 0 uM
+                  vehicle control. Sigmoid dose-response curve fit. IC50 extracted.
+                  Statistical significance: F-test in linear region (2.5-50 uM).
+
+--------------------------------------------------------------------------------
+KEY RESULTS (from paper)
+--------------------------------------------------------------------------------
+
+Transfection    : ~74.7% +/- 6.8% efficiency at 48h post-transfection on-device.
+efficiency        Comparable to well-plate (no significant difference, P>0.05).
+
+GFP knockout    : ~35% average on-chip, comparable to well-plate ~39% (P>0.05).
+efficiency        Consistent across three sgRNA loci (sg_12, sg_497, sg_683).
+
+MAPK/ERK assay  : IC50 for Sorafenib Tosylate:
+                    Ctrl sgRNA arm  : 7.54 uM (on-chip), ~9 uM (off-chip)
+                    RAF1_sg94 arm   : 13.2 uM (on-chip), ~17 uM (off-chip)
+                  ~1.8-fold reduction in IC50 with RAF1 CRISPR targeting vs control
+                  (P<0.05, F-test). Confirms successful on-device RAF1 knockout and
+                  sensitisation to Sorafenib inhibition.
+
+--------------------------------------------------------------------------------
+KNOWN BUGS IN ORIGINAL .BS FILE (CORRECTED)
+--------------------------------------------------------------------------------
+
+Fix 1 — Wrong manifest at Day-1 Hoechst checkpoint:
+  Original : hoechstTfx* variables dispensed from manifest calceinAM
+  Corrected: hoechstTfx* variables dispensed from manifest hoechst
+  Reason   : Calcein-AM is a cytoplasmic esterase probe (lambda_em~450nm), not a
+             nuclear stain. The CellProfiler transfection pipeline requires Hoechst
+             33342 (lambda_em~461nm) to identify nuclei in Module 1. Using
+             Calcein-AM would produce invalid nuclear object detection and incorrect
+             transfection efficiency measurements.
+
+Fix 2 — Double-use of spent drug dilution variables:
+  Original : drugConc120 (and other intermediates) split twice in two separate
+             code sections, causing a fluid-ownership violation in the BioScript
+             compiler.
+  Corrected: Each dilution step immediately produces three named outputs:
+             _ctrlAliquot, _raf1Aliquot, _carry. Each variable is split exactly
+             once. The carry feeds the next dilution step; the two aliquots are
+             delivered to their respective arms.
+
+--------------------------------------------------------------------------------
+CFG STRUCTURE (matches ace_crispr_raf1_sorafenib_main_dag.dot)
+--------------------------------------------------------------------------------
+
+BB1  main         (dot node 1) : Entry. Day 0 -> Day 5 detection.
+BB2  bsbbif_2_t   (dot node 2) : Ctrl QC pass  -> dispose viabCtrl1..6
+BB3  bsbbif_3_f   (dot node 3) : Ctrl QC fail  -> drain  viabCtrl1..6
+BB4  bsbbif_4_j   (dot node 4) : Ctrl QC join  -> dispose signalCtrl1..6
+BB5  bsbbif_5_t   (dot node 5) : RAF1 QC pass  -> dispose viabRaf1..6
+BB6  bsbbif_6_f   (dot node 6) : RAF1 QC fail  -> drain  viabRaf1..6
+BB7  bsbbif_7_j   (dot node 7) : RAF1 QC join  -> dispose signalRaf1..6
+BB8  finalCleanup (no dot node): Terminal. No instructions. Single CFG exit.
+
+Edges:
+  BB1 -> BB2  (signalCtrl6 > 0)
+  BB1 -> BB3  (signalCtrl6 <= 0)
+  BB2 -> BB4
+  BB3 -> BB4
+  BB4 -> BB5  (signalRaf6 > 0)
+  BB4 -> BB6  (signalRaf6 <= 0)
+  BB5 -> BB7
+  BB6 -> BB7
+  BB7 -> BB8
+
+================================================================================
+END OF PROTOCOL
+================================================================================

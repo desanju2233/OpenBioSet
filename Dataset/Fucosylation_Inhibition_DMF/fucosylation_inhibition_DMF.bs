@@ -1,0 +1,298 @@
+module fluorescenceAssay
+module pixelCount
+
+manifest HEPESBuffer
+manifest GDPInhibitor
+manifest FucTEnzyme
+manifest GlycolysationMix
+manifest HydrolysisMix
+manifest GlycineSolution
+
+instructions:
+
+// ============================================================
+// FUCOSYLTRANSFERASE INHIBITION ASSAY ON DIGITAL MICROFLUIDICS
+// Leclerc et al., Biomicrofluidics 13, 034106 (2019)
+// Inhibitor: GDP (guanosine 5'-diphosphate)
+// Enzyme: H. pylori alpha(1,3)-fucosyltransferase (FucT)
+// Substrate: MU-beta-LacNAc (4-methylumbelliferyl beta-N-acetyllactosaminide)
+// Reporter: 4-MU fluorescence (lambda_ex = 365 nm, lambda_em = 460 nm)
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prime HEPES buffer reservoirs (6 x ~2.7 uL each)
+// Buffer: 25 mM pH 7.0 HEPES + 0.05% Pluronics F-68
+// Each reservoir used as the diluent for one dilution step
+// ------------------------------------------------------------
+
+buffer1 = dispense 1 units of HEPESBuffer
+buffer2 = dispense 1 units of HEPESBuffer
+buffer3 = dispense 1 units of HEPESBuffer
+buffer4 = dispense 1 units of HEPESBuffer
+buffer5 = dispense 1 units of HEPESBuffer
+buffer6 = dispense 1 units of HEPESBuffer
+
+// ------------------------------------------------------------
+// STEP 2: Load GDP inhibitor stock (80 mM) via pipetting inlet
+// Covered with silicone oil shell via coated pipette tip
+// Dispense one unit droplet (~500 nL) for first dilution step
+// ------------------------------------------------------------
+
+gdpUnit1 = dispense 1 units of GDPInhibitor
+
+// ------------------------------------------------------------
+// STEP 3: Serial ~5.5-fold dilution of GDP across 6 reservoirs
+// Each mix merges a GDP unit droplet into the buffer reservoir
+// producing the next lower concentration.
+// Concentrations (by pixel count method):
+//   gdpDrop1 ~36.0 mM
+//   gdpDrop2 ~6.2 mM
+//   gdpDrop3 ~1.1 mM
+//   gdpDrop4 ~0.22 mM
+//   gdpDrop5 ~0.04 mM
+//   gdpDrop6 ~0.006 mM
+//   gdpBlank  0.0 mM  (HEPES only, no inhibitor)
+// NOTE: dispense only accepts manifest items; serial dilution
+// is achieved purely through mix operations on variables.
+// ------------------------------------------------------------
+
+// Dilution 1: gdpUnit1 (~80 mM) mixed into buffer1 -> ~36 mM
+gdpDrop1 = mix gdpUnit1 with buffer1 for 10s
+
+// Dilution 2: gdpDrop1 mixed into buffer2 -> ~6.2 mM
+gdpDrop2 = mix gdpDrop1 with buffer2 for 10s
+
+// Dilution 3: gdpDrop2 mixed into buffer3 -> ~1.1 mM
+gdpDrop3 = mix gdpDrop2 with buffer3 for 10s
+
+// Dilution 4: gdpDrop3 mixed into buffer4 -> ~0.22 mM
+gdpDrop4 = mix gdpDrop3 with buffer4 for 10s
+
+// Dilution 5: gdpDrop4 mixed into buffer5 -> ~0.04 mM
+gdpDrop5 = mix gdpDrop4 with buffer5 for 10s
+
+// Dilution 6: gdpDrop5 mixed into buffer6 -> ~0.006 mM
+gdpDrop6 = mix gdpDrop5 with buffer6 for 10s
+
+// Blank: 0 mM GDP control (pure HEPES buffer, no inhibitor)
+gdpBlank = dispense 1 units of HEPESBuffer
+
+// ------------------------------------------------------------
+// STEP 4: Dispense FucT enzyme unit droplets (~500 nL each)
+// FucT: 0.03 mg/mL (0.6 nM) in 25 mM HEPES + 0.05% F-68
+// One droplet per GDP concentration (6) + one for blank = 7 total
+// All solutions surrounded by silicone oil shell
+// ------------------------------------------------------------
+
+fucT1 = dispense 1 units of FucTEnzyme
+fucT2 = dispense 1 units of FucTEnzyme
+fucT3 = dispense 1 units of FucTEnzyme
+fucT4 = dispense 1 units of FucTEnzyme
+fucT5 = dispense 1 units of FucTEnzyme
+fucT6 = dispense 1 units of FucTEnzyme
+fucT7 = dispense 1 units of FucTEnzyme
+
+// ------------------------------------------------------------
+// STEP 5: Merge FucT droplet with each GDP concentration
+// Each merged droplet = ~1 uL reaction volume
+// ------------------------------------------------------------
+
+fucTgdp1 = mix gdpDrop1 with fucT1 for 5s
+fucTgdp2 = mix gdpDrop2 with fucT2 for 5s
+fucTgdp3 = mix gdpDrop3 with fucT3 for 5s
+fucTgdp4 = mix gdpDrop4 with fucT4 for 5s
+fucTgdp5 = mix gdpDrop5 with fucT5 for 5s
+fucTgdp6 = mix gdpDrop6 with fucT6 for 5s
+fucTgdp7 = mix gdpBlank  with fucT7 for 5s
+
+// ------------------------------------------------------------
+// STEP 6: Incubate FucT + GDP for 5 min at room temperature
+// Allows competitive binding of GDP to FucT active site
+// ------------------------------------------------------------
+
+heat fucTgdp1 at 25c for 5m
+heat fucTgdp2 at 25c for 5m
+heat fucTgdp3 at 25c for 5m
+heat fucTgdp4 at 25c for 5m
+heat fucTgdp5 at 25c for 5m
+heat fucTgdp6 at 25c for 5m
+heat fucTgdp7 at 25c for 5m
+
+// ------------------------------------------------------------
+// STEP 7: Dispense glycosylation mix unit droplets (~500 nL)
+// Mix: 10 mM MgCl2, 0.01 mM MU-beta-LacNAc, 0.02 mM GDP-fucose
+// in 25 mM HEPES + 0.05% Pluronics F-68
+// Initiates the fucosylation reaction
+// ------------------------------------------------------------
+
+glyco1 = dispense 1 units of GlycolysationMix
+glyco2 = dispense 1 units of GlycolysationMix
+glyco3 = dispense 1 units of GlycolysationMix
+glyco4 = dispense 1 units of GlycolysationMix
+glyco5 = dispense 1 units of GlycolysationMix
+glyco6 = dispense 1 units of GlycolysationMix
+glyco7 = dispense 1 units of GlycolysationMix
+
+rxn1 = mix fucTgdp1 with glyco1 for 5s
+rxn2 = mix fucTgdp2 with glyco2 for 5s
+rxn3 = mix fucTgdp3 with glyco3 for 5s
+rxn4 = mix fucTgdp4 with glyco4 for 5s
+rxn5 = mix fucTgdp5 with glyco5 for 5s
+rxn6 = mix fucTgdp6 with glyco6 for 5s
+rxn7 = mix fucTgdp7 with glyco7 for 5s
+
+// ------------------------------------------------------------
+// STEP 8: Incubate glycosylation reaction for 10 min at RT
+// FucT transfers fucose from GDP-fucose onto MU-beta-LacNAc
+// If GDP inhibits FucT -> MU-beta-LacNAc remains unfucosylated
+// ------------------------------------------------------------
+
+heat rxn1 at 25c for 10m
+heat rxn2 at 25c for 10m
+heat rxn3 at 25c for 10m
+heat rxn4 at 25c for 10m
+heat rxn5 at 25c for 10m
+heat rxn6 at 25c for 10m
+heat rxn7 at 25c for 10m
+
+// ------------------------------------------------------------
+// STEP 9: Dispense hydrolysis mix unit droplets (~500 nL)
+// Mix: 25 mM EDTA, 0.05 mM BgaA (beta-gal, S. pneumoniae),
+//      0.05 mM SpHex (N-acetylhexosaminidase, S. plicatus)
+//      in 25 mM HEPES + 0.05% Pluronics F-68
+// BgaA + SpHex sequentially cleave unfucosylated MU-beta-LacNAc
+// releasing fluorescent 4-methylumbelliferone (4-MU)
+// Fucosylated substrate is NOT cleaved -> low/no fluorescence
+// ------------------------------------------------------------
+
+hyd1 = dispense 1 units of HydrolysisMix
+hyd2 = dispense 1 units of HydrolysisMix
+hyd3 = dispense 1 units of HydrolysisMix
+hyd4 = dispense 1 units of HydrolysisMix
+hyd5 = dispense 1 units of HydrolysisMix
+hyd6 = dispense 1 units of HydrolysisMix
+hyd7 = dispense 1 units of HydrolysisMix
+
+stopped1 = mix rxn1 with hyd1 for 5s
+stopped2 = mix rxn2 with hyd2 for 5s
+stopped3 = mix rxn3 with hyd3 for 5s
+stopped4 = mix rxn4 with hyd4 for 5s
+stopped5 = mix rxn5 with hyd5 for 5s
+stopped6 = mix rxn6 with hyd6 for 5s
+stopped7 = mix rxn7 with hyd7 for 5s
+
+// ------------------------------------------------------------
+// STEP 10: Incubate hydrolysis reaction for 5 min at RT
+// Glycoside hydrolases release 4-MU from unfucosylated substrate
+// ------------------------------------------------------------
+
+heat stopped1 at 25c for 5m
+heat stopped2 at 25c for 5m
+heat stopped3 at 25c for 5m
+heat stopped4 at 25c for 5m
+heat stopped5 at 25c for 5m
+heat stopped6 at 25c for 5m
+heat stopped7 at 25c for 5m
+
+// ------------------------------------------------------------
+// STEP 11: Glycine dilution (5-fold) to correct bell-shaped
+// dose-response artefact caused by GDP quenching of 4-MU signal
+// GlycineSolution: 1 M glycine, pH 10.4
+// Each stopped droplet (~500 nL) is merged with 4 units of
+// glycine solution to achieve the 5-fold dilution on-chip
+// This restores the sigmoidal curve shape and improves
+// reproducibility by reducing solution viscosity
+// Expected IC50 post-glycine: 0.093 +/- 0.037 mM GDP (DMF)
+// ------------------------------------------------------------
+
+glycine1 = dispense 1 units of GlycineSolution
+glycine2 = dispense 1 units of GlycineSolution
+glycine3 = dispense 1 units of GlycineSolution
+glycine4 = dispense 1 units of GlycineSolution
+glycine5 = dispense 1 units of GlycineSolution
+glycine6 = dispense 1 units of GlycineSolution
+glycine7 = dispense 1 units of GlycineSolution
+
+diluted1 = mix stopped1 with glycine1 for 5s
+diluted2 = mix stopped2 with glycine2 for 5s
+diluted3 = mix stopped3 with glycine3 for 5s
+diluted4 = mix stopped4 with glycine4 for 5s
+diluted5 = mix stopped5 with glycine5 for 5s
+diluted6 = mix stopped6 with glycine6 for 5s
+diluted7 = mix stopped7 with glycine7 for 5s
+
+// ------------------------------------------------------------
+// STEP 12: Detect 4-MU fluorescence on-device
+// Device mounted to 384-well plate; scanned by plate reader
+// lambda_ex = 365 nm, lambda_em = 460 nm; gain = 750; 40 flashes
+// signal1 = highest GDP (~36 mM): FucT fully inhibited -> HIGH signal
+// signal7 = blank (0 mM GDP): FucT fully active -> LOW signal
+// IC50 fit: y = b + ((a-b) / (1 + (x/c)^d)) least squares
+// ------------------------------------------------------------
+
+signal1 = detect fluorescenceAssay on diluted1 for 30s
+signal2 = detect fluorescenceAssay on diluted2 for 30s
+signal3 = detect fluorescenceAssay on diluted3 for 30s
+signal4 = detect fluorescenceAssay on diluted4 for 30s
+signal5 = detect fluorescenceAssay on diluted5 for 30s
+signal6 = detect fluorescenceAssay on diluted6 for 30s
+signal7 = detect fluorescenceAssay on diluted7 for 30s
+
+// ------------------------------------------------------------
+// STEP 13: Pixel count volume verification
+// Image-based droplet volume measurement to back-calculate
+// inhibitor concentrations via C1V1 = C2V2
+// Homogeneity of dispensed droplets: <3% CV
+// PC vs. fluorescence deviation: <0.05%
+// ------------------------------------------------------------
+
+vol1 = detect pixelCount on diluted1 for 5s
+vol2 = detect pixelCount on diluted2 for 5s
+vol3 = detect pixelCount on diluted3 for 5s
+vol4 = detect pixelCount on diluted4 for 5s
+vol5 = detect pixelCount on diluted5 for 5s
+vol6 = detect pixelCount on diluted6 for 5s
+vol7 = detect pixelCount on diluted7 for 5s
+
+// ------------------------------------------------------------
+// STEP 14: Evaluate assay signal and clean up
+// Threshold of 15000 RFU on signal1 is an assay quality-check
+// heuristic (NOT a paper-derived value) confirming successful
+// inhibition at the highest GDP concentration.
+// Pass -> dispose droplets directly.
+// Fail -> drain droplets instead (avoids double-cleanup of the
+// same diluted1..6 droplets, which the original version did).
+// ------------------------------------------------------------
+
+if (signal1 >= 15000) {
+    dispose diluted1
+    dispose diluted2
+    dispose diluted3
+    dispose diluted4
+    dispose diluted5
+    dispose diluted6
+    dispose diluted7
+} else {
+    drain diluted1
+    drain diluted2
+    drain diluted3
+    drain diluted4
+    drain diluted5
+    drain diluted6
+    drain diluted7
+}
+
+dispose signal1
+dispose signal2
+dispose signal3
+dispose signal4
+dispose signal5
+dispose signal6
+dispose signal7
+dispose vol1
+dispose vol2
+dispose vol3
+dispose vol4
+dispose vol5
+dispose vol6
+dispose vol7

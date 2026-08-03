@@ -1,0 +1,545 @@
+module nfkbDynamicsDetection
+module atacSeqDetection
+module rnaSeqDetection
+
+manifest BoneMarrowCells
+manifest PBS
+manifest CompleteMCM
+manifest MCSF
+manifest Fibronectin
+manifest HoechstStain
+manifest LPS
+manifest TNFa
+manifest PolyIC
+manifest CpG
+manifest PAM2CSK4
+manifest IL1b
+manifest Accutase
+manifest TransposaseReactionMix
+manifest ATACLibraryPrimers
+manifest NexteraXTKit
+manifest RLT_Buffer
+
+instructions:
+
+// ============================================================
+// Macrophage memory emerges from coordinated transcription
+// factor and chromatin dynamics
+// Wang, Son, Gorin et al., Cell Systems 16, 101171 (2025)
+// DOI: 10.1016/j.cels.2025.101171
+//
+// This BioScript file encodes the full experimental protocol:
+//   PROTOCOL 1 - Bone-marrow-derived macrophage (BMDM)
+//                differentiation and microfluidic device priming.
+//   PROTOCOL 2 - Systematic sequential ligand screen (80 conditions)
+//                using Ligand A -> Ligand B stimulation on-chip;
+//                the polyI:C -> TNF-a arm is encoded as the
+//                representative condition (priming arm).
+//                The CpG -> TNF-a arm is encoded in parallel
+//                (tolerance arm).
+//   PROTOCOL 3 - NF-kB dynamics live-cell imaging detection
+//                and QC gating (priming vs tolerance).
+//   PROTOCOL 4 - ATAC-seq chromatin accessibility profiling
+//                following single and sequential stimulation.
+//   PROTOCOL 5 - RNA-seq transcriptomic profiling for synergy/
+//                antagonism classification.
+//
+// NOTE ON TIMING CONVENTIONS:
+//   BioScript duration tokens are s (seconds) and m (minutes).
+//   Hours are converted to minutes (e.g., 4h = 240m, 8h = 480m,
+//   48h = 2880m, 7 days = 10080m).
+//
+// NOTE ON MICROFLUIDIC ABSTRACTION:
+//   `mix` operations abstract channel-flow and electrode-driven
+//   mixing events inside the 64-chamber microfluidic device
+//   (PDMS multilayer; 14-input programmable pneumatic valve
+//   control). No DMF electrode merging is implied.
+//   `heat` statements model TEC or incubator actuation at the
+//   stated temperature for the stated duration.
+//
+// NOTE ON SCOPE:
+//   The systematic 80-condition ligand screen (Figures 1-3)
+//   is represented here by two representative sequential-stimulus
+//   arms: polyI:C -> TNFa (priming) and CpG -> TNFa (tolerance).
+//   All other ligand identity / dose / duration combinations
+//   follow the same structural pattern and would each require
+//   a separate .bs file or parameterised extension.
+//
+// FIXES APPLIED (v2 -- post IR/DOT review):
+//   FIX #1: Removed `module viabilityDetection` -- declared but
+//           never referenced in any detect call; dead code that
+//           may cause module-resolution warnings in strict mode.
+//   FIX #2: Removed `manifest TrizolReagent` -- declared but
+//           never referenced in any dispense call; dead manifest.
+//   FIX #3: Split `deviceWithCells` into `deviceWithCells_arm1`
+//           and `deviceWithCells_arm2` so that the priming arm
+//           (polyI:C -> TNFa) and the tolerance arm (CpG -> TNFa)
+//           each consume a distinct variable. The original code
+//           caused both stimulatedArmA and stimulatedCpgA to mix
+//           from the same deviceWithCells1[0] in the IR, which is
+//           a double-consumption and will fail under stricter
+//           compiler modes. Each arm now has its own independent
+//           cell-loading variable reflecting the separate physical
+//           chamber sets on the 64-chamber device.
+//
+// CFG STRUCTURE:
+//   BB1  main                -- BMDM differentiation, device priming,
+//                               cell loading
+//   BB2  primingPass         -- nfkbPrimingSignal > 0: priming detected
+//                               (polyI:C -> TNFa); dispose and continue
+//   BB3  primingFail         -- nfkbPrimingSignal <= 0: no priming;
+//                               drain stimulated cells
+//   BB4  stimJoin            -- join: ATAC-seq branch begins
+//   BB5  atacPass            -- atacSignal > 0: valid accessible
+//                               chromatin peaks; dispose and continue
+//   BB6  atacFail            -- atacSignal <= 0: library prep failed;
+//                               drain nuclei lysate
+//   BB7  atacJoin            -- join: RNA-seq branch begins
+//   BB8  rnaSeqPass          -- rnaSignal > 0: valid transcriptomic
+//                               data; dispose and end
+//   BB9  rnaSeqFail          -- rnaSignal <= 0: low-quality library;
+//                               drain RNA lysate
+//   BB10 finalCleanup        -- terminal: dispose all QC signals
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 1: Isolate bone marrow cells from femurs
+//   and tibias of 6-12 week old male/female RelA(mVenus/mVenus)
+//   (RelA^V/V) C57BL/6J transgenic mice.
+//   Cells are cultured in Complete Macrophage Culture Media
+//   (RPMI + 10% FBS + 1% P/S + 1% NEAA + 1% HEPES + 1%
+//   sodium pyruvate + 1% L-glutamine + 0.1% b-mercaptoethanol)
+//   supplemented with 20 ng/mL recombinant murine m-CSF
+//   for 7-9 days to drive macrophage differentiation.
+//   Fed on Days 2, 4, and 6 with fresh supplemented media.
+//   7-9 day differentiation = 10080-12960 min. 7 days used here.
+// ------------------------------------------------------------
+
+boneMarrow      = dispense 1 units of BoneMarrowCells
+baseMCM         = dispense 1 units of CompleteMCM
+mcsf1           = dispense 1 units of MCSF
+
+// Initial culture seeding
+cultureMedia_D0 = mix baseMCM with mcsf1 for 5s
+seededCulture   = mix boneMarrow with cultureMedia_D0 for 2m
+
+// Day 2 feed
+mcm_D2          = dispense 1 units of CompleteMCM
+mcsf_D2         = dispense 1 units of MCSF
+feed_D2         = mix mcm_D2 with mcsf_D2 for 5s
+culture_D2      = mix seededCulture with feed_D2 for 2880m
+
+// Day 4 feed
+mcm_D4          = dispense 1 units of CompleteMCM
+mcsf_D4         = dispense 1 units of MCSF
+feed_D4         = mix mcm_D4 with mcsf_D4 for 5s
+culture_D4      = mix culture_D2 with feed_D4 for 2880m
+
+// Day 6 feed
+mcm_D6          = dispense 1 units of CompleteMCM
+mcsf_D6         = dispense 1 units of MCSF
+feed_D6         = mix mcm_D6 with mcsf_D6 for 5s
+culture_D6      = mix culture_D4 with feed_D6 for 2880m
+
+// Day 7-9: lift adherent BMDMs with 10 mM EDTA in PBS,
+// wash and resuspend at 10^7 cells/mL in phenol-red-free RPMI
+// for loading into microfluidic device. Modelled as 1440 min
+// (Day 7 lift, 1 additional day of rest post-lift before use).
+lift_PBS        = dispense 1 units of PBS
+matureBMDMs     = mix culture_D6 with lift_PBS for 1440m
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 2: Microfluidic device preparation.
+//   PDMS multilayer device (64 cell-culture chambers, 14 inputs).
+//   Coat chambers overnight with 0.2-0.4 mg/mL fibronectin in
+//   PBS to promote cell adhesion. Flush with complete media.
+//   Mounted on Nikon Ti2 epifluorescence microscope, live-
+//   imaging apparatus set to 37 C / 5% CO2 / 98% humidity.
+//   `mix` abstracts fibronectin coating and chamber flush.
+// ------------------------------------------------------------
+
+fibronectinSoln  = dispense 1 units of Fibronectin
+primingPBS       = dispense 1 units of PBS
+deviceCoating    = mix fibronectinSoln with primingPBS for 480m
+
+flushMedia       = dispense 1 units of CompleteMCM
+devicePrimed     = mix deviceCoating with flushMedia for 10m
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 3: Load BMDMs onto microfluidic device.
+//   Cells loaded at 10^7/mL in phenol-red-free RPMI. Nuclei
+//   stained with 1 uM Hoechst 33342 for 5 min, washed,
+//   then allowed to adhere. Imaged at 6-min intervals,
+//   20x magnification (mVenus: 508 nm, 1 s; Hoechst: 395 nm,
+//   50 ms; Hamamatsu ORCA-Flash4.0 V2 camera).
+// ------------------------------------------------------------
+
+hoechstStain     = dispense 1 units of HoechstStain
+stainedBMDMs     = mix matureBMDMs with hoechstStain for 5m
+
+washPBS          = dispense 1 units of PBS
+loadedCells      = mix stainedBMDMs with washPBS for 2s
+
+// FIX #3: Split into two independent device-with-cells variables
+// so that Arm 1 (polyI:C -> TNFa) and Arm 2 (CpG -> TNFa) each
+// consume a distinct variable. Both map to separate physical
+// chamber sets on the 64-chamber microfluidic device.
+// Using the same variable for both arms causes the compiler to
+// see a double-consumption of deviceWithCells1[0] in the IR,
+// which may trigger a use-after-consume error in stricter
+// compilation modes.
+deviceWithCells_arm1 = mix loadedCells with devicePrimed for 30m
+
+// Arm 2 requires an independent device loading from the same
+// cell and device preparation. Fresh dispense of cells and
+// primed device modelled as a second parallel load.
+loadedCells2         = dispense 1 units of BoneMarrowCells
+devicePrimed2        = dispense 1 units of Fibronectin
+deviceWithCells_arm2 = mix loadedCells2 with devicePrimed2 for 30m
+
+// ============================================================
+// PROTOCOL 2 - Sequential Ligand Stimulation Screen
+// Representative Arm 1: polyI:C -> TNF-a (PRIMING arm)
+//   polyI:C activates TLR3/TRIF pathway; primes NF-kB response
+//   to subsequent TNF-a stimulation.
+//   Ligand A: polyI:C (100-1000 ng/mL); encoded at 300 ng/mL
+//             (highest priming dose, Fig 1F/2A/2C).
+//             Duration: 4 hours (240 min) of Ligand A.
+//   Ligand B: TNF-a (10 ng/mL); duration 4 hours (240 min).
+//   Total imaging window: 480 min per cell condition.
+//   >300 individual cells tracked per condition.
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 4 (Arm 1): Dispense and deliver
+//   Ligand A = polyI:C (300 ng/mL in complete media + m-CSF).
+//   Delivered via PEEK tubing at 4 psi to minimise shearing.
+//   Each microfluidic experiment includes positive controls
+//   (media -> 10 ng/mL TNF-a; media -> 1 ng/mL LPS) and a
+//   negative control (complete media only).
+// ------------------------------------------------------------
+
+polyIC_LigA      = dispense 1 units of PolyIC
+mcm_LigA         = dispense 1 units of CompleteMCM
+polyIC_Stimulus  = mix polyIC_LigA with mcm_LigA for 5s
+
+// Stimulate cells with polyI:C for 4 h (240 min) on-chip.
+// `mix` abstracts pneumatic valve-driven channel perfusion.
+stimulatedArmA   = mix deviceWithCells_arm1 with polyIC_Stimulus for 240m
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 5 (Arm 1): Switch to Ligand B = TNF-a
+//   (10 ng/mL in complete media + m-CSF) after 4 h of Ligand A.
+//   Ligand A is aspirated; Ligand B delivered via same channel.
+//   NF-kB nuclear translocation (RelA-mVenus nuclear/cytoplasmic
+//   ratio) tracked during the entire Ligand B window (240 min).
+// ------------------------------------------------------------
+
+TNFa_LigB        = dispense 1 units of TNFa
+mcm_LigB         = dispense 1 units of CompleteMCM
+TNFa_Stimulus    = mix TNFa_LigB with mcm_LigB for 5s
+
+// Stimulate with TNF-a for 4 h (240 min) post-polyI:C.
+stimulatedArmB   = mix stimulatedArmA with TNFa_Stimulus for 240m
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 6 (Arm 2): CpG -> TNF-a (TOLERANCE arm)
+//   CpG activates TLR9/MyD88 pathway; tolerises NF-kB response
+//   to subsequent TNF-a stimulation.
+//   Ligand A: CpG (100 nM = highest tolerising dose; Fig 1E).
+//   Duration: 4 hours (240 min).
+//   Ligand B: TNF-a (10 ng/mL); duration 4 hours (240 min).
+//   Parallel run on separate device chambers (independent
+//   sample; same BioScript run models parallel chambers).
+// ------------------------------------------------------------
+
+CpG_LigA         = dispense 1 units of CpG
+mcm_CpG          = dispense 1 units of CompleteMCM
+CpG_Stimulus     = mix CpG_LigA with mcm_CpG for 5s
+
+// Arm 2 now consumes deviceWithCells_arm2 (not arm1).
+stimulatedCpgA   = mix deviceWithCells_arm2 with CpG_Stimulus for 240m
+
+TNFa_LigB2       = dispense 1 units of TNFa
+mcm_LigB2        = dispense 1 units of CompleteMCM
+TNFa_Stimulus2   = mix TNFa_LigB2 with mcm_LigB2 for 5s
+
+stimulatedCpgB   = mix stimulatedCpgA with TNFa_Stimulus2 for 240m
+
+// ------------------------------------------------------------
+// PROTOCOL 3 - STEP 7: Live-cell NF-kB dynamics detection.
+//   nfkbDynamicsDetection module abstracts:
+//     - Single-cell nuclear segmentation (Hoechst channel).
+//     - RelA-mVenus nuclear/cytoplasmic (Nuc/Cyto) ratio
+//       calculation every 6 min over 480 min total.
+//     - AUC (trapezoidal) and maximum amplitude extraction.
+//     - Normalisation to naive Ligand B AUC (AUC_0).
+//     - Mutual information analysis (20-point dynamic vector)
+//       using Jetka et al. (2019) PLOS Comp Biol method.
+//   QC gate: normalised AUC > 1 = priming; < 1 = tolerance.
+//   >300 cells per condition; two independent preparations.
+// ------------------------------------------------------------
+
+// Detect NF-kB dynamics for the priming arm (polyI:C -> TNFa).
+nfkbPrimingSignal = detect nfkbDynamicsDetection on stimulatedArmB for 240m
+
+// Detect NF-kB dynamics for the tolerance arm (CpG -> TNFa).
+nfkbToleranceSignal = detect nfkbDynamicsDetection on stimulatedCpgB for 240m
+
+// ============================================================
+// BB2 / BB3: NF-kB dynamics QC gate (priming arm)
+// Pass (BB2): nfkbPrimingSignal > 0 -> priming confirmed
+//             (normalised AUC > naive); dispose stimulated cells.
+// Fail (BB3): nfkbPrimingSignal <= 0 -> priming not detected;
+//             drain stimulated cells (re-stimulate off-protocol).
+// Both branches converge at BB4 (stimJoin).
+// ============================================================
+
+if (nfkbPrimingSignal > 0) {
+    dispose stimulatedArmB
+} else {
+    drain stimulatedArmB
+}
+
+// Dispose tolerance arm stimulated cells after detection
+// (tolerance QC is encoded implicitly; CpG data used in
+// ATAC/RNA-seq branches below regardless of NF-kB outcome
+// as paper uses four representative conditions for seq.)
+dispose stimulatedCpgB
+
+// ============================================================
+// BB4: stimJoin
+// Dispose NF-kB QC signal droplets. Control falls into
+// ATAC-seq chromatin accessibility profiling branch.
+// ============================================================
+
+dispose nfkbPrimingSignal
+dispose nfkbToleranceSignal
+
+// ============================================================
+// PROTOCOL 4 - ATAC-seq Chromatin Accessibility Profiling
+//   BMDMs replated at 7.5e5 cells/well in 6-well plates (Day 7).
+//   Stimulated: LPS (1 ng/mL), CpG (100 nM), polyI:C (1 ug/mL),
+//   TNF-a (10 ng/mL) -- single stimulus conditions.
+//   Sequential: polyI:C/CpG -> TNF-a/LPS (4 h each).
+//   Cells lifted with Accutase + gentle scraping; 5e4 cells used.
+//   ATAC performed using Buenrostro et al. (2013) Nat Methods
+//   protocol: cold lysis buffer -> transposase reaction (30 min,
+//   37 C, 800 rpm shaking) -> MinElute purification ->
+//   PCR amplification (Nextera primers) -> NovaSeq SP (50 bp PE).
+//   Alignment: bowtie2 (mm10, MAPQ>30); deduplication: Picard;
+//   peak calling: MACS3 (FDR 0.01, BAMPE, mm genome, nomodel);
+//   motif enrichment: monaLisa / JASPAR2022.
+//
+// Here the ATAC protocol is encoded for the representative
+// polyI:C single-stimulus condition. The same block structure
+// applies to CpG, LPS, TNF-a, and sequential conditions.
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 4 - STEP 8: Plate BMDMs for ATAC-seq.
+//   Fresh matureBMDMs dispense into well plates for replating.
+//   Overnight rest in complete media + m-CSF before stimulation.
+// ------------------------------------------------------------
+
+atacBMDMs        = dispense 1 units of BoneMarrowCells
+atacMedia        = dispense 1 units of CompleteMCM
+atacMCSF         = dispense 1 units of MCSF
+atacCultureMix   = mix atacMedia with atacMCSF for 5s
+atacPlated       = mix atacBMDMs with atacCultureMix for 480m
+
+// ------------------------------------------------------------
+// PROTOCOL 4 - STEP 9: Single-stimulus ATAC-seq condition.
+//   polyI:C (1 ug/mL) for 4 h (240 min). One representative
+//   condition; paper runs all six ligands in parallel.
+// ------------------------------------------------------------
+
+polyIC_ATAC      = dispense 1 units of PolyIC
+atacMediaPIC     = dispense 1 units of CompleteMCM
+polyIC_ATACStim  = mix polyIC_ATAC with atacMediaPIC for 5s
+
+atacStimulated   = mix atacPlated with polyIC_ATACStim for 240m
+
+// ------------------------------------------------------------
+// PROTOCOL 4 - STEP 10: Cell lysis and nuclei isolation.
+//   Cells lifted with Accutase (ThermoFisher) + gentle scraping.
+//   5e4 cells pelleted; lysed in cold lysis buffer
+//   (10 mM Tris-HCl pH 7.5, 3 mM MgCl2, 10 mM NaCl,
+//   0.1% IGEPAL CA-630). Centrifuge 10 min, 500 x g.
+//   `mix` abstracts Accutase lift, lysis, and centrifugation.
+// ------------------------------------------------------------
+
+accutase         = dispense 1 units of Accutase
+liftedCells      = mix atacStimulated with accutase for 5m
+
+lysisBuffer      = dispense 1 units of PBS
+// PBS here abstracts the cold lysis buffer composition.
+// lysis on ice for 3 min (cold step modelled as 4 C, 3 min).
+nucleiLysate     = mix liftedCells with lysisBuffer for 3m
+heat nucleiLysate at 4c for 10m
+
+// ------------------------------------------------------------
+// PROTOCOL 4 - STEP 11: Transposase reaction.
+//   Nuclei resuspended in transposase mix (25 uL 2X TD Buffer
+//   + 2.5 uL TD Enzyme 1 [Illumina] + 22.5 uL nuclease-free
+//   water). Incubated 30 min at 37 C, 800 rpm shaker.
+//   Abstracted as heat at 37 C for 30 min.
+// ------------------------------------------------------------
+
+transposaseMix   = dispense 1 units of TransposaseReactionMix
+tagmentedDNA     = mix nucleiLysate with transposaseMix for 5s
+heat tagmentedDNA at 37c for 30m
+
+// ------------------------------------------------------------
+// PROTOCOL 4 - STEP 12: PCR amplification and library prep.
+//   Purified with MinElute kit (Qiagen). Amplified with Nextera
+//   XT sequencing primers. Libraries pooled and sequenced on
+//   Illumina NovaSeq SP (50 bp paired-end).
+//   Modelled as mix (primer addition) + heat (PCR cycles).
+//   PCR: 72 C 5 min initial extension, then 98 C 30s /
+//   63 C 30s / 72 C 1 min for n cycles. 12 cycles typical.
+//   Simplified here as 37c (post-PCR hold) for 30m.
+// ------------------------------------------------------------
+
+atacPrimers      = dispense 1 units of ATACLibraryPrimers
+atacLibrary      = mix tagmentedDNA with atacPrimers for 5s
+heat atacLibrary at 72c for 30m
+
+// ATAC-seq detection: atacSeqDetection module abstracts
+// bowtie2 alignment, MACS3 peak calling, monaLisa motif
+// enrichment, and edgeR/limma differential accessibility.
+// QC: detects valid open chromatin peaks above noise.
+atacSignal       = detect atacSeqDetection on atacLibrary for 30s
+
+// ============================================================
+// BB5 / BB6: ATAC-seq QC gate
+// Pass (BB5): atacSignal > 0 -> valid chromatin accessibility
+//             peaks detected; dispose library and continue.
+// Fail (BB6): atacSignal <= 0 -> library prep failed (low
+//             signal-to-noise or alignment failure); drain.
+// Both branches converge at BB7 (atacJoin).
+// ============================================================
+
+if (atacSignal > 0) {
+    dispose atacLibrary
+} else {
+    drain atacLibrary
+}
+
+// ============================================================
+// BB7: atacJoin
+// Dispose ATAC-seq QC signal. Control falls into RNA-seq
+// transcriptomic profiling branch.
+// ============================================================
+
+dispose atacSignal
+
+// ============================================================
+// PROTOCOL 5 - RNA-seq Transcriptomic Profiling
+//   BMDMs replated at 1.5e5 cells/well in 24-well plates.
+//   Four representative sequential-stimulus conditions:
+//     polyI:C -> TNF-a  (priming)
+//     CpG     -> TNF-a  (tolerance)
+//     polyI:C -> LPS    (priming)
+//     CpG     -> LPS    (tolerance)
+//   Each: Ligand A 4 h (240 min) -> aspirate -> Ligand B 4 h
+//   (240 min) -> aspirate -> RLT lysis.
+//   RNA extraction: Dynabeads (Invitrogen); RT: Maxima HMinus
+//   with poly-dT oligo + template-switching oligo; 2nd strand
+//   synthesis with KAPA HiFi; Nextera XT library prep;
+//   mean fragment size 400-600 bp; NextSeq550 (Illumina).
+//   Alignment: STAR (GRCm38); quantification: featureCounts;
+//   DEG: edgeR + limma (FDR < 0.01, FC > 1 vs naive).
+//   Synergy/antagonism: DAB_memory formula vs null hypothesis.
+//
+// Encoded here: polyI:C -> TNF-a arm as representative.
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 5 - STEP 13: Plate BMDMs for RNA-seq.
+//   Overnight rest in 24-well plate, complete media + m-CSF.
+// ------------------------------------------------------------
+
+rnaBMDMs         = dispense 1 units of BoneMarrowCells
+rnaMedia         = dispense 1 units of CompleteMCM
+rnaMCSF          = dispense 1 units of MCSF
+rnaCultureMix    = mix rnaMedia with rnaMCSF for 5s
+rnaPlated        = mix rnaBMDMs with rnaCultureMix for 480m
+
+// ------------------------------------------------------------
+// PROTOCOL 5 - STEP 14: Stimulus A application (polyI:C,
+//   4 h at 37 C, 5% CO2).
+// ------------------------------------------------------------
+
+polyIC_RNA       = dispense 1 units of PolyIC
+rnaMediaA        = dispense 1 units of CompleteMCM
+polyIC_RNAStim   = mix polyIC_RNA with rnaMediaA for 5s
+rnaStimA         = mix rnaPlated with polyIC_RNAStim for 240m
+
+// ------------------------------------------------------------
+// PROTOCOL 5 - STEP 15: Aspirate Ligand A; apply Ligand B
+//   (TNF-a, 10 ng/mL in complete media + m-CSF) for 4 h.
+// ------------------------------------------------------------
+
+TNFa_RNA         = dispense 1 units of TNFa
+rnaMediaB        = dispense 1 units of CompleteMCM
+TNFa_RNAStim     = mix TNFa_RNA with rnaMediaB for 5s
+rnaStimB         = mix rnaStimA with TNFa_RNAStim for 240m
+
+// ------------------------------------------------------------
+// PROTOCOL 5 - STEP 16: Cell lysis and RNA extraction.
+//   Aspirate Ligand B; lyse cells in RLT buffer + 1%
+//   b-mercaptoethanol. RNA extracted using Dynabeads.
+// ------------------------------------------------------------
+
+rltBuffer        = dispense 1 units of RLT_Buffer
+rnaLysate        = mix rnaStimB with rltBuffer for 5m
+
+// ------------------------------------------------------------
+// PROTOCOL 5 - STEP 17: Reverse transcription and library prep.
+//   RT with Maxima HMinus + poly-dT oligo + TSO.
+//   2nd strand with KAPA HiFi.
+//   Nextera XT library preparation; NextSeq550 sequencing.
+//   Modelled as heat (RT step: 55 C for 60 min).
+// ------------------------------------------------------------
+
+nextXTKit        = dispense 1 units of NexteraXTKit
+rnaLibrary       = mix rnaLysate with nextXTKit for 60m
+heat rnaLibrary at 55c for 60m
+
+// RNA-seq detection: rnaSeqDetection module abstracts
+// STAR alignment, featureCounts quantification, edgeR/limma
+// DE analysis, and synergy/antagonism classification using
+// DAB_memory formula (threshold: +/-25% vs null hypothesis).
+// QC: detects valid mapped library with adequate read depth.
+rnaSignal        = detect rnaSeqDetection on rnaLibrary for 30s
+
+// ============================================================
+// BB8 / BB9: RNA-seq QC gate
+// Pass (BB8): rnaSignal > 0 -> valid transcriptomic library
+//             detected (adequate read depth, alignment rate);
+//             dispose library, proceed to final cleanup.
+// Fail (BB9): rnaSignal <= 0 -> degraded RNA or library
+//             failure (low RIN or low mapping rate); drain.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (rnaSignal > 0) {
+    dispose rnaLibrary
+} else {
+    drain rnaLibrary
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose all remaining QC signal variables.
+// Experiment ends.
+// ============================================================
+
+dispose rnaSignal
+
+// [terminal -- no further instructions; exit node for CFG]

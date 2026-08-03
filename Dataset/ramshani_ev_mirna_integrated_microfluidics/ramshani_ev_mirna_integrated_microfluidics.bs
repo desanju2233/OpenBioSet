@@ -1,0 +1,331 @@
+module iemSensorDetection
+module sawLysingDetection
+module miR21FreefloatingDetection
+module miR21TotalDetection
+
+manifest Plasma_Sample
+manifest PBS_1x
+manifest PBS_4x
+manifest PBS_01x
+manifest TAE_Buffer_10x
+manifest miR21_OligoProbe
+manifest SAW_Actuator
+manifest IEM_AEM_Sensor
+manifest IEM_CEM_Concentrator
+
+instructions:
+
+// ============================================================
+// Extracellular Vesicle microRNA Quantification from Plasma
+// Using an Integrated Microfluidic Device
+// Ramshani et al., Communications Biology (2019) 2:189
+// DOI: 10.1038/s42003-019-0435-1
+//
+// Protocol: PCR-free absolute quantification of free-floating
+// and EV-contained miR-21 from untreated human plasma using
+// (1) a surface acoustic wave (SAW) lysing chip that
+//     mechanically lyses EVs under continuous flow, and
+// (2) a concentration/sensing chip with ion-exchange
+//     membranes (IEMs) that concentrate and detect
+//     target miRNA via current-voltage curve (CVC) shift.
+//
+// Biomarker: miRNA hsa-mir-21-5p (miR-21)
+//   Sequence: TAGCTTATCAGACTGATGTTGA
+//   Correlation: pancreatic cancer, lung cancer,
+//                colorectal cancer, hepatocellular carcinoma.
+//
+// Key specs:
+//   Sample volume   : ~20 uL per measurement (40 uL total)
+//   Assay time      : ~30 min per measurement (~60 min total)
+//   Detection limit : 1 pM
+//   Quantification  : <10% uncertainty (absolute, PCR-free)
+//   SAW frequency   : 28 MHz, 1 W
+//   SAW flow rate   : 250 uL/h
+//   EV lysis time   : ~1 min in SAW channel
+//   Concentration V : 200 V DC for 20 min
+//   Hybridisation   : 20 min (concurrent with concentration)
+//   Wash buffer     : 4x PBS (post-hybridisation)
+//   CVC buffer      : 0.1x PBS (measurement)
+//
+// NOTE ON IEM SENSOR ABSTRACTION:
+//   The AEM sensor is functionalized with a complementary
+//   ssDNA oligoprobe (TCAACATCAGTCTGATAAGCTA) to miR-21.
+//   Target hybridisation shifts the over-limiting region of
+//   the CVC by Delta-V (V), which is log-linearly correlated
+//   to miR-21 concentration:
+//     C (nM) = exp((Delta-V - 0.76145) / 0.06614)
+//   `detect iemSensorDetection` abstracts the CVC sweep
+//   (Gamry 500 potentiostat, Ag-AgCl reference electrodes).
+//   `detect sawLysingDetection` abstracts SAW actuation
+//   and confirms lysis before downstream sensing.
+//   `detect miR21FreefloatingDetection` abstracts CVC shift
+//   measurement for the unlysed (free-floating) plasma run.
+//   `detect miR21TotalDetection` abstracts CVC shift
+//   measurement for the SAW-lysed (total miRNA) plasma run.
+//
+// NOTE ON CONCENTRATION STEP ABSTRACTION:
+//   Application of 200 V DC across the CEM reservoir for
+//   20 min creates an ion-depletion zone upstream of the
+//   AEM sensor, concentrating negatively charged miRNA
+//   by up to three orders of magnitude directly beneath
+//   the sensor where hybridisation occurs. This is modelled
+//   as a `heat` step at 25c (room temperature) for 20 min
+//   (= 1200 s), reflecting the ambient temperature of the
+//   concentration/sensing chip during IEM operation.
+//
+// CFG STRUCTURE:
+//   BB1  main                  -- device setup, IEM baseline CVC,
+//                                  free-floating miR-21 measurement
+//   BB2  freefloatingPass      -- freefloatSignal > 0: valid
+//                                  free-floating miR-21 detected;
+//                                  proceed to SAW-lysed total run
+//   BB3  freefloatingFail      -- freefloatSignal <= 0: no signal
+//                                  (below sensor limit); drain
+//   BB4  freefloatingJoin      -- join: total miRNA measurement begins
+//   BB5  totalPass             -- totalSignal > 0: valid total miR-21
+//                                  (free-floating + EV-miRNA) detected;
+//                                  dispose and compute EV fraction
+//   BB6  totalFail             -- totalSignal <= 0: no total signal;
+//                                  drain
+//   BB7  finalCleanup          -- terminal: dispose QC signals,
+//                                  experiment ends
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prepare 1x PBS running buffer and establish
+//         baseline CVC on the IEM sensor (oligoprobe only,
+//         no sample). The sensor is functionalized prior to
+//         use with miR-21 complementary ssDNA oligoprobe
+//         (TCAACATCAGTCTGATAAGCTA) via standard amine-
+//         coupling on the AEM surface.
+//         This baseline CVC (miR-21 probe in 1x PBS only)
+//         is used as the reference for all Delta-V measurements.
+//         Buffer volume: 60 uL (used as driver fluid after
+//         sample injection throughout the protocol).
+// ------------------------------------------------------------
+
+runningBuffer   = dispense 1 units of PBS_1x
+probeBaseline   = dispense 1 units of IEM_AEM_Sensor
+
+baselineMix     = mix runningBuffer with probeBaseline for 5s
+baselineSignal  = detect iemSensorDetection on baselineMix for 30s
+
+// ------------------------------------------------------------
+// STEP 2: MEASUREMENT 1 - Free-floating miR-21 quantification.
+//         ~20 uL of untreated human plasma is injected into
+//         the integrated platform with the SAW device OFF
+//         (no EV lysis). The sample passes through the lysing
+//         chip channel and flows directly into the
+//         concentration/sensing chip.
+//         Flow rate: 250 uL/h (sample + 60 uL PBS driver).
+//         The SAW chip channel is bypassed acoustically
+//         (IDT powered off) -- EVs remain intact.
+//         Only free-floating miR-21 present in plasma reaches
+//         the IEM sensor.
+//         NOTE: `mix` here abstracts continuous flow injection
+//         through the microfluidic channel; no DMF-style
+//         droplet merging occurs. Plasma is used as-is with
+//         no sample preparation.
+// ------------------------------------------------------------
+
+plasmaRun1      = dispense 1 units of Plasma_Sample
+driverBuffer1   = dispense 1 units of PBS_1x
+
+// Continuous-flow channel injection (SAW OFF - no lysis).
+// Flow carries 20 uL plasma + 60 uL PBS driver at 250 uL/h.
+channelFlow1    = mix plasmaRun1 with driverBuffer1 for 2s
+
+// ------------------------------------------------------------
+// STEP 3: IEM concentration - apply 200 V DC across CEM
+//         reservoir for 20 min. The resulting depletion zone
+//         concentrates negatively charged free-floating
+//         miR-21 upstream of the AEM sensor surface.
+//         Hybridisation with the oligoprobe occurs
+//         concurrently during this 20-min window.
+//         Modelled as room-temperature incubation (25 C,
+//         20 min = 1200 s) to represent non-thermal IEM
+//         electrokinetic concentration at ambient conditions.
+// ------------------------------------------------------------
+
+cemConcentrator1 = dispense 1 units of IEM_CEM_Concentrator
+concentrating1   = mix channelFlow1 with cemConcentrator1 for 1200s
+
+// IEM electrokinetic concentration at ambient temperature.
+heat concentrating1 at 25c for 1200s
+
+// ------------------------------------------------------------
+// STEP 4: Post-hybridisation wash with 4x PBS to remove
+//         non-hybridised species from the AEM sensor surface.
+//         Then pump 0.1x PBS into the channel prior to the
+//         CVC measurement sweep.
+// ------------------------------------------------------------
+
+washBuffer1     = dispense 1 units of PBS_4x
+washed1         = mix concentrating1 with washBuffer1 for 2s
+
+cvcBuffer1      = dispense 1 units of PBS_01x
+readyForCVC1    = mix washed1 with cvcBuffer1 for 2s
+
+// ------------------------------------------------------------
+// STEP 5: CVC sweep - measure Delta-V for free-floating
+//         miR-21. Concentration voltage is terminated;
+//         Gamry 500 potentiostat applies current-voltage
+//         sweep (0 to 2.5 V) between the AEM sensor reservoir
+//         and upstream reservoir via platinum electrodes.
+//         Voltage drop measured by Ag-AgCl reference electrodes
+//         across the sensor. Delta-V in the over-limiting
+//         current region is recorded.
+//         miR21FreefloatingDetection abstracts this CVC sweep
+//         and returns a positive signal if Delta-V > sensor
+//         noise floor (> ~0.1 V for free-floating miR-21
+//         in healthy human plasma as per paper Fig. 3).
+// ------------------------------------------------------------
+
+freefloatSignal = detect miR21FreefloatingDetection on readyForCVC1 for 30s
+
+// ============================================================
+// BB2 / BB3: Free-floating miR-21 QC gate
+// Pass (BB2): freefloatSignal > 0 -> measureable Delta-V
+//             detected for free-floating miR-21; dispose
+//             and proceed to SAW-lysed total measurement.
+// Fail (BB3): freefloatSignal <= 0 -> signal below sensor
+//             noise floor (< 1 pM); drain and abort.
+// Both branches converge at BB4 (freefloatingJoin).
+// ============================================================
+
+if (freefloatSignal > 0) {
+    dispose readyForCVC1
+} else {
+    drain readyForCVC1
+}
+
+// ============================================================
+// BB4: freefloatingJoin
+// Dispose free-floating QC signal. Control falls into
+// total miRNA measurement branch (BB5/BB6).
+// ============================================================
+
+dispose freefloatSignal
+dispose baselineSignal
+
+// ------------------------------------------------------------
+// STEP 6: MEASUREMENT 2 - Total miR-21 quantification
+//         (free-floating + EV-contained miR-21).
+//         A fresh 20 uL aliquot of the same plasma sample is
+//         injected with the SAW device ACTIVE (28 MHz, 1 W).
+//         SAWs refract into the polycarbonate microchannel
+//         perpendicular to the IDT array, generating acoustic
+//         pressure that mechanically shears EVs open.
+//         Residence time: ~1 min in the SAW channel at
+//         250 uL/h flow rate -- sufficient for ~100% EV lysis.
+//         Released EV-miRNA and free-floating miRNA both
+//         flow into the concentration/sensing chip.
+//         NOTE: `mix` abstracts SAW channel flow-through.
+//         sawLysingDetection confirms acoustic lysis before
+//         the lysate enters the IEM chip.
+// ------------------------------------------------------------
+
+sawActuator     = dispense 1 units of SAW_Actuator
+plasmaRun2      = dispense 1 units of Plasma_Sample
+driverBuffer2   = dispense 1 units of PBS_1x
+
+// SAW lysis: 28 MHz, 1 W, ~1 min exposure at 250 uL/h.
+// NOTE: `mix` abstracts the channel-flow EV lysis event.
+// No DMF electrode mixing occurs; this models acoustic
+// pressure shearing of EV membranes under continuous flow.
+sawLysate       = mix plasmaRun2 with sawActuator for 60s
+
+// Detect lysis completion (confirms EVs are mechanically
+// disrupted before lysate enters concentration/sensing chip).
+lysisSignal     = detect sawLysingDetection on sawLysate for 10s
+
+// Flow lysate into concentration/sensing chip under PBS driver.
+channelFlow2    = mix sawLysate with driverBuffer2 for 2s
+
+// ------------------------------------------------------------
+// STEP 7: IEM concentration - second run.
+//         200 V DC applied for 20 min across CEM reservoir.
+//         Both free-floating miR-21 and EV-released miR-21
+//         (total pool) concentrate upstream of the AEM sensor
+//         and hybridise with the miR-21 oligoprobe.
+//         IEM sensor is replaced (disposable) between runs
+//         to maintain optimised repeatability.
+// ------------------------------------------------------------
+
+cemConcentrator2 = dispense 1 units of IEM_CEM_Concentrator
+concentrating2   = mix channelFlow2 with cemConcentrator2 for 1200s
+
+// IEM electrokinetic concentration at ambient temperature.
+heat concentrating2 at 25c for 1200s
+
+// ------------------------------------------------------------
+// STEP 8: Post-hybridisation wash and buffer exchange
+//         for the total miRNA CVC measurement.
+//         4x PBS wash removes non-hybridised species.
+//         0.1x PBS is pumped in before the CVC sweep.
+// ------------------------------------------------------------
+
+washBuffer2     = dispense 1 units of PBS_4x
+washed2         = mix concentrating2 with washBuffer2 for 2s
+
+cvcBuffer2      = dispense 1 units of PBS_01x
+readyForCVC2    = mix washed2 with cvcBuffer2 for 2s
+
+// ------------------------------------------------------------
+// STEP 9: CVC sweep - measure Delta-V for total miR-21
+//          (free-floating + EV-miRNA).
+//          Same potentiostat procedure as STEP 6.
+//          Expected Delta-V for total miR-21 in healthy human
+//          plasma: ~0.65-0.7 V (vs ~0.1 V for free-floating
+//          only) as per paper Fig. 3.
+//          The difference in voltage shift between Measurement
+//          1 (free-floating) and Measurement 2 (total)
+//          directly quantifies the EV-miR-21 fraction.
+//          EV-miR-21 concentration is calculated from the
+//          calibration curve: C = exp((Delta-V - 0.76145) / 0.06614)
+//          miR21TotalDetection abstracts this CVC sweep and
+//          returns positive signal if Delta-V significantly
+//          exceeds the free-floating baseline (> ~0.2 V shift
+//          from free-floating run expected for EV contribution).
+// ------------------------------------------------------------
+
+totalSignal     = detect miR21TotalDetection on readyForCVC2 for 30s
+
+// ============================================================
+// BB5 / BB6: Total miR-21 QC gate
+// Pass (BB5): totalSignal > 0 -> measurable Delta-V for
+//             total miR-21 detected; Delta-V > free-floating
+//             signal confirming EV-miRNA released by SAW.
+//             Dispose all droplets and proceed to cleanup.
+// Fail (BB6): totalSignal <= 0 -> no total signal (SAW lysis
+//             failure or IEM sensor issue); drain all.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (totalSignal > 0) {
+    dispose readyForCVC2
+    dispose lysisSignal
+} else {
+    drain readyForCVC2
+    drain lysisSignal
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose all remaining QC signal droplets.
+// The EV-miR-21 expression level is computed off-chip by
+// comparing the two voltage shifts using:
+//   ExpressionLevel = exp((Delta-V_total - Delta-V_freefloat) / b)
+// where b = 0.06614 is the log-linear calibration fitting
+// parameter from the IEM sensor calibration curve (Fig. 2b).
+// Experiment ends.
+// ============================================================
+
+dispose totalSignal
+dispose baselineMix
+
+// [terminal -- no further instructions; exit node for CFG]

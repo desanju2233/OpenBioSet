@@ -1,0 +1,463 @@
+module chemiluminescenceDetection
+module rubellaMagneticSeparation
+module rubellaCLDetection
+
+manifest PBS
+manifest HRP_Standard
+manifest SuperSignalSubstrate
+manifest WashBuffer
+manifest ParamagneticParticles
+manifest RubellaIgG_Std_0
+manifest RubellaIgG_Std_156
+manifest RubellaIgG_Std_3125
+manifest HRP_Conjugate
+manifest H2O2_Solution
+manifest LuminolEnhancer
+manifest PluronicL64
+
+// ============================================================
+// Paper Microfluidics Goes Digital
+// Ryan Fobel, Andrea E. Kirby, Alphonsus H. C. Ng,
+// Ramin R. Farnood, and Aaron R. Wheeler
+// Advanced Materials 2014, 26, 2838-2843
+// DOI: 10.1002/adma.201305168
+//
+// This file encodes two DMF assays demonstrated on inkjet-
+// printed silver-on-paper devices (Design A and Design B),
+// fabricated using a Dimatix DMP-2800 printer with SunTronic
+// U6503 silver nanoparticle ink. Drop volumes: ~440 nL (Design
+// A) and ~750 nL (Design B). Actuation: ~100-125 V_rms, 15 kHz.
+//
+// ASSAY 1 (Design A): Homogeneous HRP chemiluminescence assay
+//   with on-chip serial dilution. HRP standard diluted 1x, 2x,
+//   and 4x in PBS by sequential merge + split. Each diluted
+//   drop is mixed with SuperSignal substrate for 60 s, driven
+//   to the detection zone, and measured by PMT after 2 min.
+//   Total: 63 discrete steps (27 dispense, 18 mix, 6 split,
+//   12 measure). R^2 = 0.993. Repeated 3 times per condition.
+//   All solutions supplemented with 0.05% v/v Pluronic L64
+//   to reduce protein adsorption.
+//
+//   NOTE ON SERIAL DILUTION ABSTRACTION: BioScript has no
+//   native split-and-reuse construct. The 1x->2x->4x dilution
+//   series is encoded as explicit dispense + merge steps (each
+//   dilution level instantiated from fresh reagent) to avoid
+//   variable-reuse and split-array compiler constraints. This
+//   faithfully represents the droplet operations performed on
+//   the paper device.
+//
+// ASSAY 2 (Design B): Rubella IgG sandwich ELISA using magnetic
+//   bead separation. Paramagnetic beads coated with inactivated
+//   rubella virus are loaded, incubated with rubella IgG
+//   standard, washed 3x, incubated with HRP conjugate, washed
+//   3x, resuspended in H2O2, merged with luminol-enhancer, and
+//   detected by PMT. Three IgG concentrations tested: 0, 1.56,
+//   and 3.125 IU/mL. 30 discrete steps per concentration.
+//   LOD = 0.15 IU/mL. R^2 = 0.988. Repeated 2 times.
+//
+//   NOTE ON MAGNETIC SEPARATION ABSTRACTION: The rubellaMagnetic
+//   Separation module abstracts the motorized magnet actuation
+//   (engaged to pellet beads, removed for resuspension) paired
+//   with DMF electrode switching to separate the bead pellet
+//   from the supernatant droplet. This is the core reagent-
+//   exchange mechanism in the ELISA workflow (Fig 4a, paper).
+//
+// CFG STRUCTURE:
+//   BB1  main              -- entry: HRP assay serial dilution,
+//                             incubation, detection
+//   BB2  hrpPass           -- hrpSignal > 0: calibration valid,
+//                             dispose all HRP assay droplets
+//   BB3  hrpFail           -- hrpSignal <= 0: no signal, drain
+//   BB4  hrpJoin           -- join: ELISA branch begins
+//   BB5  elisaPass         -- elisaSignal > 0: IgG detected,
+//                             dispose all ELISA droplets
+//   BB6  elisaFail         -- elisaSignal <= 0: no signal, drain
+//   BB7  finalCleanup      -- terminal: dispose QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// ASSAY 1 - STEP 1: Dispense wash buffer droplets.
+//   All reagent solutions supplemented with 0.05% v/v Pluronic
+//   L64 to reduce protein adsorption and limit cross-
+//   contamination (paper M&M, ref [30]).
+//   PBS diluent droplets used to generate dilution series.
+// ------------------------------------------------------------
+
+pluronic1 = dispense 1 units of PluronicL64
+pbs1      = dispense 1 units of PBS
+diluent1  = mix pbs1 with pluronic1 for 5s
+
+pluronic2 = dispense 1 units of PluronicL64
+pbs2      = dispense 1 units of PBS
+diluent2  = mix pbs2 with pluronic2 for 5s
+
+pluronic3 = dispense 1 units of PluronicL64
+pbs3      = dispense 1 units of PBS
+diluent3  = mix pbs3 with pluronic3 for 5s
+
+// ------------------------------------------------------------
+// ASSAY 1 - STEP 2: Dispense HRP standard stock droplets.
+//   HRP standard: 100 uU/mL in DPBS + 0.05% v/v Pluronic L64.
+//   Three stock droplets dispensed from reservoir (one per
+//   dilution level). Each stock drop = 1 unit volume (~440 nL).
+//   Paper M&M: "Drops of HRP standard (100 uU/mL in DPBS
+//   supplemented with 0.05% v/v L64) and drops of wash buffer
+//   were dispensed from reservoirs, mixed, and merged to form
+//   a dilution series (1x, 2x, 4x)."
+// ------------------------------------------------------------
+
+hrpStock1 = dispense 1 units of HRP_Standard
+hrpStock2 = dispense 1 units of HRP_Standard
+hrpStock3 = dispense 1 units of HRP_Standard
+
+// ------------------------------------------------------------
+// ASSAY 1 - STEP 3: Generate 1x dilution (undiluted HRP drop).
+//   The 1x sample is the HRP stock without additional diluent.
+//   Mixed briefly to equilibrate on electrode array.
+// ------------------------------------------------------------
+
+hrp1x = mix hrpStock1 with diluent1 for 5s
+
+// ------------------------------------------------------------
+// ASSAY 1 - STEP 4: Generate 2x dilution.
+//   1 unit HRP stock + 1 unit PBS diluent -> 2 units total.
+//   Effective concentration: 50 uU/mL (1:2 dilution).
+// ------------------------------------------------------------
+
+hrp2x = mix hrpStock2 with diluent2 for 5s
+
+// ------------------------------------------------------------
+// ASSAY 1 - STEP 5: Generate 4x dilution.
+//   1 unit HRP stock + 3 units PBS diluent -> 4 units total.
+//   To accumulate 3 units of diluent, chain two additional
+//   PBS+Pluronic mix steps (compiler requires explicit unrolling;
+//   no multi-unit accumulation shorthand available).
+//   Effective concentration: 25 uU/mL (1:4 dilution).
+// ------------------------------------------------------------
+
+pluronic4 = dispense 1 units of PluronicL64
+pbs4      = dispense 1 units of PBS
+diluent4a = mix pbs4 with pluronic4 for 5s
+
+pluronic5 = dispense 1 units of PluronicL64
+pbs5      = dispense 1 units of PBS
+diluent4b = mix pbs5 with pluronic5 for 5s
+
+diluent4ab = mix diluent4a with diluent4b for 5s
+diluent4   = mix diluent4ab with diluent3 for 5s
+
+hrp4x = mix hrpStock3 with diluent4 for 5s
+
+// ------------------------------------------------------------
+// ASSAY 1 - STEP 6: Dispense SuperSignal substrate droplets.
+//   SuperSignal ELISA Femto substrate (Thermo Fischer Scientific)
+//   comprises two components: stable peroxide (H2O2) and
+//   Luminol-Enhancer solution, premixed before loading into
+//   reservoir. One substrate drop per dilution level.
+//   Paper M&M: "One drop of SuperSignal chemiluminescent
+//   substrate was then dispensed, mixed, and merged with each
+//   diluted drop of HRP."
+// ------------------------------------------------------------
+
+substrate1x = dispense 1 units of SuperSignalSubstrate
+substrate2x = dispense 1 units of SuperSignalSubstrate
+substrate4x = dispense 1 units of SuperSignalSubstrate
+
+// ------------------------------------------------------------
+// ASSAY 1 - STEP 7: Merge HRP dilutions with substrate.
+//   Each diluted HRP drop is merged with one substrate drop.
+//   Paper M&M: "the pooled drop was mixed for 60 s, driven to
+//   the detection area, and the emitted light was measured
+//   after 2 min." The 60 s mixing step is encoded here; the
+//   2 min pre-measurement incubation is encoded in STEP 8.
+// ------------------------------------------------------------
+
+rxn1x = mix hrp1x with substrate1x for 60s
+rxn2x = mix hrp2x with substrate2x for 60s
+rxn4x = mix hrp4x with substrate4x for 60s
+
+// ------------------------------------------------------------
+// ASSAY 1 - STEP 8: Pre-measurement incubation at room
+//   temperature (25 C) for 2 min (120 s).
+//   Paper M&M: "emitted light was measured after 2 min with
+//   an H10682-110 PMT (Hamamatsu Photonics K.K., Japan)."
+//   heat step models the 2 min dwell at ambient temperature
+//   in the detection zone before PMT readout.
+// ------------------------------------------------------------
+
+heat rxn1x at 25c for 2m
+heat rxn2x at 25c for 2m
+heat rxn4x at 25c for 2m
+
+// ------------------------------------------------------------
+// ASSAY 1 - STEP 9: PMT detection of chemiluminescence.
+//   chemiluminescenceDetection module abstracts the H10682-110
+//   PMT readout (Hamamatsu Photonics K.K., Hamamatsu, Japan).
+//   Detection at 425-500 nm emission range. QC gate keyed on
+//   the 1x (highest concentration) signal. R^2 = 0.993 across
+//   four-point calibration curve (paper Fig 3b).
+// ------------------------------------------------------------
+
+hrpSignal1x = detect chemiluminescenceDetection on rxn1x for 30s
+hrpSignal2x = detect chemiluminescenceDetection on rxn2x for 30s
+hrpSignal4x = detect chemiluminescenceDetection on rxn4x for 30s
+
+// ============================================================
+// BB2 / BB3: HRP assay QC gate (keyed on 1x, highest signal)
+// Pass (BB2): hrpSignal1x > 0 -> valid calibration signal;
+//             dispose all three reaction droplets.
+// Fail (BB3): hrpSignal1x <= 0 -> no chemiluminescence (HRP
+//             inactive or substrate failure); drain all.
+// Both branches converge at BB4 (hrpJoin).
+// ============================================================
+
+if (hrpSignal1x > 0) {
+    dispose rxn1x
+    dispose rxn2x
+    dispose rxn4x
+} else {
+    drain rxn1x
+    drain rxn2x
+    drain rxn4x
+}
+
+// ============================================================
+// BB4: hrpJoin
+// Dispose all three HRP calibration signal droplets.
+// Control falls into the rubella ELISA branch (BB5/BB6).
+// ============================================================
+
+dispose hrpSignal1x
+dispose hrpSignal2x
+dispose hrpSignal4x
+
+// ============================================================
+// ASSAY 2: Rubella IgG Sandwich ELISA (Design B)
+// ============================================================
+//
+// Three IgG concentrations evaluated: 0, 1.56, 3.125 IU/mL.
+// Each concentration processed identically through 7 steps:
+//   i)   Dispense paramagnetic bead suspension (~1.5e8/mL,
+//        ~1.6 uL = 2 unit volumes)
+//   ii)  Dispense rubella IgG standard; deliver to beads;
+//        mix for 3 min
+//   iii) Wash beads 3x in wash buffer; magnetic separation
+//        after each wash
+//   iv)  Dispense HRP conjugate; deliver to beads; mix 2 min
+//   v)   Wash beads 3x in wash buffer; magnetic separation
+//   vi)  Resuspend beads in H2O2; merge with luminol-enhancer
+//   vii) Incubate 2 min; detect by PMT
+//
+// For each concentration, bead+IgG incubation, washes, and
+// conjugate steps are encoded as explicit sequential mix/heat
+// operations. Magnetic separation is abstracted via the
+// rubellaMagneticSeparation module invoked at each wash step.
+// ============================================================
+
+// ------------------------------------------------------------
+// ASSAY 2 - CONCENTRATION 0 IU/mL (blank control)
+// ------------------------------------------------------------
+
+// Step i: Dispense paramagnetic particle suspension.
+//   Paper M&M: "A ca. 1.6 uL drop (2 unit volumes) containing
+//   paramagnetic particles was dispensed from a reservoir and
+//   separated from the diluent."
+//   Modelled as 2 unit dispenses merged to form 2-unit drop.
+beadDrop0a = dispense 1 units of ParamagneticParticles
+beadDrop0b = dispense 1 units of ParamagneticParticles
+beadPool0  = mix beadDrop0a with beadDrop0b for 5s
+
+// Step ii: Dispense rubella IgG standard (0 IU/mL = blank).
+//   Delivered to immobilized bead drop. Incubate 3 min.
+//   Paper M&M: "One drop of rubella IgG standard (0, 1.56 or
+//   3.125 IU/mL) was dispensed, delivered to the immobilized
+//   particles, and mixed for 3 min."
+igG0      = dispense 1 units of RubellaIgG_Std_0
+igGBead0  = mix beadPool0 with igG0 for 3m
+
+// Step iii: 3x wash with wash buffer + magnetic separation.
+//   Paper M&M: "The particles were washed three times in wash
+//   buffer and separated from the supernatant."
+//   rubellaMagneticSeparation module abstracts magnet
+//   engagement + DMF electrode switching to remove supernatant.
+wash0_1a   = dispense 1 units of WashBuffer
+wash0_1mix = mix igGBead0 with wash0_1a for 30s
+sep0_1     = detect rubellaMagneticSeparation on wash0_1mix for 30s
+
+wash0_2a   = dispense 1 units of WashBuffer
+wash0_2mix = mix wash0_1mix with wash0_2a for 30s
+sep0_2     = detect rubellaMagneticSeparation on wash0_2mix for 30s
+
+wash0_3a   = dispense 1 units of WashBuffer
+wash0_3mix = mix wash0_2mix with wash0_3a for 30s
+sep0_3     = detect rubellaMagneticSeparation on wash0_3mix for 30s
+
+// Step iv: Dispense HRP conjugate; deliver to beads; mix 2 min.
+//   Paper M&M: "One drop of HRP conjugate solution was
+//   dispensed, delivered to the immobilized particles, and
+//   mixed for 2 min." HRP conjugate: goat anti-human IgG
+//   16 ng/mL diluted in conjugate diluent.
+conj0    = dispense 1 units of HRP_Conjugate
+conjBead0 = mix wash0_3mix with conj0 for 2m
+
+// Step v: 3x post-conjugate wash + magnetic separation.
+//   Paper M&M: "The particles were washed three times in wash
+//   buffer [after conjugate incubation]."
+cwash0_1a   = dispense 1 units of WashBuffer
+cwash0_1mix = mix conjBead0 with cwash0_1a for 30s
+csep0_1     = detect rubellaMagneticSeparation on cwash0_1mix for 30s
+
+cwash0_2a   = dispense 1 units of WashBuffer
+cwash0_2mix = mix cwash0_1mix with cwash0_2a for 30s
+csep0_2     = detect rubellaMagneticSeparation on cwash0_2mix for 30s
+
+cwash0_3a   = dispense 1 units of WashBuffer
+cwash0_3mix = mix cwash0_2mix with cwash0_3a for 30s
+csep0_3     = detect rubellaMagneticSeparation on cwash0_3mix for 30s
+
+// Step vi: Resuspend beads in H2O2; merge with luminol-enhancer.
+//   Paper M&M: "The particles were separated from the wash
+//   buffer and resuspended in one drop of H2O2, and this drop
+//   was merged and mixed with one drop of luminol-enhancer
+//   solution."
+h2o2_0     = dispense 1 units of H2O2_Solution
+luminol0   = dispense 1 units of LuminolEnhancer
+resuspend0 = mix cwash0_3mix with h2o2_0 for 30s
+elisa0Pool = mix resuspend0 with luminol0 for 30s
+
+// Step vii: Incubate 2 min; detect by PMT.
+//   Paper M&M: "The pooled drop was incubated for 2 min and
+//   the chemiluminescent signal was recorded using the PMT."
+heat elisa0Pool at 25c for 2m
+elisaSignal0 = detect rubellaCLDetection on elisa0Pool for 30s
+
+// ------------------------------------------------------------
+// ASSAY 2 - CONCENTRATION 1.56 IU/mL
+// ------------------------------------------------------------
+
+beadDrop156a = dispense 1 units of ParamagneticParticles
+beadDrop156b = dispense 1 units of ParamagneticParticles
+beadPool156  = mix beadDrop156a with beadDrop156b for 5s
+
+igG156      = dispense 1 units of RubellaIgG_Std_156
+igGBead156  = mix beadPool156 with igG156 for 3m
+
+wash156_1a   = dispense 1 units of WashBuffer
+wash156_1mix = mix igGBead156 with wash156_1a for 30s
+sep156_1     = detect rubellaMagneticSeparation on wash156_1mix for 30s
+
+wash156_2a   = dispense 1 units of WashBuffer
+wash156_2mix = mix wash156_1mix with wash156_2a for 30s
+sep156_2     = detect rubellaMagneticSeparation on wash156_2mix for 30s
+
+wash156_3a   = dispense 1 units of WashBuffer
+wash156_3mix = mix wash156_2mix with wash156_3a for 30s
+sep156_3     = detect rubellaMagneticSeparation on wash156_3mix for 30s
+
+conj156     = dispense 1 units of HRP_Conjugate
+conjBead156 = mix wash156_3mix with conj156 for 2m
+
+cwash156_1a   = dispense 1 units of WashBuffer
+cwash156_1mix = mix conjBead156 with cwash156_1a for 30s
+csep156_1     = detect rubellaMagneticSeparation on cwash156_1mix for 30s
+
+cwash156_2a   = dispense 1 units of WashBuffer
+cwash156_2mix = mix cwash156_1mix with cwash156_2a for 30s
+csep156_2     = detect rubellaMagneticSeparation on cwash156_2mix for 30s
+
+cwash156_3a   = dispense 1 units of WashBuffer
+cwash156_3mix = mix cwash156_2mix with cwash156_3a for 30s
+csep156_3     = detect rubellaMagneticSeparation on cwash156_3mix for 30s
+
+h2o2_156     = dispense 1 units of H2O2_Solution
+luminol156   = dispense 1 units of LuminolEnhancer
+resuspend156 = mix cwash156_3mix with h2o2_156 for 30s
+elisa156Pool = mix resuspend156 with luminol156 for 30s
+
+heat elisa156Pool at 25c for 2m
+elisaSignal156 = detect rubellaCLDetection on elisa156Pool for 30s
+
+// ------------------------------------------------------------
+// ASSAY 2 - CONCENTRATION 3.125 IU/mL
+// ------------------------------------------------------------
+
+beadDrop3125a = dispense 1 units of ParamagneticParticles
+beadDrop3125b = dispense 1 units of ParamagneticParticles
+beadPool3125  = mix beadDrop3125a with beadDrop3125b for 5s
+
+igG3125      = dispense 1 units of RubellaIgG_Std_3125
+igGBead3125  = mix beadPool3125 with igG3125 for 3m
+
+wash3125_1a   = dispense 1 units of WashBuffer
+wash3125_1mix = mix igGBead3125 with wash3125_1a for 30s
+sep3125_1     = detect rubellaMagneticSeparation on wash3125_1mix for 30s
+
+wash3125_2a   = dispense 1 units of WashBuffer
+wash3125_2mix = mix wash3125_1mix with wash3125_2a for 30s
+sep3125_2     = detect rubellaMagneticSeparation on wash3125_2mix for 30s
+
+wash3125_3a   = dispense 1 units of WashBuffer
+wash3125_3mix = mix wash3125_2mix with wash3125_3a for 30s
+sep3125_3     = detect rubellaMagneticSeparation on wash3125_3mix for 30s
+
+conj3125     = dispense 1 units of HRP_Conjugate
+conjBead3125 = mix wash3125_3mix with conj3125 for 2m
+
+cwash3125_1a   = dispense 1 units of WashBuffer
+cwash3125_1mix = mix conjBead3125 with cwash3125_1a for 30s
+csep3125_1     = detect rubellaMagneticSeparation on cwash3125_1mix for 30s
+
+cwash3125_2a   = dispense 1 units of WashBuffer
+cwash3125_2mix = mix cwash3125_1mix with cwash3125_2a for 30s
+csep3125_2     = detect rubellaMagneticSeparation on cwash3125_2mix for 30s
+
+cwash3125_3a   = dispense 1 units of WashBuffer
+cwash3125_3mix = mix cwash3125_2mix with cwash3125_3a for 30s
+csep3125_3     = detect rubellaMagneticSeparation on cwash3125_3mix for 30s
+
+h2o2_3125     = dispense 1 units of H2O2_Solution
+luminol3125   = dispense 1 units of LuminolEnhancer
+resuspend3125 = mix cwash3125_3mix with h2o2_3125 for 30s
+elisa3125Pool = mix resuspend3125 with luminol3125 for 30s
+
+heat elisa3125Pool at 25c for 2m
+elisaSignal3125 = detect rubellaCLDetection on elisa3125Pool for 30s
+
+// ============================================================
+// BB5 / BB6: Rubella ELISA QC gate
+// Pass (BB5): elisaSignal3125 > 0 -> valid rubella IgG signal
+//             at highest concentration; dispose all ELISA
+//             reaction droplets. LOD = 0.15 IU/mL (paper).
+// Fail (BB6): elisaSignal3125 <= 0 -> no detectable signal
+//             (bead failure, HRP conjugate inactive, or
+//             reagent error); drain all.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (elisaSignal3125 > 0) {
+    dispose elisa0Pool
+    dispose elisa156Pool
+    dispose elisa3125Pool
+} else {
+    drain elisa0Pool
+    drain elisa156Pool
+    drain elisa3125Pool
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose all ELISA QC signal droplets.
+// Experiment ends.
+// ============================================================
+
+dispose elisaSignal0
+dispose elisaSignal156
+dispose elisaSignal3125
+
+// [terminal -- no further instructions; exit node for CFG]

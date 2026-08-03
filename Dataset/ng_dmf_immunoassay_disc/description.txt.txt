@@ -1,0 +1,316 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Development of Digital Microfluidic Heterogeneous Immunoassays
+Author       : Alphonsus Hon-Chung Ng
+Degree       : Doctor of Philosophy
+Institution  : Institute of Biomaterials and Biomedical Engineering, University of Toronto
+Year         : 2015
+Supervisor   : Prof. Aaron Wheeler
+Source Link  : https://utoronto.scholaris.ca/server/api/core/bitstreams/f61c3b5c-993d-4f5e-970d-2bd5634257ee/content
+DOI          : N/A
+Platform     : Two-plate digital microfluidics (DMF / EWOD), oil-free, air-surrounded droplets
+
+
+OVERVIEW
+--------
+This BioScript file encodes two protocols from the PhD thesis of Alphonsus H.C. Ng (University
+of Toronto, 2015), which describes the development and validation of digital microfluidic (DMF)
+methods for heterogeneous immunoassays. DMF electrostatically manipulates discrete droplets
+(pL to uL) on a hydrophobic electrode array without the use of enclosed microchannels or
+oil carrier fluid -- a key innovation of this work.
+
+Protocol 1 (Chapter 2) introduces the first oil-free DMF particle-based immunoassay, using a
+novel "supernatant separation" washing technique and demonstrating both non-competitive
+(thyroid-stimulating hormone, TSH) and competitive (17beta-estradiol, E2) immunoassay modes.
+Chapter 3 extends this with a fully automated platform (90 Pogo pin interface, integrated PMT,
+magnetic lens) and DOE optimization. Chapter 4 applies the platform to infectious disease
+diagnosis (rubella virus IgG and IgM), demonstrating 100% diagnostic sensitivity and specificity.
+
+Protocol 2 (Chapter 5) introduces DISC (Digital Microfluidic Immunocytochemistry in Single-
+Cells), which automates all sample preparation steps for in-situ adherent cell immunoassays with
+<4 s temporal resolution. Using virtual microwells formed by passive dispensing over hydrophilic
+lift-off spots, DISC enables single-cell phosphoprotein quantitation by laser scanning cytometry.
+
+The BioScript encodes representative arms of both protocols and two QC gates per protocol,
+yielding 13 basic blocks (BB1-BB13) and 4 if/else gates in the compiled IR/CFG.
+
+
+DEVICE ARCHITECTURE
+-------------------
+Configuration : Two-plate EWOD; patterned chromium bottom-plate + unpatterned ITO top-plate
+Spacer        : Two pieces of Scotch double-sided tape (3M); total 180 um gap
+Bottom plate  : Chromium electrodes (200 nm) on glass (2 in x 3 in x 1.1 mm, Telic Co.)
+                Dielectric: ~7 um Parylene C (vapor deposition)
+                Hydrophobic coating: ~200 nm Teflon-AF (1% w/w in FC-40, 2000 rpm, 60 s; post-baked 165 C, 10 min)
+                Fabrication: photolithography + CR-4 wet etching at ECTI/TNFC cleanroom, U of T
+Top plate     : Unpatterned ITO-coated glass; ~200 nm Teflon-AF
+                Chapter 5 modification: hydrophilic lift-off spots (1.75 mm diameter, 4.4 mm pitch)
+                by S1811 photoresist fluorocarbon lift-off on ITO (UV expose, develop, Teflon-AF
+                spin-coat, acetone liftoff ~5-10 s, exposing ITO hydrophilic pads)
+
+Chapter 2 device:
+  - 116 actuation electrodes (2.25 x 2.25 mm ea.); 10 reservoir electrodes (4.5 x 4.5 mm ea.)
+  - Interdigitated electrode borders (140 um peak-to-peak sinusoids); inter-electrode gaps 30-80 um
+  - Electrode pitch 2.25 mm aligns to 96/384/1536 well-plate format
+  - Unit droplet: ~800 nL; reservoir droplet: ~3.5 uL; 4 assay regions + 1 detection region
+
+Chapter 3/4 device:
+  - 80 actuation electrodes (2.2 x 2.2 mm Ch3 / 2.54 x 2.54 mm Ch4)
+  - 8 sample + 4 waste reservoirs (Ch3); unit droplet ~800 nL (Ch3) / ~900 nL (Ch4)
+
+Chapter 5 (DISC) device:
+  - 80 actuation electrodes (2.2 x 2.2 mm); unit droplet ~900 nL
+  - Top plate: 8 lift-off spots (1.75 mm diameter, 4.4 mm pitch); virtual microwell ~400 nL
+
+Actuation:
+  - Chapter 2: ~150 Vrms, 10 kHz (function generator + TREK amplifier)
+  - Chapters 3-5: 80-100 Vrms, 10 kHz sine wave (DropBot + Arduino HV switching; 90 Pogo pin interface)
+  - Droplet mixing: circular shuttling across 4 electrodes (unit droplets) or more (larger volumes)
+
+Magnet system:
+  - Chapter 2: NdFeB disc (5/8 in dia x 1/4 in, N48, 15.3 lb pull; mu_r=1.05, Br=1.38 T)
+    Positioned 1.40 mm below device; manual movement via stripwell manifold + metal clip
+    Minimum density for separation: ~3.0e8 particles/mL; estimated force ~470 uN
+  - Chapter 3/4: Motorized magnetic lens; >600 uN; up to 8 simultaneous separations;
+    deactivated by positioning 3.8 cm below device for resuspension
+
+Detection:
+  - Chapter 2: PHERAstar well-plate reader (BMG Labtech); LUM module; gain 3600; focal height 8.6 mm
+  - Chapter 3/4: Integrated motorized PMT (CT2 counter timer); LOD 4.88 uU/mL HRP; CV 0.56-9.3%
+  - Chapter 5: Axon GenePix 4000B microarray scanner; 532 nm + 635 nm; 5 um resolution;
+    PMT 500 V; CellProfiler (Otsu Global, 15-100 um objects, phospho/total protein ratio per cell)
+
+
+PROTOCOL 1: DMF MAGNETIC PARTICLE IMMUNOASSAY (Chapter 2)
+----------------------------------------------------------
+Analytes       : Thyroid-stimulating hormone (TSH, non-competitive sandwich immunoassay)
+                 17beta-estradiol (E2, competitive immunoassay)
+Anti-fouling   : Pluronic L64 (BASF Corp.), 0.05% v/v in all on-chip reagents
+                 Enables air-surrounded droplet movement; prevents protein adsorption
+
+Reagents:
+  TSH particles  : Mouse monoclonal Anti-beta TSH coated paramagnetic particles
+                   (Abbott ARCHITECT kit 7K62); pre-processed: washed 2x DI water,
+                   blocked with 3% NFDM/0.01% Tween-20 buffer pH 7.8 (1 h), washed 2x DI water,
+                   resuspended at ~3.0e8 particles/mL in DMF-compatible particle diluent (pH 10:
+                   Tris-base 6.1 g/L, NaCl 5.8 g/L, Sucrose 136 g/L, BSA 1% w/v,
+                   Thimerosal 0.05% w/v, L64 0.05% v/v)
+  E2 particles   : Rabbit monoclonal Anti-E2 coated particles (Abbott ARCHITECT kit 7K72);
+                   same prep as TSH but no NFDM blocking step
+  TSH conjugate  : Anti-TSH-HRP (goat polyclonal, Fitzgerald Industries), 2 ug/mL in conjugate
+                   diluent (pH 7.4: Tris-Base 1.9 g/L, Tris-HCl 13.2 g/L, NaCl 17.5 g/L,
+                   BSA 1% w/v, cold fish gelatin 0.1% w/v, Thimerosal 0.05% w/v, L64 0.05% v/v)
+  E2 conjugate   : E2-HRP conjugated via 6-CMO (BiosPacific), 1 ug/mL in conjugate diluent
+                   (optimal conc. determined empirically; higher conc. loses dynamic range)
+  Substrate      : SuperSignal ELISA Femto (Thermo Fisher Scientific): H2O2 + luminol/enhancer
+  Wash buffer    : pH 7.7; Tris-base 0.35 g/L, Tris-HCl 1.10 g/L, NaCl 8.367 g/L, L64 0.05% v/v
+
+Supernatant Separation Washing (key innovation vs prior serial dilution method):
+  Mechanism      : Magnet positions pellet on device surface; supernatant droplet actuated to waste;
+                   magnet removed; fresh wash buffer droplet passed over pellet; circularly mixed
+                   (4 electrodes) to resuspend particles
+  Efficiency     : >98% unbound reagent removal by wash 2 (benchmark)
+                   Serial dilution requires 6+ washes for same benchmark; 10-18 washes previously
+  Minimum density: ~3.0e8 particles/mL for successful separation
+  Magnetic force : ~470 uN (COMSOL FEA; pellet 7.75 mm from magnet bottom-edge origin)
+  Residual liquid: ~5% of origin droplet retained by hydrophilic particles; resuspend immediately
+
+Eight-step On-Chip Immunoassay Protocol:
+  Step 1 | Particle dispense and separation
+    Volume     : 800 nL unit droplet from reservoir
+    Operation  : Supernatant separation (magnet on; diluent actuated to waste; magnet off)
+  
+  Step 2 | Sample incubation
+    Volume     : 3 unit droplets (3 x 800 nL = 2.4 uL)
+    Duration   : 6 min at room temperature with continuous circular mixing
+    Notes      : 3 droplets chosen for optimal signal vs droplet reliability; evaporation <5%
+                 over 30 min (measured by capacitance); TSH: analyte binds Anti-beta TSH particles;
+                 E2: analyte competes with E2-HRP for Anti-E2 binding sites
+  
+  Step 3 | Wash x4 in wash buffer
+    Volume     : 4 x 800 nL; supernatant separation each time
+  
+  Step 4 | Conjugate incubation
+    Volume     : 800 nL
+    Duration   : 2 min
+    TSH        : Anti-TSH-HRP binds TSH captured on particles (non-competitive)
+    E2         : E2-HRP binds Anti-E2 sites not occupied by analyte (competitive)
+  
+  Step 5 | Wash x4 in wash buffer + wash x2 in H2O2
+    Notes      : 2x H2O2 wash developed in place of pre-mixing H2O2 + luminol off-chip;
+                 pre-mixing caused high inter-assay variability
+  
+  Step 6 | H2O2 incubation
+    Volume     : 800 nL; duration: 2 min
+    Notes      : Particles moved to detection region (electrode array aligned to 96-well plate)
+  
+  Step 7 | Luminol/enhancer merge
+    Volume     : 800 nL; on-chip mix (immediately before detection)
+    Notes      : Activates HRP-catalyzed chemiluminescence
+  
+  Step 8 | Chemiluminescence detection
+    Duration   : 1 min (signal saturates at 1 min; stable endpoint)
+    Settings   : PHERAstar LUM module; focal height 8.6 mm; gain 3600;
+                 device taped to 96-well Stripwell plate
+
+Performance vs well-plate ELISA:
+  TSH LOD (absolute)   : 2.0 nIU (DMF) vs 3.0 nIU (well-plate)
+  TSH LOD (conc.)      : 0.83 uIU/mL (DMF) vs 0.06 uIU/mL (well-plate)
+  E2 LOD (absolute)    : 50 fg (DMF) vs 152 fg (well-plate)
+  E2 LOD (conc.)       : 21 pg/mL (DMF) vs 6.1 pg/mL (well-plate)
+  TSH CV               : 9-21% (DMF) vs 2-13% (well-plate)
+  E2 CV                : 5-14% (DMF) vs 4-12% (well-plate)
+  Sample volume        : 2.4 uL (DMF) vs 50 uL (well-plate)
+  Incubation time      : 6 min (DMF) vs 60 min (well-plate)
+  Reagent consumption  : ~100-fold reduction (11.2 uL DMF vs 1.2 mL well-plate total)
+  Clinical utility     : TSH detects hypothyroidism (>3.0 uIU/mL); E2 screens ovarian cancer (>20 pg/mL)
+
+Optimized Platform (Chapter 3):
+  Hardware     : 90 Pogo pin interface + DropBot automation; integrated motorized PMT;
+                 magnetic lens (up to 8 simultaneous separations; precise motor positioning)
+  DOE analysis : 3-level full factorial; factors: analyte conc., sample incubation time, volume
+                 Optimal: 5 sample droplets (4.0 uL), 3 min incubation
+  TSH LOD      : 0.15 uIU/mL (screens hyperthyroidism, TSH < 0.3 uIU/mL)
+  TSH CV       : 6-10%; measurement procedure: wash buffer removed post-wash; particles in
+                 luminol-H2O2 mixed 4 min; stable signal window ~1 min for sequential reading
+
+Rubella Virus Immunoassay (Chapter 4):
+  Analytes     : RV IgG (indirect ELISA, 7 steps) and RV IgM (+ on-chip IgG blocking pretreatment)
+  Particles    : Rubella virus-coated paramagnetic particles (Abbott ARCHITECT); 1.5e8/mL in Superblock
+  IgG protocol : 7 steps; 4 parallel assays; ~25 min per run
+                 Step i: particles dispense; Step ii: sample 1.8 uL, mix 3 min; Step iii: 4x wash;
+                 Step iv: HRP-anti-human IgG conjugate (21 ng/mL), mix 2 min; Step v: 4x wash;
+                 Step vi: H2O2 (900 nL) + luminol-enhancer (900 nL), mix 2 min; Step vii: PMT 10 s
+  IgG LOD/LOQ  : 0.03 IU/mL / 0.1 IU/mL (clinical cutoff: 10 IU/mL)
+  IgM protocol : Same as IgG but + pretreatment (sample 1.8 uL + anti-human IgG reagent 900 nL, mix 7 min)
+                 and HRP-anti-human IgM conjugate; ~35 min per run
+  On-chip dil. : 4 iterations merge-mix-split; generates 2x/4x/8x/16x dilutions; compatible with whole blood
+  Panel results: 25 serum/plasma samples (SeraCare PTR201); IgG: 100% sensitivity, 100% specificity
+                 IgM: 100% sensitivity / 100% specificity (equivocal omitted); two equivocal mismatches
+                 near cutoff (s/co = 0.9 and 1.0); attributed to assay variability + 20-year-old specimens
+
+
+PROTOCOL 2: DISC (Chapter 5)
+-----------------------------
+Full name      : DISC -- Digital Microfluidic Immunocytochemistry in Single-Cells
+Cell line      : NIH 3T3 (murine fibroblast, primary); MCF-7 and MDA-MB-231 for cancer time series
+Signaling      : PDGF-BB -> PDGFR auto-phosphorylation (Y857, Y1021) -> PI3K -> PIP3 -> Akt -> p-Akt S473
+Seeding density: 500,000 cells/mL -> ~150-300 cells per virtual microwell
+Anti-fouling   : 0.05% Pluronic F68 in all culture media, fixing, and wash solutions
+
+Key capabilities:
+  Temporal resolution : ~4 s between stimulation and fixation (passive dispense switch)
+  Reagent exchange    : 1 exchange removes ~93% of prior solution; 2 exchanges >99%
+  Cell reduction      : 150-300 cells/VM vs 15,000 cells/well (flow cytometry): 60-150x fewer cells
+  Volume reduction    : 400 nL per VM vs ~200 uL per well: ~500x less volume
+  SBR                 : GAPDH signal >=5x background (optimization data, Fig 5.2D)
+
+Passive dispensing mechanism:
+  Source droplet translated across vacant lift-off spot (1.75 mm hydrophilic ITO on Teflon-AF top plate);
+  hydrophobic-hydrophilic contrast captures a ~400 nL virtual microwell sub-droplet spontaneously.
+  Subsequent dispenses displace and replace microwell contents.
+
+Eleven-step DISC protocol (representative arm: Akt phosphorylation at 50 ng/mL PDGF-BB):
+
+  Step 1 | Cell seeding
+    Volume   : 3 x 900 nL passive dispenses (2.7 uL) per lift-off spot; VM = ~400 nL
+    Incubate : 37 C, 5% CO2, 24 h in humidified chamber; device inverted for cell settling
+
+  Step 2 | Serum starvation
+    Reagent  : Starving media (0.5% CS/FBS + 0.05% F68 + pen/strep in DMEM)
+    Volume   : 3 x 900 nL; Incubate 37 C, 5% CO2, 24 h
+    Purpose  : Synchronizes basal receptor/Akt activity
+
+  Step 3 | Serum-free rinse
+    Reagent  : Serum-free DMEM + 0.05% F68; Volume: 3 x 900 nL
+
+  Step 4 | PDGF-BB stimulation
+    Reagent  : PDGF-BB 50 ng/mL in serum-free DMEM; Volume: 2 x 900 nL (1.8 uL)
+    Duration : 2 min (PDGFR) / 5 min (Akt); ~4 s reagent switch time to fixation
+    Dose-response range: 0-200 ng/mL; EC50 ~12.5 ng/mL; Hill n=1.73 (Y857), 2.13 (Y1021)
+    Notes    : In time series, Step 4 staggered so Step 5 performed simultaneously for all VMs
+               to prevent cross-exposure to paraformaldehyde fumes
+
+  Step 5 | Cell fixation
+    Reagent  : 4% paraformaldehyde + 0.05% F68 in DPBS; Volume: 3 x 900 nL (2.7 uL)
+    Incubate : 10 min, room temperature
+
+  Step 6 | WB1 rinse
+    Reagent  : WB1 (0.05% F68 in DPBS); Volume: 3 x 900 nL (5.4 uL total)
+
+  Step 7 | Permeabilization
+    Reagent  : 0.2% Tween-20 in DPBS; Volume: 3 x 900 nL (2.7 uL)
+    Incubate : 10 min, room temperature
+
+  Step 8 | WB2 rinse
+    Reagent  : WB2 (0.05% Brij 35 in DPBS); Volume: 4 x 900 nL (~8.1 uL)
+
+  Step 9 | Blocking
+    Reagent  : 1% bovine NFDM + 0.05% Brij 35 in DPBS; Volume: 3 x 900 nL (2.7 uL)
+    Incubate : 1 h, room temperature
+
+  Step 10 | Primary antibody staining
+    Reagents : pan Akt (Mouse mAb, 1:50, CST) + p-Akt S473 (Rabbit mAb, 1:200, CST) in BS
+               OR PDGFR-beta (Mouse mAb, 1:50, CST) + p-PDGFR Y857/Y1021 (Rabbit pAb, 1:200, SCB) in BS
+    Volume   : 3 x 900 nL (2.7 uL); Incubate: overnight (~12 h) at 4 C
+
+  Step 11 | WB2 rinse (unbound primary antibody removal)
+    Reagent  : WB2 (0.05% Brij 35 in DPBS); Volume: 3 x 900 nL (5.4 uL)
+
+  Step 12 | Secondary antibody staining
+    Reagents : Anti-Mouse IgG AF647 Fab2 1:500 + Anti-Rabbit IgG AF555 Fab2 1:500 in BS (CST)
+    Volume   : 3 x 900 nL (2.7 uL); Incubate: 2 h, room temperature
+
+  Step 13 | Off-chip detection (laser scanning cytometry)
+    Post-process : Remove top plate; rinse in 10x DPBS/0.5% Tween-20 (30 s); rinse DI water (30 s); air dry
+    Scanner      : Axon GenePix 4000B; 532 nm + 635 nm; 5 um resolution; 0 um focus; PMT 500 V
+    Analysis     : CellProfiler; Otsu Global thresholding; 15-100 um objects; per-cell p-protein/total ratio
+    Normalization: Per-cell ratio normalized to serum-free negative control mean on same device
+
+Key results (DISC):
+  PDGFR Y857 max phosphorylation  : 75 s after 50 ng/mL PDGF-BB
+  PDGFR Y1021 max phosphorylation : 60 s after 50 ng/mL PDGF-BB
+  Akt activation at 3.125 ng/mL   : ~71% despite only ~22% receptor activation (amplification)
+  Ligand removal (1 exchange)      : ~93% ligand removed; receptor dephosphorylation confirmed
+  Cancer cells                     : MCF-7 and MDA-MB-231 differ significantly in Akt hyper-responder
+                                     fraction; may correlate with invasion phenotype
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : ng_dmf_immunoassay_disc.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : ng_dmf_immunoassay_disc.ir
+DAG output     : ng_dmf_immunoassay_disc_main_dag.dot
+Total BBs      : 13 (main through bsbbif_13_j)
+Total CFG edges: 24
+QC gates       : 4 if/else gates (washSignal1, washSignal2, assaySignal, phosphoSignal)
+Terminal node  : bsbbif_13_j (NOP)
+
+ASCII constraint:
+  ANTLR4 FileStream defaults to ASCII encoding. All Unicode characters must be replaced:
+    em dash (U+2014) -> --
+    en dash (U+2013) -> -
+    beta (U+03B2)    -> beta
+  Verified: 0 non-ASCII bytes in final compiled file.
+
+Duration unit constraint (BioScript supports s and m only; h not supported):
+  24 h cell seeding/starvation -> 1440m (IR: 86400.0 SECOND)
+  Overnight primary Ab (~12 h) -> 720m  (IR: 43200.0 SECOND)
+  2 h secondary Ab             -> 120m  (IR: 7200.0 SECOND)
+  1 h blocking                 -> 60m   (IR: 3600.0 SECOND)
+  10 min fix/perm              -> 10m   (IR: 600.0 SECOND)
+  2 min conjugate/H2O2 incub.  -> 2m    (IR: 120.0 SECOND)
+
+Modules declared:
+  chemiluminescenceDetection  : abstracts PHERAstar/PMT chemiluminescent readout
+  phosphoProteinDetection     : abstracts GenePix 4000B laser scanning cytometry readout
+
+mix abstraction (Protocol 1):
+  mix in wash steps abstracts the supernatant separation sequence:
+  magnet on -> actuate supernatant to waste -> magnet off -> fresh droplet -> circular shuttling
+
+mix abstraction (Protocol 2):
+  mix abstracts passive dispensing over lift-off spot; no electrode-driven DMF mixing
+  in the standard sense; sub-droplet capture is hydrophilic/hydrophobic spontaneous event

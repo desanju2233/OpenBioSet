@@ -1,0 +1,407 @@
+{
+  "protocol": {
+    "name": "ahmadi2019_id2m",
+    "platform": "Integrated Droplet-Digital Microfluidic (ID2M)",
+    "method": "Single-plate digital microfluidics (DMF) integrated with droplet-in-channel microfluidics for on-demand droplet generation, mixing, incubation, and n-ary sorting",
+    "reference": "Ahmadi, Samlali, Vo, Shih. Lab Chip, 2019, 19, 524-535. DOI: 10.1039/c8lc01170b",
+    "source_link": "https://www.shihmicrolab.ca/_files/ugd/f0a828_699eb4a700494d0c9503599110132dba.pdf",
+    "doi_link": "https://doi.org/10.1039/c8lc01170b",
+    "target_organism": "Fluorescein dye (Protocol 1, calibration); Saccharomyces cerevisiae BY4741 wild-type and EMS-mutagenized ionic-liquid-tolerant mutants (Protocol 2)",
+    "application": "On-chip fluorescence calibration / dilution-series sorting, and yeast mutant library screening for ionic-liquid tolerance via n-ary droplet sorting",
+    "modules": [
+      {
+        "id": "fluorescenceDetection",
+        "description": "Abstracts the on-chip optical-fibre fluorescence detection interface (530 nm strip-chart, 100 ms integration, boxcar smoothing width 3, 5 scans); used for the fluorescein calibration/dilution series"
+      },
+      {
+        "id": "absorbanceDetection",
+        "description": "Abstracts the on-chip optical-fibre absorbance detection interface (boxcar smoothing width 2, 2 scans); used to measure cell density (OD) of incubated yeast/ionic-liquid droplets"
+      }
+    ],
+    "reagents": [
+      {
+        "id": "FluoresceinStock",
+        "description": "Fluorescein (free acid) dissolved at 1 mM in 1 M NaOH buffer, pH 9; used as the analyte for the on-chip calibration dilution series",
+        "concentration": 1,
+        "concentration_unit": "mM",
+        "quantity": 1,
+        "quantity_unit": "units (~30 nL per on-demand T-junction droplet)"
+      },
+      {
+        "id": "DilutionBuffer",
+        "description": "Diluent droplet (buffer or water) used to construct the 2x, 4x, and 8x fluorescein dilution series by sequential merging in the mixing area",
+        "quantity": 1,
+        "quantity_unit": "units (~30 nL per on-demand T-junction droplet)"
+      },
+      {
+        "id": "IonicLiquidStock",
+        "description": "1-Ethyl-3-methylimidazolium acetate ionic liquid (IL), HPLC grade, >=95%; 200 mM stock merged 1:1 with a single-cell yeast droplet to yield a final on-chip concentration of 100 mM",
+        "concentration": 200,
+        "concentration_unit": "mM stock (100 mM final on-chip)",
+        "quantity": 1,
+        "quantity_unit": "units (~35 nL per on-demand T-junction droplet)"
+      },
+      {
+        "id": "WildTypeYeast",
+        "description": "Saccharomyces cerevisiae BY4741 wild-type cells (genotype: MATa his3D1 leu2D0 met15D0 ura3D0); Poisson-encapsulated as single cells via flow-focusing (2x10^5 cells/mL suspension + 1% BSA)",
+        "quantity": 1,
+        "quantity_unit": "units (~35 nL per flow-focusing droplet)"
+      },
+      {
+        "id": "MutantYeast1",
+        "description": "EMS-mutagenized ionic-liquid-tolerant yeast mutant #1 (fastest-growing isolate from random mutant library screened on 50/75/100 mM IL agar plates); Poisson-encapsulated as single cells",
+        "quantity": 1,
+        "quantity_unit": "units (~35 nL per flow-focusing droplet)"
+      },
+      {
+        "id": "MutantYeast2",
+        "description": "EMS-mutagenized ionic-liquid-tolerant yeast mutant #2 (second-fastest-growing isolate from random mutant library screened on 50/75/100 mM IL agar plates); Poisson-encapsulated as single cells",
+        "quantity": 1,
+        "quantity_unit": "units (~35 nL per flow-focusing droplet)"
+      }
+    ],
+    "device_architecture": [
+      {
+        "id": "id2m_multilayer_device",
+        "description": "Three-layer microfluidic chip: a single-plate co-planar digital microfluidic (DMF) layer (104 patterned chromium electrodes on glass) bonded under a ~7 um SU-8 dielectric layer and a 110-120 um SU-8 channel layer (300 um wide), sealed with a ~0.5 mm PDMS slab carrying inlets/outlets. Combines pressure-driven droplet-in-channel flow with electrostatic droplet actuation on the same substrate, avoiding the droplet-transfer difficulties of separate droplet/digital microfluidic platforms.",
+        "actuation": "200 V_rms at 15 kHz; oil-phase (HFE7500 + 0.75% fluorosurfactant) flow rate in main channel: 0.01 uL/s; throughput ~1 Hz"
+      },
+      {
+        "id": "optical_fiber_detection_interface",
+        "description": "Two bare optical fibres (100 um core, NA 0.22) inserted perpendicular to the main channel; one coupled to a 4-channel high-power LED source (470/530/590/627 nm), the other to a Flame spectrometer (Ocean Optics). Fibre-to-channel distance ~200 um. Fluorescence settings: 530 nm, 100 ms integration, boxcar width 3, 5 scans. Absorbance settings: boxcar width 2, 2 scans."
+      },
+      {
+        "id": "n_ary_sorting_channels",
+        "description": "Symmetrical T-channel design with four sorting outlets per detection event (as opposed to typical binary Y-channel sorters, which create stagnation zones and asymmetric droplet resistance when expanded beyond two outlets). Droplets are biased directly to a sorting channel by electrode actuation after passing the optical detection region."
+      },
+      {
+        "id": "mixing_area_sink_channels",
+        "description": "Multiple sink (side) channels added to the mixing area to create flow eddies and reduce local oil-phase hydrodynamic resistance, allowing droplets to be actuated from the main channel into the mixing region without being blocked by the higher resistance created by a droplet already occupying the mixing channel. Modelled by COMSOL Multiphysics V5.3 (single-phase laminar Navier-Stokes, oil density 1614 kg/m^3, dynamic viscosity 0.00124 Pa.s, inlet velocity 0.0003 m/s)."
+      }
+    ],
+    "steps": [
+      {
+        "step": 1,
+        "protocol": 1,
+        "name": "Dispense undiluted fluorescein stock droplet for calibration check",
+        "note": "1 mM fluorescein (in 1 M NaOH, pH 9) dispensed on-demand via T-junction (~30 nL); used directly as the highest-concentration calibration reference and is not consumed by any dilution step",
+        "operations": [
+          {
+            "op": "dispense",
+            "reagent": "FluoresceinStock",
+            "output": "fluorStockCheck"
+          }
+        ]
+      },
+      {
+        "step": 2,
+        "protocol": 1,
+        "name": "Generate 2x dilution droplet (0.5 mM)",
+        "note": "Fresh stock droplet merged 1:1 with one fresh on-demand buffer droplet in the mixing area (back-and-forth actuation, several seconds); (1 unit x 1 mM) / 2 units total = 0.5 mM",
+        "operations": [
+          {
+            "op": "dispense",
+            "reagent": "FluoresceinStock",
+            "output": "fluorStock2x"
+          },
+          {
+            "op": "dispense",
+            "reagent": "DilutionBuffer",
+            "output": "bufFor2x"
+          },
+          {
+            "op": "mix",
+            "inputs": ["fluorStock2x", "bufFor2x"],
+            "duration": "5s",
+            "output": "dil2x"
+          }
+        ]
+      },
+      {
+        "step": 3,
+        "protocol": 1,
+        "name": "Generate 4x dilution droplet (0.25 mM)",
+        "note": "Target: 1:3 dilution (1 unit stock + 3 units buffer = 4 units total, 0.25 mM). Compiler ignores multi-unit volume scalars (dispense 3 units defaults to 1 unit in IR); three buffer droplets explicitly instantiated and chain-merged into a single combined buffer droplet before the final mix with a fresh stock droplet. (1 unit x 1 mM) / 4 units total = 0.25 mM.",
+        "operations": [
+          {
+            "op": "dispense",
+            "reagent": "FluoresceinStock",
+            "output": "fluorStock4x"
+          },
+          {
+            "op": "dispense",
+            "reagent": "DilutionBuffer",
+            "output": "buf4x_a"
+          },
+          {
+            "op": "dispense",
+            "reagent": "DilutionBuffer",
+            "output": "buf4x_b"
+          },
+          {
+            "op": "dispense",
+            "reagent": "DilutionBuffer",
+            "output": "buf4x_c"
+          },
+          {
+            "op": "mix",
+            "inputs": ["buf4x_a", "buf4x_b"],
+            "duration": "5s",
+            "output": "buf4x_ab"
+          },
+          {
+            "op": "mix",
+            "inputs": ["buf4x_ab", "buf4x_c"],
+            "duration": "5s",
+            "output": "buf4x_abc"
+          },
+          {
+            "op": "mix",
+            "inputs": ["fluorStock4x", "buf4x_abc"],
+            "duration": "5s",
+            "output": "dil4x"
+          }
+        ]
+      },
+      {
+        "step": 4,
+        "protocol": 1,
+        "name": "Generate 8x dilution droplet (0.125 mM)",
+        "note": "Target: 1:7 dilution (1 unit stock + 7 units buffer = 8 units total, 0.125 mM); matches the paper's reported maximum 8x dilution of stock analyte given the device's minimal-inlet droplet-in-channel constraint. Seven buffer droplets explicitly instantiated and chain-merged before the final mix with a fresh stock droplet. Every variable is dispensed and consumed exactly once; no aliasing in IR.",
+        "operations": [
+          {
+            "op": "dispense",
+            "reagent": "FluoresceinStock",
+            "output": "fluorStock8x"
+          },
+          {"op": "dispense", "reagent": "DilutionBuffer", "output": "buf8x_1"},
+          {"op": "dispense", "reagent": "DilutionBuffer", "output": "buf8x_2"},
+          {"op": "dispense", "reagent": "DilutionBuffer", "output": "buf8x_3"},
+          {"op": "dispense", "reagent": "DilutionBuffer", "output": "buf8x_4"},
+          {"op": "dispense", "reagent": "DilutionBuffer", "output": "buf8x_5"},
+          {"op": "dispense", "reagent": "DilutionBuffer", "output": "buf8x_6"},
+          {"op": "dispense", "reagent": "DilutionBuffer", "output": "buf8x_7"},
+          {
+            "op": "mix",
+            "inputs": ["buf8x_1", "buf8x_2"],
+            "duration": "5s",
+            "output": "buf8x_12"
+          },
+          {
+            "op": "mix",
+            "inputs": ["buf8x_12", "buf8x_3"],
+            "duration": "5s",
+            "output": "buf8x_123"
+          },
+          {
+            "op": "mix",
+            "inputs": ["buf8x_123", "buf8x_4"],
+            "duration": "5s",
+            "output": "buf8x_1234"
+          },
+          {
+            "op": "mix",
+            "inputs": ["buf8x_1234", "buf8x_5"],
+            "duration": "5s",
+            "output": "buf8x_12345"
+          },
+          {
+            "op": "mix",
+            "inputs": ["buf8x_12345", "buf8x_6"],
+            "duration": "5s",
+            "output": "buf8x_123456"
+          },
+          {
+            "op": "mix",
+            "inputs": ["buf8x_123456", "buf8x_7"],
+            "duration": "5s",
+            "output": "buf8x_1234567"
+          },
+          {
+            "op": "mix",
+            "inputs": ["fluorStock8x", "buf8x_1234567"],
+            "duration": "5s",
+            "output": "dil8x"
+          }
+        ]
+      },
+      {
+        "step": 5,
+        "protocol": 1,
+        "name": "Fluorescence detection of all four calibration droplets",
+        "note": "Optical-fibre fluorescence interface (530 nm); each droplet detected independently as it passes the detection region prior to n-ary sorting. Detect consumes its fluid operand in this compiler -- a distinct downstream variable is used per detect call, not reused.",
+        "operations": [
+          {
+            "op": "detect",
+            "module": "fluorescenceDetection",
+            "input": "fluorStockCheck",
+            "duration": "30s",
+            "output": "calSignalStock"
+          },
+          {
+            "op": "detect",
+            "module": "fluorescenceDetection",
+            "input": "dil2x",
+            "duration": "30s",
+            "output": "calSignal2x"
+          },
+          {
+            "op": "detect",
+            "module": "fluorescenceDetection",
+            "input": "dil4x",
+            "duration": "30s",
+            "output": "calSignal4x"
+          },
+          {
+            "op": "detect",
+            "module": "fluorescenceDetection",
+            "input": "dil8x",
+            "duration": "30s",
+            "output": "calSignal8x"
+          }
+        ]
+      },
+      {
+        "step": 6,
+        "protocol": 1,
+        "name": "Calibration QC gate, n-ary sort, and join cleanup",
+        "note": "QC gate keyed on the undiluted stock signal (expected highest, ~1900 a.u. sorting threshold per paper Fig. 3c). Pass: all four droplets exceed their respective sort thresholds (~1900/~1350/~950/~700 a.u.) and are routed to one of the four n-ary sorting channels (dispose models successful sort-and-collect). Fail: below the ~700 a.u. detection floor; routed to waste (drain). Both branches join before Protocol 2 begins.",
+        "operations": [
+          {
+            "op": "conditional",
+            "condition": "calSignalStock > 0",
+            "if_true": [
+              {"op": "dispose", "input": "fluorStockCheck"},
+              {"op": "dispose", "input": "dil2x"},
+              {"op": "dispose", "input": "dil4x"},
+              {"op": "dispose", "input": "dil8x"}
+            ],
+            "if_false": [
+              {"op": "drain", "input": "fluorStockCheck"},
+              {"op": "drain", "input": "dil2x"},
+              {"op": "drain", "input": "dil4x"},
+              {"op": "drain", "input": "dil8x"}
+            ]
+          },
+          {"op": "dispose", "input": "calSignalStock"},
+          {"op": "dispose", "input": "calSignal2x"},
+          {"op": "dispose", "input": "calSignal4x"},
+          {"op": "dispose", "input": "calSignal8x"}
+        ]
+      },
+      {
+        "step": 7,
+        "protocol": 2,
+        "name": "Poisson single-cell encapsulation of yeast droplets",
+        "note": "Flow-focusing encapsulation (2x10^5 cells/mL + 1% BSA, 0.0008 uL/s cells : 0.01 uL/s oil) generating ~35 nL droplets, one per cell type: wild-type and the two fastest-growing EMS-mutagenized IL-tolerant isolates",
+        "operations": [
+          {"op": "dispense", "reagent": "WildTypeYeast", "output": "wtDroplet"},
+          {"op": "dispense", "reagent": "MutantYeast1", "output": "mut1Droplet"},
+          {"op": "dispense", "reagent": "MutantYeast2", "output": "mut2Droplet"}
+        ]
+      },
+      {
+        "step": 8,
+        "protocol": 2,
+        "name": "On-demand T-junction generation of ionic-liquid droplets",
+        "note": "200 mM IL stock, ~35 nL on-demand droplets; one IL droplet generated per single-cell droplet so that 1:1 merging yields a final on-chip concentration of 100 mM",
+        "operations": [
+          {"op": "dispense", "reagent": "IonicLiquidStock", "output": "ilDropWT"},
+          {"op": "dispense", "reagent": "IonicLiquidStock", "output": "ilDropMut1"},
+          {"op": "dispense", "reagent": "IonicLiquidStock", "output": "ilDropMut2"}
+        ]
+      },
+      {
+        "step": 9,
+        "protocol": 2,
+        "name": "Merge each single-cell droplet with its ionic-liquid droplet",
+        "note": "Electrode actuation sequence (200 V_rms, 15 kHz) in the mixing area; produces a final 100 mM IL droplet containing a single yeast cell for each of the three conditions",
+        "operations": [
+          {
+            "op": "mix",
+            "inputs": ["wtDroplet", "ilDropWT"],
+            "duration": "5s",
+            "output": "wtMix"
+          },
+          {
+            "op": "mix",
+            "inputs": ["mut1Droplet", "ilDropMut1"],
+            "duration": "5s",
+            "output": "mut1Mix"
+          },
+          {
+            "op": "mix",
+            "inputs": ["mut2Droplet", "ilDropMut2"],
+            "duration": "5s",
+            "output": "mut2Mix"
+          }
+        ]
+      },
+      {
+        "step": 10,
+        "protocol": 2,
+        "name": "Trap and incubate at 30 C for 24 h",
+        "note": "Each merged droplet is actuated into one of the four on-chip incubation traps and held for 24 h at 30 C in a humidified chamber; heat is void in BioScript (no assignment) -- the reaction variables survive intact",
+        "operations": [
+          {"op": "heat", "input": "wtMix", "temperature": "30c", "duration": "1440m"},
+          {"op": "heat", "input": "mut1Mix", "temperature": "30c", "duration": "1440m"},
+          {"op": "heat", "input": "mut2Mix", "temperature": "30c", "duration": "1440m"}
+        ]
+      },
+      {
+        "step": 11,
+        "protocol": 2,
+        "name": "Post-incubation absorbance detection",
+        "note": "Optical-fibre absorbance interface measures cell density. Expected OD per paper Fig. 4: wild-type ~0.04-0.07 (no growth, indistinguishable from oil background), mutant #1 ~0.6, mutant #2 ~1.0",
+        "operations": [
+          {
+            "op": "detect",
+            "module": "absorbanceDetection",
+            "input": "wtMix",
+            "duration": "30s",
+            "output": "ilSignalWT"
+          },
+          {
+            "op": "detect",
+            "module": "absorbanceDetection",
+            "input": "mut1Mix",
+            "duration": "30s",
+            "output": "ilSignalMut1"
+          },
+          {
+            "op": "detect",
+            "module": "absorbanceDetection",
+            "input": "mut2Mix",
+            "duration": "30s",
+            "output": "ilSignalMut2"
+          }
+        ]
+      },
+      {
+        "step": 12,
+        "protocol": 2,
+        "name": "IL-tolerance QC gate, n-ary sort, and final cleanup",
+        "note": "QC gate keyed on mutant #2 signal (expected highest absorbance/cell density). Pass: growth detected; all three droplets routed to their respective n-ary sorting channels by absorbance level for downstream analysis (e.g. single-cell sequencing). Fail: no growth signal above oil background; routed to waste (drain). Both branches join at the terminal block, where all signal droplets are disposed.",
+        "operations": [
+          {
+            "op": "conditional",
+            "condition": "ilSignalMut2 > 0",
+            "if_true": [
+              {"op": "dispose", "input": "wtMix"},
+              {"op": "dispose", "input": "mut1Mix"},
+              {"op": "dispose", "input": "mut2Mix"}
+            ],
+            "if_false": [
+              {"op": "drain", "input": "wtMix"},
+              {"op": "drain", "input": "mut1Mix"},
+              {"op": "drain", "input": "mut2Mix"}
+            ]
+          },
+          {"op": "dispose", "input": "ilSignalWT"},
+          {"op": "dispose", "input": "ilSignalMut1"},
+          {"op": "dispose", "input": "ilSignalMut2"}
+        ]
+      }
+    ]
+  }
+}

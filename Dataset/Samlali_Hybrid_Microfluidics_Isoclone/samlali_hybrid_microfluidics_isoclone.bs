@@ -1,0 +1,291 @@
+module viabilityDetection
+module dropletReleaseDetection
+module mCherryGFPDetection
+module genomicCleavageDetection
+
+manifest MCF7_Cells
+manifest H1299_Cells
+manifest PluronicF127
+manifest PBS
+manifest HFE7500_Surfactant
+manifest CompleteMedia
+manifest FDA_PI_Stain
+manifest Cas9_eGFP_sgRNA_Plasmid
+manifest Cas9_RAF1_sgRNA_Plasmid
+manifest Lipofectamine3000
+manifest TrypsinEDTA
+manifest ConditionedMedia
+manifest FC40_Oil
+
+instructions:
+
+// ============================================================
+// One Cell, One Drop, One Click: Hybrid Microfluidics for
+// Mammalian Single Cell Isolation
+// Samlali, Ahmadi, Quach, Soffer, Shih - Small 2020, 16, 2002400
+//
+// Protocol: hydrodynamic single-cell trapping, in situ
+// deterministic droplet encapsulation, on-demand droplet
+// release/keep operations, cell viability assay, and a
+// gene-editing pipeline (CRISPR knockout of eGFP in
+// NCI-H1299 cells) with isoclone sorting, recovery, and
+// expansion.
+//
+// NOTE ON BIOLOGICAL SCOPE: The paper performs two separate,
+// independent knockout experiments -- eGFP KO and RAF1 KO --
+// each transfected with a single plasmid and evaluated
+// independently (Fig 6A/B, separate flow cytometry plots).
+// This BioScript file encodes the eGFP knockout arm as the
+// representative protocol. A separate .bs file should be
+// used for the RAF1 knockout arm with Cas9_RAF1_sgRNA_Plasmid.
+// Pooling both plasmids into one transfectionMix would imply
+// co-transfection, which does not reflect the paper's design.
+//
+// NOTE ON TRAPPING ABSTRACTION: Steps 2 and 7 use `mix` to
+// represent cell loading into the serpentine trapping channel.
+// This is a BioScript abstraction for a flow-through
+// hydrodynamic trapping event (cells loaded at 1-4 nL/s
+// through 8 um constriction traps, ~88.3% efficiency).
+// There is no reagent mixing in the DMF sense at these steps.
+//
+// CFG STRUCTURE:
+//   BB1  main              -- entry: device priming, cell trapping,
+//                             phase change, in situ encapsulation,
+//                             on-demand release characterisation
+//   BB2  releasePass       -- releaseSignal > 0: droplet successfully
+//                             released (characterisation run), dispose
+//   BB3  releaseFail       -- releaseSignal <= 0: release failed, drain
+//   BB4  releaseJoin       -- join: viability assay branch begins
+//   BB5  viabilityPass     -- viabilitySignal > 0: cells viable (>80%), dispose
+//   BB6  viabilityFail     -- viabilitySignal <= 0: low viability, drain
+//   BB7  viabilityJoin     -- join: gene-editing branch begins
+//   BB8  knockoutPass      -- knockoutSignal > 0: recover & expand isoclone
+//   BB9  knockoutFail      -- knockoutSignal <= 0: drain sorted isoclone
+//   BB10 finalCleanup      -- terminal: dispose QC signal, experiment ends
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prime device with 2% Pluronics F-127 in PBS for 5 min
+//         to decrease cell adhesion to PDMS.
+// ------------------------------------------------------------
+
+primingPBS      = dispense 1 units of PBS
+primingPluronic = dispense 1 units of PluronicF127
+primingMix      = mix primingPBS with primingPluronic for 5m
+
+// ------------------------------------------------------------
+// STEP 2: Load MCF-7 cells (1e5-1e6 cells/mL in PBS) into the
+//         trapping device at 1-4 nL/s. Single cells are
+//         hydrodynamically trapped (~88.3% efficiency) in
+//         8 um constriction traps.
+//         NOTE: `mix` here abstracts a channel flow-through
+//         trapping event, not a DMF electrode mixing step.
+// ------------------------------------------------------------
+
+mcf7Cells    = dispense 1 units of MCF7_Cells
+trappedCells = mix mcf7Cells with primingMix for 2s
+
+// ------------------------------------------------------------
+// STEP 3: Phase change - flow HFE7500 + 2% surfactant at
+//         4 nL/s through the main channel while actuating
+//         trap electrodes (15 kHz, 126 Vrms) to shear off
+//         the aqueous phase and generate an in situ droplet
+//         around the trapped single cell (deterministic
+//         encapsulation, no Poisson statistics).
+//         Average droplet volume: 150.3 +/- 5.6 pL.
+// ------------------------------------------------------------
+
+oilPhase         = dispense 1 units of HFE7500_Surfactant
+encapsulatedCell = mix trappedCells with oilPhase for 4s
+
+// ------------------------------------------------------------
+// STEP 4: On-demand droplet release characterisation.
+//         Droplet released toward outlet under forward oil
+//         flow (<1 nL/s gives >95% release probability) via
+//         electrode actuation sequence (15 kHz, 126 Vrms).
+//         NOTE: This block characterises release efficiency
+//         (Fig 4A/B in paper) using a dedicated detection
+//         module. This is separate from the sorting run in
+//         STEP 7. The released droplet is disposed after
+//         detection; it is not the isoclone being recovered.
+// ------------------------------------------------------------
+
+// FIX #1 (was viabilityDetection): release characterisation
+// uses dropletReleaseDetection, not the FDA/PI viability
+// module. viabilityDetection is reserved for STEP 5.
+releasedDroplet = mix encapsulatedCell with oilPhase for 1s
+releaseSignal   = detect dropletReleaseDetection on releasedDroplet for 10s
+
+// ============================================================
+// BB2 / BB3: Release characterisation QC gate
+// Pass (BB2): releaseSignal > 0 -> droplet successfully
+//             released; dispose (characterisation run only).
+// Fail (BB3): releaseSignal <= 0 -> release failed
+//             (droplet retained/lost); drain.
+// Both branches converge at BB4 (releaseJoin).
+// ============================================================
+
+if (releaseSignal > 0) {
+    dispose releasedDroplet
+} else {
+    drain releasedDroplet
+}
+
+// ============================================================
+// BB4: releaseJoin
+// Dispose release QC signal droplet. Control falls into the
+// viability assay branch (BB5/BB6).
+// ============================================================
+
+dispose releaseSignal
+
+// ------------------------------------------------------------
+// STEP 5 (Viability assay): Trap fresh MCF-7 cells, actuate
+//         electrodes for 30 s (15 kHz, 126 Vrms) to simulate
+//         encapsulation conditions, then flow FDA/PI viability
+//         stain and incubate for 10 min.
+//         FDA labels live cells (ex 490 nm / em 526 nm).
+//         PI labels dead cells (ex 488 nm / em 617 nm).
+//         Result: no significant viability difference between
+//         potentiated (82.5+/-8.1%) and control (87.5+/-7.2%)
+//         cells (p=0.6687, N=3). (Fig 5, paper Section 2.3)
+// ------------------------------------------------------------
+
+viabilityCells  = dispense 1 units of MCF7_Cells
+viabilityPriming = dispense 1 units of PBS
+viabilityTrapped = mix viabilityCells with viabilityPriming for 2s
+
+// Electrode actuation (15 kHz, 126 Vrms for 30 s) modelled
+// as a heat step at room temperature (25 C) for 30 s.
+heat viabilityTrapped at 25c for 30s
+
+fdaPiStain   = dispense 1 units of FDA_PI_Stain
+stainedCells = mix viabilityTrapped with fdaPiStain for 10m
+
+viabilitySignal = detect viabilityDetection on stainedCells for 30s
+
+// ============================================================
+// BB5 / BB6: Viability QC gate
+// Pass (BB5): viabilitySignal > 0 -> cells viable (>80%), dispose
+// Fail (BB6): viabilitySignal <= 0 -> low viability, drain
+// Both branches converge at BB7 (viabilityJoin).
+// ============================================================
+
+if (viabilitySignal > 0) {
+    dispose stainedCells
+} else {
+    drain stainedCells
+}
+
+// ============================================================
+// BB7: viabilityJoin
+// Dispose viability QC signal. Control falls into the
+// gene-editing / isoclone sorting branch (BB8/BB9).
+// ============================================================
+
+dispose viabilitySignal
+
+// ------------------------------------------------------------
+// STEP 6 (Gene editing - eGFP KO arm): Transient lipid-
+//         mediated transfection of NCI-H1299 cells with
+//         Cas9/mCherry/sgRNA plasmid targeting eGFP (off-chip),
+//         generating a heterozygous knockout population
+//         (~25.3% transfection efficiency, ~4.95% KO efficiency
+//         by genomic cleavage detection assay). Incubated
+//         48 h at 37 C / 5% CO2 before on-chip sorting.
+//
+// FIX #2 (was: mix egfpPlasmid with raf1Plasmid): The paper
+//         runs eGFP KO and RAF1 KO as two independent
+//         experiments. Only the eGFP plasmid is used here.
+//         48 h incubation = 2880 min.
+// FIX #3 (was: heat ... for 48h): BioScript duration tokens
+//         are s / m only. 48 h converted to 2880m.
+// ------------------------------------------------------------
+
+h1299Cells      = dispense 1 units of H1299_Cells
+egfpPlasmid     = dispense 1 units of Cas9_eGFP_sgRNA_Plasmid
+lipofectamine   = dispense 1 units of Lipofectamine3000
+
+transfectionMix  = mix egfpPlasmid with lipofectamine for 5s
+transfectedCells = mix h1299Cells with transfectionMix for 1m
+
+// 48 h post-transfection incubation at 37 C (= 2880 min).
+heat transfectedCells at 37c for 2880m
+
+// ------------------------------------------------------------
+// STEP 7: Trap transfected H1299 cells on-chip and screen by
+//         fluorescence for mCherry expression (transfection
+//         reporter) and eGFP loss (knockout signal) using the
+//         mCherryGFPDetection module.
+//         Successful isoclones predicted in ~1 of 6 traps
+//         (~16.7%). Successful clones are encapsulated in situ
+//         and released on-demand toward the outlet (~45 min
+//         total trap-to-recovery time).
+//         NOTE: `mix` steps abstract channel-based hydrodynamic
+//         trapping and oil-phase encapsulation events.
+// ------------------------------------------------------------
+
+primingPBS2       = dispense 1 units of PBS
+chipTrappedClones = mix transfectedCells with primingPBS2 for 2s
+
+oilPhase2         = dispense 1 units of HFE7500_Surfactant
+encapsulatedClone = mix chipTrappedClones with oilPhase2 for 4s
+sortedIsoclone    = mix encapsulatedClone with oilPhase2 for 1s
+
+// Fluorescence detection: mCherry+ / eGFP-loss identifies
+// successfully transfected and knocked-out isoclones.
+knockoutSignal = detect mCherryGFPDetection on sortedIsoclone for 30s
+
+// ============================================================
+// BB8 / BB9: Knockout sorting QC gate
+// Pass (BB8): knockoutSignal > 0 -> successful eGFP knockout
+//             isoclone detected (mCherry+ / GFP-loss);
+//             carry forward into capillary recovery and
+//             96-well expansion.
+// Fail (BB9): knockoutSignal <= 0 -> no edited clone in trap;
+//             drain sortedIsoclone and re-trap at higher
+//             forward flow rate (off-chip iterative step).
+// Both branches converge at BB10 (finalCleanup). Only the
+// pass branch produces a non-empty recoveredClone droplet.
+// ============================================================
+
+if (knockoutSignal > 0) {
+    // ------------------------------------------------------------
+    // Recovery and expansion (pass path only):
+    // The isoclone-containing droplet is transferred via capillary
+    // onto a hydrophobic PTFE membrane. FC-40 oil wash removes
+    // HFE7500 and surfactant. The aqueous isoclone droplet is
+    // released into conditioned media and transferred to a 96-well
+    // plate at 37 C. Clonal expansion monitored at Day 5 and Day 7.
+    // Media replaced with fresh complete growth media after Day 5.
+    //
+    // FIX #4 (was: heat ... for 168h): 7 days = 10080 min.
+    // ------------------------------------------------------------
+    conditionedMedia = dispense 1 units of ConditionedMedia
+    fc40Wash         = dispense 1 units of FC40_Oil
+
+    membraneWash   = mix sortedIsoclone with fc40Wash for 1m
+    recoveredClone = mix membraneWash with conditionedMedia for 1m
+
+    // 7-day clonal expansion at 37 C / 5% CO2 (= 10080 min).
+    // Day 5: image eGFP-negative clones; Day 7: confirm expansion.
+    // mCherry reporter lost by Day 2-3 (transient transfection).
+    heat recoveredClone at 37c for 10080m
+
+    dispose recoveredClone
+} else {
+    drain sortedIsoclone
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose the knockout QC signal droplet; experiment ends.
+// ============================================================
+
+dispose knockoutSignal
+
+// [terminal -- no instructions; exit node for CFG]

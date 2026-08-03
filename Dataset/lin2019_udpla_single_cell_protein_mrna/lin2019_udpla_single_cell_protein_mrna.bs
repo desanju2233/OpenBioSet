@@ -1,0 +1,521 @@
+module ddPCRProteinDetection
+module rtDdPCRmRNADetection
+module liveCellImagingDetection
+module viralProteinDetection
+
+manifest PBS
+manifest LysisBuffer
+manifest PLAProbes
+manifest LigationMix
+manifest MilliQWater
+manifest BSA_BlockingBuffer
+manifest SingleCell
+manifest PurifiedProteinStandard
+manifest RNaseOUT
+manifest RTddPCR_Supermix
+manifest ReversTranscriptase
+manifest DTT
+manifest UniversalPCRAssay
+manifest TaqMan_TNFR1_Probe
+manifest ddPCR_Supermix
+manifest DropletGenerationOil
+manifest HFE7500_Surfactant
+manifest HSV1_InfectedCell
+manifest ControlCell
+
+// ============================================================
+// Ultra-sensitive Digital Quantification of Proteins and mRNA
+// in Single Cells (u-dPLA)
+// Lin et al., Nature Communications (2019) 10:3544
+// DOI: https://doi.org/10.1038/s41467-019-11531-z
+//
+// OVERVIEW:
+// Automated microfluidic digital proximity ligation assay
+// (u-dPLA) for ultrasensitive, single-cell quantification of
+// proteins (via ddPCR readout of PLA products) and mRNA (via
+// one-step RT-ddPCR), simultaneously from the same single cell.
+//
+// KEY PERFORMANCE METRICS:
+//   LOD (TNFR1):  2,277 protein molecules per cell
+//   LOD (CD147):  2,795 protein molecules per cell
+//   LOD (CSTB):  18,824 protein molecules per cell
+//   Detection efficiency (CD147): as low as 29 protein molecules
+//   Improvement over regular dPLA: up to 55x better LOD
+//   Linear dynamic range: 3-4 orders of magnitude
+//   Chip capacity: 144 parallel single-cell dPLA assays
+//   Chamber (trap) volume: 7 nL
+//   Sample used in ddPCR: 100% (vs 9% in regular dPLA)
+//   Pipetting error: <0.1% (vs ~10% manual)
+//
+// CHIP ARCHITECTURE (one assay unit, Chambers I-V):
+//   Chamber I:   Reagent input / wash channel
+//   Chamber II:  Single-cell trap (hydrodynamic, 50 um constriction)
+//   Chamber III: 7-nL lysis chamber; cell lysed here; probe incubation
+//   Chamber IV:  Probe-lysate diffusion mixing zone
+//   Chamber V:   Ligation reaction chamber
+//   Output port: PLA products retrieved for ddPCR/RT-ddPCR
+//
+// FABRICATION NOTE: Two-layer push-up PDMS device.
+//   Control layer (thin): microfluidic valves (SU-8 22 um),
+//     operated by Matlab-controlled pneumatic actuators.
+//   Fluidic layer (thick): reagent channels (SU-8 70 um + AZ 18 um).
+//   Chambers sealed by dead-end filling for precise nanoliter volumes.
+//   Wash channels prevent cross-contamination between steps.
+//
+// BIOSCRIPT ABSTRACTIONS:
+//   - `mix X with Y for T` abstracts valve-gated reagent introduction
+//     and diffusion-based mixing inside closed nanoliter chambers.
+//     No DMF electrode actuation is involved; fluid movement is driven
+//     by pneumatic pressure and Matlab-controlled valve sequencing.
+//   - `heat` abstracts on-chip or bench incubation steps with
+//     temperature control (enzyme steps, ligation, etc.).
+//   - Duration tokens follow BioScript compiler constraints:
+//     s (seconds) and m (minutes) only; hours converted to minutes.
+//   - Cell occupancy: ~90% average per assay run; a single cell is
+//     modelled as one `SingleCell` manifest unit per assay unit.
+//   - ddPCR/RT-ddPCR readout is modelled via detect modules;
+//     actual droplet generation and thermal cycling occur off-chip
+//     after product retrieval.
+//
+// CFG STRUCTURE:
+//   BB1  main                -- chip prep, calibration curve,
+//                               single-cell trap, lysis, PLA, ligation,
+//                               product retrieval, ddPCR QC gate
+//   BB2  proteinPass         -- proteinSignal > 0: valid protein count;
+//                               dispose lysate, continue to mRNA branch
+//   BB3  proteinFail         -- proteinSignal <= 0: below LOD; drain
+//   BB4  proteinJoin         -- join: duplex mRNA/protein branch begins
+//   BB5  mrnaPass            -- mrnaSignal > 0: valid mRNA count; dispose
+//   BB6  mrnaFail            -- mrnaSignal <= 0: no mRNA detected; drain
+//   BB7  mrnaJoin            -- join: HSV-1 viral infection branch begins
+//   BB8  infectionPass       -- infectionSignal > 0: ICP4-YFP+ infected
+//                               cell; dispose viral protein readout
+//   BB9  infectionFail       -- infectionSignal <= 0: uninfected or
+//                               abortive; drain
+//   BB10 finalCleanup        -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Block non-specific binding.
+//   Chip surface coated with 10% BSA in PBS for 1 h at RT
+//   to minimise non-specific adsorption of PLA probes and
+//   cell-lysate proteins to PDMS channel walls.
+//   After incubation, chip is washed with MilliQ water and
+//   ventilated with compressed air before cell loading.
+//   1 h = 60 min.
+// ------------------------------------------------------------
+
+bsaBlock     = dispense 1 units of BSA_BlockingBuffer
+pbsWash0     = dispense 1 units of PBS
+
+chipSurface  = mix bsaBlock with pbsWash0 for 60m
+
+// Wash off excess BSA with MilliQ water.
+waterWash0   = dispense 1 units of MilliQWater
+blockedChip  = mix chipSurface with waterWash0 for 5m
+
+// ------------------------------------------------------------
+// STEP 2: Calibration curve (on-chip, performed in parallel
+//   with single-cell experiments on same chip run).
+//   Serial dilution of purified protein standard (e.g., TNFR1,
+//   CD147, or CSTB) loaded from lowest to highest concentration.
+//   8 min washing between standards through Channel I.
+//   Calibration units are loaded into chambers I-V by the
+//   same dead-end filling protocol as single-cell samples.
+//   PLA probes: 500 pM stock, diluted to 2 nM working solution
+//   in probe binding buffer (0.1% BSA, 0.05% Tween-20,
+//   100 nM goat IgG, 0.1 g/L sheared salmon sperm DNA in PBS).
+//   NOTE: `mix` abstracts sequential dead-end filling of each
+//   calibration concentration into the assay chambers.
+// ------------------------------------------------------------
+
+proteinStd   = dispense 1 units of PurifiedProteinStandard
+probeWash1   = dispense 1 units of PBS
+
+// Load calibration standard into chamber III (7 nL).
+stdInChamber = mix proteinStd with probeWash1 for 2m
+
+// Flush Channel I and II with PLA probes (500 pM -> 2 nM).
+plaProbeStd  = dispense 1 units of PLAProbes
+stdProbeIncub = mix stdInChamber with plaProbeStd for 60m
+
+// ------------------------------------------------------------
+// STEP 3: Load ligation mix into calibration chambers.
+//   Ligation mix (per 100 uL): 89.1 uL MilliQ water,
+//   10 uL 10x ligase buffer, 0.4 uL 1/500-diluted T4 ligase,
+//   0.5 uL 1 uM connector oligonucleotide.
+//   Pushed from chambers III/IV to chamber V.
+//   30 min on ice for diffusion mixing; 10 min ligation at 37 C;
+//   5 min heat inactivation at 65 C.
+//   Modelled as three sequential heat steps on the same droplet.
+// ------------------------------------------------------------
+
+ligMixStd    = dispense 1 units of LigationMix
+stdLigMix    = mix stdProbeIncub with ligMixStd for 30m
+
+// Ligation: 37 C for 10 min.
+heat stdLigMix at 37c for 10m
+
+// Heat inactivation of T4 ligase: 65 C for 5 min.
+heat stdLigMix at 65c for 5m
+
+// Retrieve calibration PLA products (9 uL) for ddPCR.
+waterFlush1  = dispense 1 units of MilliQWater
+stdProducts  = mix stdLigMix with waterFlush1 for 2m
+
+// ============================================================
+// SINGLE-CELL u-dPLA ASSAY
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 4 (Chamber II): Single-cell loading and trapping.
+//   Cells resuspended in sterile PBS, filtered through 40 um
+//   strainer, diluted to 2x10^5 cells/mL.
+//   Loaded at 5 psi input pressure into Channel I.
+//   Single cells are hydrodynamically trapped in Chamber II
+//   (50 um constriction) with ~90% average occupancy.
+//   Cell loading verified visually under microscope before
+//   proceeding. Chip immediately moved to ice after loading.
+//   NOTE: `mix` abstracts pressure-driven cell loading into
+//   the hydrodynamic trap; no reagent mixing in the DMF sense.
+// ------------------------------------------------------------
+
+singleCell   = dispense 1 units of SingleCell
+pbsTrap      = dispense 1 units of PBS
+
+trappedCell  = mix singleCell with pbsTrap for 2s
+
+// ------------------------------------------------------------
+// STEP 5 (Chamber III): Single-cell lysis.
+//   Lysis buffer: 0.3x TM buffer + protease inhibitor in cell
+//   resuspension buffer. Introduced from Chamber I to push and
+//   lyse the trapped cell from Chamber II into Chamber III (7 nL).
+//   Lysis complete within 10 min on ice. Visually confirmed
+//   under microscope. Entire 7-nL lysate remains in Chamber III;
+//   zero sample loss (cf. regular dPLA: 91% sample loss).
+//   Reducing dilution factor is the primary source of 55x
+//   sensitivity improvement over regular well-plate dPLA.
+// ------------------------------------------------------------
+
+lysisBuffer  = dispense 1 units of LysisBuffer
+cellLysate   = mix trappedCell with lysisBuffer for 10m
+
+// Chip maintained on ice during lysis (modelled as 0 C, 10 min).
+heat cellLysate at 0c for 10m
+
+// ------------------------------------------------------------
+// STEP 6 (Chambers III-IV): PLA probe incubation with lysate.
+//   PLA probes (oligonucleotide-tagged antibody pairs) flushed
+//   through Channels I and II into Chamber III. Probe-lysate
+//   mix occupies Chambers III and IV with valve between open.
+//   Incubated at 37 C for 1 h. Diffusion-based mixing.
+//   Antibody pairs recognise two distinct epitopes on target
+//   protein. Proximity ligation requires both probes bound
+//   to the same protein molecule within ~3-5 nm.
+//   PLA probes: TNFR1: BAF225; CD147: BAF972 (R&D Systems).
+//   HSV-1: anti-HSV-1 polyclonal (ab9533, Abcam) conjugated
+//   in-house via DBCO-NHS/azide click chemistry.
+//   1 h = 60 min.
+// ------------------------------------------------------------
+
+plaProbeCell = dispense 1 units of PLAProbes
+probeIncub   = mix cellLysate with plaProbeCell for 60m
+
+// Incubate at 37 C for 1 h.
+heat probeIncub at 37c for 60m
+
+// ------------------------------------------------------------
+// STEP 7 (Chamber V): Ligation reaction.
+//   Ligation mix introduced from Channels I/II to push the
+//   probe-lysate mix (Chambers III/IV) into Chamber V.
+//   Connector oligonucleotide (TTTCGACACGACACGATTTAGGTC)
+//   bridges the two probe oligonucleotides when both probes
+//   are bound to the same target protein.
+//   T4 DNA ligase seals the nick to form a circular DNA product.
+//   30 min on ice for diffusion mixing (valve between III and V
+//   open); then 37 C for 10 min ligation; 65 C for 5 min
+//   heat inactivation of T4 ligase.
+// ------------------------------------------------------------
+
+ligMixCell   = dispense 1 units of LigationMix
+ligOnIce     = mix probeIncub with ligMixCell for 30m
+
+heat ligOnIce at 0c for 30m
+heat ligOnIce at 37c for 10m
+heat ligOnIce at 65c for 5m
+
+// ------------------------------------------------------------
+// STEP 8: Retrieve PLA products for ddPCR.
+//   PLA products flushed out of Chamber V by MilliQ water
+//   through the output retrieval port (1930 um punch) into
+//   a collection tube. 9 uL retrieved per unit.
+//   ddPCR Supermix for Probes (Bio-Rad QX200) + Universal
+//   PCR Assay added; 20 uL total loaded into DG8 cartridge
+//   with 65 uL Droplet Generation Oil for droplet generation.
+//   PCR program: 95 C 10 min; 40x (94 C 30s / 60 C 1 min);
+//   98 C 10 min; ramp 1.5 C/s.
+//   FAM channel readout: counts positive droplets containing
+//   ligated PLA DNA product. Each positive droplet = 1 protein.
+// ------------------------------------------------------------
+
+waterFlush2  = dispense 1 units of MilliQWater
+plaProducts  = mix ligOnIce with waterFlush2 for 2m
+
+ddpcrMix     = dispense 1 units of ddPCR_Supermix
+universalPCR = dispense 1 units of UniversalPCRAssay
+dropletOil   = dispense 1 units of DropletGenerationOil
+
+// Assemble ddPCR reaction mix.
+ddpcrRxn1    = mix plaProducts with ddpcrMix for 5s
+ddpcrRxn2    = mix ddpcrRxn1 with universalPCR for 5s
+ddpcrLoaded  = mix ddpcrRxn2 with dropletOil for 5s
+
+// ddPCR thermal cycling: 95 C 10 min activation.
+heat ddpcrLoaded at 95c for 10m
+
+// 40 amplification cycles: 94 C 30s + 60 C 1 min = 90s each.
+// 40 cycles x 90s = 3600s = 60m.
+heat ddpcrLoaded at 94c for 60m
+
+// Final extension / signal stabilisation: 98 C 10 min.
+heat ddpcrLoaded at 98c for 10m
+
+// Detect protein copy number (FAM channel; positive droplet count).
+proteinSignal = detect ddPCRProteinDetection on ddpcrLoaded for 30s
+
+// ============================================================
+// BB2 / BB3: Protein detection QC gate
+// Pass (BB2): proteinSignal > 0 -> protein count above LOD
+//             (LOD: TNFR1=2277; CD147=2795; CSTB=18824 molecules);
+//             dispose ddPCR droplets, continue to mRNA branch.
+// Fail (BB3): proteinSignal <= 0 -> below LOD (e.g. HEK293T
+//             TNFR1 cells all below LOD, consistent with paper
+//             finding that TNFR1 is not expressed in HEK293T);
+//             drain all droplets.
+// Both branches converge at BB4 (proteinJoin).
+// ============================================================
+
+if (proteinSignal > 0) {
+    dispose ddpcrLoaded
+} else {
+    drain ddpcrLoaded
+}
+
+// ============================================================
+// BB4: proteinJoin
+// Dispose protein QC signal. Control falls into the duplex
+// mRNA/protein quantification branch (BB5/BB6).
+// ============================================================
+
+dispose proteinSignal
+
+// ------------------------------------------------------------
+// STEP 9: Duplex protein/mRNA quantification (same single cell).
+//   Instead of splitting the lysate, one-step RT-ddPCR is
+//   integrated with u-dPLA in the same ddPCR droplets.
+//   RNaseOUT (20x dilution in all reagent mixes) protects mRNA
+//   throughout PLA steps. After product retrieval, 9 uL PLA
+//   products + mRNA are mixed with:
+//     5 uL one-step RT-ddPCR Supermix
+//     2 uL reverse transcriptase
+//     1 uL 300 mM DTT
+//     1 uL 20x Universal PCR Assay (FAM; PLA/protein readout)
+//     1 uL 20x TaqMan TNFR1 probe (VIC; mRNA readout)
+//     1 uL nuclease-free water
+//   Total: 20 uL. Same droplet generation as Step 8.
+//   FAM channel -> protein (PLA ligation products).
+//   VIC channel -> mRNA (RT-ddPCR amplicons from TNFR1 mRNA).
+//   Cross-talk validation: VIC/FAM crosstalk negligible
+//   (Supplementary Fig. 5a/b). N=38 cells; Spearman rho=0.45.
+//   RT program: 42 C 1h; 95 C 10 min; 40x (95 C 30s/60 C 1 min);
+//   98 C 10 min; ramp 2 C/s.
+//   1 h RT step = 60 min.
+// ------------------------------------------------------------
+
+// Retrieve combined PLA+mRNA products (same protocol as Step 8).
+rnaseOut1    = dispense 1 units of RNaseOUT
+
+// RNaseOUT added to all reagent mixes (20x dilution modelled
+// as direct mix with products before RT-ddPCR assembly).
+protectedRNA = mix plaProducts with rnaseOut1 for 1s
+
+// Assemble duplex RT-ddPCR reaction mix.
+rtSupermix   = dispense 1 units of RTddPCR_Supermix
+revTranscrip = dispense 1 units of ReversTranscriptase
+dttSolution  = dispense 1 units of DTT
+univPCR2     = dispense 1 units of UniversalPCRAssay
+tnfr1Probe   = dispense 1 units of TaqMan_TNFR1_Probe
+dropletOil2  = dispense 1 units of DropletGenerationOil
+
+duplexRxn1   = mix protectedRNA with rtSupermix for 5s
+duplexRxn2   = mix duplexRxn1 with revTranscrip for 5s
+duplexRxn3   = mix duplexRxn2 with dttSolution for 5s
+duplexRxn4   = mix duplexRxn3 with univPCR2 for 5s
+duplexRxn5   = mix duplexRxn4 with tnfr1Probe for 5s
+duplexLoaded = mix duplexRxn5 with dropletOil2 for 5s
+
+// RT step: 42 C for 1 h (= 60 min) to reverse transcribe mRNA.
+heat duplexLoaded at 42c for 60m
+
+// Activation: 95 C for 10 min.
+heat duplexLoaded at 95c for 10m
+
+// 40 amplification cycles: 95 C 30s + 60 C 1 min = 90s each.
+// 40 cycles x 90s = 3600s = 60m.
+heat duplexLoaded at 95c for 60m
+
+// Final extension / signal stabilisation: 98 C 10 min.
+heat duplexLoaded at 98c for 10m
+
+// Detect mRNA (VIC channel; RT-ddPCR amplicons from TNFR1 mRNA).
+mrnaSignal   = detect rtDdPCRmRNADetection on duplexLoaded for 30s
+
+// ============================================================
+// BB5 / BB6: mRNA detection QC gate
+// Pass (BB5): mrnaSignal > 0 -> TNFR1 mRNA detected above LOD;
+//             dispose duplex ddPCR droplets.
+//             Paper result: Spearman rho=0.45 (N=38 H1299 cells),
+//             significantly higher than previous ~0.1 estimates,
+//             demonstrating that including lowly-expressing cells
+//             (below previous dPLA LOD) raises mRNA-protein
+//             correlation. (Fig. 3d/e)
+// Fail (BB6): mrnaSignal <= 0 -> mRNA below detection; drain.
+// Both branches converge at BB7 (mrnaJoin).
+// ============================================================
+
+if (mrnaSignal > 0) {
+    dispose duplexLoaded
+} else {
+    drain duplexLoaded
+}
+
+// ============================================================
+// BB7: mrnaJoin
+// Dispose mRNA QC signal. Control falls into the HSV-1 viral
+// infection profiling branch (BB8/BB9).
+// ============================================================
+
+dispose mrnaSignal
+
+// ------------------------------------------------------------
+// STEP 10: HSV-1 viral infection heterogeneity assay.
+//   A549 human lung epithelial cells infected with HSV-1
+//   expressing ICP4-YFP reporter (MOI 2; overnight).
+//   Cells harvested, loaded on chip alongside control cells
+//   (no virus). Loaded at 5 psi; chip moved to ice post-loading.
+//
+//   Live-cell time-lapse imaging (fluorescence) performed
+//   on-chip before lysis to identify infected (ICP4-YFP+,
+//   nuclear YFP signal) vs uninfected/control (YFP-) cells.
+//   YFP images acquired; total fluorescence per cell calculated
+//   by Matlab (imfindcircles + Rolling Ball Background
+//   Subtraction in ImageJ).
+//
+//   After imaging, all cells lysed simultaneously with 0.3x
+//   TM buffer (same lysis protocol as Steps 5-7).
+//
+//   HSV-1 PLA probes: polyclonal anti-HSV-1 antibody (ab9533,
+//   Abcam) conjugated in-house via DBCO-NHS click chemistry.
+//   Detects ~80 HSV-1 viral protein species.
+//
+//   Key finding (Fig. 4d): Spearman rho=0.48 between ICP4-YFP
+//   fluorescence and total viral protein count, indicating
+//   that not all HSV-1-infected cells (YFP+) progress past
+//   the immediate-early protein synthesis stage; some undergo
+//   abortive infection. Wide single-cell distribution:
+//   highest expressors show ~5x more viral protein than lowest.
+// ------------------------------------------------------------
+
+// Dispense HSV-1 infected A549 cell and control (no virus) cell.
+infectedCell = dispense 1 units of HSV1_InfectedCell
+ctrlCell     = dispense 1 units of ControlCell
+pbsTrap2     = dispense 1 units of PBS
+pbsTrap3     = dispense 1 units of PBS
+
+// Hydrodynamic trapping (Chamber II) of infected and control cells.
+trappedInfected = mix infectedCell with pbsTrap2 for 2s
+trappedControl  = mix ctrlCell with pbsTrap3 for 2s
+
+// Live-cell fluorescence imaging before lysis.
+// liveCellImagingDetection: abstracts on-chip time-lapse YFP
+// imaging. ICP4-YFP signal (nuclear) classifies infected cells.
+// Uninfected and control cells show no YFP signal.
+infectionSignal = detect liveCellImagingDetection on trappedInfected for 10m
+
+// Lysis of all cells simultaneously (0.3x TM buffer, on ice).
+lysisBuffer2     = dispense 1 units of LysisBuffer
+viralLysate      = mix trappedInfected with lysisBuffer2 for 10m
+heat viralLysate at 0c for 10m
+
+// HSV-1 PLA probes incubation (Chamber III/IV, 37 C, 1 h = 60 min).
+plaProbeHSV  = dispense 1 units of PLAProbes
+viralProbeIncub = mix viralLysate with plaProbeHSV for 60m
+heat viralProbeIncub at 37c for 60m
+
+// Ligation (Chamber V): ice 30 min, 37 C 10 min, 65 C 5 min.
+ligMixViral  = dispense 1 units of LigationMix
+viralLigMix  = mix viralProbeIncub with ligMixViral for 30m
+heat viralLigMix at 0c for 30m
+heat viralLigMix at 37c for 10m
+heat viralLigMix at 65c for 5m
+
+// Retrieve viral PLA products for ddPCR.
+waterFlush4   = dispense 1 units of MilliQWater
+viralProducts = mix viralLigMix with waterFlush4 for 2m
+
+ddpcrMix2    = dispense 1 units of ddPCR_Supermix
+universalPCR2 = dispense 1 units of UniversalPCRAssay
+dropletOil3  = dispense 1 units of DropletGenerationOil
+
+viralRxn1    = mix viralProducts with ddpcrMix2 for 5s
+viralRxn2    = mix viralRxn1 with universalPCR2 for 5s
+viralLoaded  = mix viralRxn2 with dropletOil3 for 5s
+
+// ddPCR thermal cycling (same program as Step 8).
+heat viralLoaded at 95c for 10m
+heat viralLoaded at 94c for 60m
+heat viralLoaded at 98c for 10m
+
+// Detect viral protein count (FAM channel; positive droplet count).
+// viralProteinDetection: abstracts ddPCR readout of HSV-1 PLA
+// products, correlated with ICP4-YFP (infectionSignal) per cell.
+viralProteinReadout = detect viralProteinDetection on viralLoaded for 30s
+
+// ============================================================
+// BB8 / BB9: Viral infection profiling QC gate
+// Pass (BB8): infectionSignal > 0 -> ICP4-YFP+ cell confirmed
+//             infected (nuclear entry occurred); dispose viral
+//             protein readout droplets. Partial correlation
+//             (rho=0.48) between YFP level and total viral protein
+//             count suggests a sub-population undergoes abortive
+//             infection after immediate-early gene expression.
+//             (Fig. 4c: p=5.356e-11, two-sided Welch's t test,
+//             N=27 infected vs N=19 control cells)
+// Fail (BB9): infectionSignal <= 0 -> cell is uninfected (YFP-)
+//             or control (no virus); drain viral protein droplets.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (infectionSignal > 0) {
+    dispose viralLoaded
+} else {
+    drain viralLoaded
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose all remaining QC signal droplets.
+// Experiment ends.
+// ============================================================
+
+dispose infectionSignal
+dispose viralProteinReadout
+dispose stdProducts
+
+// [terminal -- no further instructions; exit node for CFG]

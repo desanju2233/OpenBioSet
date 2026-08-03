@@ -1,0 +1,460 @@
+{
+  "protocol": {
+    "title": "Droplet On Tape: Protocol",
+    "source": "Nature Protocols Exchange, 2017",
+    "doi": "10.1038/protex.2017.017",
+    "associated_publication": {
+      "title": "Drop-on-demand sample delivery for studying biocatalysts in action at X-ray free-electron lasers",
+      "journal": "Nature Methods",
+      "doi": "10.1038/nmeth.4195",
+      "published": "February 27, 2017"
+    },
+    "platform": "Acoustic Droplet Ejection (ADE) onto Kapton conveyor belt for XFEL sample delivery",
+    "applications": [
+      "X-ray diffraction (XRD) from protein microcrystal slurry",
+      "X-ray emission spectroscopy (XES) from protein solution",
+      "Time-resolved reaction initiation (laser flash photolysis, gas activation)",
+      "Simultaneous XRD/XES with ancillary signals (transmission, fluorescence)"
+    ],
+    "authors": [
+      { "name": "Franklin Fuller",  "email": "fdfuller@lbl.gov", "affiliation": "Yano/Yachandra Lab, LBNL" },
+      { "name": "Sheraz Gul",       "affiliation": "Yano/Yachandra Lab, LBNL" },
+      { "name": "Ruchira Chatterjee","affiliation": "Yano/Yachandra Lab, LBNL" },
+      { "name": "Jan Kern",          "affiliation": "Yano/Yachandra Lab, LBNL" },
+      { "name": "Vittal Yachandra",  "affiliation": "Yano/Yachandra Lab, LBNL" },
+      { "name": "Junko Yano",        "email": "jyano@lbl.gov", "affiliation": "Yano/Yachandra Lab, LBNL" }
+    ],
+    "posted_date": "February 28, 2017",
+    "license": "Creative Commons Attribution 4.0 International",
+
+    "subsystems": {
+      "1_ADE_injector": {
+        "description": "Acoustic Droplet Ejection; focuses ultrasonic energy on liquid-air interface to eject nano-liter droplets",
+        "transducer": "Olympus V319-SU, 1 inch spherical focus, 15 MHz resonance",
+        "waveform_generator": "Agilent 33612A",
+        "amplifier": "Amplifier Research 500A250C RF amplifier",
+        "driving_voltage_V": 40,
+        "tone_burst_duration_us": "<100",
+        "droplet_volume": "nano-liter scale",
+        "echo_probe": {
+          "probe_pulse_duration_ns": "few hundred",
+          "sent_before_ejection_ms": "few",
+          "echo_return_delay_us": 35,
+          "focal_length_inches": 1,
+          "fluid_level_accuracy_um": 50,
+          "coupling": "bi-directional coupler, 30 dB; samples forward and reverse signal",
+          "monitoring": "oscilloscope accessed via remote desktop"
+        }
+      },
+      "2_control_systems": {
+        "framework": "EPICS (Experimental Physics Industrial Control Software)",
+        "controlled_hardware": [
+          "Syringe pump (Legato 130)",
+          "Waveform generator (Agilent 33612A)",
+          "Actuator motors (Newport XPS-Q8)",
+          "Tape drive motor (Lexium M-Drive)",
+          "Cameras (Allied Vision Manta-style)"
+        ],
+        "custom_iocs": {
+          "syringe_pump": "https://github.com/fullerf/LEGATO130",
+          "waveform_generator": "https://github.com/fullerf/Agilent33600A"
+        },
+        "dependencies": ["EPICS base", "StreamDevice", "Asyn"],
+        "tape_drive_interface": "built-in serial terminal; connect via telnet from Linux or Mac",
+        "motor_controller": "Newport XPS-Q8 with EPICS interface (provided by SLAC)"
+      },
+      "3_conveyor_belt": {
+        "3a_belt_material": {
+          "material": "Kapton (polyimide, Kapton 100H, C22H10O2N5, DuPont)",
+          "supplier": "BPB Inc., Bay Area, CA (custom request)",
+          "width_inches": "0.063-0.125",
+          "diameter_inches": "31-36",
+          "thickness_micron": 50,
+          "type": "seamless (no weld)",
+          "why_seamless": "ultrasonically welded belts skip at weld over rollers, disrupting XFEL synchronisation",
+          "alternative_tested": "Mylar film (inferior x-ray scattering properties vs Kapton)",
+          "consumable": true,
+          "lifespan": "several shifts if XFEL beam does not directly hit belt"
+        },
+        "3b_surface_treatment": {
+          "reagents": {
+            "FAS": "1H,1H,2H,2H-Perfluorodecyltriethoxysilane (C10F17H4Si(OCH2CH3)3, 97%, Sigma-Aldrich)",
+            "solvent": "n-octane",
+            "concentration_w_v_pct": 0.25,
+            "cleaning_agents": ["Milli-Q water", "isopropanol"]
+          },
+          "protocol": [
+            { "step": 1, "action": "sonicate in Milli-Q water", "duration_min": 10 },
+            { "step": 2, "action": "sonicate in isopropanol", "duration_min": 10 },
+            { "step": 3, "action": "dry in vacuum oven (Precision vacuum oven, model 19)", "temperature_C": 50, "duration_h": 1 },
+            { "step": 4, "action": "reflux in 0.25% (w/v) FAS in n-octane", "duration_h": 2 },
+            { "step": 5, "action": "dry in vacuum oven to remove residual FAS", "temperature_C": 150, "duration_h": 3 }
+          ],
+          "water_contact_angle_before_deg": "~60",
+          "water_contact_angle_after_deg": "100 +/- 5"
+        },
+        "3c_tensioner": {
+          "mechanism": "hanging weight torquing belt over two crowned rollers on rotating arm",
+          "adjustment": "add or subtract weights hung from turntable",
+          "over_tension_indicator": "belt starts to curl when tension is released",
+          "notes": "system must allow repeatable and consistent tension; too much tension irreversibly damages belt; too little causes tracking failure"
+        },
+        "3d_crowned_rollers": {
+          "bearing_grade": "ABEC 5",
+          "type": "low friction ball bearing rollers",
+          "crown_radius_inches": 3,
+          "crown_method": "press-fitting bearing into CNC machined cap",
+          "purpose": "keeps belt centred on rollers during operation"
+        },
+        "3e_electrostatic_control": {
+          "passive": "steel anti-static brushes near belt drive mechanism",
+          "active": "Transforming Technologies IN3425 static gun spraying ionised air",
+          "gun_position": "near ADE deposition point to minimise electrostatic effects on ejection"
+        },
+        "3f_mounting": {
+          "stage": "Newport UTS-100 motorised stage",
+          "structure": "modified Thorlabs aluminium breadboards and mounting brackets"
+        },
+        "3g_drive_mechanism": {
+          "motor": "Lexium M-Drive LMDCE423 micro-stepping stepper motor",
+          "shaft_diameter_inches": 1,
+          "shaft_material": "stainless steel",
+          "coupling": "direct drive (geared mechanism abandoned due to velocity error)",
+          "max_speed_rps": 4
+        }
+      },
+      "4_sample_environment": {
+        "enclosure_material": "0.5 inch acrylic",
+        "supplier": "Professional Plastics Inc. (designed by authors)",
+        "door": "large inflatable door with wide aperture near X-ray interaction region",
+        "joints": "solvent welded where possible; rubber foam gaskets elsewhere",
+        "feed_through_panel": "0.125 inch aluminium, water-jet cut; accommodates electronic, gas, water, and fibre feed-throughs",
+        "helium_path_extension": "thin inflatable polyethylene bags extend helium environment to detector to minimise scatter from heavier atoms in air",
+        "purpose": "reduce scatter from air between sample and detector during XRD/XES"
+      },
+      "5_reaction_initiation": {
+        "laser_excitation": {
+          "grid": {
+            "fabrication": "CNC machined, tolerance 0.0005 inches",
+            "fibre_count": 5,
+            "excitation_fibres": 3,
+            "ir_gate_fibres": 2,
+            "ir_gate_separation_mm": 60,
+            "ir_gate_to_nearest_excitation_mm": 30,
+            "degrees_of_freedom_per_fibre": 5
+          },
+          "ir_detection": "bare ended fibres emit IR light; scatter collected onto photodiode",
+          "excitation_monitoring": "photodiodes on remote-accessible oscilloscopes collect excitation light passing through belt and sample"
+        },
+        "free_space_timing": {
+          "description": "single laser excitation using movable laser spot near XFEL interaction region",
+          "lens": "motorised 1 m focal length lens upstream of laser interaction region",
+          "max_advance_mm": 6,
+          "time_delay_range_ms": "20-100 (at 300-60 mm/s belt speed)",
+          "spatial_accuracy_um": 100,
+          "temporal_accuracy_us": 200,
+          "fine_timing": "nanosecond precision via relative photodiode measurements"
+        },
+        "fiber_excitation_timing": {
+          "allowed_belt_speeds_mm_s": [30, 60, 150, 300],
+          "droplet_rep_rate_Hz": 10,
+          "principle": "droplet spacing must be integer multiple or divisor of both 30 mm and 60 mm (IR gate spacings)",
+          "ir_gate_coincidence": "time coincidence of IR gate signals confirms droplets simultaneously present on all excitation points",
+          "degrees_of_freedom": ["deposition delay (Δτ_dep)", "laser delay (Δτ_laser)"],
+          "notes": "deposition delay and belt speed are coupled; adjust incrementally"
+        },
+        "gas_activation": {
+          "principle": "conveyor belt passes through limited-extent reactive gas region (oxygen) via differential pumping",
+          "gas_confinement": "series of small orifices separating helium partial pressure from reactive gas partial pressure",
+          "exposure_time": "L / v_tape (L = reactive gas extent, v_tape = belt velocity)",
+          "dead_time": "L_xfel / v_tape (L_xfel = distance from gas exit to XFEL interaction)",
+          "sealing": "vacuum grease on all openings except belt entry and exit holes"
+        }
+      }
+    },
+
+    "reagents": {
+      "belt_coating": {
+        "FAS": "1H,1H,2H,2H-Perfluorodecyltriethoxysilane (C10F17H4Si(OCH2CH3)3, 97%, Sigma-Aldrich)",
+        "solvent_reflux": "n-octane",
+        "cleaning_water": "Milli-Q water",
+        "cleaning_alcohol": "isopropanol"
+      },
+      "sample": {
+        "types": ["protein microcrystal slurry", "protein solution"],
+        "delivery_tubing": "Polymicro 360 micron O.D., 180-250 micron I.D.",
+        "syringe_pump": "Legato 130 Syringe Pump"
+      },
+      "environment": {
+        "gas": "Helium (enclosure fill, belt cleaning blow-off, differential pumping)",
+        "reactive_gas_example": "oxygen (for gas activation experiments)"
+      }
+    },
+
+    "equipment": [
+      { "item": "Agilent 33602 Function Generator" },
+      { "item": "Amplifier Research 500A250C RF Amplifier" },
+      { "item": "Newport XPS-8Q Motor Controller" },
+      { "item": "Linux/Mac/PC control computer" },
+      { "item": "Legato 130 Syringe Pump" },
+      { "item": "Polymicro tubing, 360 um O.D., 180-250 um I.D." },
+      { "item": "100 MHz or greater digital oscilloscope with remote access capability" },
+      { "item": "Precision vacuum oven, model 19" },
+      { "item": "Lexium M-Drive stepper motor (LMDCE423)" },
+      { "item": "Pulsed laser system (for photo-activated experiments)" },
+      { "item": "Newport UTS-100 motorised stage" },
+      { "item": "Transforming Technologies IN3425 static gun" },
+      { "item": "KNF Neuberger N145.1.2AN.18 diaphragm pumps (x3, for belt blow-off)" },
+      { "item": "Olympus V319-SU ultrasonic transducer (1 inch spherical focus, 15 MHz)" },
+      { "item": "Allied Vision Manta-style cameras" },
+      { "item": "Custom machined components (see supplemental technical drawings)" }
+    ],
+
+    "belt_cleaning_procedure": {
+      "method": "four high-pressure water jets (200+ psi, 500 um I.D.)",
+      "drying": "two compressed Helium blow-off nozzles (top and bottom)",
+      "blow_off_gas_source": "three KNF Neuberger N145.1.2AN.18 gas-tight diaphragm pumps recirculating Helium from chamber",
+      "residue_detection": "run belt dry with no sample; probe XES signal for background above baseline; performed periodically during beamtimes"
+    },
+
+    "timing": {
+      "fabrication_custom_components": "~1 month distributed over several contractors",
+      "assembly_two_people": "~1 month",
+      "beamline_setup_three_people": "5 days",
+      "data_collection_per_experiment": "4-5 days"
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Kapton belt cleaning",
+        "subsystem": "3_conveyor_belt",
+        "bb": "BB1",
+        "inputs": ["MQWater", "Isopropanol"],
+        "operation": "mix (sonication abstracted)",
+        "duration_min": 10,
+        "notes": "Sonicate in Milli-Q water 10 min then isopropanol 10 min"
+      },
+      {
+        "id": "S2",
+        "name": "Belt vacuum drying before FAS treatment",
+        "subsystem": "3_conveyor_belt",
+        "bb": "BB1",
+        "operation": "heat",
+        "temperature_C": 50,
+        "duration_h": 1,
+        "equipment": "Precision vacuum oven, model 19"
+      },
+      {
+        "id": "S3",
+        "name": "FAS hydrophobicity treatment (reflux)",
+        "subsystem": "3_conveyor_belt",
+        "bb": "BB1",
+        "inputs": ["FAS_NOctane"],
+        "operation": "mix (reflux abstracted)",
+        "concentration_w_v_pct": 0.25,
+        "duration_h": 2,
+        "wca_before_deg": "~60",
+        "wca_after_deg": "100 +/- 5"
+      },
+      {
+        "id": "S4",
+        "name": "Belt vacuum drying after FAS treatment",
+        "subsystem": "3_conveyor_belt",
+        "bb": "BB1",
+        "operation": "heat",
+        "temperature_C": 150,
+        "duration_h": 3,
+        "notes": "Remove residual FAS"
+      },
+      {
+        "id": "S5",
+        "name": "ADE injector setup and sample loading",
+        "subsystem": "1_ADE_injector",
+        "bb": "BB1",
+        "inputs": ["SampleSolution", "CouplingWater"],
+        "operation": "mix (reservoir loading abstracted)",
+        "duration_s": 2,
+        "transducer": "Olympus V319-SU, 15 MHz",
+        "driving_voltage_V": 40,
+        "notes": "Coupling water column isolates sample from transducer; syringe pump (Legato 130) controls sample influx rate"
+      },
+      {
+        "id": "S6",
+        "name": "Acoustic echo probe for fluid level QC",
+        "subsystem": "1_ADE_injector",
+        "bb": "BB1",
+        "operation": "detect echoLevelDetection",
+        "detection_duration_s": 10,
+        "probe_pulse_ns": "few hundred",
+        "echo_return_target_us": 35,
+        "fluid_level_accuracy_um": 50,
+        "branch": {
+          "pass": { "condition": "echoSignal > 0", "action": "eject droplet onto belt (dispose)", "bb": "BB2" },
+          "fail": { "condition": "echoSignal <= 0", "action": "drain; re-adjust sample influx rate", "bb": "BB3" }
+        }
+      },
+      {
+        "id": "S7",
+        "name": "Laser excitation zone droplet transport",
+        "subsystem": "5_reaction_initiation",
+        "bb": "BB4",
+        "inputs": ["ProteinCrystalSlurry", "HeliumGas"],
+        "operation": "mix (belt transport through Helium enclosure to laser zone abstracted)",
+        "duration_s": 5,
+        "belt_speed_mm_s": "30-300 (allowed: 30, 60, 150, 300 at 10 Hz rep rate)",
+        "laser_advance_mm": "up to 6 upstream of XFEL",
+        "time_delay_ms": "20-100"
+      },
+      {
+        "id": "S8",
+        "name": "Droplet-hit and timing confirmation",
+        "subsystem": "5_reaction_initiation",
+        "bb": "BB4",
+        "operation": "detect dropletHitDetection",
+        "detection_duration_s": 30,
+        "confirmation_methods": [
+          "stroboscopic side-view camera synchronised to XFEL arrival",
+          "droplet explosion visible at zero camera delay",
+          "forward scattering detector (solvent scatter)",
+          "emission detector (XES signal)",
+          "IR gate photodiode coincidence"
+        ],
+        "spatial_overlap_accuracy_um": 100,
+        "temporal_overlap_accuracy_us": 200,
+        "fine_timing_accuracy": "nanoseconds (photodiode)",
+        "branch": {
+          "pass": { "condition": "laserHitSignal > 0", "action": "dispose; proceed to XFEL data collection", "bb": "BB5" },
+          "fail": { "condition": "laserHitSignal <= 0", "action": "drain; re-adjust deposition delay or belt speed", "bb": "BB6" }
+        }
+      },
+      {
+        "id": "S9",
+        "name": "XFEL data collection - XRD",
+        "subsystem": "1_ADE_injector + 4_sample_environment",
+        "bb": "BB7",
+        "inputs": ["ProteinCrystalSlurry", "HeliumGas"],
+        "operation": "detect xrdSignalDetection",
+        "detection_duration_s": 30,
+        "belt_max_speed_rps": 4,
+        "motor": "Lexium M-Drive LMDCE423 direct drive",
+        "data_collection_days": "4-5 per experiment",
+        "branch": {
+          "pass": { "condition": "xrdSignal > 0", "action": "dispose; proceed to XES", "bb": "BB8" },
+          "fail": { "condition": "xrdSignal <= 0", "action": "drain (beam miss or crystal failure)", "bb": "BB9" }
+        }
+      },
+      {
+        "id": "S10",
+        "name": "Simultaneous XES data collection",
+        "subsystem": "1_ADE_injector + 4_sample_environment",
+        "bb": "BB10",
+        "inputs": ["ProteinCrystalSlurry", "HeliumGas"],
+        "operation": "detect xesSignalDetection",
+        "detection_duration_s": 30,
+        "spectrometer_environment": "second Helium bag between XES crystal spectrometer and main Helium chamber",
+        "branch": {
+          "pass": { "condition": "xesSignal > 0", "action": "dispose; proceed to belt residue check", "bb": "BB11" },
+          "fail": { "condition": "xesSignal <= 0", "action": "drain", "bb": "BB12" }
+        }
+      },
+      {
+        "id": "S11",
+        "name": "Belt cleaning run",
+        "subsystem": "3_conveyor_belt",
+        "bb": "BB13",
+        "inputs": ["MQWater", "HeliumGas"],
+        "operation": "mix (water jet + blow-off abstracted)",
+        "water_jet_pressure_psi": "200+",
+        "water_jet_id_um": 500,
+        "water_jet_count": 4,
+        "drying": "2 compressed Helium blow-off nozzles",
+        "cleaning_duration_min": 5,
+        "drying_duration_min": 2
+      },
+      {
+        "id": "S12",
+        "name": "Belt residue QC check (XES background)",
+        "subsystem": "3_conveyor_belt",
+        "bb": "BB13",
+        "operation": "detect residueDetection",
+        "detection_duration_s": 30,
+        "method": "run belt dry (no sample injected); probe XES signal for background above baseline",
+        "branch": {
+          "pass": { "condition": "residueSignal > 0", "action": "dispose; re-clean belt", "bb": "BB14" },
+          "fail": { "condition": "residueSignal <= 0", "action": "dispose; belt clean for next shift", "bb": "BB15" }
+        }
+      }
+    ],
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1",  "label": "main",          "type": "entry",         "content": "belt prep (cleaning, FAS treatment, drying), ADE setup, echo probe" },
+        { "id": "BB2",  "label": "bsbbif_2_t",    "type": "branch_true",   "condition": "echoSignal > 0",       "action": "eject droplet: mix(adeLoaded, couplingWater); dispose(ejectedDroplet)" },
+        { "id": "BB3",  "label": "bsbbif_3_f",    "type": "branch_false",  "condition": "echoSignal <= 0",      "action": "drain(adeLoaded)" },
+        { "id": "BB4",  "label": "bsbbif_4_j",    "type": "join",          "content": "dispose(echoSignal); laser zone transport; dropletHitDetection" },
+        { "id": "BB5",  "label": "bsbbif_5_t",    "type": "branch_true",   "condition": "laserHitSignal > 0",   "action": "dispose(laserZoneDrop)" },
+        { "id": "BB6",  "label": "bsbbif_6_f",    "type": "branch_false",  "condition": "laserHitSignal <= 0",  "action": "dispose(laserZoneDrop) [compiler maps drain -> dispose for non-DMF target]" },
+        { "id": "BB7",  "label": "bsbbif_7_j",    "type": "join",          "content": "dispose(laserHitSignal); XRD data collection" },
+        { "id": "BB8",  "label": "bsbbif_8_t",    "type": "branch_true",   "condition": "xrdSignal > 0",        "action": "dispose(xfelDrop)" },
+        { "id": "BB9",  "label": "bsbbif_9_f",    "type": "branch_false",  "condition": "xrdSignal <= 0",       "action": "dispose(xfelDrop)" },
+        { "id": "BB10", "label": "bsbbif_10_j",   "type": "join",          "content": "dispose(xrdSignal); XES data collection" },
+        { "id": "BB11", "label": "bsbbif_11_t",   "type": "branch_true",   "condition": "xesSignal > 0",        "action": "dispose(xesDrop)" },
+        { "id": "BB12", "label": "bsbbif_12_f",   "type": "branch_false",  "condition": "xesSignal <= 0",       "action": "dispose(xesDrop)" },
+        { "id": "BB13", "label": "bsbbif_13_j",   "type": "join",          "content": "dispose(xesSignal); belt cleaning + residue QC" },
+        { "id": "BB14", "label": "bsbbif_14_t",   "type": "branch_true",   "condition": "residueSignal > 0",    "action": "dispose(driedBelt) [re-clean cycle]" },
+        { "id": "BB15", "label": "bsbbif_15_f",   "type": "branch_false",  "condition": "residueSignal <= 0",   "action": "dispose(driedBelt) [belt clean]" },
+        { "id": "BB16", "label": "bsbbif_16_j",   "type": "terminal",      "content": "dispose(residueSignal); NOP" }
+      ],
+      "edges": [
+        ["BB1","BB2"],  ["BB1","BB3"],
+        ["BB2","BB4"],  ["BB3","BB4"],
+        ["BB4","BB5"],  ["BB4","BB6"],
+        ["BB5","BB7"],  ["BB6","BB7"],
+        ["BB7","BB8"],  ["BB7","BB9"],
+        ["BB8","BB10"], ["BB9","BB10"],
+        ["BB10","BB11"],["BB10","BB12"],
+        ["BB11","BB13"],["BB12","BB13"],
+        ["BB13","BB14"],["BB13","BB15"],
+        ["BB14","BB16"],["BB15","BB16"]
+      ]
+    },
+
+    "bioscript_compiler_notes": {
+      "bs_file": "fuller_droplet_on_tape_dot.bs",
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "ir_output": "16 basic blocks (BB1-BB16), 5 if/else QC gates, 20 CFG edges",
+      "dag_file": "fuller_droplet_on_tape_dot_main_dag.dot",
+      "duration_conversions": {
+        "10m_sonication": "600.0 SECOND (IR confirmed)",
+        "60m_50C_dry": "3600.0 SECOND (IR confirmed)",
+        "120m_FAS_reflux": "7200.0 SECOND (IR confirmed)",
+        "180m_150C_dry": "10800.0 SECOND (IR confirmed)"
+      },
+      "modules": [
+        "echoLevelDetection",
+        "dropletHitDetection",
+        "xrdSignalDetection",
+        "xesSignalDetection",
+        "residueDetection"
+      ],
+      "abstraction_notes": [
+        "mix steps abstract ADE acoustic ejection events, belt transport through Helium enclosure, and belt surface treatment chemistry; not DMF electrode mixing",
+        "heat steps cover vacuum oven drying (50 C, 150 C) and FAS reflux; not TEC-based",
+        "treatedBelt variable carries across subsystems from BB1 (belt prep) to BB13 (belt cleaning); cross-subsystem data-flow link confirmed in IR line 59",
+        "drain -> dispose mapping by compiler for non-DMF targets (confirmed in IR bsbbif_6_f)"
+      ]
+    },
+
+    "references": [
+      {
+        "id": 1,
+        "citation": "Ellson R. et al. Transfer of Low Nanoliter Volumes between Microplates Using Focused Acoustics — Automation Considerations. J. Assoc. Lab. Autom. 8, 29-34 (2003)."
+      },
+      {
+        "id": 2,
+        "citation": "Yin X. et al. Hitting the target: fragment screening with acoustic in situ co-crystallization of proteins plus fragment libraries on pin-mounted data-collection micromeshes. Acta Crystallogr. Sect. D Biol. Crystallogr. 70, 1177-1189 (2014)."
+      }
+    ]
+  }
+}

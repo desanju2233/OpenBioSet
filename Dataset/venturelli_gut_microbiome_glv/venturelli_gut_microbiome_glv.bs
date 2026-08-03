@@ -1,0 +1,984 @@
+module communityCompositionDetection
+module monospeciesGrowthDetection
+module exoMetabolomicsDetection
+
+// ============================================================
+// Deciphering Microbial Interactions in Synthetic Human Gut
+// Microbiome Communities
+// Venturelli et al., Mol. Syst. Biol. (2018) 14: e8157
+// DOI: 10.15252/msb.20178157
+//
+// EXPERIMENTAL OVERVIEW:
+// A 12-member synthetic human gut community spanning Bacteroidetes
+// (BT, BO, BU, BV), Firmicutes (BH, CH, ER, FP), Actinobacteria
+// (CA, EL), and Proteobacteria (DP), plus Prevotella copri (PC).
+//
+// This protocol encodes three training datasets used to parameterise
+// a generalised Lotka-Volterra (gLV) model of community dynamics:
+//
+//   PHASE 1 (M dataset)  : Monospecies growth characterisation.
+//                          All 12 species grown individually.
+//                          OD600 at ~30 min intervals, 16S rRNA at
+//                          ~12 h intervals, serial 1:20 dilution
+//                          every 24 h over 72 h (3 dilution cycles).
+//
+//   PHASE 2 (PW1 dataset): Pairwise co-cultures, 66 combinations,
+//                          1:1 initial ratio by OD600.
+//                          Same serial-transfer regime as Phase 1.
+//
+//   PHASE 3 (PW2 dataset): Subset of 15 pairwise communities
+//                          inoculated at asymmetric initial species
+//                          proportions (95:5 and 5:95 by OD600)
+//                          to probe history-dependent behaviours.
+//
+//   PHASE 4 (Validation) : Full 12-member community + 12 single-
+//                          species dropout communities (11-member).
+//                          Used to validate gLV model predictions.
+//
+//   PHASE 5 (Metabolomics): Exo-metabolomics profiling of all 12
+//                           monospecies using LC-MS/MS (97 metabolites,
+//                           twofold threshold for utilisation/secretion).
+//
+// GROWTH CONDITIONS:
+//   Anaerobic chamber (85% N2, 5% H2, 10% CO2), 37 C, no shaking.
+//   Rich Anaerobic Basal Broth (ABB) media.
+//   Serial transfer: 1:20 dilution into fresh ABB every 24 h.
+//   Communities arrayed in 96-well deep-well plates (gas-permeable
+//   seal). OD600 monitored in parallel 384-well plate at 30 min
+//   intervals using Tecan Infinite F200 Pro.
+//   16S rRNA gene sequencing: V3-V4 region, Illumina MiSeq,
+//   dual-indexed primers, ~12 h sampling intervals.
+//
+// INOCULATION:
+//   Slow-growth species (BH, FP, CA, PC, ER, DP): inoculated 41 h
+//   before experiment start.
+//   Fast-growth species (BU, BV, BT, BO, CH, EL): inoculated 16 h
+//   before experiment start.
+//   Each species: 0.01 OD600 from overnight starter culture in ABB.
+//
+// DILUTION SCHEME (BIOSCRIPT ABSTRACTION):
+//   The 1:20 serial transfer at 24 h intervals is modelled as a
+//   `mix` step (1 unit of community + 19 units of fresh ABB media)
+//   at each transfer point. The OD600 monitoring (every 30 min)
+//   and 16S rRNA sampling (~12 h) within each 24 h window are
+//   represented as `detect` calls on the community droplets.
+//   In the lilott8/BioScript compiler these produce distinct
+//   basic blocks (BB) in the CFG, one per detect/heat/mix call.
+//
+// DURATION TOKENS:
+//   BioScript accepts: s (seconds), m (minutes) only.
+//   72 h total run = 4320 m (encoded per heat/incubation step).
+//   30 min OD600 sampling = 30m.
+//   12 h 16S sampling = 720m.
+//   24 h transfer interval = 1440m.
+//
+// CFG STRUCTURE:
+//   BB1  main                    -- device init; slow-growth starter
+//                                   cultures for all 12 species
+//   BB2  monospeciesGrowth       -- Phase 1: 12 monospecies runs,
+//                                   OD600 + 16S, 3x serial transfer
+//   BB3  monospeciesQC           -- QC gate on monospecies data quality
+//   BB4  monoPass                -- monoQCSignal > 0: data accepted
+//   BB5  monoFail                -- monoQCSignal <= 0: drain
+//   BB6  monoJoin                -- join: pairwise branch begins
+//   BB7  pairwisePW1             -- Phase 2: 1:1 pairwise, 66 combos
+//                                   representative pair (BT+FP shown;
+//                                   all 66 run in parallel off-chip)
+//   BB8  pw1QC                   -- QC gate on PW1 data
+//   BB9  pw1Pass                 -- pw1QCSignal > 0: proceed
+//   BB10 pw1Fail                 -- pw1QCSignal <= 0: drain
+//   BB11 pw1Join                 -- join: PW2 branch begins
+//   BB12 pairwisePW2             -- Phase 3: 15 asymmetric pairs
+//                                   representative pair (BO+BT 95:5)
+//   BB13 pw2QC                   -- QC gate on PW2 data
+//   BB14 pw2Pass                 -- pw2QCSignal > 0: proceed
+//   BB15 pw2Fail                 -- pw2QCSignal <= 0: drain
+//   BB16 pw2Join                 -- join: validation branch begins
+//   BB17 fullCommunity           -- Phase 4a: full 12-member community
+//   BB18 dropoutCommunity        -- Phase 4b: representative dropout
+//                                   (EL- shown as most influential)
+//   BB19 validationQC            -- QC gate on validation communities
+//   BB20 validationPass          -- valQCSignal > 0: proceed
+//   BB21 validationFail          -- valQCSignal <= 0: drain
+//   BB22 validationJoin          -- join: metabolomics branch begins
+//   BB23 metabolomics            -- Phase 5: exo-metabolomics on all
+//                                   monospecies (DP excluded: lag too
+//                                   long for 24 h sampling window)
+//   BB24 metaQC                  -- QC gate on metabolomics data
+//   BB25 metaPass                -- metaQCSignal > 0: dispose
+//   BB26 metaFail                -- metaQCSignal <= 0: drain
+//   BB27 finalCleanup            -- terminal: dispose all QC signals
+// ============================================================
+
+// ============================================================
+// Manifest: all reagents used across all phases
+// ============================================================
+
+// Species (all 12 members of the synthetic community)
+manifest BT_Cells          // Bacteroides thetaiotaomicron (ATCC 29148)
+manifest BO_Cells          // Bacteroides ovatus (ATCC 8483)
+manifest BU_Cells          // Bacteroides uniformis (DSM 6597)
+manifest BV_Cells          // Bacteroides vulgatus (ATCC 8482)
+manifest BH_Cells          // Blautia hydrogenotrophica (DSM 10507)
+manifest CA_Cells          // Collinsella aerofaciens (DSM 3979)
+manifest CH_Cells          // Clostridium hiranonis (DSM 13275)
+manifest DP_Cells          // Desulfovibrio piger (ATCC 29098)
+manifest EL_Cells          // Eggerthella lenta (DSM 2243)
+manifest ER_Cells          // Eubacterium rectale (ATCC 33656)
+manifest FP_Cells          // Faecalibacterium prausnitzii (DSM 17677)
+manifest PC_Cells          // Prevotella copri (DSM 18205)
+
+// Media and reagents
+manifest ABB_Media         // Anaerobic Basal Broth (Oxoid); rich media
+manifest GlycerolStock     // 25% glycerol cryo-stocks for all species
+
+instructions:
+
+// ============================================================
+// BB1: main
+// Prepare starter cultures for all 12 species from glycerol
+// stocks into 15 mL ABB in anaerobic chamber.
+// Slow-growth species inoculated 41 h before experiment start;
+// fast-growth species inoculated 16 h before experiment start.
+// This ensures all species are in comparable growth phases at
+// time zero of each community experiment.
+// ============================================================
+
+// ------------------------------------------------------------
+// STARTER CULTURES - Slow-growth species (41 h pre-incubation)
+// BH, FP, CA, PC, ER, DP
+// Inoculated from 25% glycerol stocks into 15 mL ABB at 37 C.
+// No shaking; anaerobic chamber (85% N2, 5% H2, 10% CO2).
+// Each normalised to 0.01 OD600 before community inoculation.
+// ------------------------------------------------------------
+
+glycerolBH = dispense 1 units of GlycerolStock
+mediaBH    = dispense 1 units of ABB_Media
+starterBH  = mix glycerolBH with mediaBH for 5s
+heat starterBH at 37c for 2460m  // 41 h = 2460 m
+
+glycerolFP = dispense 1 units of GlycerolStock
+mediaFP    = dispense 1 units of ABB_Media
+starterFP  = mix glycerolFP with mediaFP for 5s
+heat starterFP at 37c for 2460m
+
+glycerolCA = dispense 1 units of GlycerolStock
+mediaCA    = dispense 1 units of ABB_Media
+starterCA  = mix glycerolCA with mediaCA for 5s
+heat starterCA at 37c for 2460m
+
+glycerolPC = dispense 1 units of GlycerolStock
+mediaPC    = dispense 1 units of ABB_Media
+starterPC  = mix glycerolPC with mediaPC for 5s
+heat starterPC at 37c for 2460m
+
+glycerolER = dispense 1 units of GlycerolStock
+mediaER    = dispense 1 units of ABB_Media
+starterER  = mix glycerolER with mediaER for 5s
+heat starterER at 37c for 2460m
+
+glycerolDP = dispense 1 units of GlycerolStock
+mediaDP    = dispense 1 units of ABB_Media
+starterDP  = mix glycerolDP with mediaDP for 5s
+heat starterDP at 37c for 2460m
+
+// ------------------------------------------------------------
+// STARTER CULTURES - Fast-growth species (16 h pre-incubation)
+// BU, BV, BT, BO, CH, EL
+// ------------------------------------------------------------
+
+glycerolBU = dispense 1 units of GlycerolStock
+mediaBU    = dispense 1 units of ABB_Media
+starterBU  = mix glycerolBU with mediaBU for 5s
+heat starterBU at 37c for 960m   // 16 h = 960 m
+
+glycerolBV = dispense 1 units of GlycerolStock
+mediaBV    = dispense 1 units of ABB_Media
+starterBV  = mix glycerolBV with mediaBV for 5s
+heat starterBV at 37c for 960m
+
+glycerolBT = dispense 1 units of GlycerolStock
+mediaBT    = dispense 1 units of ABB_Media
+starterBT  = mix glycerolBT with mediaBT for 5s
+heat starterBT at 37c for 960m
+
+glycerolBO = dispense 1 units of GlycerolStock
+mediaBO    = dispense 1 units of ABB_Media
+starterBO  = mix glycerolBO with mediaBO for 5s
+heat starterBO at 37c for 960m
+
+glycerolCH = dispense 1 units of GlycerolStock
+mediaCH    = dispense 1 units of ABB_Media
+starterCH  = mix glycerolCH with mediaCH for 5s
+heat starterCH at 37c for 960m
+
+glycerolEL = dispense 1 units of GlycerolStock
+mediaEL    = dispense 1 units of ABB_Media
+starterEL  = mix glycerolEL with mediaEL for 5s
+heat starterEL at 37c for 960m
+
+// ============================================================
+// BB2: monospeciesGrowth
+// PHASE 1 (M dataset): All 12 species as monocultures.
+// Each inoculated at 0.01 OD600 into fresh ABB.
+// Serial transfer: 1:20 dilution every 24 h (3 transfers over
+// 72 h total). OD600 sampled every 30 min; 16S rRNA at ~12 h.
+//
+// BIOSCRIPT ABSTRACTION:
+//   Each monospecies is represented as a scalar droplet.
+//   Three rounds of: detect (OD600) -> detect (16S) ->
+//   mix with fresh ABB (1:20 serial transfer) -> heat 24 h.
+//   In practice all 12 monocultures run in parallel in a
+//   96-well deep-well plate; BioScript encodes one species
+//   (BT) in full detail as the representative monospecies
+//   block. The same pattern applies to all 12 species.
+//
+// NOTE ON PARALLEL EXECUTION:
+//   lilott8/BioScript does not have a native parallel
+//   construct. Each of the 12 monospecies is encoded as an
+//   independent variable (monoculture). The compiler will
+//   schedule them into separate CFG branches. Off-chip,
+//   the Biomek liquid-handling robot arrays all 96 conditions
+//   simultaneously.
+// ============================================================
+
+// ------------------------------------------------------------
+// MONOSPECIES: BT (Bacteroides thetaiotaomicron)
+// Representative fast-growth species. Lowest CV in PW1,
+// meaning its fitness is least altered by a second species.
+// Initialised at 0.01 OD600 from starterBT.
+// ------------------------------------------------------------
+
+mediaForBT  = dispense 1 units of ABB_Media
+monoBT      = mix starterBT with mediaForBT for 5s
+
+// Transfer 1 (t=0 to t=24 h): OD600 + 16S at t~12 h, then dilute.
+monoBT_OD_T1  = detect monospeciesGrowthDetection on monoBT for 720m
+monoBT_16S_T1 = detect communityCompositionDetection on monoBT for 720m
+
+// Serial transfer 1: 1 unit community + 19 units fresh ABB = 1:20 dilution.
+// NOTE: `mix` with 19 units of media abstracts the Biomek-mediated
+// aliquot transfer into a fresh 96-well deep-well plate.
+freshABB_BT1  = dispense 19 units of ABB_Media
+monoBT_T2     = mix monoBT with freshABB_BT1 for 5s
+heat monoBT_T2 at 37c for 720m  // remaining 12 h of 24 h window
+
+// Transfer 2 (t=24 h to t=48 h): OD600 + 16S at t~36 h, then dilute.
+monoBT_OD_T2  = detect monospeciesGrowthDetection on monoBT_T2 for 720m
+monoBT_16S_T2 = detect communityCompositionDetection on monoBT_T2 for 720m
+
+freshABB_BT2  = dispense 19 units of ABB_Media
+monoBT_T3     = mix monoBT_T2 with freshABB_BT2 for 5s
+heat monoBT_T3 at 37c for 720m
+
+// Transfer 3 (t=48 h to t=72 h): OD600 + 16S at t~60 h; final
+// 16S read at t=72 h marks end of experiment.
+monoBT_OD_T3  = detect monospeciesGrowthDetection on monoBT_T3 for 720m
+monoBT_16S_T3 = detect communityCompositionDetection on monoBT_T3 for 720m
+
+// Final 12 h incubation to reach 72 h endpoint.
+heat monoBT_T3 at 37c for 720m
+
+// Final OD600 and 16S at t=72 h (endpoint).
+monoBT_OD_final  = detect monospeciesGrowthDetection on monoBT_T3 for 30s
+monoBT_16S_final = detect communityCompositionDetection on monoBT_T3 for 30s
+
+// ------------------------------------------------------------
+// MONOSPECIES: FP (Faecalibacterium prausnitzii)
+// Slow-growth species. Shows highest variability in absolute
+// abundance across PW1 communities (bimodal CV distribution).
+// Receives 5 positive inter-species interactions in gLV model
+// (ecologically responsive species).
+// ------------------------------------------------------------
+
+mediaForFP  = dispense 1 units of ABB_Media
+monoFP      = mix starterFP with mediaForFP for 5s
+
+monoFP_OD_T1  = detect monospeciesGrowthDetection on monoFP for 720m
+monoFP_16S_T1 = detect communityCompositionDetection on monoFP for 720m
+
+freshABB_FP1  = dispense 19 units of ABB_Media
+monoFP_T2     = mix monoFP with freshABB_FP1 for 5s
+heat monoFP_T2 at 37c for 720m
+
+monoFP_OD_T2  = detect monospeciesGrowthDetection on monoFP_T2 for 720m
+monoFP_16S_T2 = detect communityCompositionDetection on monoFP_T2 for 720m
+
+freshABB_FP2  = dispense 19 units of ABB_Media
+monoFP_T3     = mix monoFP_T2 with freshABB_FP2 for 5s
+heat monoFP_T3 at 37c for 720m
+
+monoFP_OD_T3  = detect monospeciesGrowthDetection on monoFP_T3 for 720m
+monoFP_16S_T3 = detect communityCompositionDetection on monoFP_T3 for 720m
+
+heat monoFP_T3 at 37c for 720m
+
+monoFP_OD_final  = detect monospeciesGrowthDetection on monoFP_T3 for 30s
+monoFP_16S_final = detect communityCompositionDetection on monoFP_T3 for 30s
+
+// ------------------------------------------------------------
+// MONOSPECIES: EL (Eggerthella lenta)
+// Key ecological driver: absence of EL (EL-) reduces community
+// productivity by 28-46% across growth stages. EL has 6
+// positive outgoing interactions (most of any species). Despite
+// low monospecies fitness, EL is the most influential species
+// in community assembly. Long-tail CV distribution in PW1.
+// ------------------------------------------------------------
+
+mediaForEL  = dispense 1 units of ABB_Media
+monoEL      = mix starterEL with mediaForEL for 5s
+
+monoEL_OD_T1  = detect monospeciesGrowthDetection on monoEL for 720m
+monoEL_16S_T1 = detect communityCompositionDetection on monoEL for 720m
+
+freshABB_EL1  = dispense 19 units of ABB_Media
+monoEL_T2     = mix monoEL with freshABB_EL1 for 5s
+heat monoEL_T2 at 37c for 720m
+
+monoEL_OD_T2  = detect monospeciesGrowthDetection on monoEL_T2 for 720m
+monoEL_16S_T2 = detect communityCompositionDetection on monoEL_T2 for 720m
+
+freshABB_EL2  = dispense 19 units of ABB_Media
+monoEL_T3     = mix monoEL_T2 with freshABB_EL2 for 5s
+heat monoEL_T3 at 37c for 720m
+
+monoEL_OD_T3  = detect monospeciesGrowthDetection on monoEL_T3 for 720m
+monoEL_16S_T3 = detect communityCompositionDetection on monoEL_T3 for 720m
+
+heat monoEL_T3 at 37c for 720m
+
+monoEL_OD_final  = detect monospeciesGrowthDetection on monoEL_T3 for 30s
+monoEL_16S_final = detect communityCompositionDetection on monoEL_T3 for 30s
+
+// NOTE: Monospecies runs for BO, BU, BV, BH, CA, CH, DP, ER,
+// and PC follow the identical pattern. Each is a scalar droplet
+// initialised from its respective starterXX variable, subjected
+// to 3 rounds of 16S+OD600 detect -> 1:20 dilution -> 24 h heat.
+// They are omitted here to avoid repetition but are required
+// for full M-dataset construction (all 12 monospecies).
+
+// ============================================================
+// BB3: monospeciesQC
+// Aggregate OD600 and 16S final reads to QC data quality.
+// monospeciesGrowthDetection module checks: growth curves
+// captured, carrying capacities estimated, lag phases resolved.
+// ============================================================
+
+monoQCSignal = detect monospeciesGrowthDetection on monoBT_T3 for 30s
+
+// ============================================================
+// BB4 / BB5: Monospecies QC gate
+// Pass (BB4): monoQCSignal > 0 -> M dataset accepted; proceed.
+// Fail (BB5): monoQCSignal <= 0 -> data quality insufficient; drain.
+// Both branches converge at BB6 (monoJoin).
+// ============================================================
+
+if (monoQCSignal > 0) {
+    dispose monoBT_T3
+    dispose monoFP_T3
+    dispose monoEL_T3
+} else {
+    drain monoBT_T3
+    drain monoFP_T3
+    drain monoEL_T3
+}
+
+// ============================================================
+// BB6: monoJoin
+// Dispose monospecies QC signal; proceed to PW1 branch.
+// ============================================================
+
+dispose monoQCSignal
+
+// ============================================================
+// BB7: pairwisePW1
+// PHASE 2 (PW1 dataset): 66 pairwise combinations (C(12,2)=66).
+// Initial species ratio: 1:1 by OD600 (each 0.01 OD600).
+// Total initial OD600 per well = 0.02.
+// Same serial-transfer protocol as monospecies (1:20, 24 h, 72 h).
+//
+// Biologically significant pairs (from gLV network, Fig 2C):
+//   BT+FP: BT inhibits FP (negative outgoing from BT);
+//          FP receives 5 positive interactions in full community.
+//   CH+ER: exemplar of +/- coexistence motif (Fig 4B,C);
+//          CH inhibits ER; ER positively stimulates CH.
+//          Converges to ~1:1 ratio from both initial conditions.
+//   EL+BH: mutualism (+/+); both enhanced. Highest pairwise
+//          productivity compared to null model.
+//   BT+BV: bidirectional inhibition (-/-); mutual competition;
+//          lowest pairwise productivity among Bacteroides pairs.
+//
+// BIOSCRIPT ENCODING:
+//   Three representative pairs are fully encoded. All 66 pairs
+//   run in parallel on the Biomek-arrayed 96-well plate.
+// ============================================================
+
+// ------------------------------------------------------------
+// PW1 PAIR: BT + FP (1:1 ratio)
+// BT = fast-growth (from starterBT); FP = slow-growth (starterFP).
+// Mix 1:1 by OD600 into fresh ABB. Serial transfer x3 over 72 h.
+// ------------------------------------------------------------
+
+pw1_BT   = dispense 1 units of BT_Cells
+pw1_FP   = dispense 1 units of FP_Cells
+abbPW1_1 = dispense 1 units of ABB_Media
+
+pw1_BT_FP   = mix pw1_BT with pw1_FP for 5s
+pw1_BT_FP_m = mix pw1_BT_FP with abbPW1_1 for 5s
+
+// Transfer 1
+pw1_BT_FP_OD_T1  = detect monospeciesGrowthDetection on pw1_BT_FP_m for 720m
+pw1_BT_FP_16S_T1 = detect communityCompositionDetection on pw1_BT_FP_m for 720m
+
+freshABB_pw1_1  = dispense 19 units of ABB_Media
+pw1_BT_FP_T2    = mix pw1_BT_FP_m with freshABB_pw1_1 for 5s
+heat pw1_BT_FP_T2 at 37c for 720m
+
+// Transfer 2
+pw1_BT_FP_OD_T2  = detect monospeciesGrowthDetection on pw1_BT_FP_T2 for 720m
+pw1_BT_FP_16S_T2 = detect communityCompositionDetection on pw1_BT_FP_T2 for 720m
+
+freshABB_pw1_2  = dispense 19 units of ABB_Media
+pw1_BT_FP_T3    = mix pw1_BT_FP_T2 with freshABB_pw1_2 for 5s
+heat pw1_BT_FP_T3 at 37c for 720m
+
+// Transfer 3 + final read
+pw1_BT_FP_OD_T3  = detect monospeciesGrowthDetection on pw1_BT_FP_T3 for 720m
+pw1_BT_FP_16S_T3 = detect communityCompositionDetection on pw1_BT_FP_T3 for 720m
+
+heat pw1_BT_FP_T3 at 37c for 720m
+
+pw1_BT_FP_OD_final  = detect monospeciesGrowthDetection on pw1_BT_FP_T3 for 30s
+pw1_BT_FP_16S_final = detect communityCompositionDetection on pw1_BT_FP_T3 for 30s
+
+// ------------------------------------------------------------
+// PW1 PAIR: CH + ER (1:1 ratio)
+// Exemplar +/- coexistence motif: CH inhibits ER (negative);
+// ER stimulates CH (positive). Negative feedback loop enables
+// robust coexistence over broad parameter range (Fig 4B-D).
+// Converges to approximately equal ratio from distinct initial
+// conditions (stable coexistence, ~24% of PW1 pairs).
+// ------------------------------------------------------------
+
+pw1_CH   = dispense 1 units of CH_Cells
+pw1_ER   = dispense 1 units of ER_Cells
+abbPW1_2 = dispense 1 units of ABB_Media
+
+pw1_CH_ER   = mix pw1_CH with pw1_ER for 5s
+pw1_CH_ER_m = mix pw1_CH_ER with abbPW1_2 for 5s
+
+pw1_CH_ER_OD_T1  = detect monospeciesGrowthDetection on pw1_CH_ER_m for 720m
+pw1_CH_ER_16S_T1 = detect communityCompositionDetection on pw1_CH_ER_m for 720m
+
+freshABB_CH_ER1 = dispense 19 units of ABB_Media
+pw1_CH_ER_T2    = mix pw1_CH_ER_m with freshABB_CH_ER1 for 5s
+heat pw1_CH_ER_T2 at 37c for 720m
+
+pw1_CH_ER_OD_T2  = detect monospeciesGrowthDetection on pw1_CH_ER_T2 for 720m
+pw1_CH_ER_16S_T2 = detect communityCompositionDetection on pw1_CH_ER_T2 for 720m
+
+freshABB_CH_ER2 = dispense 19 units of ABB_Media
+pw1_CH_ER_T3    = mix pw1_CH_ER_T2 with freshABB_CH_ER2 for 5s
+heat pw1_CH_ER_T3 at 37c for 720m
+
+pw1_CH_ER_OD_T3  = detect monospeciesGrowthDetection on pw1_CH_ER_T3 for 720m
+pw1_CH_ER_16S_T3 = detect communityCompositionDetection on pw1_CH_ER_T3 for 720m
+
+heat pw1_CH_ER_T3 at 37c for 720m
+
+pw1_CH_ER_OD_final  = detect monospeciesGrowthDetection on pw1_CH_ER_T3 for 30s
+pw1_CH_ER_16S_final = detect communityCompositionDetection on pw1_CH_ER_T3 for 30s
+
+// ------------------------------------------------------------
+// PW1 PAIR: EL + BH (1:1 ratio)
+// Mutualism (+/+): EL stimulates BH; BH stimulates EL.
+// Highest pairwise productivity enhancement vs null model
+// (positive productivity relative to monospecies sum).
+// ------------------------------------------------------------
+
+pw1_EL   = dispense 1 units of EL_Cells
+pw1_BH   = dispense 1 units of BH_Cells
+abbPW1_3 = dispense 1 units of ABB_Media
+
+pw1_EL_BH   = mix pw1_EL with pw1_BH for 5s
+pw1_EL_BH_m = mix pw1_EL_BH with abbPW1_3 for 5s
+
+pw1_EL_BH_OD_T1  = detect monospeciesGrowthDetection on pw1_EL_BH_m for 720m
+pw1_EL_BH_16S_T1 = detect communityCompositionDetection on pw1_EL_BH_m for 720m
+
+freshABB_EL_BH1 = dispense 19 units of ABB_Media
+pw1_EL_BH_T2    = mix pw1_EL_BH_m with freshABB_EL_BH1 for 5s
+heat pw1_EL_BH_T2 at 37c for 720m
+
+pw1_EL_BH_OD_T2  = detect monospeciesGrowthDetection on pw1_EL_BH_T2 for 720m
+pw1_EL_BH_16S_T2 = detect communityCompositionDetection on pw1_EL_BH_T2 for 720m
+
+freshABB_EL_BH2 = dispense 19 units of ABB_Media
+pw1_EL_BH_T3    = mix pw1_EL_BH_T2 with freshABB_EL_BH2 for 5s
+heat pw1_EL_BH_T3 at 37c for 720m
+
+pw1_EL_BH_OD_T3  = detect monospeciesGrowthDetection on pw1_EL_BH_T3 for 720m
+pw1_EL_BH_16S_T3 = detect communityCompositionDetection on pw1_EL_BH_T3 for 720m
+
+heat pw1_EL_BH_T3 at 37c for 720m
+
+pw1_EL_BH_OD_final  = detect monospeciesGrowthDetection on pw1_EL_BH_T3 for 30s
+pw1_EL_BH_16S_final = detect communityCompositionDetection on pw1_EL_BH_T3 for 30s
+
+// ============================================================
+// BB8: pw1QC
+// QC gate on PW1 dataset: check that pairwise community
+// compositions are resolved (species proportions at 72 h
+// classifiable as dominance, coexistence, or history-dependent).
+// ============================================================
+
+pw1QCSignal = detect communityCompositionDetection on pw1_CH_ER_T3 for 30s
+
+// ============================================================
+// BB9 / BB10: PW1 QC gate
+// Pass (BB9): pw1QCSignal > 0 -> all 66 pairs resolved; proceed.
+// Fail (BB10): pw1QCSignal <= 0 -> data insufficient; drain.
+// Both branches converge at BB11 (pw1Join).
+// ============================================================
+
+if (pw1QCSignal > 0) {
+    dispose pw1_BT_FP_T3
+    dispose pw1_CH_ER_T3
+    dispose pw1_EL_BH_T3
+} else {
+    drain pw1_BT_FP_T3
+    drain pw1_CH_ER_T3
+    drain pw1_EL_BH_T3
+}
+
+// ============================================================
+// BB11: pw1Join
+// Dispose PW1 QC signal; proceed to PW2 branch.
+// ============================================================
+
+dispose pw1QCSignal
+
+// ============================================================
+// BB12: pairwisePW2
+// PHASE 3 (PW2 dataset): 15 representative pairwise communities
+// inoculated at asymmetric initial species proportions.
+// Two inoculation conditions per pair:
+//   Condition A: 95% species A, 5% species B (by OD600)
+//                major  = 0.0158 OD600, minor = 0.0008 OD600
+//   Condition B: 5% species A, 95% species B (reciprocal)
+// This design probes history-dependent behaviours:
+//   ~50% dominance, ~24% coexistence, ~12% history-dependence
+//   across the 51 pairs evaluated (Fig 2B, Appendix Fig S5B).
+//
+// Representative pair: BO + BT (97:5 to 5:95 sweep).
+// BO+BT shows history-dependence due to slow relaxation
+// to monostable equilibrium (Fig 4A); NOT bistability.
+//
+// NOTE ON UNITS:
+//   0.0158 and 0.0008 OD600 are the actual inoculation volumes
+//   used in the paper (PW2 M&M: "major and minor strains
+//   inoculated at 0.0158 and 0.0008 OD600, respectively").
+//   In BioScript, `dispense 1 units` maps to one droplet;
+//   the asymmetry is captured by the mix ratio (19:1 and 1:19),
+//   abstracted as separate major/minor dispense + mix steps.
+// ============================================================
+
+// ------------------------------------------------------------
+// PW2 PAIR: BO + BT, Condition A (BO major, 95%; BT minor, 5%)
+// BO dominates at t=0; both reach community structure at t=72 h.
+// History-dependent: community structure at 72 h depends on
+// initial proportion (slow convergence to monostable state).
+// ------------------------------------------------------------
+
+pw2_BO_major = dispense 19 units of BO_Cells   // 95% component
+pw2_BT_minor = dispense 1 units of BT_Cells    // 5% component
+abbPW2_A     = dispense 1 units of ABB_Media
+
+pw2_BO_BT_A   = mix pw2_BO_major with pw2_BT_minor for 5s
+pw2_BO_BT_A_m = mix pw2_BO_BT_A with abbPW2_A for 5s
+
+pw2_A_OD_T1  = detect monospeciesGrowthDetection on pw2_BO_BT_A_m for 720m
+pw2_A_16S_T1 = detect communityCompositionDetection on pw2_BO_BT_A_m for 720m
+
+freshABB_pw2_A1 = dispense 19 units of ABB_Media
+pw2_BO_BT_A_T2  = mix pw2_BO_BT_A_m with freshABB_pw2_A1 for 5s
+heat pw2_BO_BT_A_T2 at 37c for 720m
+
+pw2_A_OD_T2  = detect monospeciesGrowthDetection on pw2_BO_BT_A_T2 for 720m
+pw2_A_16S_T2 = detect communityCompositionDetection on pw2_BO_BT_A_T2 for 720m
+
+freshABB_pw2_A2 = dispense 19 units of ABB_Media
+pw2_BO_BT_A_T3  = mix pw2_BO_BT_A_T2 with freshABB_pw2_A2 for 5s
+heat pw2_BO_BT_A_T3 at 37c for 720m
+
+pw2_A_OD_T3  = detect monospeciesGrowthDetection on pw2_BO_BT_A_T3 for 720m
+pw2_A_16S_T3 = detect communityCompositionDetection on pw2_BO_BT_A_T3 for 720m
+
+heat pw2_BO_BT_A_T3 at 37c for 720m
+
+pw2_A_OD_final  = detect monospeciesGrowthDetection on pw2_BO_BT_A_T3 for 30s
+pw2_A_16S_final = detect communityCompositionDetection on pw2_BO_BT_A_T3 for 30s
+
+// ------------------------------------------------------------
+// PW2 PAIR: BO + BT, Condition B (BT major, 95%; BO minor, 5%)
+// Reciprocal condition. Comparison of A vs B outcomes at 72 h
+// determines whether the pair shows history-dependent behaviour.
+// ------------------------------------------------------------
+
+pw2_BT_major = dispense 19 units of BT_Cells   // 95% component
+pw2_BO_minor = dispense 1 units of BO_Cells    // 5% component
+abbPW2_B     = dispense 1 units of ABB_Media
+
+pw2_BO_BT_B   = mix pw2_BT_major with pw2_BO_minor for 5s
+pw2_BO_BT_B_m = mix pw2_BO_BT_B with abbPW2_B for 5s
+
+pw2_B_OD_T1  = detect monospeciesGrowthDetection on pw2_BO_BT_B_m for 720m
+pw2_B_16S_T1 = detect communityCompositionDetection on pw2_BO_BT_B_m for 720m
+
+freshABB_pw2_B1 = dispense 19 units of ABB_Media
+pw2_BO_BT_B_T2  = mix pw2_BO_BT_B_m with freshABB_pw2_B1 for 5s
+heat pw2_BO_BT_B_T2 at 37c for 720m
+
+pw2_B_OD_T2  = detect monospeciesGrowthDetection on pw2_BO_BT_B_T2 for 720m
+pw2_B_16S_T2 = detect communityCompositionDetection on pw2_BO_BT_B_T2 for 720m
+
+freshABB_pw2_B2 = dispense 19 units of ABB_Media
+pw2_BO_BT_B_T3  = mix pw2_BO_BT_B_T2 with freshABB_pw2_B2 for 5s
+heat pw2_BO_BT_B_T3 at 37c for 720m
+
+pw2_B_OD_T3  = detect monospeciesGrowthDetection on pw2_BO_BT_B_T3 for 720m
+pw2_B_16S_T3 = detect communityCompositionDetection on pw2_BO_BT_B_T3 for 720m
+
+heat pw2_BO_BT_B_T3 at 37c for 720m
+
+pw2_B_OD_final  = detect monospeciesGrowthDetection on pw2_BO_BT_B_T3 for 30s
+pw2_B_16S_final = detect communityCompositionDetection on pw2_BO_BT_B_T3 for 30s
+
+// ============================================================
+// BB13: pw2QC
+// QC gate on PW2 dataset: check that history-dependent
+// phenotypes are resolved (difference in species concentrations
+// at 72 h between condition A and condition B).
+// ============================================================
+
+pw2QCSignal = detect communityCompositionDetection on pw2_BO_BT_A_T3 for 30s
+
+// ============================================================
+// BB14 / BB15: PW2 QC gate
+// Pass (BB14): pw2QCSignal > 0 -> PW2 dataset accepted; proceed.
+// Fail (BB15): pw2QCSignal <= 0 -> insufficient; drain.
+// Both branches converge at BB16 (pw2Join).
+// ============================================================
+
+if (pw2QCSignal > 0) {
+    dispose pw2_BO_BT_A_T3
+    dispose pw2_BO_BT_B_T3
+} else {
+    drain pw2_BO_BT_A_T3
+    drain pw2_BO_BT_B_T3
+}
+
+// ============================================================
+// BB16: pw2Join
+// Dispose PW2 QC signal; proceed to validation branch.
+// ============================================================
+
+dispose pw2QCSignal
+
+// ============================================================
+// BB17: fullCommunity
+// PHASE 4a: Full 12-member community validation.
+// All 12 species inoculated at 0.01 OD600 each.
+// Total OD600 = 0.12 at t=0. Same serial-transfer protocol.
+// Community composition at 72 h compared to gLV model prediction
+// trained on T3 (M + PW1 + PW2). Model Pearson r = 0.85 (T3).
+// BH, DP encoded via starter cultures prepared in BB1.
+//
+// NOTE: BU contamination detected at 47.5 h in BU- dropout
+// community (0.4% of community, persisting to 2% at 72 h).
+// The full community is unaffected; BU- data interpreted with
+// this caveat in mind (paper, p. 6).
+// ============================================================
+
+// Inoculate all 12 species at 0.01 OD600 from starter cultures.
+// Fast-growth: BT, BO, BU, BV, CH, EL (from 16 h starters).
+// Slow-growth: BH, FP, CA, PC, ER, DP (from 41 h starters).
+abbFull = dispense 1 units of ABB_Media
+
+// Sequential merge: build full community from individual species.
+// BioScript does not support n-ary merge; chain binary mixes.
+bt_cells_full  = dispense 1 units of BT_Cells
+bo_cells_full  = dispense 1 units of BO_Cells
+bu_cells_full  = dispense 1 units of BU_Cells
+bv_cells_full  = dispense 1 units of BV_Cells
+bh_cells_full  = dispense 1 units of BH_Cells
+ca_cells_full  = dispense 1 units of CA_Cells
+ch_cells_full  = dispense 1 units of CH_Cells
+dp_cells_full  = dispense 1 units of DP_Cells
+el_cells_full  = dispense 1 units of EL_Cells
+er_cells_full  = dispense 1 units of ER_Cells
+fp_cells_full  = dispense 1 units of FP_Cells
+pc_cells_full  = dispense 1 units of PC_Cells
+
+// Chain merge into full 12-member community droplet.
+full_m01 = mix bt_cells_full with bo_cells_full for 5s
+full_m02 = mix full_m01 with bu_cells_full for 5s
+full_m03 = mix full_m02 with bv_cells_full for 5s
+full_m04 = mix full_m03 with bh_cells_full for 5s
+full_m05 = mix full_m04 with ca_cells_full for 5s
+full_m06 = mix full_m05 with ch_cells_full for 5s
+full_m07 = mix full_m06 with dp_cells_full for 5s
+full_m08 = mix full_m07 with el_cells_full for 5s
+full_m09 = mix full_m08 with er_cells_full for 5s
+full_m10 = mix full_m09 with fp_cells_full for 5s
+fullCommunity_t0 = mix full_m10 with pc_cells_full for 5s
+
+// Normalise with fresh ABB to consistent total OD600.
+fullComm_init = mix fullCommunity_t0 with abbFull for 5s
+
+// Serial transfer 1
+full_OD_T1  = detect monospeciesGrowthDetection on fullComm_init for 720m
+full_16S_T1 = detect communityCompositionDetection on fullComm_init for 720m
+
+freshABB_full1  = dispense 19 units of ABB_Media
+fullComm_T2     = mix fullComm_init with freshABB_full1 for 5s
+heat fullComm_T2 at 37c for 720m
+
+// Serial transfer 2
+full_OD_T2  = detect monospeciesGrowthDetection on fullComm_T2 for 720m
+full_16S_T2 = detect communityCompositionDetection on fullComm_T2 for 720m
+
+freshABB_full2  = dispense 19 units of ABB_Media
+fullComm_T3     = mix fullComm_T2 with freshABB_full2 for 5s
+heat fullComm_T3 at 37c for 720m
+
+// Serial transfer 3 + final reads
+full_OD_T3  = detect monospeciesGrowthDetection on fullComm_T3 for 720m
+full_16S_T3 = detect communityCompositionDetection on fullComm_T3 for 720m
+
+heat fullComm_T3 at 37c for 720m
+
+full_OD_final  = detect monospeciesGrowthDetection on fullComm_T3 for 30s
+full_16S_final = detect communityCompositionDetection on fullComm_T3 for 30s
+
+// ============================================================
+// BB18: dropoutCommunity
+// PHASE 4b: Single-species dropout community (EL- shown).
+// EL- is the most influential dropout: alters community assembly
+// more than any other single-species removal (Fig 3B); reduces
+// Shannon equitability; reduces community productivity by
+// 28-46% across growth stages; reduces growth rate by 19-33%.
+// 12 dropout communities total (one per species); EL- encoded
+// as representative.
+//
+// NOTE: The 11-member community is built by omitting EL_Cells
+// from the chain merge. All other species at 0.01 OD600.
+// ============================================================
+
+abbDropout = dispense 1 units of ABB_Media
+
+bt_drop  = dispense 1 units of BT_Cells
+bo_drop  = dispense 1 units of BO_Cells
+bu_drop  = dispense 1 units of BU_Cells
+bv_drop  = dispense 1 units of BV_Cells
+bh_drop  = dispense 1 units of BH_Cells
+ca_drop  = dispense 1 units of CA_Cells
+ch_drop  = dispense 1 units of CH_Cells
+dp_drop  = dispense 1 units of DP_Cells
+er_drop  = dispense 1 units of ER_Cells
+fp_drop  = dispense 1 units of FP_Cells
+pc_drop  = dispense 1 units of PC_Cells
+
+// EL omitted: 11-member community (EL- dropout).
+drop_m01 = mix bt_drop with bo_drop for 5s
+drop_m02 = mix drop_m01 with bu_drop for 5s
+drop_m03 = mix drop_m02 with bv_drop for 5s
+drop_m04 = mix drop_m03 with bh_drop for 5s
+drop_m05 = mix drop_m04 with ca_drop for 5s
+drop_m06 = mix drop_m05 with ch_drop for 5s
+drop_m07 = mix drop_m06 with dp_drop for 5s
+drop_m08 = mix drop_m07 with er_drop for 5s
+drop_m09 = mix drop_m08 with fp_drop for 5s
+dropoutEL_t0 = mix drop_m09 with pc_drop for 5s
+
+dropoutEL_init = mix dropoutEL_t0 with abbDropout for 5s
+
+// Serial transfer 1
+drop_OD_T1  = detect monospeciesGrowthDetection on dropoutEL_init for 720m
+drop_16S_T1 = detect communityCompositionDetection on dropoutEL_init for 720m
+
+freshABB_drop1  = dispense 19 units of ABB_Media
+dropoutEL_T2    = mix dropoutEL_init with freshABB_drop1 for 5s
+heat dropoutEL_T2 at 37c for 720m
+
+// Serial transfer 2
+drop_OD_T2  = detect monospeciesGrowthDetection on dropoutEL_T2 for 720m
+drop_16S_T2 = detect communityCompositionDetection on dropoutEL_T2 for 720m
+
+freshABB_drop2  = dispense 19 units of ABB_Media
+dropoutEL_T3    = mix dropoutEL_T2 with freshABB_drop2 for 5s
+heat dropoutEL_T3 at 37c for 720m
+
+// Serial transfer 3 + final reads
+drop_OD_T3  = detect monospeciesGrowthDetection on dropoutEL_T3 for 720m
+drop_16S_T3 = detect communityCompositionDetection on dropoutEL_T3 for 720m
+
+heat dropoutEL_T3 at 37c for 720m
+
+drop_OD_final  = detect monospeciesGrowthDetection on dropoutEL_T3 for 30s
+drop_16S_final = detect communityCompositionDetection on dropoutEL_T3 for 30s
+
+// ============================================================
+// BB19: validationQC
+// QC gate on Phase 4 communities: Pearson correlation between
+// model prediction and experimental data for each species and
+// time point must exceed threshold (paper reports median r=0.85
+// for T3, with model explaining 81% variance on T4).
+// ============================================================
+
+valQCSignal = detect communityCompositionDetection on fullComm_T3 for 30s
+
+// ============================================================
+// BB20 / BB21: Validation QC gate
+// Pass (BB20): valQCSignal > 0 -> model validated; proceed.
+// Fail (BB21): valQCSignal <= 0 -> validation failed; drain.
+// Both branches converge at BB22 (validationJoin).
+// ============================================================
+
+if (valQCSignal > 0) {
+    dispose fullComm_T3
+    dispose dropoutEL_T3
+} else {
+    drain fullComm_T3
+    drain dropoutEL_T3
+}
+
+// ============================================================
+// BB22: validationJoin
+// Dispose validation QC signal; proceed to metabolomics branch.
+// ============================================================
+
+dispose valQCSignal
+
+// ============================================================
+// BB23: metabolomics
+// PHASE 5: Exo-metabolomics profiling (Dataset EV4).
+// All 12 monospecies cultured in ABB (ER and FP supplemented
+// with 33 mM acetate). Each grown to saturation (72 h, 37 C).
+// Diluted to 0.01 OD600; 30 mL replicates (n=3) in 4-well plates.
+// Supernatant sampled pre-24 h for each species except DP
+// (insufficient biomass within 24 h window).
+// Lyophilised, resuspended in MeOH + internal standards.
+// LC-MS/MS on Agilent 6550 Q-TOF (HILIC ZIC-pHILIC column).
+// 97 metabolites profiled; twofold threshold for significance.
+//
+// KEY FINDINGS:
+//   CH: largest metabolite consumer (hub); not proportional
+//       to biomass -> energy diverted to non-growth processes.
+//   BU: major metabolite secretor; consistent with large
+//       influence on community assembly (Fig 3B).
+//   FP: predicted to utilise metabolites from BU, BO, PC, BT,
+//       CH -> molecular basis of positive inter-species
+//       interactions promoting FP in full community (Fig 5E).
+//   EL: metabolite profiles fail to predict EL's influential
+//       role -> interactions likely beyond resource competition
+//       (biomolecular warfare or toxic metabolite secretion).
+//   Resource competition for methyl-5'-thioadenosine (55 pairs),
+//   N-methylanthranilic acid (6 pairs), dihexose (3 pairs).
+//
+// BIOSCRIPT ENCODING:
+//   Each monospecies produces a conditioned media droplet (CM).
+//   exoMetabolomicsDetection module abstracts LC-MS/MS readout.
+//   DP is excluded (paper: insufficient biomass within 24 h).
+// ============================================================
+
+// Prepare monospecies for metabolomics: saturation culture + dilution.
+// Each species grown 72 h to saturation then diluted to 0.01 OD600.
+
+meta_BT_sat  = dispense 1 units of BT_Cells
+abbMeta_BT   = dispense 1 units of ABB_Media
+metaBT       = mix meta_BT_sat with abbMeta_BT for 5s
+heat metaBT at 37c for 4320m  // 72 h saturation = 4320 m
+
+meta_FP_sat  = dispense 1 units of FP_Cells
+abbMeta_FP   = dispense 1 units of ABB_Media
+metaFP       = mix meta_FP_sat with abbMeta_FP for 5s
+heat metaFP at 37c for 4320m
+
+meta_EL_sat  = dispense 1 units of EL_Cells
+abbMeta_EL   = dispense 1 units of ABB_Media
+metaEL       = mix meta_EL_sat with abbMeta_EL for 5s
+heat metaEL at 37c for 4320m
+
+meta_BU_sat  = dispense 1 units of BU_Cells
+abbMeta_BU   = dispense 1 units of ABB_Media
+metaBU       = mix meta_BU_sat with abbMeta_BU for 5s
+heat metaBU at 37c for 4320m
+
+meta_CH_sat  = dispense 1 units of CH_Cells
+abbMeta_CH   = dispense 1 units of ABB_Media
+metaCH       = mix meta_CH_sat with abbMeta_CH for 5s
+heat metaCH at 37c for 4320m
+
+// Collect supernatants (t=0 and pre-24 h time point).
+// exoMetabolomicsDetection abstracts: centrifuge (6000g, 5 min),
+// 0.22 um filtration, lyophilisation, MeOH resuspension,
+// LC-MS/MS run, metabolite atlas peak annotation.
+
+metaBT_signal  = detect exoMetabolomicsDetection on metaBT for 30s
+metaFP_signal  = detect exoMetabolomicsDetection on metaFP for 30s
+metaEL_signal  = detect exoMetabolomicsDetection on metaEL for 30s
+metaBU_signal  = detect exoMetabolomicsDetection on metaBU for 30s
+metaCH_signal  = detect exoMetabolomicsDetection on metaCH for 30s
+
+// NOTE: BO, BV, BH, CA, ER, PC monospecies metabolomics follow
+// the identical dispense -> heat 4320m -> detect pattern.
+// Omitted for brevity but required for full Dataset EV4.
+// DP is omitted entirely (paper M&M: insufficient biomass).
+
+// ============================================================
+// BB24: metaQC
+// QC gate on metabolomics dataset: check that at least twofold
+// changes in metabolite abundances are resolved for the majority
+// of the 97 targeted metabolites across at least 3 replicates.
+// ============================================================
+
+metaQCSignal = detect exoMetabolomicsDetection on metaCH for 30s
+
+// ============================================================
+// BB25 / BB26: Metabolomics QC gate
+// Pass (BB25): metaQCSignal > 0 -> metabolomics data accepted.
+// Fail (BB26): metaQCSignal <= 0 -> LC-MS/MS failure; drain.
+// Both branches converge at BB27 (finalCleanup).
+// ============================================================
+
+if (metaQCSignal > 0) {
+    dispose metaBT
+    dispose metaFP
+    dispose metaEL
+    dispose metaBU
+    dispose metaCH
+} else {
+    drain metaBT
+    drain metaFP
+    drain metaEL
+    drain metaBU
+    drain metaCH
+}
+
+// ============================================================
+// BB27: finalCleanup (terminal)
+// Dispose all remaining QC signal droplets.
+// All five experimental phases (M, PW1, PW2, validation,
+// metabolomics) complete. gLV model training datasets (T1-T3)
+// and validation datasets are ready for parameter estimation
+// and MCMC uncertainty analysis (paper Section 2.3/2.4).
+// ============================================================
+
+dispose metaBT_signal
+dispose metaFP_signal
+dispose metaEL_signal
+dispose metaBU_signal
+dispose metaCH_signal
+
+// [terminal -- no further instructions; exit node for CFG]

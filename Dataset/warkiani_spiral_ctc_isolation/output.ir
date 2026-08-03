@@ -1,0 +1,69 @@
+bsbbif_2_t:
+	dispose(beadRun1[0])
+bsbbif_3_f:
+	dispose(beadRun1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(beadSignal1[0])
+	rbcLysisBuffer1[0] = dispense(RBCLysisBuffer)
+	lysedBlood11[0] = dispense(LysedBloodSample)
+	lysisReaction1[0] = mix(lysedBlood11[0], rbcLysisBuffer1[0]) @ 600.0SECOND
+	pbsResuspend1[0] = dispense(PBS)
+	heat(lysisReaction1[0]) @ 25.0CELSIUS @ 300.0SECOND
+	resuspendedSample1[0] = mix(lysisReaction1[0], pbsResuspend1[0]) @ 60.0SECOND
+	sheathRun1[0] = dispense(SheathBuffer)
+	spiralRun1[0] = mix(resuspendedSample1[0], sheathRun1[0]) @ 2220.0SECOND
+	heat(spiralRun1[0]) @ 25.0CELSIUS @ 180.0SECOND
+	pbsResuspend21[0] = dispense(PBS)
+	concentratedCells1[0] = mix(spiralRun1[0], pbsResuspend21[0]) @ 60.0SECOND
+	pfaFixative1[0] = dispense(Paraformaldehyde)
+	fixedCells1[0] = mix(concentratedCells1[0], pfaFixative1[0]) @ 600.0SECOND
+	bsaWash11[0] = dispense(BSA_Solution)
+	pbsWash11[0] = dispense(PBS)
+	washBuffer11[0] = mix(bsaWash11[0], pbsWash11[0]) @ 30.0SECOND
+	heat(washBuffer11[0]) @ 25.0CELSIUS @ 180.0SECOND
+	washedFixed1[0] = mix(fixedCells1[0], washBuffer11[0]) @ 60.0SECOND
+	tritonX1001[0] = dispense(TritonX100)
+	permeaCells1[0] = mix(washedFixed1[0], tritonX1001[0]) @ 180.0SECOND
+	bsaWash21[0] = dispense(BSA_Solution)
+	pbsWash21[0] = dispense(PBS)
+	washBuffer21[0] = mix(bsaWash21[0], pbsWash21[0]) @ 30.0SECOND
+	heat(washBuffer21[0]) @ 25.0CELSIUS @ 180.0SECOND
+	washedPermea1[0] = mix(permeaCells1[0], washBuffer21[0]) @ 60.0SECOND
+	panCKAntibody1[0] = dispense(PanCK_FITC_Antibody)
+	cd45Antibody1[0] = dispense(CD45_APC_Antibody)
+	hoechstDye1[0] = dispense(HoechstDye)
+	antibodyMix1[0] = mix(panCKAntibody1[0], cd45Antibody1[0]) @ 5.0SECOND
+	fullStainMix1[0] = mix(antibodyMix1[0], hoechstDye1[0]) @ 5.0SECOND
+	stainedCells1[0] = mix(washedPermea1[0], fullStainMix1[0]) @ 1800.0SECOND
+	heat(stainedCells1[0]) @ 4.0CELSIUS @ 1800.0SECOND
+	bsaWash31[0] = dispense(BSA_Solution)
+	pbsWash31[0] = dispense(PBS)
+	washBuffer31[0] = mix(bsaWash31[0], pbsWash31[0]) @ 30.0SECOND
+	heat(washBuffer31[0]) @ 25.0CELSIUS @ 180.0SECOND
+	washedStained1[0] = mix(stainedCells1[0], washBuffer31[0]) @ 60.0SECOND
+	pbsFinal1[0] = dispense(PBS)
+	finalCells1[0] = mix(washedStained1[0], pbsFinal1[0]) @ 30.0SECOND
+	ctcSignal1[0] = detect(ctcDetection, finalCells1[0]) @ 2700.0SECOND
+	if ctcSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	ethanolPrime1[0] = dispense(Ethanol70)
+	channelWash1[0] = mix(ethanolPrime1[0], ethanolPrime1[0]) @ 300.0SECOND
+	bsaSolution1[0] = dispense(BSA_Solution)
+	sheathPriming1[0] = dispense(SheathBuffer)
+	surfaceCoating1[0] = mix(bsaSolution1[0], sheathPriming1[0]) @ 300.0SECOND
+	sheathFlush1[0] = dispense(SheathBuffer)
+	bubbleRemoval1[0] = mix(surfaceCoating1[0], sheathFlush1[0]) @ 120.0SECOND
+	beadSuspension1[0] = dispense(QCBeadSuspension)
+	sheathQC1[0] = dispense(SheathBuffer)
+	beadRun1[0] = mix(beadSuspension1[0], sheathQC1[0]) @ 300.0SECOND
+	beadSignal1[0] = detect(beadFocusingQC, beadRun1[0]) @ 30.0SECOND
+	if beadSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(finalCells1[0])
+bsbbif_6_f:
+	dispose(finalCells1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(ctcSignal1[0])
+	NOP

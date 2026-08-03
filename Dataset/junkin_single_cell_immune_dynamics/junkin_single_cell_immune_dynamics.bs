@@ -1,0 +1,355 @@
+module nfkbLocalizationDetection
+module tnfSecretionDetection
+
+manifest RAW2647_Macrophages
+manifest PluronicF127
+manifest PBS
+manifest CultureMedium
+manifest LPS_500ngmL
+manifest TNF_CaptureBeads
+manifest TNF_DetectionAntibody
+manifest SecondaryFluorescentAntibody
+manifest PBSTween
+
+instructions:
+
+// ============================================================
+// High-Content Quantification of Single-Cell Immune Dynamics
+// Junkin, Kaestli, Cheng, Jordi, Albayrak, Hoffmann, Tay
+// Cell Reports 15, 411-422, April 2016
+// DOI: 10.1016/j.celrep.2016.03.033
+//
+// Platform: two-layer PDMS microfluidic chip (Melin & Quake
+// design). 40 individually addressable 1.35 nL isolated cell
+// chambers. Membrane valves and on-chip peristaltic pumps
+// control all fluid routing. Mounted on automated inverted
+// epifluorescence microscope (Nikon Eclipse Ti) inside
+// atmospheric enclosure (37 C, 5% CO2, saturating humidity).
+//
+// Cells: RAW 264.7 mouse macrophages. Non-adherent; retained
+// by weir-type trap (slits without bypass) inside chambers
+// functionalized to be non-adherent (Pluronic F-127 coated).
+//
+// Stimulation: LPS (Sigma L4524) 500 ng/mL, single 2 hr
+// pulse (Fig 4B left; mimics brief pathogen exposure).
+// Input switching time < 5 s via 16-inlet binary multiplexer.
+//
+// Readout 1 -- TNF secretion bead immunoassay (dynamic):
+//   Antibody-functionalized beads (Spherotech SVP-100-4,
+//   10.3 um streptavidin, biotinylated capture Ab) pre-loaded
+//   in 7 bead storage chambers per column. Every 2 hr, the
+//   peristaltic pump transfers medium from cell chamber to
+//   binding chamber; beads circularly mixed for 90 min.
+//   After binding, beads rinsed with PBS-Tween and returned
+//   to storage. At run end, detection Ab + secondary Ab
+//   complete the sandwich; beads imaged; intensity correlated
+//   to on-chip calibration curve (R2 = 0.9984, Fig 2B).
+//   LOD: ~60,000 TNF molecules. 7 time windows: 0-2, 2-4,
+//   4-6, 6-8, 8-10, 10-12, 12-14 hr post-stimulus.
+//
+// Readout 2 -- NF-kB (RelA) localization (dynamic):
+//   Time-lapse epifluorescence imaging every ~6 min.
+//   Cells express RelA-GFP; nuclear/cytoplasmic ratio
+//   reports NF-kB activation state continuously.
+//
+// BioScript abstraction notes:
+//   - `mix` is a consuming operation on both operands.
+//     The "cell thread" is modelled as a fluid variable
+//     that is re-produced at every feeding or sampling step
+//     by mixing with the incoming fresh medium or bead-wash
+//     product. This reflects how peristaltic pumping cycles
+//     fluid through and out of the cell chamber.
+//   - `mix cellVar with LPS_500ngmL` abstracts multiplexer
+//     routing of the LPS inlet into the chamber for 2 hr.
+//   - `heat` at 37c models on-chip incubation (non-consuming).
+//   - Bead time-points: each window uses a freshly dispensed
+//     bead variable; the washed bead product carries into the
+//     next step as the cell-thread carrier, maintaining a
+//     single linear ownership chain through the experiment.
+//   - `detect nfkbLocalizationDetection` abstracts nuclear
+//     RelA ratio measurement; consumes the cell variable.
+//   - `detect tnfSecretionDetection` abstracts bead
+//     fluorescence + calibration curve lookup (baseline
+//     bead used as QC gate key; returns > 0 if any bead
+//     window exceeds LOD of ~60,000 TNF molecules).
+//   - h token unsupported: 2 hr = 120m throughout.
+//   - `dispose` in pass-branches; `drain` in fail-branches.
+//
+// CFG STRUCTURE:
+//   BB1  main           -- chip prep, cell loading, baseline
+//                          TNF assay (t0), LPS 2 hr pulse,
+//                          6x post-stimulus TNF assays,
+//                          sandwich Ab completion, NF-kB detect
+//   BB2  nfkbPass       -- nfkbSignal > 0: RelA nuclear peak
+//                          detected; dispose cell variable
+//   BB3  nfkbFail       -- nfkbSignal <= 0: no activation;
+//                          drain cell variable
+//   BB4  nfkbJoin       -- join: TNF QC gate follows
+//   BB5  tnfPass        -- tnfSignal > 0: TNF detected;
+//                          dispose baseline bead variable
+//   BB6  tnfFail        -- tnfSignal <= 0: all beads below
+//                          LOD; drain baseline bead variable
+//   BB7  finalCleanup   -- terminal: dispose QC signals
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Chip surface preparation.
+//   All internal surfaces except cell chambers coated with
+//   2 mg/mL Pluronic F-127 in DI water overnight via control
+//   script to block protein adsorption and bead adhesion.
+//   Rinsed extensively with PBS before cell loading.
+//   `mix` abstracts the automated overnight rinse sequence.
+// ------------------------------------------------------------
+
+pluronicSol  = dispense 1 units of PluronicF127
+pbsRinse     = dispense 1 units of PBS
+devicePrimed = mix pluronicSol with pbsRinse for 720m
+
+// ------------------------------------------------------------
+// STEP 2: Cell loading.
+//   RAW 264.7 macrophages (versene-detached, 20 um filtered,
+//   1e5-3.5e5 cells/mL) flowed through inlets. Binary
+//   multiplexer directs cells to individual chambers. Weir
+//   trap captures non-adherent macrophages. < 10 min total.
+//   `mix` abstracts the flow-through trapping event.
+// ------------------------------------------------------------
+
+macrophages  = dispense 1 units of RAW2647_Macrophages
+cellsLoaded  = mix macrophages with devicePrimed for 10m
+
+// ------------------------------------------------------------
+// STEP 3: Post-loading equilibration.
+//   Fresh medium pumped into chamber; cells equilibrate
+//   inside sealed chambers at 37 C / 5% CO2 for 2 hr.
+// ------------------------------------------------------------
+
+medEq        = dispense 1 units of CultureMedium
+cellsEq      = mix cellsLoaded with medEq for 10m
+heat cellsEq at 37c for 120m
+
+// ------------------------------------------------------------
+// STEP 4: Baseline TNF bead capture (t = 0-2 hr, pre-LPS).
+//   Medium surrounding cells sampled for 2 hr to establish
+//   pre-stimulus TNF baseline. Bead_1 transferred from
+//   storage to binding chamber; medium + bead mixed by
+//   circular peristaltic pumping for 90 min (Fig 2A).
+//   Bead rinsed with PBS-Tween; returned to storage.
+//   `mix cellsEq with medT0` models the medium sampling
+//   step (consumes cellsEq); bead1Washed carries the
+//   cell-thread forward into the stimulation phase.
+// ------------------------------------------------------------
+
+medT0        = dispense 1 units of CultureMedium
+sampleT0     = mix cellsEq with medT0 for 120m
+
+bead1        = dispense 1 units of TNF_CaptureBeads
+pbt1         = dispense 1 units of PBSTween
+bead1Bound   = mix sampleT0 with bead1 for 90m
+bead1Washed  = mix bead1Bound with pbt1 for 5m
+
+// ------------------------------------------------------------
+// STEP 5: LPS stimulation -- 2 hr pulse.
+//   LPS at 500 ng/mL injected via multiplexer into cell
+//   chamber for exactly 2 hr. Switching time < 5 s.
+//   `mix bead1Washed with lpsInput` abstracts the LPS
+//   inlet routing; bead1Washed carries the cell state
+//   as fluid thread; result is cellsStim.
+// ------------------------------------------------------------
+
+lpsInput     = dispense 1 units of LPS_500ngmL
+cellsStim    = mix bead1Washed with lpsInput for 120m
+heat cellsStim at 37c for 120m
+
+// ------------------------------------------------------------
+// STEP 6: LPS washout.
+//   Multiplexer switches back to medium inlet; LPS-free
+//   medium flows through chamber (< 5 s switchover time).
+// ------------------------------------------------------------
+
+medWash      = dispense 1 units of CultureMedium
+cellsWashed  = mix cellsStim with medWash for 10m
+
+// ------------------------------------------------------------
+// STEP 7: TNF bead capture -- time point 1 (0-2 hr post-LPS).
+//   Medium sampled from chamber; bead_2 moved to binding
+//   chamber and mixed for 90 min; rinsed with PBS-Tween.
+//   bead2Washed carries cell thread into next window.
+// ------------------------------------------------------------
+
+medTP1       = dispense 1 units of CultureMedium
+sampleTP1    = mix cellsWashed with medTP1 for 120m
+
+bead2        = dispense 1 units of TNF_CaptureBeads
+pbt2         = dispense 1 units of PBSTween
+bead2Bound   = mix sampleTP1 with bead2 for 90m
+bead2Washed  = mix bead2Bound with pbt2 for 5m
+
+heat bead2Washed at 37c for 120m
+
+// ------------------------------------------------------------
+// STEP 8: TNF bead capture -- time point 2 (2-4 hr post-LPS).
+// ------------------------------------------------------------
+
+medTP2       = dispense 1 units of CultureMedium
+sampleTP2    = mix bead2Washed with medTP2 for 120m
+
+bead3        = dispense 1 units of TNF_CaptureBeads
+pbt3         = dispense 1 units of PBSTween
+bead3Bound   = mix sampleTP2 with bead3 for 90m
+bead3Washed  = mix bead3Bound with pbt3 for 5m
+
+heat bead3Washed at 37c for 120m
+
+// ------------------------------------------------------------
+// STEP 9: TNF bead capture -- time point 3 (4-6 hr post-LPS).
+// ------------------------------------------------------------
+
+medTP3       = dispense 1 units of CultureMedium
+sampleTP3    = mix bead3Washed with medTP3 for 120m
+
+bead4        = dispense 1 units of TNF_CaptureBeads
+pbt4         = dispense 1 units of PBSTween
+bead4Bound   = mix sampleTP3 with bead4 for 90m
+bead4Washed  = mix bead4Bound with pbt4 for 5m
+
+heat bead4Washed at 37c for 120m
+
+// ------------------------------------------------------------
+// STEP 10: TNF bead capture -- time point 4 (6-8 hr post-LPS).
+// ------------------------------------------------------------
+
+medTP4       = dispense 1 units of CultureMedium
+sampleTP4    = mix bead4Washed with medTP4 for 120m
+
+bead5        = dispense 1 units of TNF_CaptureBeads
+pbt5         = dispense 1 units of PBSTween
+bead5Bound   = mix sampleTP4 with bead5 for 90m
+bead5Washed  = mix bead5Bound with pbt5 for 5m
+
+heat bead5Washed at 37c for 120m
+
+// ------------------------------------------------------------
+// STEP 11: TNF bead capture -- time point 5 (8-10 hr post-LPS).
+// ------------------------------------------------------------
+
+medTP5       = dispense 1 units of CultureMedium
+sampleTP5    = mix bead5Washed with medTP5 for 120m
+
+bead6        = dispense 1 units of TNF_CaptureBeads
+pbt6         = dispense 1 units of PBSTween
+bead6Bound   = mix sampleTP5 with bead6 for 90m
+bead6Washed  = mix bead6Bound with pbt6 for 5m
+
+heat bead6Washed at 37c for 120m
+
+// ------------------------------------------------------------
+// STEP 12: TNF bead capture -- time point 6 (10-12 hr post-LPS).
+//   Final medium sampling window. bead7Washed carries the
+//   cell-thread terminal state into the sandwich completion.
+// ------------------------------------------------------------
+
+medTP6       = dispense 1 units of CultureMedium
+sampleTP6    = mix bead6Washed with medTP6 for 120m
+
+bead7        = dispense 1 units of TNF_CaptureBeads
+pbt7         = dispense 1 units of PBSTween
+bead7Bound   = mix sampleTP6 with bead7 for 90m
+bead7Washed  = mix bead7Bound with pbt7 for 5m
+
+// ------------------------------------------------------------
+// STEP 13: Sandwich assay completion -- detection antibodies.
+//   After all 7 time-point bead captures, detection Ab
+//   (genwaybio GWB-489500, 3.19 ug/mL) applied for 30 min
+//   with circular mixing, then secondary fluorescent Ab
+//   (USB I1903-12H, 3.3 ug/mL) for 30 min. PBS-Tween rinse
+//   between steps. bead7Washed carries the accumulated
+//   cell-state thread; `mix` with detAb and secAb models
+//   the Ab incubation over all stored beads simultaneously.
+// ------------------------------------------------------------
+
+detAb        = dispense 1 units of TNF_DetectionAntibody
+secAb        = dispense 1 units of SecondaryFluorescentAntibody
+
+detStep      = mix bead7Washed with detAb for 30m
+sandwichDone = mix detStep with secAb for 30m
+
+// ------------------------------------------------------------
+// STEP 14: NF-kB (RelA) localization -- aggregate QC readout.
+//   Automated stage images every ~6 min throughout the 20 hr
+//   run in GFP and brightfield channels. RelA-GFP nuclear/
+//   cytoplasmic ratio computed per frame by MATLAB. Here,
+//   nfkbLocalizationDetection abstracts the binary
+//   determination: was a RelA nuclear peak observed (> 2 SD
+//   above pre-stimulus baseline) during or after LPS pulse?
+//   ~93.6% of cells (n=46) show NF-kB activation peak
+//   following LPS stimulation (Fig 6A).
+//   `detect` is applied to sandwichDone which holds the
+//   terminal cell state; this consumes sandwichDone.
+// ------------------------------------------------------------
+
+nfkbSignal   = detect nfkbLocalizationDetection on sandwichDone for 30s
+
+// ============================================================
+// BB2 / BB3: NF-kB activation QC gate
+// Pass (BB2): nfkbSignal > 0 -> RelA nuclear peak detected;
+//             cell categorised NF-kB+; dispose sandwichDone.
+// Fail (BB3): nfkbSignal <= 0 -> no activation peak;
+//             cell categorised NF-kB-; drain sandwichDone.
+// Both branches converge at BB4 (nfkbJoin).
+// ============================================================
+
+if (nfkbSignal > 0) {
+    dispose sandwichDone
+} else {
+    drain sandwichDone
+}
+
+// ============================================================
+// BB4: nfkbJoin
+// Dispose NF-kB QC signal. Control falls into TNF
+// secretion QC gate (BB5/BB6).
+// ============================================================
+
+dispose nfkbSignal
+
+// ------------------------------------------------------------
+// STEP 15: TNF secretion fluorescence readout.
+//   Beads in storage chambers imaged (brightfield + GFP
+//   channel). Fluorescence correlated to on-chip calibration
+//   curve (R2 = 0.9984, LOD ~60,000 molecules, Fig 2B).
+//   tnfSecretionDetection applied to bead1Washed (baseline
+//   bead, still alive from STEP 4) as the QC gate key;
+//   signal > 0 if any time-point bead exceeds LOD.
+//   ~93.5% of cells produce detectable TNF (Fig 6A).
+// ------------------------------------------------------------
+
+tnfSignal    = detect tnfSecretionDetection on bead1Washed for 30s
+
+// ============================================================
+// BB5 / BB6: TNF secretion QC gate
+// Pass (BB5): tnfSignal > 0 -> measurable TNF secretion in
+//             at least one 2 hr window (TNF+ cell);
+//             dispose bead1Washed.
+// Fail (BB6): tnfSignal <= 0 -> all time-point beads below
+//             LOD (TNF- cell, ~6.5% per Fig 6A); drain.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (tnfSignal > 0) {
+    dispose bead1Washed
+} else {
+    drain bead1Washed
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose TNF QC signal. Experiment ends.
+// ============================================================
+
+dispose tnfSignal
+
+// [terminal -- no further instructions; exit node for CFG]

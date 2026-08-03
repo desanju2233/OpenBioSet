@@ -1,0 +1,325 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Sensitive Detection and Quantification of SARS-CoV-2 in Saliva
+Source Link  : https://www.nature.com/articles/s41598-021-91835-7
+Paper DOI    : https://doi.org/10.1038/s41598-021-91835-7
+Journal      : Scientific Reports, 2021, Vol. 11, Article 12425
+Platform     : Saliva-based nucleic acid testing pipeline; BSL3 TRIzol RNA extraction,
+               BSL1 RT-PCR (CFX384, Bio-Rad) and ddPCR (QX200, Bio-Rad) analysis
+Institution  : University of Chicago Medical Center (IRB 20-0520)
+
+
+OVERVIEW
+--------
+This protocol describes a comprehensive saliva-based SARS-CoV-2 nucleic acid testing pipeline
+developed and validated at the University of Chicago Medical Center. It provides a complete
+alternative to nasal or nasopharyngeal swab testing using two parallel molecular readouts:
+real-time reverse transcription PCR (RT-PCR) and droplet digital PCR (ddPCR), both targeting
+the nucleocapsid N1 and N2 genes and the RnaseP internal control.
+
+Specimens were prospectively collected from 137 curbside outpatients (92 symptomatic, 45
+asymptomatic pre-operative) and 29 COVID-19 inpatients, with paired nasal swab (NS) results
+from the CLIA-certified clinical microbiology laboratory (CML) using the FDA-EUA Cepheid
+Xpert Xpress system as the comparator gold standard.
+
+The protocol is divided into three sequential phases:
+  1. TRIzol-based RNA extraction (TRE method) from saliva specimens in a BSL3 facility
+  2. RT-PCR assay (relative quantification; positive calling Ct < 40 for N1 or N2)
+  3. ddPCR assay (absolute quantification; empirical threshold from 45 pre-op negatives)
+
+Key outcomes:
+  - RT-PCR saliva: 100% concordance with CML-positive cases (curbside and inpatient cohorts)
+  - ddPCR saliva: 93.75% concordance (curbside); potential for higher sensitivity at low
+    viral loads vs nasal swabs and RT-PCR (15 additional positives vs CML NS assay)
+  - Viral load range: 10^6-fold across patients; saliva shows more uniform distribution
+    than nasal swabs (less operator variability in volume collection)
+
+
+COHORTS
+-------
+Curbside outpatients (N = 137):
+  - Symptomatic (COVID-19 testing): N = 92
+  - Asymptomatic (pre-operative screening, used as ddPCR threshold derivation cohort): N = 45
+  - All SARS-CoV-2 negative by CML nasal swab (pre-op cohort)
+
+Inpatients (N = 29):
+  - All confirmed SARS-CoV-2 positive on hospital admission by CML
+  - NS and saliva collected several days after admission (post-diagnosis)
+  - CML identified 14/29 NS samples as positive at research collection timepoint
+
+
+SPECIMEN COLLECTION
+-------------------
+Saliva:
+  - Self-collection by drool technique (spitting into sterile tube to the 2 mL line)
+  - 2 mL Zymo DNA/RNA Shield (ZymoR1100-50) added immediately at point of collection
+  - Transported to BSL3 facility for RNA extraction
+
+Nasal Swab (NS):
+  - Anterior nares nasal swab collected by research team into 1 mL Amies transport solution
+    (Thermo Scientific)
+  - One NS sent to CML for standard-of-care analysis using FDA-EUA Cepheid Xpert Xpress
+    (targets: N2 and envelope E gene; positive if Ct < 45 for either)
+  - Second NS sent to BSL3 for research RT-PCR and ddPCR analysis alongside saliva
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Saliva Specimen Receipt
+  Input      : SalivaSpecimen (1 mL pre-stabilised aliquot)
+  Operation  : dispense
+  Notes      : 1 mL aliquot of Zymo-stabilised saliva enters the TRIzol extraction
+               protocol. BioScript `dispense` abstracts receipt into the workflow.
+
+Step 2 | TRIzol LS Addition
+  Reagents   : TRIzol LS (Thermo Fisher Scientific, #10296010), 3 mL
+  Operation  : mix (30 s)
+  Volumes    : 1 mL sample + 3 mL TRIzol LS
+  Notes      : Brief vortexing to homogenise. Guanidinium thiocyanate in TRIzol
+               denatures proteins and protects RNA from RNases during extraction.
+
+Step 3 | Chloroform Addition and Phase Emulsification
+  Reagents   : Chloroform, 0.6 mL
+  Operation  : mix (15 s)
+  Notes      : 0.6 mL chloroform added to TRIzol lysate; brief vortexing creates
+               water-in-organic emulsion. Separates RNA (aqueous upper phase) from
+               proteins and DNA (organic phase and interphase).
+
+Step 4 | Phase Separation Centrifugation
+  Condition  : 12,000 x g, 4 C, 15 min
+  Operation  : heat at 4c for 15m (BioScript abstraction for centrifugation)
+  IR output  : heat(phaseMixture) @ 4.0 CELSIUS @ 900.0 SECOND
+  Phases     : (1) Colourless upper aqueous phase (RNA)
+               (2) White interphase (DNA/protein)
+               (3) Red-pink organic phase (protein/lipid)
+  Notes      : BioScript has no centrifugation primitive. `heat at 4c` models the
+               cold centrifuge condition, consistent with the samlali and moazami
+               reference .bs files' use of `heat` for non-heating physical operations.
+
+Step 5 | Aqueous Phase Transfer and Precipitation Setup
+  Reagents   : Isopropanol (1 mL), Glycogen (1 uL)
+  Operation  : mix x2 (10 s each)
+  Volumes    : 0.8 mL upper aqueous phase + 1 mL isopropanol + 1 uL glycogen
+  Notes      : Aqueous phase carefully transferred to new tube (interphase avoided).
+               Glycogen acts as co-precipitant to improve RNA pellet visibility and
+               yield at low concentrations typical of saliva samples.
+
+Step 6 | Overnight RNA Precipitation
+  Condition  : -20 C overnight (minimum 12 h)
+  Operation  : heat at 4c for 720m (BioScript abstraction; IR: 43200.0 SECOND)
+  Notes      : Paper states "-20 C overnight or room temperature for 10 min."
+               Cold overnight path encoded for maximum yield. Negative temperatures
+               not tested in lilott8/BioScript compiler; 4 C used as functional
+               cold abstraction. The compiler correctly emits 43200.0 SECOND (12 h).
+
+Step 7 | RNA Pellet Collection Centrifugation
+  Condition  : 12,000 x g, 4 C, 10 min
+  Operation  : heat at 4c for 10m (IR: 600.0 SECOND)
+  Notes      : RNA pellet collected; supernatant discarded.
+
+Step 8 | 75% Ethanol Wash
+  Reagents   : 75% ethanol, 2 mL
+  Operation  : mix (30 s)
+  Notes      : Washes residual isopropanol and salts from pellet. Salivary fluids
+               are known PCR inhibitors (Ochert et al., PCR Methods Appl. 1994,
+               cited as ref. 14 in paper); ethanol wash removes inhibitory substances.
+
+Step 9 | Ethanol Wash Centrifugation
+  Condition  : 7,500 g, 4 C, 5 min
+  Operation  : heat at 4c for 5m (IR: 300.0 SECOND)
+  Notes      : Re-pellets RNA; ethanol supernatant discarded.
+
+Step 10 | Ethanol Evaporation
+  Condition  : Room temperature (25 C), 5-10 min
+  Operation  : heat at 25c for 10m (IR: 600.0 SECOND)
+  Notes      : Upper bound (10 min) encoded. Over-drying reduces RNA solubility;
+               under-drying causes ethanol carry-over PCR inhibition.
+
+Step 11 | RNA Resuspension and QC
+  Reagents   : RNase-free water (50 uL), Qubit RNA HS Kit
+  Operation  : mix (2 min) + detect (30 s)
+  Storage    : -80 C
+  QC module  : ddPCR_RnaseP_Detection (proxy for Qubit fluorometric measurement)
+  Notes      : Final RNA extract resuspended in 50 uL RNase-free water. Qubit RNA
+               HS Kit used to assess quantity and quality before PCR. rnaQcMix
+               disposed after QC signal detected; rnaExtract used in steps 12-18.
+               TRE method relative efficiency vs QVK (QIAmp Viral RNA Mini Kit): 17%.
+               High assay sensitivity (LOD: 1 copy/reaction) compensates for lower yield.
+
+Step 12 | RT-PCR Reaction Assembly (N1, N2, RnaseP channels)
+  Reagents   : TaqPath One-Step RT-PCR Master Mix (ThermoFisher), N1/N2/RnaseP probe/
+               primer sets (IDT #10006770), Precision Blue Real-Time PCR Dye (Bio-Rad)
+  Operation  : mix (sequential; 3 parallel channels)
+  Reaction   : 20 uL total per channel
+               5 uL TaqPath Master Mix
+               2 uL probe/primer set (N1, N2, or RnaseP)
+               0.1 uL Precision Blue Real-Time PCR Dye
+               6.4 uL RNA extract
+               6.5 uL PCR-grade water
+  Controls   : Serial dilution of SARS-CoV-2 RNA Standard (Exact Diagnostics #COV019)
+               run alongside each RT-PCR plate. DNA positive control: IDT #10006625.
+               Negative control: Millipore nuclease-free water (extraction-processed).
+  Notes      : Three parallel reactions targeting N1, N2, and RnaseP assembled from
+               the same RNA extract. BioScript `dispense SalivaSpecimen` (x3) models
+               aliquoting identical RNA into three separate reaction tubes.
+               Assembly order: masterMix + primerSet (5s) -> add RT dye (5s)
+               -> add RNA aliquot (10s).
+
+Step 13 | RT-PCR Thermocycling
+  Instrument : CFX384 Touch Real-time PCR Detection System (Bio-Rad)
+  Software   : CFX Maestro
+  Protocol   : CDC 2019-nCoV RT-PCR diagnostic panel (Revision 3, 2020)
+  Stages     :
+               Stage 1: Reverse transcription    25 C / 2 min   (IR: 120.0 s)
+               Stage 2: RT incubation            50 C / 15 min  (IR: 900.0 s)
+               Stage 3: Polymerase activation    95 C / 2 min   (IR: 120.0 s)
+               Stage 4: 45 cycles (compressed)   55 C / 45 min  (IR: 2700.0 s)
+                 [actual cycle: 95 C / 3 s denaturation + 55 C / 30 s anneal/extension]
+  Performance:
+               Efficiency: >99.25% for N1 and N2 (Supplementary Fig. 1)
+               LOD: 1 copy/reaction (Ct ~38.2 for N1, ~38.6 for N2)
+  Notes      : 45-cycle PCR amplification compressed into a single `heat at 55c for 45m`
+               block (2700 s in IR). BioScript has no cycle-loop primitive; each isothermal
+               stage is emitted as a discrete heat instruction in the IR. This is the same
+               thermocycler abstraction used in the moazami reference .bs file (heat-shock
+               stages encoded as separate heat calls).
+
+Step 14 | RT-PCR Fluorescence Readout and Positive Calling
+  Modules    : rtPCR_N1_Detection, rtPCR_N2_Detection, rtPCR_RnaseP_Detection
+  Duration   : 30 s per channel
+  Channels   : FAM (N1, N2 TaqMan probes); RnaseP (internal extraction control)
+  Rule       : Positive if Ct < 40 for N1 OR N2 (CDC recommendation)
+               Ct = 45 assigned to undetermined (no amplification) reactions
+  Results    :
+               Curbside: 16/16 CML-positive samples detected (100%); +7 additional
+               positives vs CML NS assay (Fig. 2c,d)
+               Inpatients: 14/14 CML positives detected (100%); +9 additional (Fig. 5)
+  CFG gate   :
+               Pass (BB2, bsbbif_2_t): rtPCR_N1_Signal > 0
+                 -> dispose(rtPCR_rxn_N1, N2, RnaseP)
+               Fail (BB3, bsbbif_3_f): rtPCR_N1_Signal <= 0
+                 -> drain(rtPCR_rxn_N1, N2, RnaseP)
+               Join (BB4, bsbbif_4_j): dispose RT-PCR signals; enter ddPCR branch
+  Notes      : N1 used as primary gate (stronger LOD). BioScript does not support compound
+               OR conditionals in a single if statement. RnaseP confirms extraction quality
+               but is not part of the positive/negative QC gate.
+
+Step 15 | ddPCR Reaction Assembly (N1, N2, RnaseP channels)
+  Reagents   : One-step ddPCR Supermix (Bio-Rad), Reverse Transcriptase + DTT (Bio-Rad),
+               N1/N2/RnaseP probe/primer sets (IDT #10006770, same as RT-PCR)
+  Operation  : mix (sequential; 3 parallel channels)
+  Reaction   : 20 uL total per channel
+               5 uL One-step ddPCR Supermix
+               2 uL reverse transcriptase
+               1 uL 300 mM DTT
+               2 uL probe/primer set (N1, N2, or RnaseP)
+               6.4 uL RNA extract
+  Notes      : Identical IDT probe/primer sets used for both RT-PCR and ddPCR (same primers
+               and probes combination per paper Methods). Assembly order: supermix + RT/DTT
+               (5s) -> add primer set (5s) -> add RNA aliquot (10s).
+
+Step 16 | Droplet Generation
+  Equipment  : Bio-Rad QX200 droplet generator (manual or automated)
+  Oil        : Bio-Rad ddPCR droplet generation oil for probes (#1863005)
+  Output     : ~20,000 nanoliter-sized water-in-oil droplets per reaction
+  Operation  : mix with DropletGeneratorOil for 2m (abstracts emulsification)
+  Notes      : Each droplet contains zero or one target RNA molecule, enabling absolute
+               digital quantification without a standard curve (Hindson et al., Nat.
+               Methods 2013, ref. 19 in paper). After generation, emulsion transferred to
+               sealed 96-well plate for thermocycling.
+
+Step 17 | ddPCR Thermocycling
+  Instrument : C-1000 Thermal Cycler (Bio-Rad)
+  Ramping    : 2.5 C/s between all stages
+  Stages     :
+               Stage 1: Initial hold                25 C / 2 min    (IR: 120.0 s)
+               Stage 2: Reverse transcription        50 C / 60 min   (IR: 3600.0 s)
+               Stage 3: Polymerase activation        95 C / 10 min   (IR: 600.0 s)
+               Stage 4: 45 cycles (compressed)       55 C / 45 min   (IR: 2700.0 s)
+                 [actual cycle: 95 C / 30 s denaturation + 55 C / 60 s anneal/extension]
+               Stage 5: Signal stabilisation         98 C / 10 min   (IR: 600.0 s)
+               Stage 6: Hold                          4 C / 60 min   (IR: 3600.0 s)
+  Performance:
+               LOD (N1): 0.06 CN/uL (Supplementary Fig. 2)
+               LOD (N2): 0.21 CN/uL
+               Dilution LOD: N1 detected at 1:1,000,000 dilution in pool of negatives
+               (10x more sensitive than RT-PCR at 1:100,000; Supplementary Table 1)
+               Inhibitor resistance: ddPCR concentrates targets per droplet, reducing
+               bias from salivary PCR inhibitors (refs 20-22)
+  Notes      : 4 C hold approximated as 60 m (3600 s in IR); paper allows overnight hold.
+               45-cycle PCR compressed to single heat block (2700 s). Ramping speed 2.5 C/s
+               maintained between all stages per paper Methods.
+
+Step 18 | Droplet Reading and Positive Calling
+  Equipment  : Bio-Rad QX200 droplet reader
+  Software   : Quantasoft (Bio-Rad); raw fluorescence amplitude -> CN/uL + droplet count
+  Modules    : ddPCR_N1_Detection, ddPCR_N2_Detection, ddPCR_RnaseP_Detection
+  Duration   : 30 s per channel
+  Rule (NS)  : CN/uL > 0.1 AND > 2 positive droplets for N1 OR N2 (Bio-Rad recommendation)
+  Rule (saliva): BOTH CN/uL AND positive droplet count must exceed empirical threshold
+               (mean + 2*SD from 45 pre-operative SARS-CoV-2 negative individuals;
+               Supplementary Table 2; data distribution in Supplementary Fig. 7)
+  Results    :
+               Curbside: 15/16 CML-positive samples detected (93.75%); 31/92 total
+               positives vs 16/92 by CML NS assay (Fig. 2e,f)
+               Inpatients: 11/14 CML positives; 17 total positives (Fig. 5)
+               Reproducibility: 91.3% concordance on re-test of 46 saliva specimens
+               (Supplementary Fig. 8); 4 discordant samples attributed to RNA
+               degradation after ~5 months storage
+  CFG gate   :
+               Pass (BB5, bsbbif_5_t): ddPCR_N1_Signal > 0
+                 -> dispose(ddEmulsion_N1, N2, RnaseP)
+               Fail (BB6, bsbbif_6_f): ddPCR_N1_Signal <= 0
+                 -> drain(ddEmulsion_N1, N2, RnaseP)
+               Terminal (BB7, bsbbif_7_j): dispose(ddPCR signals, rnaQcSignal, rnaExtract)
+                 -> NOP (compiler standard exit node)
+  Notes      : N1 used as primary gate (LOD 0.06 CN/uL vs N2 0.21 CN/uL).
+               Saliva shows more uniform viral load distribution vs nasal swabs (less
+               operator variability in collection volume). Supercarriers (>10,000 CN/mL)
+               and their link to superspreading identified as key clinical application
+               (refs 32, 33 in paper; Fig. 4).
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : abasiyanik2021_sars_cov2_saliva_detection.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 7 basic blocks (BB1-BB7), 2 if/else gates, 8 CFG edges
+DAG shape      : Diamond-diamond (two sequential QC gates)
+               BB1 -> BB2/BB3 -> BB4 -> BB5/BB6 -> BB7
+Duration units : All durations converted to seconds (s) or minutes (m) only
+               (BioScript supports s and m; h token not supported)
+               15 min centrifugation  ->  15m  (IR: 900.0 SECOND)
+               Overnight -20 C        -> 720m  (IR: 43200.0 SECOND, 12 h minimum)
+               RT-PCR 45 cycles       ->  45m  (IR: 2700.0 SECOND, compressed)
+               ddPCR RT step          ->  60m  (IR: 3600.0 SECOND)
+               ddPCR 45 cycles        ->  45m  (IR: 2700.0 SECOND, compressed)
+               ddPCR 4 C hold         ->  60m  (IR: 3600.0 SECOND, approximated)
+Modules (6)    : rtPCR_N1_Detection, rtPCR_N2_Detection, rtPCR_RnaseP_Detection,
+                 ddPCR_N1_Detection, ddPCR_N2_Detection, ddPCR_RnaseP_Detection
+Manifests (18) : SalivaSpecimen, NasalSwabSpecimen, TrizolLS_Reagent, Chloroform,
+                 Isopropanol, Glycogen, Ethanol_75pct, RNaseFreeWater,
+                 TaqPath_MasterMix, N1_ProbePrimerSet, N2_ProbePrimerSet,
+                 RnaseP_ProbePrimerSet, PrecisionBlue_RTDye, SARS_CoV2_RNA_Standard,
+                 ddPCR_Supermix_OneStep, ReverseTranscriptase_DTT,
+                 DropletGeneratorOil, QubitRNA_HS_Reagent
+Key abstractions:
+  - Centrifugation (no BioScript primitive) -> `heat at 4c for <duration>`
+    Consistent with reference .bs files: samlali uses `heat at 25c` for 30 s
+    electrode actuation; moazami uses `heat at 42c` / `heat at 4c` for heat-shock.
+  - -20 C overnight precipitation -> `heat at 4c for 720m` (compiler-safe cold approx.)
+  - 45-cycle PCR thermocycle -> single `heat at 55c for 45m` block (no cycle-loop
+    primitive in BioScript; same compression used in moazami for heat-shock phases)
+  - Qubit RNA QC -> `detect ddPCR_RnaseP_Detection` (fluorometric proxy)
+  - RT-PCR OR gate (N1 or N2 positive) -> N1 as primary signal in if/else; single
+    conditional per BioScript grammar (no compound OR in if statement)
+  - drain normalised to dispose in IR: compiler maps both to waste routing (known
+    BioScript behaviour; not a protocol error)
+Compiler output verified:
+  - IR (abasiyanik2021_sars_cov2_saliva_detection.ir): clean parse, all operations
+    correctly emitted with @ time annotations, correct BB labels and jump targets
+  - DOT (abasiyanik2021_sars_cov2_saliva_detection_main_dag.dot): 7 nodes, 8 edges,
+    correct diamond-diamond CFG topology, no unreachable nodes, no cycles
+  - Terminal NOP present at end of bsbbif_7_j: expected compiler exit marker

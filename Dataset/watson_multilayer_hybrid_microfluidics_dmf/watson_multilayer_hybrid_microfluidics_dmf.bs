@@ -1,0 +1,363 @@
+module serialDilutionDetection
+module proteinDigestionDetection
+
+manifest AnalyteFluorescein
+manifest InternalStandardRhodamine123
+manifest Diluent
+manifest AF_BSA
+manifest PepsinSolution
+manifest TrypsinSolution
+manifest PluronicF68
+
+// ============================================================
+// Multilayer Hybrid Microfluidics: A Digital-to-Channel
+// Interface for Sample Processing and Separations
+// Watson, Jebrail, Wheeler - Anal. Chem. 2010, 82, 6680-6686
+// DOI: 10.1021/ac101379g
+//
+// This file encodes two on-chip protocols demonstrated on a
+// two-plate DMF multilayer hybrid device (glass substrate,
+// 13 driving electrodes 2.2x2.2 mm, 3 reservoir electrodes
+// 3x3 mm or 5x5 mm). The DMF layer (substrates 1+2) sits
+// atop a microchannel network (substrate 3, 100 um wide x
+// 20 um deep). Droplets processed on the top DMF layer are
+// delivered through a vertical digital-channel interface
+// (drilled hole, 2 mm dia.) into microchannels below for
+// capillary electrophoresis (CE) analysis with LIF detection
+// (488 nm excitation, 536/40 nm emission).
+//
+// AC actuation: 20 kHz, 100-200 Vrms.
+// Spacer gap: 280 um (4x double-sided tape).
+// Unit droplet: ~3 uL (fills the 2 mm dia. x 1 mm deep hole).
+// Separation buffer: 20 mM borate pH 9.0 (dilution) or
+//                   100 mM borate pH 9.0 (enzyme digests).
+// Pluronic F-68 added to all protein-containing droplets at
+// 0.1% wt to minimise surface adsorption.
+//
+// PROTOCOL 1: On-Chip Serial Dilution Calibration Curve
+//   Stock droplet: 1 uM fluorescein + 1 uM rhodamine 123 in
+//   20 mM borate pH 9.0. Diluent: 1 uM rhodamine 123 in
+//   20 mM borate pH 9.0 (internal standard maintained constant).
+//   Dilution 1: stock + diluent -> mix (circular, ~10 s) ->
+//     split into two equal subdroplets (2x dilution, ~0.5 uM Flu).
+//     Daughter A: drive to interface for CE-LIF analysis.
+//     Daughter B: store on array for second dilution step.
+//   Dilution 2: stored Daughter B + fresh diluent -> mix ->
+//     split. Daughter C: drive to interface for CE-LIF analysis.
+//   Precision: RSD = 2.9% (stock), 3.7% (1st), 7.4% (2nd).
+//   Efficiency: 1.1e6 plates/m for rhodamine 123.
+//   R^2 = 0.9937 across five replicates.
+//
+// PROTOCOL 2: Multistep Enzymatic Protein Digestion
+//   Model protein: AF-BSA (Alexa Fluor 488 labeled bovine serum
+//   albumin, 20 ug/mL in DI water + 0.1% F-68).
+//   Pepsin: 1 mg/mL in 1 mM acetate buffer + 0.1% F-68, pH 4.5.
+//     Cleaves at aromatic residues (Phe, Tyr, Trp). 30 min.
+//   Trypsin: 1 mg/mL in 50 mM borate buffer + 0.1% F-68, pH 9.0.
+//     Cleaves at basic residues (Lys, Arg). 30 min.
+//   Sequential digest: AF-BSA -> pepsin (30 min) -> split ->
+//     subdroplet to interface for CE; stored half merged with
+//     trypsin (30 min) -> deliver to interface.
+//   Incubation: device stored in humidified Petri dish (water-
+//     saturated wipe) during 30 min steps to limit evaporation.
+//   Total process time: ~2 h including both incubation steps.
+//
+// NOTE ON split ABSTRACTION: BioScript does not have a native
+//   `split` statement. Physical droplet splitting on the array
+//   (two daughter droplets of equal volume) is abstracted here
+//   as a `mix` step with a secondary dispense that represents
+//   the stored subdroplet being retained on the array. The
+//   subdroplet driven to the digital-channel interface is the
+//   primary product variable at each split point. This is a
+//   compiler-compatible representation; the actual split is
+//   performed by reversing the electrode actuation sequence
+//   while the droplet straddles two electrodes.
+//
+// NOTE ON DURATION TOKENS: BioScript accepts s and m only.
+//   30 min incubations are encoded as 30m.
+//   Circular mixing for several seconds is encoded as 10s.
+//
+// NOTE ON dispense RESTRICTION: Only manifest-declared reagents
+//   may appear as the source in a dispense statement.
+//   The digital-channel interface transfer (droplet driven to
+//   the microchannel inlet) is modelled via detect statements
+//   using the serialDilutionDetection or proteinDigestionDetection
+//   modules, which abstract CE-LIF analysis in the channel layer.
+//
+// NOTE ON VARIABLE REASSIGNMENT: BioScript does not permit
+//   reassignment of a variable once bound. All intermediate
+//   droplets (post-mix, post-detect) use unique identifiers.
+//
+// CFG STRUCTURE:
+//   BB1  main             -- entry: serial dilution protocol
+//                           (dispense, dilution 1, dilution 2)
+//                           followed by protein digestion protocol
+//   BB2  dilutionPass     -- dilutionSignal > 0: valid CE peaks
+//                           detected; dispose analysed droplets
+//   BB3  dilutionFail     -- dilutionSignal <= 0: no signal; drain
+//   BB4  dilutionJoin     -- join: protein digestion branch begins
+//   BB5  digestionPass    -- digestionSignal > 0: valid digest
+//                           peaks; dispose all digestion droplets
+//   BB6  digestionFail    -- digestionSignal <= 0: no peaks; drain
+//   BB7  finalCleanup     -- terminal: dispose QC signals; end
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ============================================================
+// PROTOCOL 1: On-Chip Serial Dilution Calibration Curve
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Dispense stock droplet.
+//   Reservoir contains 1 uM fluorescein + 1 uM rhodamine 123
+//   in 20 mM borate buffer pH 9.0. Unit droplet: ~3 uL.
+//   Actuation: 20 kHz, 100-200 Vrms, two-plate format.
+// ------------------------------------------------------------
+
+stockDroplet = dispense 1 units of AnalyteFluorescein
+
+// ------------------------------------------------------------
+// STEP 2: Dispense first diluent droplet.
+//   Reservoir contains 1 uM rhodamine 123 (internal standard)
+//   in 20 mM borate buffer pH 9.0. No fluorescein present.
+//   Merging with stock will halve fluorescein concentration
+//   while maintaining constant internal standard.
+// ------------------------------------------------------------
+
+diluent1 = dispense 1 units of Diluent
+
+// ------------------------------------------------------------
+// STEP 3: Merge stock and first diluent droplet.
+//   Merged droplet (~0.5 uM fluorescein, ~1 uM rhodamine 123).
+//   Circular mixing pattern (several electrode actuations)
+//   ensures thorough homogenisation before splitting.
+//   Mix duration: ~10 s on-chip (paper: "several seconds").
+// ------------------------------------------------------------
+
+mergedDrop1 = mix stockDroplet with diluent1 for 10s
+
+// ------------------------------------------------------------
+// STEP 4: Dilution 1 - split merged droplet.
+//   Physical split: reverse electrode sequence while droplet
+//   straddles two driving electrodes; two ~1.5 uL subdroplets
+//   result. Daughter A is driven to the digital-channel
+//   interface. Daughter B is stored on the array.
+//   Abstracted here: the split product variable represents
+//   the daughter subdroplet A (~0.5 uM Flu, ~1 uM Rho).
+//   A second dispense of Diluent abstracts the stored
+//   Daughter B remaining on the electrode array.
+// ------------------------------------------------------------
+
+// Daughter A: subdroplet analysed by CE-LIF at channel interface.
+dilution1Analysed = mix mergedDrop1 with diluent1 for 2s
+
+// Daughter B: stored on array for second dilution.
+// NOTE: A fresh diluent dispense models the stored half-droplet
+// equivalent volume; it is the logical placeholder for the
+// retained subdroplet that will be further diluted in STEP 6.
+storedDrop1 = dispense 1 units of Diluent
+
+// ------------------------------------------------------------
+// STEP 5: CE-LIF detection at digital-channel interface.
+//   Daughter A is actuated to the interface electrode (2.2x2.2
+//   mm, overlapping the 2 mm dia. drilled hole by ~1 mm).
+//   The droplet spontaneously wets and settles into the hole.
+//   DC voltages (LabSmith sequencer) drive sample through the
+//   cross injector into the 3 cm separation channel.
+//   Loading: S=900V, SW=0V, B=650V, BW=850V.
+//   Injection: S=500V, SW=500V, B=1000V, BW=0V.
+//   LIF detection at 3 cm downstream (488 nm, 20 mW argon ion,
+//   60x objective, 536/40 nm BP filter, PMT readout).
+//   Peak area (AA) relative to IS (AIS) recorded.
+//   The sample waste channel removes the previous analysed
+//   sample by suction before the next injection.
+// ------------------------------------------------------------
+
+dilutionSignal1 = detect serialDilutionDetection on dilution1Analysed for 30s
+
+// ------------------------------------------------------------
+// STEP 6: Dilution 2 - merge stored Daughter B with fresh diluent.
+//   Stored subdroplet (Daughter B, ~0.5 uM Flu) merged with a
+//   second unit diluent droplet. Result: ~0.25 uM fluorescein,
+//   ~1 uM rhodamine 123 (4x dilution relative to original stock).
+//   Mixed circularly for ~10 s to homogenise.
+// ------------------------------------------------------------
+
+diluent2 = dispense 1 units of Diluent
+mergedDrop2 = mix storedDrop1 with diluent2 for 10s
+
+// ------------------------------------------------------------
+// STEP 7: Dilution 2 - split and deliver second daughter droplet.
+//   Daughter C (~0.25 uM Flu, ~1 uM Rho) driven to interface.
+//   Previous sample removed from channel by suction before
+//   this injection, without removing the DMF top-plate.
+// ------------------------------------------------------------
+
+dilution2Analysed = mix mergedDrop2 with diluent2 for 2s
+
+// CE-LIF detection for the second dilution point.
+dilutionSignal2 = detect serialDilutionDetection on dilution2Analysed for 30s
+
+// ============================================================
+// BB2 / BB3: Serial dilution QC gate
+// Keyed on dilutionSignal1 (undiluted first daughter;
+// highest fluorescein signal, most reliable peak detection).
+// Pass (BB2): dilutionSignal1 > 0 -> valid electropherogram
+//             peaks resolved; baseline separation confirmed;
+//             dispose analysed droplets.
+// Fail (BB3): dilutionSignal1 <= 0 -> no peaks (interface
+//             transfer failed or separation column clogged);
+//             drain and abort calibration run.
+// Both branches converge at BB4 (dilutionJoin).
+// ============================================================
+
+if (dilutionSignal1 > 0) {
+    dispose dilution1Analysed
+    dispose dilution2Analysed
+} else {
+    drain dilution1Analysed
+    drain dilution2Analysed
+}
+
+// ============================================================
+// BB4: dilutionJoin
+// Dispose serial dilution QC signal droplets.
+// Control falls into protein digestion branch (BB5/BB6).
+// ============================================================
+
+dispose dilutionSignal1
+dispose dilutionSignal2
+
+// ============================================================
+// PROTOCOL 2: Multistep Enzymatic Protein Digestion (AF-BSA)
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 8: Dispense AF-BSA droplet.
+//   20 ug/mL AF-BSA in DI water + 0.1% Pluronic F-68.
+//   Unit droplet: ~3 uL. F-68 additive minimises protein
+//   adsorption to device surfaces (Parylene-C / Teflon-AF).
+//   Device uses 100 mM borate buffer pH 9.0 as channel fill
+//   for enzymatic digest runs (higher ionic strength for
+//   protein fragment separation).
+// ------------------------------------------------------------
+
+afbsaDroplet = dispense 1 units of AF_BSA
+
+// ------------------------------------------------------------
+// STEP 9: Dispense pepsin droplet.
+//   1 mg/mL pepsin in 1 mM acetate buffer + 0.1% F-68, pH 4.5.
+//   Pepsin cleaves at aromatic residues (Phe, Tyr, Trp),
+//   generating multiply charged peptide fragments.
+//   Unit droplet: ~3 uL.
+// ------------------------------------------------------------
+
+pepsinDroplet = dispense 1 units of PepsinSolution
+
+// ------------------------------------------------------------
+// STEP 10: Merge AF-BSA with pepsin and incubate.
+//   Merged droplet (~6 uL, 2 units) contains AF-BSA + pepsin
+//   in equal volumes. Mixed briefly on the DMF array to ensure
+//   homogeneous enzyme-substrate contact before incubation.
+//   Device transferred to humidified chamber (Petri dish with
+//   water-saturated wipe) to limit droplet evaporation during
+//   the 30 min incubation at room temperature.
+//   After incubation, AF-BSA peak at t=58 s is absent from
+//   CE electropherogram, confirming complete digestion.
+// ------------------------------------------------------------
+
+pepsinReaction = mix afbsaDroplet with pepsinDroplet for 5s
+heat pepsinReaction at 25c for 30m
+
+// ------------------------------------------------------------
+// STEP 11: Split pepsin digest; deliver first subdroplet to
+//   digital-channel interface for CE-LIF analysis.
+//   Daughter D: driven to interface (pepsin-only digest).
+//   Daughter E: stored on array for sequential trypsin step.
+//   CE electropherogram shows multiple peaks eluting at a range
+//   of times relative to the AF-BSA reactant peak (multiply
+//   charged aromatic peptides generated by pepsin cleavage).
+// ------------------------------------------------------------
+
+// Daughter D: analysed by CE-LIF (pepsin digest only).
+pepsinAnalysed = mix pepsinReaction with pepsinDroplet for 2s
+
+// Daughter E: stored subdroplet (logical placeholder).
+storedPepsinDrop = dispense 1 units of AF_BSA
+
+// CE-LIF detection for pepsin-only digest.
+digestionSignalPepsin = detect proteinDigestionDetection on pepsinAnalysed for 60s
+
+// ------------------------------------------------------------
+// STEP 12: Dispense trypsin droplet.
+//   1 mg/mL trypsin in 50 mM borate buffer + 0.1% F-68, pH 9.0.
+//   Trypsin cleaves at basic residues (Lys, Arg), reducing the
+//   multiply charged peptides from pepsin into smaller fragments
+//   that elute closer together in the CE separation.
+//   Unit droplet: ~3 uL.
+// ------------------------------------------------------------
+
+trypsinDroplet = dispense 1 units of TrypsinSolution
+
+// ------------------------------------------------------------
+// STEP 13: Merge stored pepsin digest half with trypsin and
+//   incubate for a second 30 min digestion at room temperature.
+//   Sequential two-enzyme digest: pepsin then trypsin generates
+//   singly charged peptides observable in the top CE trace
+//   (Fig 6, paper). Device returned to humidified chamber.
+// ------------------------------------------------------------
+
+trypsinReaction = mix storedPepsinDrop with trypsinDroplet for 5s
+heat trypsinReaction at 25c for 30m
+
+// ------------------------------------------------------------
+// STEP 14: Deliver sequential digest subdroplet to interface.
+//   Full pepsin+trypsin digest driven to digital-channel
+//   interface for CE-LIF analysis. Previous sample removed
+//   from channel by suction (fine needle + vacuum flask)
+//   without removing the DMF top-plate between injections.
+//   CE electropherogram shows new series of peaks (peptides
+//   eluting closer together vs pepsin-only digest).
+// ------------------------------------------------------------
+
+sequentialDigestAnalysed = mix trypsinReaction with trypsinDroplet for 2s
+
+// CE-LIF detection for sequential pepsin + trypsin digest.
+digestionSignalSeq = detect proteinDigestionDetection on sequentialDigestAnalysed for 60s
+
+// ============================================================
+// BB5 / BB6: Protein digestion QC gate
+// Keyed on pepsin-only digestion signal (Step 11 detection;
+// most diagnostic -- loss of intact AF-BSA peak at t=58 s
+// confirms complete first-stage digestion).
+// Pass (BB5): digestionSignalPepsin > 0 -> valid CE peaks
+//             detected (peptide fragments resolved); dispose
+//             all digestion droplets.
+// Fail (BB6): digestionSignalPepsin <= 0 -> no signal (enzyme
+//             inactive, transfer failed, or column blocked);
+//             drain all digestion droplets.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (digestionSignalPepsin > 0) {
+    dispose pepsinAnalysed
+    dispose sequentialDigestAnalysed
+} else {
+    drain pepsinAnalysed
+    drain sequentialDigestAnalysed
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose all QC signal droplets. Experiment ends.
+// ============================================================
+
+dispose digestionSignalPepsin
+dispose digestionSignalSeq
+
+// [terminal -- no further instructions; exit node for CFG]

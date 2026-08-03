@@ -1,0 +1,297 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Input Dose Differentiation by NF-kB
+Source Link  : https://www.biorxiv.org/content/10.1101/752394v1.full.pdf
+Paper DOI    : https://doi.org/10.1101/752394
+Journal      : bioRxiv preprint, September 4, 2019 (bioRxiv 752394)
+Platform     : Two-layer PDMS microfluidic chip (64 independent chambers, >500 cells/chamber)
+               with automated Matlab GUI valve control and live-cell fluorescence imaging
+
+
+OVERVIEW
+--------
+This protocol describes a microfluidic live-cell analysis pipeline used to investigate how the
+NF-kB signalling pathway in single mammalian cells responds to dynamically varying cytokine
+concentrations. Using a multiplexed PDMS microfluidic chip, cells expressing p65-DsRed (NF-kB
+reporter) and H2B-GFP (nuclear marker) are exposed to TNF-alpha, IL-1beta, or Pam2CSK4 in
+precisely controlled temporal profiles: instant step increase, linear ramp, exponential ramp,
+and random fluctuating order. Nuclear NF-kB localization is tracked in real time by time-lapse
+fluorescence microscopy. Downstream, cells are retrieved from the chip for RT-qPCR measurement
+of NF-kB target gene expression.
+
+The central finding is that NF-kB acts as a dose differentiator: its nuclear localization
+amplitude (peak height and AUC) is proportional to the logarithm of the change in cytokine
+concentration, not the absolute concentration itself. This behaviour is analogous to an
+electronic differentiator circuit and is described by:
+
+    NF-kB ~ log(delta_cytokine + 1)   [for delta_cytokine > 0]
+
+A20 and IkBa negative feedbacks are identified as the molecular mechanism providing short-term
+memory of prior cytokine level, continuously resetting IKK cycling and receptor sensitivity.
+The protocol also includes an A20 CRISPR/Cas9 knockout arm that experimentally confirms A20's
+role, and RT-qPCR measurements showing that distinct cytokine input dynamics drive distinct
+subsets of NF-kB target gene expression.
+
+The complete experimental workflow covers device fabrication, chip priming, cell loading,
+multi-arm cytokine stimulation, live-cell imaging, mathematical modelling inputs, A20 KO
+cell generation, and downstream gene expression analysis.
+
+
+DEVICE ARCHITECTURE
+-------------------
+Two-layer PDMS microfluidic chip fabricated by multilayer soft lithography:
+
+Flow layer  : AZ40XT positive photoresist (25 um, 3400 RPM; rounded cross-section by hard-bake)
+              + SU-8 3025 negative photoresist (30 um, 3000 RPM) on 4-inch silicon wafer.
+Control layer: SU-8 3025 (25 um, 3500 RPM) on 4-inch silicon wafer.
+Lithography : Heidelberg MLA150 maskless aligner; 375 nm laser; 280 mJ/cm2 dose.
+
+PDMS layers:
+  Flow layer  : RTV-615 (Momentive), 66 g, 10:1 monomer:catalyst; ~2 cm thick slab;
+                cured 80 C >5 h; flow pattern grooved on bottom face.
+  Control layer: RTV-615, 10 g; spun at 2200 RPM (~50 um thin film); cured 80 C >=1 h.
+
+Assembly:
+  1. Flow layer inputs punched.
+  2. Both layers treated with oxygen plasma (Harrick PDC-001).
+  3. Layers aligned under custom stereomicroscope; cured 80 C overnight for bonding.
+  4. Control layer holes punched; chip bonded to 75 x 25 x 1 mm glass slide by plasma + bake.
+
+Chamber specifications:
+  - 64 independent sample chambers per chip
+  - Chamber size: 3.5 x 0.8 mm
+  - >500 cells per chamber
+  - Minimum feature spacing: 150 um (robust bonding and alignment)
+
+Actuation:
+  - Control layer: pneumatic solenoid valves at 25-30 psi
+  - Input media: pressurized at 3-4 psi through PEEK tubing (VICI, TPK.505) to prevent
+    shear stress on cells during feeding
+  - Automation: custom Matlab GUI; experiment scripts define feeding timing and medium
+    type per chamber; greatly improves accuracy, throughput, and reproducibility
+
+Surface coating:
+  - 1:3 fibronectin (1 mg/mL) in sterile PBS; loaded into chambers overnight at room
+    temperature before experiment day
+
+
+CELL LINES
+----------
+Primary experimental cell line:
+  - p65-/- 3T3 mouse embryonic fibroblasts (MEFs) expressing p65-DsRed and H2B-GFP
+    Cultured: DMEM (Gibco 11965092) + 10% fetal bovine calf serum (HyClone) +
+              1% GlutaMax (Gibco) + 1x penicillin-streptomycin (Gibco)
+    Passaging: Trypsin-EDTA (Gibco); ~1:10 dilution every 2-3 days before 100% confluency
+    Conditions: 37 C, 5% CO2
+    Imaging media: FluoroBrite DMEM (Gibco A1896702) + same supplements; used during
+                   experiments to reduce background fluorescence
+
+A20 knockout cell line:
+  - A20 KO MEFs: p65-/- background with p65-DsRed and H2B-GFP; A20 gene edited by
+    CRISPR/Cas9 lentiviral delivery; ~90% protein knockdown by Western blot.
+    Cultured and maintained under identical conditions to parental MEFs.
+
+
+REAGENTS
+--------
+Cytokines:
+  TNF-alpha     : Life Technologies, PMC3014
+                  Dose range: 0 to 10 ng/mL; instant dose 10 ng/mL;
+                  linear step 1 ng/mL/60 min; exponential doubling time 60 min;
+                  random range 0-10 ng/mL
+  IL-1beta      : R&D Systems, 401ML010CF
+                  Dose range: 0 to 2.5 ng/mL; instant dose 2.5 ng/mL;
+                  linear step 0.5 ng/mL/60 min; exponential doubling time 60 min
+  Pam2CSK4     : InvivoGen, tlrl-pm2s (TLR2 agonist; synthetic diacylated lipopeptide)
+                  Dose range: 0.2 to 12.8 ng/mL; doubling every 30 or 60 min
+                  Control ligand: NF-kB dose differentiation NOT observed for Pam
+
+Viability stains:
+  FDA           : 5 ug/mL; ex 490 nm / em 526 nm; labels live cells (green)
+  PI            : 2 ug/mL; ex 488 nm / em 617 nm; labels dead cells (red)
+
+Cell lysis:
+  CellsDirect Kit lysis buffer (ThermoFisher); 5 uL per sample;
+  snap-frozen at -80 C immediately after retrieval
+
+Surface coating:
+  Fibronectin (1 mg/mL) in sterile PBS; 1:3 dilution; overnight room temperature
+
+Trypsin: Trypsin-EDTA (Gibco)
+
+All cytokine-containing media prepared immediately before experiment and kept on ice.
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Fibronectin Surface Coating
+  Reagents    : Fibronectin 1 mg/mL in sterile PBS (1:3 dilution)
+  Operation   : Fill chambers; heat at room temperature (25 C)
+  Duration    : 12 h overnight (720 min; IR: 43200.0 SECOND)
+  Purpose     : Ensures cell adhesion to PDMS chamber floor before loading
+
+Step 2 | Chamber Flush and Device Equilibration
+  Reagents    : FluoroBrite DMEM + supplements
+  Operation   : Pressure-driven flush (abstracted as mix); heat at 37 C
+  Duration    : 60 min equilibration (IR: 3600.0 SECOND)
+  Purpose     : Removes unbound fibronectin; equilibrates to 37 C / 5% CO2 / ~100% humidity
+
+Step 3 | Cell Loading and Settling
+  Cell line   : 3T3 MEF p65-DsRed / H2B-GFP
+  Concentration: 5 x 10^6 cells/mL; targeting ~50% confluency (>500 cells/chamber)
+  Operation   : Gravity-assisted sedimentation (abstracted as mix); heat at 37 C
+  Duration    : >=60 min settling before stimulation begins (IR: 3600.0 SECOND)
+  Notes       : Chambers closed after loading; cells must adhere firmly
+
+Step 4 | Baseline Imaging (Pre-Stimulation)
+  Operation   : detect nfkbNuclearLocalizationDetection
+  Duration    : 30 min (IR: 1800.0 SECOND); 5-min imaging intervals = 6 frames
+  Purpose     : Establishes pre-stimulus nuclear p65-DsRed baseline (n > 200 cells/condition)
+
+Step 5a | Instant TNF Stimulation
+  Reagents    : TNF-alpha 10 ng/mL
+  Operation   : Media exchange (abstracted as mix); detect nfkbNuclearLocalizationDetection
+  Duration    : 300 min = 5 h (IR: 18000.0 SECOND); replenished every 60 min
+  Expected    : Strong NF-kB peak at ~25 min; exponential oscillation decay thereafter
+                (desensitisation to constant input; subsequent peaks 10-30% of initial)
+
+Step 5b | Instant IL-1beta Stimulation
+  Reagents    : IL-1beta 2.5 ng/mL
+  Operation   : Media exchange (abstracted as mix); detect nfkbNuclearLocalizationDetection
+  Duration    : 300 min (IR: 18000.0 SECOND)
+  Expected    : Parallel dynamics to TNF instant increase
+
+Step 6a | Linear TNF Ramp (5 Steps)
+  Reagents    : TNF-alpha; 1 ng/mL increment per step
+  Operation   : Sequential media exchange + detect per step
+  Duration    : 60 min per step (IR: 3600.0 SECOND); 5 steps total = 300 min
+  Expected    : Sustained oscillations; constant AUC at each step; confirms differentiator
+                Ramping rates tested: 0.75-10 ng/mL/h (Supplementary Fig. 1)
+
+Step 6b | Linear IL-1beta Ramp (5 Steps)
+  Reagents    : IL-1beta; 0.5 ng/mL increment per step
+  Operation   : Sequential media exchange + detect per step
+  Duration    : 60 min per step; 5 steps total
+  Expected    : Constant AUC at each step; differentiator confirmed for IL-1beta (Fig. 2A)
+
+Step 7a | Exponential TNF Ramp (5 Steps)
+  Reagents    : TNF-alpha; 2-fold increase per step from starting dose to 10 ng/mL
+  Operation   : Sequential media exchange + detect per step
+  Duration    : 60 min per step (IR: 3600.0 SECOND); 5 steps total
+  Expected    : AUC increases linearly with log(delta_TNF); R-squared ~0.963 (Fig. 2B)
+  QC note     : Final step (nfkbExpTNF_s5) used as QC gate anchor for nfkbSignal branch
+
+Step 7b | Exponential IL-1beta Ramp (5 Steps)
+  Reagents    : IL-1beta; 2-fold increase per step to 2.5 ng/mL
+  Operation   : Sequential media exchange + detect per step
+  Duration    : 60 min per step; 5 steps total
+  Expected    : Log-linear AUC increase; same differentiator relationship as TNF (Fig. 2B)
+
+Step 8 | Random-Order TNF Fluctuation (4 Steps)
+  Reagents    : TNF-alpha; randomly increasing and decreasing concentrations 0-10 ng/mL
+  Operation   : Sequential media exchange + detect per step
+  Duration    : 60 min per step (IR: 3600.0 SECOND); 4 steps
+  Expected    : AUC vs delta_TNF linear for positive changes (correlation ~0.91); sharp drop
+                for any concentration decrease; rectified differentiator behaviour confirmed
+                (Fig. 2C; Supplementary Fig. 3C for IL-1beta)
+
+Step 9 | Pam2CSK4 Exponential Ramp Control (5 Steps)
+  Reagents    : Pam2CSK4; doubled every 60 min from 0.2 to 12.8 ng/mL
+  Operation   : Sequential media exchange + detect per step
+  Duration    : 60 min per step (IR: 3600.0 SECOND); 5 steps (30 min also tested)
+  Expected    : Majority of cells show 1-2 sharp peaks; AUC slopes span negative to positive
+                across single-cell clusters; dose differentiation ABSENT for TLR2 ligand
+  Analysis    : Single-cell clustering by Matlab linkage (ward method, correlation metric);
+                4 groups; TNF slopes all positive (0.037-0.058); Pam slopes mixed
+                (-0.048 to +0.035) confirming specificity to TNFR/IL-1R pathway (Fig. 3)
+
+Step 10 | NF-kB Response QC Gate
+  Input       : nfkbExpTNF_s5 (final step of exponential TNF ramp)
+  Operation   : detect nfkbNuclearLocalizationDetection for 30 s
+  Branch:
+    Pass (BB2) : nfkbSignal > 0 -> valid oscillatory NF-kB response; dispose; continue
+    Fail (BB3) : nfkbSignal <= 0 -> no response (cell death or stimulation failure); drain
+  Both branches converge at BB4 (viability join)
+
+Step 11 | Cell Viability Assay (FDA/PI)
+  Reagents    : FDA/PI stain (FDA 5 ug/mL, PI 2 ug/mL)
+  Operation   : mix (10 min staining, room temperature, dark); detect viabilityDetection 30 s
+  Expected    : >80% viability for valid experiment
+  Branch:
+    Pass (BB5) : viabilitySignal > 0 -> viable cells; dispose; continue to gene expression
+    Fail (BB6) : viabilitySignal <= 0 -> low viability; drain
+  Both branches converge at BB7 (gene expression join)
+
+Step 12 | Cell Retrieval, Lysis, and RT-qPCR
+  Operation   : Trypsinize 1 min; PBS wash to open outlet; 2-3 uL droplet pipetted into
+                5 uL CellsDirect lysis buffer; snap-frozen at -80 C
+  RT-qPCR     : CellsDirect One-Step RT-qPCR kit; Biorad CFX384
+  Targets     : A20, RANTES, Ccl2, Zfp36, Casp4, Serpina3g (TaqMan probes)
+  Normalization: GAPDH; 2^(Cq_target - Cq_GAPDH)
+  Conditions  : Instant TNF (10 ng/mL, replenished hourly) vs exponential ramp
+                (2-fold/60 min for 5 h); cells retrieved at multiple time points during
+                and after stimulation (Fig. 7)
+  Detection   : detect geneExpressionDetection for 120 min (IR: 7200.0 SECOND)
+  Branch:
+    Pass (BB8) : geneExprSignal > 0 -> target mRNA detected above GAPDH; dispose lysate
+    Fail (BB9) : geneExprSignal <= 0 -> qPCR failure; drain lysate
+  Both branches converge at BB10 (terminal cleanup)
+
+
+KEY RESULTS
+-----------
+Differentiator equation:
+  NF-kB ~ log(delta_cytokine + 1)   for positive changes in cytokine concentration
+
+Linear ramp  : Constant NF-kB AUC at each step (NF-kB responds to constant rate of change)
+Exponential ramp : AUC increases log-linearly; TNF R-squared ~0.963; IL-1beta confirmed
+Random input : AUC-vs-delta_TNF correlation ~0.91 for increases; sharp drop for decreases
+Pam2CSK4    : No dose differentiation (TLR2 pathway); differentiator is receptor-specific
+
+A20 knockout results:
+  Exponential ramp : NF-kB saturates at much lower TNF dose; differentiator abolished
+  Constant dose    : NF-kB still decreasing at 120 min (vs 60 min for WT);
+                     mean oscillation frequency halved; more power at zero frequency
+  Random input     : AUC correlation reduced to ~0.76; NF-kB remains nuclear after dose decrease
+
+Gene expression clusters (TNF instant vs exponential):
+  Input-responsive (instant only) : Zfp36, Casp4 -- inflammation/apoptosis; require large
+                                     initial dose; minimal response during gradual ramp
+  Ramp-following                  : A20, Ccl2 -- mirror NF-kB peak height during ramp;
+                                     converge to same level when maximum dose is reached
+  Late-sustained                  : Serpina3g -- gradual increase only under persistent
+                                     high TNF; remains basal during exponential ramp
+  Input-independent               : RANTES -- increases continuously under both patterns
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file  : son_nfkb_dose_differentiation.bs
+Compiler        : lilott8/BioScript (ANTLR4-based)
+IR output       : 10 basic blocks (BB1-BB10), 3 if/else gates, 12 CFG edges
+DAG             : son_nfkb_dose_differentiation_main_dag.dot
+Duration units  : All durations converted to minutes (m) or seconds (s) for compiler
+                  compatibility (BioScript supports s and m only; h token not supported)
+                  12 h overnight coating  -> 720m  (IR: 43200.0 SECOND)
+                  300 min instant stim    -> 300m  (IR: 18000.0 SECOND)
+                  60 min per ramp step    -> 60m   (IR: 3600.0 SECOND)
+                  120 min qPCR detection  -> 120m  (IR: 7200.0 SECOND)
+ASCII constraint: All non-ASCII characters (kappa, beta, alpha, em-dash, +/- etc.) replaced
+                  with ASCII equivalents; ANTLR4 FileStream uses ASCII codec by default.
+                  Unicode in comments causes UnicodeDecodeError at byte 0xe2 (e.g. U+03B2).
+Negative temp   : -80 C snap-freeze step removed from .bs; compiler silently converts -80c
+                  to +80.0 CELSIUS in IR (lilott8/BioScript limitation). Step documented
+                  as a comment only.
+Modules         : nfkbNuclearLocalizationDetection, viabilityDetection,
+                  geneExpressionDetection
+Stimulation arms: All 6 arms encoded sequentially in BB1 (main):
+                    instant TNF (1 arm), instant IL-1beta (1 arm),
+                    linear TNF x5 steps, linear IL-1beta x5 steps,
+                    exponential TNF x5 steps, exponential IL-1beta x5 steps,
+                    random TNF x4 steps, Pam2CSK4 exponential x5 steps
+QC gate anchor  : nfkbSignal keyed on nfkbExpTNF_s5 (final exponential TNF ramp step)
+Pam control     : Encoded as separate sequential arm in BB1; not branched independently
+Verified outputs: IR and DOT confirmed correct after compilation; all timings, block
+                  structure, and CFG edges match expected 10-BB / 12-edge topology.

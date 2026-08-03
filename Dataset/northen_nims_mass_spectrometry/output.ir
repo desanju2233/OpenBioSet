@@ -1,0 +1,113 @@
+bsbbif_2_t:
+	dispose(nimsSurface1[0])
+bsbbif_3_f:
+	dispose(nimsSurface1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(surfaceQC1[0])
+	bsaDigest1[0] = dispense(BSA_TrypticDigest)
+	bsaSolvent1[0] = dispense(AcetonitrileWater_01TFA)
+	bsaSpot1[0] = mix(bsaDigest1[0], bsaSolvent1[0]) @ 10.0SECOND
+	heat(bsaSpot1[0]) @ 25.0CELSIUS @ 300.0SECOND
+	bsaSpot_nims1[0] = mix(bsaSpot1[0], nimsSurface2[0]) @ 5.0SECOND
+	peptideSignal1[0] = detect(nimsLaserDetection, bsaSpot_nims1[0]) @ 30.0SECOND
+	verapamilDrop1[0] = dispense(Verapamil)
+	verapamilSpot1[0] = mix(verapamilDrop1[0], nimsSurface2[0]) @ 5.0SECOND
+	heat(verapamilSpot1[0]) @ 25.0CELSIUS @ 300.0SECOND
+	if peptideSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	siliconWafer1[0] = dispense(BoronSilicon)
+	etchSolution1[0] = dispense(HydrofluoricAcid_Ethanol)
+	etchedSurface1[0] = mix(siliconWafer1[0], etchSolution1[0]) @ 1800.0SECOND
+	heat(etchedSurface1[0]) @ 25.0CELSIUS @ 1800.0SECOND
+	initiator1[0] = dispense(PerfluorinatedSiloxane_Initiator)
+	nitrogenJet1[0] = dispense(Nitrogen_Gas)
+	loadedSurface1[0] = mix(etchedSurface1[0], initiator1[0]) @ 2700.0SECOND
+	heat(loadedSurface1[0]) @ 25.0CELSIUS @ 2700.0SECOND
+	nimsSurface1[0] = mix(loadedSurface1[0], nitrogenJet1[0]) @ 30.0SECOND
+	surfaceQC1[0] = detect(nimsLaserDetection, nimsSurface1[0]) @ 10.0SECOND
+	if surfaceQC1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(bsaSpot_nims1[0])
+	dispose(verapamilSpot1[0])
+bsbbif_6_f:
+	dispose(bsaSpot_nims1[0])
+	dispose(verapamilSpot1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(peptideSignal1[0])
+	singleCell1[0] = dispense(MCF7_Cells_MDA_MB231)
+	cellOnSurface1[0] = mix(singleCell1[0], nimsSurface2[0]) @ 2.0SECOND
+	heat(cellOnSurface1[0]) @ 25.0CELSIUS @ 300.0SECOND
+	cellSignal1[0] = detect(nimsLaserDetection, cellOnSurface1[0]) @ 30.0SECOND
+	fdaPiStain1[0] = dispense(FDA_PI_Stain)
+	stainedCell1[0] = mix(cellOnSurface1[0], fdaPiStain1[0]) @ 600.0SECOND
+	fluoroSignal1[0] = detect(nimsFluorescenceDetection, stainedCell1[0]) @ 30.0SECOND
+	if cellSignal1[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(stainedCell1[0])
+	dispose(fluoroSignal1[0])
+bsbbif_9_f:
+	dispose(stainedCell1[0])
+	dispose(fluoroSignal1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(cellSignal1[0])
+	bk27_solution1[0] = dispense(Bradykinin_2_9)
+	bk17_solution1[0] = dispense(Bradykinin_1_7)
+	nt_solution1[0] = dispense(Neurotensin)
+	arraySolvent1[0] = dispense(AcetonitrileWater_01TFA)
+	bk27_spot1[0] = mix(bk27_solution1[0], arraySolvent1[0]) @ 5.0SECOND
+	bk17_spot1[0] = mix(bk17_solution1[0], arraySolvent1[0]) @ 5.0SECOND
+	nt_spot1[0] = mix(nt_solution1[0], arraySolvent1[0]) @ 5.0SECOND
+	peptideArray1[0] = mix(bk27_spot1[0], nimsSurface2[0]) @ 5.0SECOND
+	peptideArray2[0] = mix(bk17_spot1[0], peptideArray1[0]) @ 5.0SECOND
+	peptideArray3[0] = mix(nt_spot1[0], peptideArray2[0]) @ 5.0SECOND
+	heat(peptideArray3[0]) @ 25.0CELSIUS @ 300.0SECOND
+	arraySignal1[0] = detect(nimsIonDetection, peptideArray3[0]) @ 30.0SECOND
+	if arraySignal1[0] > 0	|	true: jump bsbbif_11_t	|	false: jump bsbbif_12_f
+bsbbif_11_t:
+	dispose(peptideArray3[0])
+bsbbif_12_f:
+	dispose(peptideArray3[0])
+	jump: bsbbif_13_j
+bsbbif_13_j:
+	dispose(arraySignal1[0])
+	tissueSection1[0] = dispense(MouseEmbryoTissueSection)
+	mountedTissue1[0] = mix(tissueSection1[0], nimsSurface2[0]) @ 30.0SECOND
+	heat(mountedTissue1[0]) @ 25.0CELSIUS @ 120.0SECOND
+	tissueSignal1[0] = detect(nimsLaserDetection, mountedTissue1[0]) @ 30.0SECOND
+	if tissueSignal1[0] > 0	|	true: jump bsbbif_14_t	|	false: jump bsbbif_15_f
+bsbbif_14_t:
+	dispose(mountedTissue1[0])
+bsbbif_15_f:
+	dispose(mountedTissue1[0])
+	jump: bsbbif_16_j
+bsbbif_16_j:
+	dispose(tissueSignal1[0])
+	bloodSample1[0] = dispense(FreshBlood)
+	nitrogenBlowOff1[0] = dispense(Nitrogen_Gas)
+	bloodOnSurface1[0] = mix(bloodSample1[0], nimsSurface2[0]) @ 30.0SECOND
+	bloodExcess1[0] = mix(bloodOnSurface1[0], nitrogenBlowOff1[0]) @ 5.0SECOND
+	heat(bloodExcess1[0]) @ 25.0CELSIUS @ 60.0SECOND
+	bloodNIMS1[0] = mix(bloodExcess1[0], nimsSurface2[0]) @ 5.0SECOND
+	urineSample1[0] = dispense(FreshUrine)
+	nitrogenBlowOff21[0] = dispense(Nitrogen_Gas)
+	urineOnSurface1[0] = mix(urineSample1[0], nimsSurface2[0]) @ 30.0SECOND
+	urineExcess1[0] = mix(urineOnSurface1[0], nitrogenBlowOff21[0]) @ 5.0SECOND
+	urineNIMS1[0] = mix(urineExcess1[0], nimsSurface2[0]) @ 5.0SECOND
+	biofluidSignal1[0] = detect(nimsLaserDetection, bloodNIMS1[0]) @ 30.0SECOND
+	urineSignal1[0] = detect(nimsLaserDetection, urineNIMS1[0]) @ 30.0SECOND
+	if biofluidSignal1[0] > 0	|	true: jump bsbbif_17_t	|	false: jump bsbbif_18_f
+bsbbif_17_t:
+	dispose(bloodNIMS1[0])
+	dispose(urineNIMS1[0])
+	dispose(urineSignal1[0])
+bsbbif_18_f:
+	dispose(bloodNIMS1[0])
+	dispose(urineNIMS1[0])
+	dispose(urineSignal1[0])
+	jump: bsbbif_19_j
+bsbbif_19_j:
+	dispose(biofluidSignal1[0])
+	NOP

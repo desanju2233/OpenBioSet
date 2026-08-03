@@ -1,0 +1,255 @@
+module depletionQC
+module fluorescenceDetection
+
+manifest ProteinAG_Beads
+manifest AntiHSA_Beads
+manifest PlasmaProteinSample
+manifest FITC_IgG
+manifest FITC_HSA
+manifest Hemopexin_Sample
+manifest PBS_Buffer
+manifest PluronicF68
+
+// ============================================================
+// A Digital Microfluidic Platform for Human Plasma Protein
+// Depletion
+// Mei, N. - M.Sc. Thesis, Queen's University, 2014
+// Supervisors: Dr. Richard D. Oleschuk & Dr. Aaron A. Wheeler
+//
+// Protocol: Automated on-chip depletion of high-abundance
+// plasma proteins (HSA and IgG) using paramagnetic bead-based
+// immunocapture on a two-plate DMF device. Eight-step procedure
+// performed on four samples simultaneously. Depleted samples
+// collected for downstream MALDI-MS or LC-MS/MS analysis.
+//
+// KEY REAGENTS:
+//   PureProteome(TM) Protein A/G Mix Magnetic Beads (10 um,
+//   LSKMAGAG02, Millipore) -- captures IgG via Protein A/G
+//   PureProteome(TM) Albumin Magnetic Beads (10 um,
+//   LSKMAGL02, Millipore) -- captures HSA via anti-HSA coating
+//   Pluronic F-68 (0.05%) in PBS -- selected surfactant;
+//   F-127 and L64 interfered with bead binding (Chapter 3).
+//
+// DEVICE OPERATION:
+//   Two-plate glass DMF chip fabricated at TNFC, U of Toronto.
+//   Driving voltage: 100-120 V_rms, 10 kHz sine wave.
+//   Unit droplet volume: 4 uL. Four 4 uL droplets merged per run.
+//   Automated controller: custom Microdrop software + Pogo-pin
+//   interface. Motor-controlled magnetic lens assembly (~600 uN
+//   force; threshold 470 uN). Incubation via figure-8 pattern
+//   across 4 electrodes for continuous mixing.
+//
+// CFG STRUCTURE:
+//   BB1  main              -- entry: bead washing, IgG+HSA
+//                             depletion, sample mixing, separation
+//   BB2  depletionPass     -- depletionSignal > 0: depletion
+//                             successful; dispose depleted sample
+//   BB3  depletionFail     -- depletionSignal <= 0: no depletion
+//                             signal; drain
+//   BB4  depletionJoin     -- join: fluorescence kinetics branch
+//   BB5  fluorescencePass  -- fluorescenceSignal > 0: valid
+//                             FITC-IgG depletion kinetics signal;
+//                             dispose kinetics droplet
+//   BB6  fluorescenceFail  -- fluorescenceSignal <= 0: no signal;
+//                             drain
+//   BB7  finalCleanup      -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Load reagents onto device.
+//   One droplet each of mixed beads (Protein A/G + anti-HSA)
+//   and protein sample loaded into reservoirs (4 uL each).
+//   Protein sample: 2 mg/mL IgG + 0.5 mg/mL HSA +
+//   0.1 mg/mL hemopexin (low-abundance marker) in PBS + F-68.
+//   Beads pre-diluted off-chip: Protein A/G at 1:4 from stock;
+//   anti-HSA at 1:2 from stock, in PBS.
+//   NOTE: `mix` here abstracts reservoir loading (pipette
+//   addition), not DMF electrode-based mixing.
+// ------------------------------------------------------------
+
+agBeads       = dispense 1 units of ProteinAG_Beads
+antiHsaBeads  = dispense 1 units of AntiHSA_Beads
+
+// Combine bead types into single mixed-bead suspension.
+// Both bead types used simultaneously for dual depletion
+// of IgG (via Protein A/G) and HSA (via anti-HSA coating).
+mixedBeads    = mix agBeads with antiHsaBeads for 5s
+
+proteinSample = dispense 1 units of PlasmaProteinSample
+pbsBuffer     = dispense 1 units of PBS_Buffer
+pluronic      = dispense 1 units of PluronicF68
+
+// Prepare protein sample with Pluronic F-68 additive for
+// on-chip droplet stability and prevention of non-specific
+// protein adsorption (Chapter 3: F-68 selected as optimal
+// Pluronic -- does not interfere with bead binding).
+samplePlusMix = mix proteinSample with pluronic for 5s
+
+// ------------------------------------------------------------
+// STEP 2: Actuate magnetic beads onto device array.
+//   Mixed bead droplet is moved from reservoir into the
+//   active electrode array under DMF actuation (100-120 V_rms,
+//   10 kHz). Beads remain suspended in droplet during transfer.
+// ------------------------------------------------------------
+
+beadDroplet   = mix mixedBeads with pbsBuffer for 5s
+
+// ------------------------------------------------------------
+// STEP 3: Engage magnet -- immobilize beads.
+//   Motor-controlled magnet positioned below chip (~600 uN
+//   force) to pellet paramagnetic beads onto device surface.
+//   `heat` at room temperature (25 C) for 30s models the
+//   immobilization dwell time while magnet is engaged.
+// ------------------------------------------------------------
+
+heat beadDroplet at 25c for 30s
+
+// ------------------------------------------------------------
+// STEP 4: Remove supernatant from beads.
+//   Supernatant (bead storage buffer) is actuated away from
+//   immobilized bead pellet by DMF electrode switching.
+//   Supernatant is moved to waste reservoir and wicked off
+//   with KimWipes. Beads remain immobilized on device.
+//   `mix` with buffer models the supernatant-removal wash step.
+// ------------------------------------------------------------
+
+washBuffer1   = dispense 1 units of PBS_Buffer
+beadWash1     = mix beadDroplet with washBuffer1 for 5s
+
+// Immobilize beads again after wash addition.
+heat beadWash1 at 25c for 30s
+
+// ------------------------------------------------------------
+// STEP 5: Merge protein sample droplet with bead pellet.
+//   Sample droplet actuated over immobilized beads; magnet
+//   disengaged to resuspend beads into protein sample.
+//   Mixed bead-sample droplet now contains IgG, HSA,
+//   hemopexin, and both bead types.
+// ------------------------------------------------------------
+
+beadProteinMix = mix beadWash1 with samplePlusMix for 10s
+
+// ------------------------------------------------------------
+// STEP 6: Active incubation -- figure-8 mixing for 10 min.
+//   Droplet moved continuously in figure-8 pattern across
+//   four electrodes (100-120 V_rms, 10 kHz) for 10 min to
+//   ensure particle dispersal and maximize antibody:antigen
+//   contact. Final depletion efficiency: up to 98% for both
+//   IgG and HSA (Chapter 4, Fig 4.5).
+//   10 min = 600s.
+// ------------------------------------------------------------
+
+heat beadProteinMix at 37c for 10m
+
+// ------------------------------------------------------------
+// STEP 7: Re-engage magnet -- immobilize bead-protein complex.
+//   Magnet re-engaged beneath chip. Beads (now carrying
+//   captured IgG and HSA) are re-pelletted. Depleted protein
+//   supernatant is actuated away from bead pellet by DMF.
+//   `heat` models the bead re-immobilization dwell.
+// ------------------------------------------------------------
+
+heat beadProteinMix at 25c for 30s
+
+// ------------------------------------------------------------
+// STEP 8: Separate depleted sample from beads.
+//   Supernatant droplet (depleted of IgG and HSA; hemopexin
+//   retained) is actuated to collection reservoir via DMF.
+//   Top plate removed off-chip; droplet transferred by pipette
+//   for downstream MALDI-MS or LC-MS/MS analysis.
+//   QC: detect fluorescence signal on collected depleted sample.
+//   (Fluorescence characterisation uses FITC-IgG as proxy;
+//   see Section 4.1.6.)
+// ------------------------------------------------------------
+
+washBuffer2   = dispense 1 units of PBS_Buffer
+depletedSample = mix beadProteinMix with washBuffer2 for 5s
+
+depletionSignal = detect depletionQC on depletedSample for 30s
+
+// ============================================================
+// BB2 / BB3: Depletion QC gate
+// Pass (BB2): depletionSignal > 0 -> depletion successful;
+//             dispose depleted sample (collected for analysis).
+// Fail (BB3): depletionSignal <= 0 -> depletion failed;
+//             drain.
+// Both branches converge at BB4 (depletionJoin).
+// ============================================================
+
+if (depletionSignal > 0) {
+    dispose depletedSample
+} else {
+    drain depletedSample
+}
+
+// ============================================================
+// BB4: depletionJoin
+// Dispose depletion QC signal. Control falls into fluorescence
+// kinetics characterisation branch (BB5/BB6).
+// (Section 4.1.6: depletion kinetics probed with FITC-IgG
+// using 30s incubation intervals up to 10 min total.)
+// ============================================================
+
+dispose depletionSignal
+
+// ------------------------------------------------------------
+// Fluorescence kinetics branch:
+//   FITC-IgG (0.5 mg/mL) is mixed with Protein A/G beads
+//   and incubated for 30 s (one kinetic interval). Supernatant
+//   extracted and measured on PHERAstar plate reader
+//   (485 nm excitation / 520 nm emission, gain 100).
+//   Repeated up to 10 min total (20 x 30s intervals, 3 reps).
+//   Here, one representative 30s incubation is encoded;
+//   BioScript has no loop construct so iterative intervals
+//   are abstracted as a single representative kinetics step.
+//
+//   For HSA kinetics: identical process with FITC-HSA
+//   (0.5 mg/mL, gain 125) and anti-HSA beads.
+// ------------------------------------------------------------
+
+fitcIgG        = dispense 1 units of FITC_IgG
+kineticsBeads  = dispense 1 units of ProteinAG_Beads
+
+kineticsMix    = mix fitcIgG with kineticsBeads for 5s
+
+// 30s kinetic incubation interval (figure-8 mixing).
+heat kineticsMix at 25c for 30s
+
+// Immobilize beads; extract supernatant for fluorescence read.
+heat kineticsMix at 25c for 30s
+
+pbsKinetics    = dispense 1 units of PBS_Buffer
+kineticsSupern = mix kineticsMix with pbsKinetics for 5s
+
+fluorescenceSignal = detect fluorescenceDetection on kineticsSupern for 30s
+
+// ============================================================
+// BB5 / BB6: Fluorescence kinetics QC gate
+// Pass (BB5): fluorescenceSignal > 0 -> valid FITC-IgG
+//             depletion signal detected; dispose kinetics droplet.
+// Fail (BB6): fluorescenceSignal <= 0 -> no signal (reagent
+//             failure or bead aggregation); drain.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (fluorescenceSignal > 0) {
+    dispose kineticsSupern
+} else {
+    drain kineticsSupern
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose fluorescence kinetics QC signal.
+// Experiment ends.
+// ============================================================
+
+dispose fluorescenceSignal
+
+// [terminal -- no further instructions; exit node for CFG]

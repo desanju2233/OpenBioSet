@@ -1,0 +1,275 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Proximity sequencing for the detection of mRNA, extracellular proteins and extracellular protein complexes in single cells
+Source Link  : https://www.nature.com/articles/s41596-024-01030-x
+Paper DOI    : https://doi.org/10.1038/s41596-024-01030-x
+Journal      : Nature Protocols, Volume 19, December 2024, pp. 3568-3589
+Platform     : Proximity Ligation Assay (PLA) + 10x Chromium 3' V3.1 single-cell RNA sequencing
+
+
+OVERVIEW
+--------
+This protocol describes Proximity Sequencing (Prox-seq), a method for the simultaneous
+measurement of extracellular proteins, mRNA, and hundreds of extracellular protein complexes
+from single cells. Prox-seq combines a proximity ligation assay (PLA) with single-cell mRNA
+sequencing, enabling characterisation of each individual cell across three analyte categories:
+proteins, mRNA, and protein complexes. The method is compatible with Drop-seq, 10x Chromium
+3' V3.1, and plate-based SMART-Seq2 single-cell isolation platforms. This BioScript file
+encodes the 10x Chromium 3' arm of the protocol.
+
+The core principle is that each targeted protein is labelled with two DNA-barcoded antibody
+probes (probe A and probe B). When two probes from any two proteins are within 50-70 nm on
+the cell surface, a short connector oligomer bridges their oligo tails and T4 ligase produces
+a covalent PLA ligation product. This product carries the barcodes of both proteins, enabling
+identification of which two proteins formed a complex. PLA products are co-captured with mRNA
+during 10x GEM generation using an additional U_fwd primer in the amplification mix, then
+separated from cDNA by SPRI size selection (0.6x ratio) and independently sequenced.
+
+The protocol is divided into five functional phases:
+  1. Probe preparation: antibody buffer exchange, DBCO conjugation, click-chemistry
+     oligo attachment (Steps 1-26; ~2 h work + overnight incubation)
+  2. Sample processing (PLA): cell staining, PLA ligation, post-ligation washes (Steps 27-40; ~3 h)
+  3. 10x Chromium single-cell isolation and library construction (Steps 87-102; ~8 h)
+  4. Next-generation sequencing on Illumina NextSeq 500/550 (Steps 132-134; ~1-2 days)
+  5. Computational analysis: cDNA alignment (Cell Ranger), PLA alignment (custom Java),
+     protein abundance and protein complex quantification (Python; Steps 135-147)
+
+The total wet-lab protocol requires approximately 16 h of work spread across several days.
+Prox-seq is currently the only single-cell technology capable of measuring hundreds of protein
+complexes simultaneously, with a reported throughput of 38 targets (741 protein pairs) and
+an estimated maximum of ~100 targets (5,050 possible pairs) in a single experiment.
+
+
+PROBE CHEMISTRY
+---------------
+Probe conjugation uses copper-free click chemistry (strain-promoted azide-alkyne cycloaddition):
+
+Step 1 : Antibody buffer exchange into PBS using Amicon Ultra-0.5 concentrator (50,000 MWCO).
+         CRITICAL: antibodies must be free of protein additives (BSA, gelatin) which react
+         with DBCO NHS ester. Compatible formulations: azide, Tris, glycerol.
+
+Step 2 : DBCO conjugation. Dissolve dibenzocyclooctyne-PEG4-N-hydroxysuccinimidyl ester
+         (Sigma-Aldrich 764019) in DMSO; prepare 2 mM stock (molar extinction coefficient
+         12,000 M-1 cm-1 at 309 nm). Mix with antibody at 1:10 DBCO:Ab volume ratio
+         (0.5-2 mg/mL antibody; CRITICAL). Incubate on ice (0 C) for 60 min.
+
+Step 3 : Purification and QC. Repeat concentrator wash to remove unconjugated DBCO.
+         Measure absorbance at 280 nm (antibody; extinction coefficient 204,000 M-1 cm-1)
+         and 309 nm (DBCO; extinction coefficient 12,000 M-1 cm-1) on Nanodrop.
+         Target DBCO:Ab ratio: 1-10. Optimal input mass: 100 ug.
+         Store aliquots at -20 C; avoid freeze-thaw.
+
+Step 4 : Oligo conjugation (click chemistry). Combine 2 ug DBCO-Ab with equal volume of
+         80 uM azide-functionalized DNA oligomers (IDT custom; Probe A and Probe B oligos
+         carry unique barcodes; sequences from Vistain et al. Nat. Methods 2022).
+         Incubate overnight at 4 C (16 h = 960 min; reaction can extend to 2 days).
+         Store finished probes in 50% (wt/vol) glycerol/PBS at -20 C; stable >= 1 year.
+         Probe binding buffer: PBS + 0.1% BSA + 0.1 mg/mL salmon sperm DNA + 6.7 nM/isotype.
+         Final probe panel: 2.5 nM probe A + 2.5 nM probe B per target protein (5 nM total).
+
+
+CELL LINES
+----------
+- PBMCs (peripheral blood mononuclear cells): primary cell line used in key experiments;
+  Prox-seq discovered novel CD9-CD8 homodimer association specific to naive CD8 T cells.
+- Jurkat T cells: positive control for CD147 homodimers (common, detectable as protein complex).
+- NCI-H1299 or MCF-7 (user-defined): general model cell lines; any cell line accessible
+  by anti-surface-protein antibodies is compatible.
+- All cells cultured at 37 C, 5% CO2; resuspended in PBS (Ca2+/Mg2+ free) for protocol steps.
+- 10x Chromium requires 20,000 viable cells input (>80% viability).
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Antibody Buffer Exchange (Steps 1-12)
+  Reagents : Antibody in storage buffer, PBS (GIBCO, cat. 20012027)
+  Equipment : Amicon Ultra-0.5 concentrator, 50,000 MWCO (EMD Millipore, cat. UFC5050)
+  Spin      : 14,000g, 4 C; three wash cycles (500 uL, 450 uL, 450 uL PBS)
+  Duration  : 1 + 5 + 5 + 10 min spin cycles (BioScript: three mix steps of 5m, 5m, 10m)
+  Purpose   : Remove protein additives from antibody storage buffer.
+
+Step 2 | DBCO Stock Preparation and Antibody Conjugation (Steps 13-19)
+  Reagents  : DBCO-PEG4-NHS ester (Sigma 764019), DMSO (Sigma D8418), PBS, concentrated Ab
+  Operation : Dissolve DBCO in 10 uL DMSO; dilute 1:100 in PBS for 309 nm Nanodrop QC;
+              prepare 2 mM stock. Combine with antibody at 1:10 volume ratio.
+  Incubation: On ice (0 C), 60 min (extendable to 120 min). BioScript: heat at 0c for 60m.
+  Critical  : Antibody concentration must be 0.5-2 mg/mL before conjugation.
+
+Step 3 | DBCO-Antibody Purification and QC Gate (Steps 20-23)
+  Reagents  : PBS, Nanodrop spectrophotometer
+  Operation : Repeat concentrator wash (Steps 4-12); measure 280 nm and 309 nm absorbance.
+  QC pass   : DBCO:Ab ratio 1-10 (dbcoSignal > 0) -> dispose dbcoReaction; proceed.
+  QC fail   : Ratio out of range (dbcoSignal <= 0) -> drain; troubleshoot scale or DBCO ratio.
+
+Step 4 | Azide-DNA Oligo Conjugation (Steps 24-26)
+  Reagents  : DBCO-Ab (2 ug), Azide-DNA oligo A (80 uM), Azide-DNA oligo B (80 uM)
+  Reaction  : Copper-free click chemistry; 4 C, 16 h (960 min). BioScript: heat at 4c for 960m.
+  Output    : Prox-seq probe panel (2.5 nM each probe; 5 nM total per targeted protein).
+
+Step 5 | Cell Pelleting, Fc Blocking, and BSA Wash (Steps 27-31)
+  Reagents  : PBS, TruStain FcX (Biolegend, cat. 422302), 1% BSA/PBS
+  Spin      : 300-500g, 4 C, 5 min
+  Fc block  : 10 min; prevents non-specific antibody binding.
+  Purpose   : Prepare cells for probe staining.
+
+Step 6 | Prox-seq Probe Staining (Steps 32-34)
+  Reagents  : Cell pellet, Prox-seq probe panel in probe binding buffer
+  Volume    : 30 uL probe mixture per 100,000 cells
+  Incubation: 37 C, 30-60 min (45 min modelled in BioScript as midpoint).
+  Purpose   : Antibody-DNA probes bind target proteins on cell surface.
+
+Step 7 | Post-Staining Washes (Step 35)
+  Reagents  : 1% BSA/PBS, 1 mL per wash
+  Washes    : 3x by centrifugation and resuspension (300-500g, 4 C, 5 min each).
+  Note      : If overprocessing is a concern, reduce by at least one wash.
+
+Step 8 | PLA Ligation (Steps 36-37)
+  Reagents  : Ligation buffer (50 mM HEPES pH 7.5, 10 mM MgCl2, 1 mM rATP,
+              9.5 nM connector TTTCACGACACGACACGATTTAGGTC, 130 U/mL T4 ligase),
+              RNase inhibitor (murine; NEB, cat. M0314L)
+  Volume    : 100 uL ligation buffer per sample
+  Incubation: 37 C, 30 min
+  Mechanism : Connector oligo bridges probe A and probe B when within 50-70 nm;
+              T4 ligase seals the nick -> covalent PLA ligation product.
+  Optional  : Free oligo method (Step 38): add free oligos A and B with additional connector
+              in two sequential 15-min steps to ensure all probes are measurable.
+              Benefits minor for highly expressed target panels; increases overprocessing risk.
+
+Step 9 | Post-Ligation Washes and Viability Check (Steps 39-40)
+  Reagents  : 1% BSA/PBS (2 washes), PI (Invitrogen, cat. P1304MP),
+              Dead cell removal kit (Miltenyi, cat. 130-090-101)
+  Washes    : 2x post-ligation washes to remove excess connector and ligase.
+  Viability : viableCells derived from postLigWash2 + Miltenyi kit (independently).
+              stainedForSort derived from postLigWash2 + PI (independently).
+              CRITICAL (BioScript): viableCells must NOT appear inside either gate branch
+              to remain live at bsbbif_7_j. Only stainedForSort is disposed/drained in gate.
+  QC pass   : viabilitySignal > 0 (>80% viable) -> dispose stainedForSort; proceed to 10x.
+  QC fail   : viabilitySignal <= 0 -> drain stainedForSort; reduce washes or increase spin.
+
+Step 10 | 10x Chromium GEM Generation (Steps 87-90)
+  Reagents  : Viable cells (20,000), Chromium Next GEM Chip G (cat. 1000127),
+              Chromium GEL beads v3.1 (cat. 1000268), partitioning oil,
+              KAPA HiFi ReadyMix, dNTP mix, U_fwd primer (2 uM; CRITICAL)
+  Filter    : 40 um cell strainer before loading to remove clumps (Step 88).
+  Operation : 10x 3' single-cell isolation per manufacturer protocol until just before cDNA
+              amplification; then add 1 uL of 2 uM U_fwd primer to amplification mix (Step 90).
+  PCR       : 12 cycles (98 C 20s / 67 C 20s / 72 C 20s); U_fwd co-amplifies PLA products.
+  Note      : Without U_fwd, PLA products are not amplified and are lost.
+
+Step 11 | SPRI Size Selection: Separate cDNA from PLA Products (Steps 91-94)
+  Reagents  : SPRIselect beads (Beckman Coulter, cat. B23317) x2 independent dispensations,
+              Buffer EB (Qiagen, cat. 19086)
+  cDNA path : 0.6x SPRI (cDNA ~1,000 bp binds beads; PLA ~100 bp stays in supernatant).
+              Wash beads 2x 80% ethanol; elute cDNA into 35 uL Buffer EB.
+  PLA path  : CRITICAL (Step 92): SAVE 75 uL supernatant containing PLA products.
+              In standard 10x protocol this supernatant is DISCARDED; in Prox-seq it is retained.
+  TapeStation QC: cDNA peak ~1,000 bp (Fig. 2c); PLA peak ~100 bp (Fig. 2d).
+  BioScript SSA: Two independent SPRI dispensations (spriBeads_cDNA and spriBeads_PLA)
+              produce spriMix_cDNA and spriMix_PLA as separate single-use variables.
+              spriMix_cDNA consumed by elutedCDNA; spriMix_PLA flows through BB8/BB9 gate
+              UNTOUCHED (not disposed or drained) and consumed at bsbbif_10_j by plaCleanup.
+  QC pass   : librarySignal > 0 -> dispose(spriMix_cDNA); spriMix_PLA passes through.
+  QC fail   : librarySignal <= 0 -> drain(spriMix_cDNA); check AMPure bead volume.
+
+Step 12 | cDNA Gene Expression Library Construction (Step 95)
+  Reagents  : Purified cDNA (10 uL), KAPA HiFi ReadyMix, 10x V3.1 library kit
+  Protocol  : Standard 10x Genomics single-cell 3' V3.1 gene expression library protocol.
+  Output    : GEX library (~500 bp; Fig. 2e); 1% vol/vol PhiX spike for sequencing.
+
+Step 13 | PLA Product Library Construction (Steps 96-102)
+  Reagents  : PLA supernatant (spriMix_PLA), SPRIselect beads (2.1x then 1.2x),
+              Buffer EB, KAPA HiFi ReadyMix, 10x_SI_PCR primer (0.2 uM),
+              P7_N70X_Custom2 primer (0.2 uM), nuclease-free water
+  2.1x SPRI : Bind PLA products from supernatant; wash 2x 80% ethanol; elute 40 uL Buffer EB.
+  PCR       : 12 cycles; 98 C 2 min initial denature; 98 C 20s / 60 C 30s / 72 C 20s;
+              72 C 5 min; hold 4 C. (60 C anneal; lower than cDNA due to short amplicon.)
+  1.2x SPRI : Final cleanup; elute into 40 uL Buffer EB.
+  QC        : Qubit (concentration) + TapeStation (size distribution; target ~228 bp; Fig. 2f).
+              Suboptimal example: no clear 228 bp peak (Fig. 2h) -> repeat 1.2x SPRI cleanup.
+  Storage   : -20 C until sequencing.
+  QC pass   : assaySignal > 0 -> proceed to sequencing.
+  QC fail   : assaySignal <= 0 -> drain plaLibrary and gexLibrary; troubleshoot SPRI volumes.
+
+Step 14 | Next-Generation Sequencing (Step 133)
+  Platform  : Illumina NextSeq 500/550
+  cDNA run  : High-output 150-cycle kit (cat. 20024907).
+              Read 1: 28 cycles; i7 index: 10 cycles; i5 index: 10 cycles; Read 2: 90 cycles.
+              PhiX: 1% vol/vol.
+  PLA run   : Mid-output 150-cycle kit (cat. 20024904). Separate run from cDNA library.
+              Read 1: 28 cycles; i7 index: 8 cycles; Read 2: 75 cycles.
+              PhiX: 40% vol/vol (CRITICAL: low PLA library complexity requires high PhiX).
+              Custom primers: DropPLA_Read2 (spiked into Illumina read 2 primer),
+              DropPLA_i7Read (custom i7 read primer) prepared per Illumina instructions.
+
+Step 15 | cDNA Alignment (Steps 135-138; computational)
+  Software  : Cell Ranger v6.1.1+ (10x Genomics)
+  Commands  : cellranger mkref (build reference genome index from NCBI/Ensembl files)
+              cellranger count (alignment + gene-barcode + cell-barcode matrix output)
+  Output    : Gene expression matrix; loadable in R with Read10x; Seurat/Scanpy compatible.
+
+Step 16 | PLA Product Alignment (Steps 139-143; computational)
+  Software  : PLA_alignment.jar (github.com/tay-lab/Prox-seq/blob/master/PLA_alignment.jar)
+  Commands  : ReadAlignment10x -> BulidCellBarcodes -> CellBarcodeCorrection (SUFFIX=-1 for 10x)
+              -> UMIMerging -> DigitalCount
+  Output    : Digital PLA product Expression (DPE) matrix (text file).
+  Note      : Detailed alignment guidance: github.com/tay-lab/Prox-seq/blob/master/alignment_manual.pdf
+
+Step 17 | Protein Abundance and Complex Quantification (Steps 144-147; computational)
+  Software  : Python scripts; github.com/tay-lab/NProt_data-src (Anaconda3/Python v3.8.8)
+  Steps     : Import DPE matrix -> PLA object.
+              calculateProteinCount -> protein_count dataframe.
+              predictComplex (method='iterative' default; method='lr' for free oligo only)
+              -> complex_count dataframe.
+  Filtering : Double filter: (1) mRNA-based cell barcode correction; (2) filter cells with
+              too few or too many PLA product UMIs.
+  Output    : Three integrated count matrices (mRNA, protein, protein complex) for
+              multimodal single-cell analysis in Seurat or Scanpy.
+  Proximity noise: Random co-localisation of proteins within 50-70 nm without functional
+              interaction; the iterative method accounts for this computationally.
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : vistain_proxseq_10x.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : vistain_proxseq_10x.ir
+DAG output     : vistain_proxseq_10x_main_dag.dot
+Basic blocks   : 13 (BB1-BB13); 5 if/else gates; 16 CFG edges
+Duration units : BioScript supports s and m only; h token not supported.
+                 Overnight 16h click reaction -> 960m  (IR: 57600.0 SECOND)
+                 On-ice DBCO incubation 1h    -> 60m   (IR: 3600.0 SECOND)
+                 Sequencing run ~10h          -> 600m  (IR: 36000.0 SECOND)
+Modules        : dbcoConjugationQC, plasmidLigationQC, viabilityDetection,
+                 proxseqLibraryQC, plaProductDetection
+Biological scope note: This .bs file encodes the 10x Chromium 3' arm only.
+                 Drop-seq arm (Steps 41-86) and plate-based arm (Steps 103-131)
+                 require separate .bs files with respective primer and PCR program differences.
+                 Computational steps 135-147 (Cell Ranger, PLA_alignment.jar, Python) are
+                 not encodable in BioScript; documented in comments in terminal BB13.
+
+SSA LIVENESS FIXES (lilott8/BioScript single-use token semantics)
+-------------------------------------------------------------------
+Fix 1 | viableCells2[0] dangling reference
+  Root cause : Compiler marks any variable consumed (dispose or drain) inside a branch as dead
+               at the subsequent join block; allocates a new SSA slot on downstream use.
+  Previous   : viableCells was derived from stainedForSort (already consumed by detect),
+               then drained in the fail branch -> viableCells2[0] dangling ref in bsbbif_7_j.
+  Solution   : viableCells and stainedForSort both derive INDEPENDENTLY from postLigWash2.
+               viableCells is NOT consumed inside either gate branch (no dispose, no drain).
+               Only stainedForSort is disposed/drained. viableCells flows through both
+               branches untouched -> remains live as viableCells1[0] in bsbbif_7_j.
+
+Fix 2 | spriMix_PLA2[0] dangling reference
+  Root cause : Single spriMix1 variable consumed twice (by elutedCDNA and by plaCleanup)
+               violated SSA single-use token semantics -> new slot on second use.
+  Solution   : Two independent dispenses of SPRIselect_Beads produce two separate variables:
+               spriMix_cDNA (consumed once by elutedCDNA) and
+               spriMix_PLA (consumed once by plaCleanup in bsbbif_10_j).
+               spriMix_PLA flows through the BB8/BB9 library QC gate COMPLETELY UNTOUCHED
+               (not disposed or drained in either branch) -> remains live as spriMix_PLA1[0]
+               at bsbbif_10_j where it is consumed by mix(spriMix_PLA, spriBeads2).
+
+General rule: A variable that must be live at a join block must not be consumed (dispose
+              or drain) inside ANY branch leading to that join block.

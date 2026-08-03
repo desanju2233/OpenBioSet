@@ -1,0 +1,494 @@
+{
+  "protocol": {
+    "title": "Droplet-based Single-cell Joint Profiling of Histone Modification and Transcriptome (Droplet Paired-Tag)",
+    "source": "Research Square preprint, 2023 (Method Article)",
+    "doi": "10.21203/rs.3.pex-2310/v1",
+    "platform": "10x Chromium Next GEM Single Cell Multiome (ATAC + Gene Expression) with pA-Tn5 tagmentation",
+    "cell_lines": ["Mouse embryonic stem cells (mESC)", "Primary mouse brain tissue (dissociated nuclei)"],
+    "objective": "Simultaneous single-cell profiling of histone modifications (CUT&Tag) and gene expression (RNA-seq) using droplet microfluidics; joint multiomic readout at scale with higher signal-to-noise than combinatorial indexing Paired-Tag",
+
+    "sequencing_platform": {
+      "instrument": "Illumina NextSeq 2000",
+      "dna_library_kit": "200-cycle kit (Illumina #20046812)",
+      "rna_library_kit": "100-cycle kit (Illumina #20046811)",
+      "dna_cycle_config": "100+8+24+100 (Read1 + Index1 + Index2 + Read2); Index2 carries cellular barcodes",
+      "rna_cycle_config": "28+10+10+72 (Read1 + Index1 + Index2 + Read2); Read1 carries cellular barcodes",
+      "demultiplexing": "cellranger-arc mkfastq (10X Genomics); downstream analysis with in-house pipeline"
+    },
+
+    "reagents": {
+      "buffers": {
+        "ATAC_RSB_Buffer": {
+          "composition": "300 uL 1M Tris-HCl pH 7.4 + 60 uL 5M NaCl + 90 uL 1M MgCl2 + 29.55 mL H2O",
+          "use": "Base diluent for OMNI lysis buffer, MED1, MED2, and 1X Nuclei Buffer"
+        },
+        "OMNI_Lysis_Buffer": {
+          "volume_uL": 750,
+          "components": {
+            "ATAC_RSB_Buffer_uL": 693.75,
+            "Digitonin_2pct_uL": 3.75,
+            "IGEPAL_CA630_10pct_uL": 7.5,
+            "Tween20_10pct_uL": 7.5,
+            "SUPERaseIN_uL": 15,
+            "RNaseOUT_uL": 7.5,
+            "PI_50X_uL": 15
+          },
+          "use": "Nuclei lysis; freshly prepared on ice before use"
+        },
+        "MED_Buffer_1": {
+          "volume_uL": 1000,
+          "components": {
+            "HEPES_1M_pH7.5_uL": 20,
+            "NaCl_5M_uL": 54.2,
+            "Spermidine_1M_uL": 0.5,
+            "PI_50X_uL": 20,
+            "SUPERaseIN_uL": 50,
+            "RNaseOUT_uL": 25,
+            "IGEPAL_CA630_10pct_uL": 1,
+            "Digitonin_2pct_uL": 5,
+            "EDTA_500mM_uL": 4,
+            "BSA_10pct_uL": 200,
+            "H2O_uL": 620.3
+          },
+          "note": "RNase inhibitor concentration doubled vs standard; suitable for mouse embryos. For cultured cells or brain tissue, 50% concentration has no impact on RNA quality.",
+          "use": "Antibody-pA-Tn5 conjugation, nuclei resuspension, overnight epitope targeting"
+        },
+        "MED_Buffer_2": {
+          "volume_uL": 1000,
+          "components": {
+            "HEPES_1M_pH7.5_uL": 20,
+            "NaCl_5M_uL": 54.2,
+            "Spermidine_1M_uL": 0.5,
+            "PI_50X_uL": 20,
+            "SUPERaseIN_uL": 50,
+            "RNaseOUT_uL": 25,
+            "IGEPAL_CA630_10pct_uL": 1,
+            "Digitonin_2pct_uL": 5,
+            "BSA_10pct_uL": 200,
+            "H2O_uL": 699.3
+          },
+          "note": "Identical to MED1 but without EDTA; Mg2+ must be free for Tn5 tagmentation activity",
+          "use": "Nuclei wash (x2) and tagmentation resuspension on Day 2"
+        },
+        "PBS_RNase_Inhibitor_Wash": {
+          "volume_uL": 1000,
+          "components": {
+            "PI_50X_uL": 20,
+            "SUPERaseIN_uL": 25,
+            "RNaseOUT_uL": 12.5,
+            "PBS_1X_uL": 942.5
+          },
+          "use": "Post-tagmentation nuclei wash"
+        },
+        "Nuclei_Buffer_1X": {
+          "volume_uL": 100,
+          "components": {
+            "NucleiBuffer_20X_10X_Genomics_PN2000207_uL": 5,
+            "DTT_100mM_uL": 1,
+            "SUPERaseIN_uL": 5,
+            "RNaseOUT_uL": 2.5,
+            "H2O_uL": 86.5
+          },
+          "use": "Final nuclei resuspension before 10x Chromium chip loading"
+        },
+        "Stop_Solution_2X": {
+          "composition": "10 uL 1M Tris-HCl + 40 uL 500mM EDTA + 200 uL 10% BSA + 750 uL H2O",
+          "use": "Terminate Tn5 tagmentation activity (added 1:1 to tagmentation reaction)"
+        }
+      },
+      "antibody": {
+        "type": "Rabbit polyclonal",
+        "target": "Histone modification epitope (e.g. H3K27ac, H3K27me3)",
+        "amount_per_reaction_ug": 1
+      },
+      "protein_a_tn5": {
+        "description": "Assembled bridged Protein A-Tn5 (pA-Tn5) transposome",
+        "concentration_mg_mL": 0.4,
+        "amount_per_reaction_uL": 1,
+        "assembly_note": "pMENTs-Bridge oligo annealed to AdapterA and AdapterB separately at 95C then cooled at 0.1C/s; each annealed adapter mixed with unloaded pA-Tn5 0.5 mg/mL; incubated 30 min RT + 10 min ice; AdapterA and AdapterB assemblies pooled 1:1; stored at -20C"
+      },
+      "10x_genomics_kit": {
+        "bundle": "Chromium Next GEM Single Cell Multiome ATAC + Gene Expression Reagent Bundle (Cat#1000283)",
+        "chip": "Chromium Next GEM Chip J Single Cell Kit, 48 rxns (Cat#1000234)",
+        "index_dna": "Single Index Kit N Set A, 96 rxn (Cat#1000212)",
+        "index_dual": "Dual Index Kit TT Set A 96 rxns (Cat#1000215)",
+        "nuclei_buffer_20x": "PN-2000207",
+        "atac_buffer_b": "PN-2000193",
+        "barcoding_reagent_mix": "PN-2000267",
+        "template_switch_oligo": "PN-3000228",
+        "reducing_agent_b": "PN-2000087",
+        "barcoding_enzyme_mix": "PN-2000266",
+        "quenching_agent": "PN-2000269"
+      },
+      "cleanup_beads": {
+        "SPRI_beads": "Beckman Coulter Cat#B23319",
+        "Dynabeads": "per 10X Multiome user guide CG000338"
+      }
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "day": 1,
+        "name": "OMNI Nuclei Lysis Buffer preparation",
+        "bb": "BB1 (main)",
+        "ir_variables": ["omniBuffer1[0]"],
+        "operation": "mix (sequential 6-component build from manifests)",
+        "duration_s": 30,
+        "temperature_C": 4,
+        "inputs": ["ATAC_RSB_Buffer", "Digitonin_2pct", "IGEPAL_CA630_10pct", "Tween20_10pct", "SUPERaseIN", "RNaseOUT", "PI_50X"],
+        "notes": "Freshly prepared on ice immediately before nuclei lysis. Three detergents (digitonin, IGEPAL, Tween-20) act synergistically to permeabilise plasma membrane while preserving nuclear integrity."
+      },
+      {
+        "id": "S2",
+        "day": 1,
+        "name": "MED Buffer 1 preparation and antibody-pA-Tn5 conjugation",
+        "bb": "BB1 (main)",
+        "ir_variables": ["med1BufferConj1[0]", "abTn5Conjugate1[0]"],
+        "operation": "mix",
+        "duration_s": 3600,
+        "temperature_C": 25,
+        "inputs": ["AntiHistoneAntibody", "ProteinATn5_Assembled", "HEPES_1M", "NaCl_5M", "Spermidine_1M", "PI_50X", "SUPERaseIN", "RNaseOUT", "IGEPAL_CA630_10pct", "Digitonin_2pct", "EDTA_500mM", "BSA_10pct", "ATAC_RSB_Buffer"],
+        "ir_duration_s": 3600.0,
+        "notes": "1 ug antibody + 1 uL pA-Tn5 (0.4 mg/mL) in 50 uL MED1. Rotate 60 min at room temperature (25 C). Product stored at -20 C if not used immediately."
+      },
+      {
+        "id": "S3",
+        "day": 1,
+        "name": "Nuclei preparation from cultured cells",
+        "bb": "BB1 (main)",
+        "ir_variables": ["cellPellet1[0]", "nucleiLysate1[0]", "nucleiInMed11[0]"],
+        "operation": "mix + heat (centrifugation modelled as heat at 4C)",
+        "inputs": ["TargetCells", "PBS"],
+        "sub_steps": [
+          {
+            "name": "PBS wash pellet",
+            "rcf": 300,
+            "duration_s": 300,
+            "temperature_C": 4,
+            "ir_heat_s": 300.0
+          },
+          {
+            "name": "OMNI lysis on ice",
+            "duration_s": 300,
+            "temperature_C": 4,
+            "ir_mix_s": 300.0,
+            "notes": "Resuspend in 750 uL OMNI buffer (<5 million cells/mL); sit on ice 5 min"
+          },
+          {
+            "name": "Nuclei pellet and MED1 resuspend",
+            "rcf": 1000,
+            "duration_s": 600,
+            "temperature_C": 4,
+            "ir_heat_s": 600.0,
+            "resuspend_volume_uL": 100
+          }
+        ],
+        "cell_input_range": "250,000 - 1,000,000 cells",
+        "notes": "Count nuclei using cell counter after MED1 resuspension."
+      },
+      {
+        "id": "S4",
+        "day": 1,
+        "name": "Epitope targeting (overnight antibody-pA-Tn5 incubation)",
+        "bb": "BB1 (main)",
+        "ir_variables": ["nucleiEpitopePrep1[0]", "nucleiWithAbTn51[0]"],
+        "operation": "mix + heat",
+        "inputs": ["MED1 (fresh instance from manifests)", "abTn5Conjugate"],
+        "nuclei_input_range": "250,000 - 500,000",
+        "pellet_step": { "rcf": 1000, "duration_s": 600, "temperature_C": 4, "ir_heat_s": 600.0 },
+        "resuspend_volume_uL": 25,
+        "incubation_temperature_C": 4,
+        "incubation_duration_s": 43200,
+        "ir_heat_s": 43200.0,
+        "notes": "Overnight at 4 C with rotation (~12 h = 720 min = 43200 s in IR). Conjugated antibody-pA-Tn5 binds histone modification epitopes on nuclei."
+      },
+      {
+        "id": "S5",
+        "day": 2,
+        "name": "MED Buffer 2 preparation (x3 instances)",
+        "bb": "BB1 (main, cont.)",
+        "ir_variables": ["med2BufferWash11[0]", "med2BufferWash21[0]", "med2BufferTag1[0]"],
+        "operation": "mix (three independent 9-component builds from manifests)",
+        "notes": "Three fresh MED2 instances built sequentially: wash1, wash2, tagmentation resuspend. EDTA excluded vs MED1 to permit Mg2+-dependent Tn5 activity."
+      },
+      {
+        "id": "S6",
+        "day": 2,
+        "name": "PBS + RNase Inhibitor wash buffer and 1X Nuclei Buffer preparation",
+        "bb": "BB1 (main, cont.)",
+        "ir_variables": ["pbsRIBuffer1[0]", "nucleiBuffer1X1[0]"],
+        "operation": "mix",
+        "notes": "Both buffers freshly prepared from manifests. pbsRIBuffer used for post-tagmentation wash; nucleiBuffer1X for final resuspension before Chromium loading."
+      },
+      {
+        "id": "S7",
+        "day": 2,
+        "name": "Nuclei washing (x2) and Tn5 tagmentation",
+        "bb": "BB1 (main, cont.)",
+        "ir_variables": ["nucleiWash11[0]", "nucleiWash21[0]", "tagmentationMix1[0]"],
+        "operation": "mix + heat",
+        "sub_steps": [
+          {
+            "name": "First MED2 wash",
+            "rcf": 300,
+            "wash_volume_uL": 50,
+            "duration_s": 600,
+            "temperature_C": 4,
+            "ir_heat_s": 600.0
+          },
+          {
+            "name": "Second MED2 wash",
+            "rcf": 300,
+            "wash_volume_uL": 50,
+            "duration_s": 600,
+            "temperature_C": 4,
+            "ir_heat_s": 600.0
+          },
+          {
+            "name": "MgCl2 activation and tagmentation",
+            "MgCl2_volume_uL": 2,
+            "MgCl2_concentration_mM": 250,
+            "resuspend_volume_uL": 50,
+            "agitation_rpm": 550,
+            "temperature_C": 37,
+            "duration_s": 3600,
+            "ir_heat_s": 3600.0,
+            "notes": "10X Genomics Multiome gel beads thawed at room temperature during this incubation"
+          }
+        ]
+      },
+      {
+        "id": "S8",
+        "day": 2,
+        "name": "Stop tagmentation and post-tagmentation wash",
+        "bb": "BB1 (main, cont.)",
+        "ir_variables": ["stoppedNuclei1[0]", "nucleiPostTag1[0]"],
+        "operation": "mix + heat",
+        "sub_steps": [
+          {
+            "name": "Stop reaction",
+            "stop_solution": "2X Stop Solution added 1:1 (50 uL)",
+            "ir_mix_s": 5.0
+          },
+          {
+            "name": "Pellet after stop",
+            "rcf": 500,
+            "duration_s": 360,
+            "temperature_C": 4,
+            "ir_heat_s": 360.0
+          },
+          {
+            "name": "PBS+RI wash",
+            "ir_mix_s": 5.0
+          },
+          {
+            "name": "Pellet after wash",
+            "rcf": 500,
+            "duration_s": 360,
+            "temperature_C": 4,
+            "ir_heat_s": 360.0
+          }
+        ]
+      },
+      {
+        "id": "S9",
+        "day": 2,
+        "name": "Nuclei resuspension and Chromium chip loading preparation",
+        "bb": "BB1 (main, cont.)",
+        "ir_variables": ["nucleiForLoading1[0]", "nucleiChipReady1[0]"],
+        "operation": "mix",
+        "resuspend_volume_uL": 20,
+        "aliquot_nuclei": "10,000 - 16,000 nuclei in 8 uL",
+        "atac_buffer_b_volume_uL": 7,
+        "final_load_volume_uL": 15,
+        "notes": "Count nuclei using cell counter after 1X Nuclei Buffer resuspension. ATAC Buffer B added immediately before loading onto Chip J."
+      },
+      {
+        "id": "S10",
+        "day": 2,
+        "name": "RT master mix preparation and GEM droplet generation",
+        "bb": "BB1 (main, cont.)",
+        "ir_variables": ["rtMasterMix1[0]", "gemEmulsion1[0]"],
+        "operation": "mix",
+        "master_mix_composition": {
+          "BarcodingReagentMix_PN2000267_uL": 49.5,
+          "TemplateSwitchOligo_PN3000228_uL": 1.1,
+          "ReducingAgentB_PN2000087_uL": 1.9,
+          "BarcodingEnzymeMix_PN2000266_uL": 7.5
+        },
+        "total_master_mix_uL": 60,
+        "nuclei_input_uL": 15,
+        "chip": "Chromium Next GEM Chip J",
+        "instrument": "ChromiumX (10X Genomics)",
+        "notes": "Chip assembly and reagent addition per 10X Multiome user guide CG000338. `mix` abstracts microfluidic GEM encapsulation; not a bulk mixing step."
+      },
+      {
+        "id": "S11",
+        "day": 2,
+        "name": "Reverse transcription and cell barcoding in droplets",
+        "bb": "BB1 (main, cont.)",
+        "ir_variables": ["gemEmulsion1[0]"],
+        "operation": "heat (two-stage GEM incubation program)",
+        "thermal_program": [
+          {
+            "stage": 1,
+            "description": "cDNA synthesis (reverse transcription)",
+            "temperature_C": 37,
+            "duration_s": 2700,
+            "ir_heat_s": 2700.0
+          },
+          {
+            "stage": 2,
+            "description": "Template switching and cell barcoding",
+            "temperature_C": 25,
+            "duration_s": 1800,
+            "ir_heat_s": 1800.0
+          }
+        ],
+        "lid_temperature_C": 50,
+        "instrument": "Bio-Rad T100 Thermal Cycler",
+        "emulsion_volume_uL": 100,
+        "notes": "Aspirate 100 uL emulsion into PCR tube post-generation. Both barcoding and RT complete during incubation."
+      },
+      {
+        "id": "S12",
+        "day": 2,
+        "name": "Quench RT reaction and products cleanup",
+        "bb": "BB1 (main, cont.)",
+        "ir_variables": ["quenchedEmulsion1[0]", "dynaClean1[0]", "spriClean1[0]"],
+        "operation": "mix",
+        "quenching_agent_volume_uL": 5,
+        "cleanup_protocol": "Dynabeads + SPRI beads per 10X Multiome user guide CG000338",
+        "dynabeads_mix_duration_s": 300,
+        "spri_mix_duration_s": 300,
+        "notes": "Pipette mix gently after quenching agent addition before proceeding to cleanup."
+      },
+      {
+        "id": "S13",
+        "day": 3,
+        "name": "Pre-amplification",
+        "bb": "BB1 (main, cont.)",
+        "ir_variables": ["preamplified1[0]"],
+        "operation": "mix + heat",
+        "base_protocol": "10X Multiome user guide CG000338",
+        "modification": "SPRI bead elution in 80 uL instead of 160 uL to concentrate tagmented fragments",
+        "rationale": "scCUT&Tag library complexity is lower than ATAC-seq; concentration maximises DNA library input",
+        "pcr_extension_temperature_C": 72,
+        "pcr_extension_duration_s": 300,
+        "ir_heat_s": 300.0,
+        "cycle_guidance": {
+          "H3K27ac": 13,
+          "H3K27me3": 12,
+          "note": "Adjust based on sample type and estimated recovered nuclei"
+        },
+        "storage": "Pre-amplified product stable at -20 C for up to 6 months"
+      },
+      {
+        "id": "S14",
+        "day": 3,
+        "name": "DNA and RNA library preparation",
+        "bb": "BB1 (main, cont.)",
+        "ir_variables": ["finalLibrary1[0]"],
+        "operation": "mix (SPRI cleanup)",
+        "base_protocol": "10X Multiome user guide CG000338",
+        "input_split": {
+          "DNA_library_input_uL": 40,
+          "RNA_library_input_uL": 17.5,
+          "RNA_water_added_uL": 17.5,
+          "note": "Water added to RNA input to maintain same total volume as standard 10X Multiome protocol"
+        },
+        "spri_cleanup_duration_s": 300,
+        "notes": "DNA and RNA library preps run independently. Encoded as single representative SPRI cleanup in BioScript."
+      },
+      {
+        "id": "S15",
+        "day": 3,
+        "name": "Library QC and sequencing",
+        "bb": "BB1 -> BB4/BB5 -> BB6",
+        "ir_variables": ["libraryQCSignal1[0]"],
+        "operation": "detect + if/else",
+        "detection_module": "libraryQCDetection",
+        "detection_duration_s": 30,
+        "ir_detect_s": 30.0,
+        "qc_criteria": {
+          "DNA_library_fragment_size_bp": "200-1000 (nucleosome ladder pattern)",
+          "RNA_cDNA_library_fragment_size_bp": "400-500 peak (narrow)"
+        },
+        "qc_instrument": "Fragment Analyzer or Agilent TapeStation",
+        "branch": {
+          "pass": {
+            "condition": "libraryQCSignal > 0",
+            "action": "dispose(finalLibrary)",
+            "bb": "bsbbif_2_t",
+            "notes": "Proceed to Illumina sequencing"
+          },
+          "fail": {
+            "condition": "libraryQCSignal <= 0",
+            "action": "drain(finalLibrary) [drain normalises to dispose in IR]",
+            "bb": "bsbbif_3_f",
+            "notes": "Re-evaluate PCR cycle number or nuclei input; check complexity"
+          }
+        }
+      }
+    ],
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1", "label": "main",        "type": "entry",       "ir_label": "main" },
+        { "id": "BB4", "label": "bsbbif_2_t",  "type": "branch_true", "ir_label": "bsbbif_2_t",
+          "condition": "libraryQCSignal > 0",  "action": "dispose(finalLibrary1[0])" },
+        { "id": "BB5", "label": "bsbbif_3_f",  "type": "branch_false","ir_label": "bsbbif_3_f",
+          "condition": "libraryQCSignal <= 0", "action": "dispose(finalLibrary1[0]) [drain in .bs]" },
+        { "id": "BB6", "label": "bsbbif_4_j",  "type": "terminal",    "ir_label": "bsbbif_4_j",
+          "action": "dispose(libraryQCSignal1[0]); NOP" }
+      ],
+      "edges": [
+        ["main", "bsbbif_2_t"],
+        ["main", "bsbbif_3_f"],
+        ["bsbbif_2_t", "bsbbif_4_j"],
+        ["bsbbif_3_f", "bsbbif_4_j"]
+      ],
+      "dag_file": "xie_droplet_paired_tag_main_dag.dot"
+    },
+
+    "compiler_notes": {
+      "bioscript_file": "xie_droplet_paired_tag.bs",
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "ir_output": "xie_droplet_paired_tag.ir",
+      "dag_output": "xie_droplet_paired_tag_main_dag.dot",
+      "ir_basic_blocks": 4,
+      "cfg_edges": 4,
+      "duration_unit_convention": "BioScript supports s and m only (no h). All durations converted to minutes.",
+      "duration_conversions": {
+        "60_min_conjugation": "60m -> IR: 3600.0 SECOND",
+        "5_min_PBS_wash_spin": "5m -> IR: 300.0 SECOND",
+        "10_min_lysis_spin": "10m -> IR: 600.0 SECOND",
+        "10_min_epitope_pellet_spin": "10m -> IR: 600.0 SECOND",
+        "overnight_epitope_incubation": "720m -> IR: 43200.0 SECOND",
+        "10_min_MED2_wash_spin": "10m -> IR: 600.0 SECOND",
+        "60_min_tagmentation": "60m -> IR: 3600.0 SECOND",
+        "6_min_stop_spin": "6m -> IR: 360.0 SECOND",
+        "6_min_pbsRI_spin": "6m -> IR: 360.0 SECOND",
+        "45_min_RT_stage1": "45m -> IR: 2700.0 SECOND",
+        "30_min_barcoding_stage2": "30m -> IR: 1800.0 SECOND",
+        "5_min_cleanup_dynabeads": "5m -> IR: 300.0 SECOND",
+        "5_min_cleanup_spri": "5m -> IR: 300.0 SECOND",
+        "5_min_preamp_extension": "5m -> IR: 300.0 SECOND",
+        "5_min_library_spri": "5m -> IR: 300.0 SECOND"
+      },
+      "drain_normalisation": "drain in .bs normalises to dispose in IR output; consistent with reference protocols",
+      "buffer_rebuild_note": "BioScript dispense is restricted to declared manifests. Buffers needed at multiple sites (MED1 x3, MED2 x3) are each rebuilt from manifests independently using prefixed variable names (m1a_, m1b_, m1c_, m2a_, m2b_, m2c_).",
+      "modules": ["libraryQCDetection"],
+      "manifests": [
+        "PBS", "ATAC_RSB_Buffer", "Digitonin_2pct", "IGEPAL_CA630_10pct",
+        "Tween20_10pct", "SUPERaseIN", "RNaseOUT", "PI_50X", "HEPES_1M",
+        "NaCl_5M", "Spermidine_1M", "BSA_10pct", "EDTA_500mM", "MgCl2_250mM",
+        "StopSolution_2X", "NucleiBuffer_20X", "DTT_100mM", "ATACBufferB",
+        "BarcodingReagentMix", "TemplateSwitchOligo", "ReducingAgentB",
+        "BarcodingEnzymeMix", "QuenchingAgent", "SPRIBeads", "DynaBeads",
+        "PCRMasterMix", "AntiHistoneAntibody", "ProteinATn5_Assembled", "TargetCells"
+      ]
+    }
+  }
+}

@@ -1,0 +1,468 @@
+module clusterFormationDetection
+module viabilityDetection
+module immunostainingDetection
+module drugEfficacyDetection
+
+manifest PatientBlood
+manifest RBCLysisBuffer
+manifest PBS
+manifest SupplementedDMEM
+manifest PluronicAcid
+manifest BSA
+manifest Ethanol70
+manifest FITCDye
+manifest DIWater
+manifest Doxorubicin
+manifest CalceinAM
+manifest PropidiumIodide
+manifest HoechstDye
+manifest PanCytokeratinAb
+manifest CD45Ab
+manifest EpCAMAb
+manifest ParaformaldehydeFixative
+manifest TritonX100
+manifest AntiCD45Microbeads
+manifest TrypsinEDTA
+
+// ============================================================
+// Expansion of Patient-Derived Circulating Tumor Cells from
+// Liquid Biopsies Using a CTC Microfluidic Culture Device
+// Khoo, Grenci, Lim, Lee, Han, Lim - Nature Protocols 2018,
+// Vol.13, No.1, pp.34-58. DOI: 10.1038/nprot.2017.125
+//
+// Protocol encodes the complete clinical sample workflow:
+// device priming and FITC gradient calibration (Steps 53-71),
+// RBC lysis and nucleated cell preparation (Steps 72-77),
+// CTC cluster culture (Steps 78-79), drug screening (Step 82),
+// and immunofluorescence characterisation (Steps 83-86).
+//
+// NOTE ON DEVICE ARCHITECTURE: The three-layer PDMS device
+// (gradient generator / barrier layer / microwell layer) is
+// modelled as a pre-fabricated entity. Photolithography and
+// soft-lithography fabrication (Steps 1-52) are cleanroom
+// benchtop procedures not representable as BioScript fluid
+// operations and are therefore omitted. BioScript encodes all
+// fluid dispensing, mixing, heat, detect, and QC-gate
+// operations from Step 53 onward.
+//
+// NOTE ON CO-CULTURE ABSTRACTION: Patient WBCs acting as
+// feeder cells for CTC cluster formation under hypoxia
+// (1% O2, 37C, 14 days) is modelled as heat at 37c.
+// 14 days = 20160 min. The Day-3 partial media change
+// (Step 78) is modelled as drain -> dispense -> mix.
+//
+// NOTE ON GRADIENT CALIBRATION: Steps 57-71 (FITC gradient
+// characterisation at five flow rates) are five independent
+// dispense/mix/detect cycles. `mix` abstracts dual-syringe
+// pump flow; `detect` abstracts fluorescence plate reader
+// readout of the eight outlet fractions at each flow rate.
+//
+// NOTE ON VARIABLE SCOPING: lilott8/BioScript evaluates
+// variables defined inside a conditional branch (if/else) as
+// potentially undefined in subsequent BBs. All QC-gated
+// variables (clusterSignal, drugSignal, stainingSignal)
+// are therefore defined at module scope (BB1/main) and
+// consumed by their respective QC gates in strict sequence.
+// Drug screening and immunostaining operations proceed
+// sequentially after the cluster QC join (BB4), with each
+// pair of branches (BB5/BB6, BB8/BB9) consuming only
+// module-scope variables. This mirrors the reference .bs
+// files (samlali, moazami) where inner-block variables are
+// limited to dispose/drain of the same-block droplet.
+//
+// CFG STRUCTURE:
+//   BB1  main              -- device priming, gradient
+//                             calibration, blood prep,
+//                             cell seeding, cluster culture,
+//                             drug screen, cell harvest,
+//                             immunostaining
+//   BB2  clusterPass       -- clusterSignal > 0: positive
+//                             sample (clusters detected);
+//                             dispose culturedDay14
+//   BB3  clusterFail       -- clusterSignal <= 0: negative
+//                             sample; drain culturedDay14
+//   BB4  clusterJoin       -- join: dispose clusterSignal;
+//                             drug screen branch begins
+//   BB5  drugPass          -- drugSignal > 0: valid
+//                             dose-response; dispose
+//                             druggedClusters
+//   BB6  drugFail          -- drugSignal <= 0: assay failure;
+//                             drain druggedClusters
+//   BB7  drugJoin          -- join: dispose drugSignal;
+//                             immunostaining branch begins
+//   BB8  stainingPass      -- stainingSignal > 0: CTC markers
+//                             detected; dispose imagingCells
+//   BB9  stainingFail      -- stainingSignal <= 0: no CTC
+//                             markers; drain imagingCells
+//   BB10 finalCleanup      -- terminal: dispose stainingSignal
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 53-54: Prime device with 70% (vol/vol) ethanol.
+//   Two syringes of 70% ethanol loaded on separate syringe
+//   pumps, injected simultaneously at 50 uL/min for ~5 min.
+//   Removes air bubbles from gradient generator channels.
+//   `mix` abstracts dual-syringe pump channel flow-through.
+// ------------------------------------------------------------
+
+ethanolA       = dispense 1 units of Ethanol70
+ethanolB       = dispense 1 units of Ethanol70
+primingEthanol = mix ethanolA with ethanolB for 5m
+
+// ------------------------------------------------------------
+// STEP 55-56: Flush ethanol with PBS at 100 uL/min (~5 min).
+//   Ensures all ethanol residue is removed from gradient
+//   generator before cell culture begins.
+// ------------------------------------------------------------
+
+pbsWashA       = dispense 1 units of PBS
+pbsWashB       = dispense 1 units of PBS
+primingPBS     = mix pbsWashA with pbsWashB for 5m
+
+dispose primingEthanol
+dispose primingPBS
+
+// ------------------------------------------------------------
+// STEP 57-68: Gradient generator calibration with FITC dye.
+//   Syringe 1: 100 uM FITC fluorescent dye in PBS.
+//   Syringe 2: DI water.
+//   Both pumped simultaneously at five flow rates in sequence
+//   (25, 50, 100, 150, 200 uL/min). At each flow rate,
+//   equilibration runs for 30 min, then 60 uL collected
+//   from each of the 8 channels into a 384-well plate for
+//   fluorescence intensity measurement (Tecan Infinite M200).
+//   `detect` abstracts plate reader readout; the module
+//   encodes the gradient uniformity QC check.
+//   Procedure repeated on three independent devices (Step 68).
+//   A second run at 20 uM FITC / 100 uL/min confirms
+//   concentration-independence of the gradient (Step 67).
+// ------------------------------------------------------------
+
+// --- Calibration Run 1: 25 uL/min ---
+fitcDye25      = dispense 1 units of FITCDye
+diWater25      = dispense 1 units of DIWater
+gradMix25      = mix fitcDye25 with diWater25 for 30m
+calibSig25     = detect clusterFormationDetection on gradMix25 for 30s
+dispose gradMix25
+dispose calibSig25
+
+// --- Calibration Run 2: 50 uL/min ---
+fitcDye50      = dispense 1 units of FITCDye
+diWater50      = dispense 1 units of DIWater
+gradMix50      = mix fitcDye50 with diWater50 for 30m
+calibSig50     = detect clusterFormationDetection on gradMix50 for 30s
+dispose gradMix50
+dispose calibSig50
+
+// --- Calibration Run 3: 100 uL/min ---
+fitcDye100     = dispense 1 units of FITCDye
+diWater100     = dispense 1 units of DIWater
+gradMix100     = mix fitcDye100 with diWater100 for 30m
+calibSig100    = detect clusterFormationDetection on gradMix100 for 30s
+dispose gradMix100
+dispose calibSig100
+
+// --- Calibration Run 4: 150 uL/min ---
+fitcDye150     = dispense 1 units of FITCDye
+diWater150     = dispense 1 units of DIWater
+gradMix150     = mix fitcDye150 with diWater150 for 30m
+calibSig150    = detect clusterFormationDetection on gradMix150 for 30s
+dispose gradMix150
+dispose calibSig150
+
+// --- Calibration Run 5: 200 uL/min ---
+fitcDye200     = dispense 1 units of FITCDye
+diWater200     = dispense 1 units of DIWater
+gradMix200     = mix fitcDye200 with diWater200 for 30m
+calibSig200    = detect clusterFormationDetection on gradMix200 for 30s
+dispose gradMix200
+dispose calibSig200
+
+// Final PBS flush to clear FITC residue from device channels.
+pbsFlushA      = dispense 1 units of PBS
+pbsFlushB      = dispense 1 units of PBS
+pbsFlush       = mix pbsFlushA with pbsFlushB for 5m
+dispose pbsFlush
+
+// ------------------------------------------------------------
+// STEP 72-73: Blood preparation - RBC lysis.
+//   10 mL patient blood (EDTA Vacutainer, kept on ice) mixed
+//   1:2 (vol/vol) with RBC lysis buffer (G-Bioscience) at
+//   room temperature for 3 min with gentle mixing until a
+//   homogeneous dark-red suspension is obtained.
+//   RBC lysis buffer is hypotonic; promotes hemolysis via
+//   osmotic stress. Samples must be processed within 6 h
+//   of draw. `heat` at 25c models room-temperature lysis.
+//   BioScript has no centrifuge primitive; separation is
+//   modelled as drain (remove supernatant/debris).
+// ------------------------------------------------------------
+
+patientBlood   = dispense 1 units of PatientBlood
+rbcBuffer      = dispense 1 units of RBCLysisBuffer
+lysedBlood     = mix patientBlood with rbcBuffer for 3m
+heat lysedBlood at 25c for 3m
+
+// Centrifuge 1000g, 5 min: pellet nucleated cells.
+// Drain supernatant (plasma + lysed RBC fragments).
+drain lysedBlood
+
+// ------------------------------------------------------------
+// STEP 75: PBS wash of nucleated cell pellet.
+//   Resuspend pellet in 5 mL PBS; centrifuge 335g, 3 min
+//   to remove residual RBC debris. Repeat if debris remains.
+//   Modelled as mix -> drain.
+// ------------------------------------------------------------
+
+pelletWashPBS  = dispense 1 units of PBS
+pelletWash     = mix pelletWashPBS with pelletWashPBS for 3m
+drain pelletWash
+
+// ------------------------------------------------------------
+// STEP 76: Resuspend nucleated cell pellet.
+//   Resuspend in 1 mL fresh supplemented DMEM (10% FBS,
+//   1% pen-strep). Seeding is volume-based (1 mL blood per
+//   1000 microwells), not count-based, because initial CTC
+//   count does not predict cluster-forming potential.
+// ------------------------------------------------------------
+
+resuspMedia    = dispense 1 units of SupplementedDMEM
+cellSuspension = mix resuspMedia with pelletWashPBS for 1m
+
+// ------------------------------------------------------------
+// STEP 77: Seed nucleated cells into microwell device.
+//   200-300 uL of cell suspension added per channel (8
+//   channels). No surfactant coating required for clinical
+//   samples; non-adherent blood cells cushion CTCs in wells.
+//   Culture at 37C, 5% CO2, 1% O2 (hypoxia incubator).
+//   `mix` abstracts multichannel pipette seeding. Day 0.
+// ------------------------------------------------------------
+
+freshBloodFeed = dispense 1 units of PatientBlood
+seededDevice   = mix cellSuspension with freshBloodFeed for 2m
+
+// Day 0 -> Day 3: Initial hypoxic culture (37C, 1% O2).
+// 72 h = 4320 min.
+heat seededDevice at 37c for 4320m
+
+// ------------------------------------------------------------
+// STEP 78: Day-3 partial media change.
+//   Remove 0.2 mL old medium (hand pipette or syringe pump
+//   at 200 uL/min). Replace with 0.2 mL fresh supplemented
+//   DMEM. Minimal disturbance critical to prevent cell loss.
+//   Modelled as drain -> dispense fresh media -> mix.
+// ------------------------------------------------------------
+
+drain seededDevice
+
+freshMedia1    = dispense 1 units of SupplementedDMEM
+culturedDay3   = mix seededDevice with freshMedia1 for 1m
+
+// Day 3 -> Day 14: Continued hypoxic culture (37C, 1% O2).
+// 11 days x 24 h x 60 min = 15840 min.
+heat culturedDay3 at 37c for 15840m
+
+// ------------------------------------------------------------
+// STEP 79: Day-14 cluster assessment.
+//   Phase-contrast microscopy of entire microwell array.
+//   Cluster criteria: multilayered cell aggregate with
+//   defined boundary; >=8 cells per 250 um^2; low grayscale
+//   histogram values in ImageJ. Positive threshold: >=50%
+//   microwells contain clusters. `detect` abstracts
+//   microscopic enumeration across all microwells.
+// ------------------------------------------------------------
+
+clusterSignal  = detect clusterFormationDetection on culturedDay3 for 30s
+
+// ============================================================
+// BB2 / BB3: Cluster formation QC gate
+// Pass (BB2): clusterSignal > 0 -> >=50% microwells contain
+//             clusters (positive sample); dispose culture.
+// Fail (BB3): clusterSignal <= 0 -> negative sample (<50%
+//             microwells with clusters); drain culture.
+// Both branches converge at BB4 (clusterJoin).
+// ============================================================
+
+if (clusterSignal > 0) {
+    dispose culturedDay3
+} else {
+    drain culturedDay3
+}
+
+// ============================================================
+// BB4: clusterJoin
+// Dispose cluster formation QC signal. Drug screen begins.
+// ============================================================
+
+dispose clusterSignal
+
+// ------------------------------------------------------------
+// STEP 82: Drug exposure after cluster formation.
+//   Doxorubicin (dissolved in DMSO) freshly diluted to 1 uM
+//   working concentration in supplemented DMEM; stored on
+//   ice until use. Gradient generator delivers 8-point
+//   dilution series across the 8 barrier channels in
+//   parallel (two inlets: drug + DMSO vehicle control).
+//   Drug solution introduced by syringe pump or hand pipette.
+//   Clusters incubated with drug for 48 h (2880 min) at 37C.
+//
+//   Live/dead staining after drug exposure (Step 82):
+//   calcein AM (live; ex 490 nm, em 526 nm) and propidium
+//   iodide (dead; ex 488 nm, em 617 nm) applied at 1:1000.
+//   `detect` abstracts fluorescence microscopy readout for
+//   dose-response IC50 curve generation.
+// ------------------------------------------------------------
+
+doxorubicin    = dispense 1 units of Doxorubicin
+dmemForDrug    = dispense 1 units of SupplementedDMEM
+drugSolution   = mix doxorubicin with dmemForDrug for 5s
+
+// 48 h drug incubation at 37C = 2880 min.
+heat drugSolution at 37c for 2880m
+
+calceinAM      = dispense 1 units of CalceinAM
+piStain        = dispense 1 units of PropidiumIodide
+viabilityStain = mix calceinAM with piStain for 1m
+
+druggedClusters = mix drugSolution with viabilityStain for 15m
+
+drugSignal     = detect drugEfficacyDetection on druggedClusters for 30s
+
+// ============================================================
+// BB5 / BB6: Drug efficacy QC gate
+// Pass (BB5): drugSignal > 0 -> valid dose-response viability
+//             signal obtained; dispose drugged clusters.
+// Fail (BB6): drugSignal <= 0 -> assay failure (cluster loss,
+//             contamination, or stain failure); drain.
+// Both branches converge at BB7 (drugJoin).
+// ============================================================
+
+if (drugSignal > 0) {
+    dispose druggedClusters
+} else {
+    drain druggedClusters
+}
+
+// ============================================================
+// BB7: drugJoin
+// Dispose drug efficacy QC signal. Immunostaining begins.
+// ============================================================
+
+dispose drugSignal
+
+// ------------------------------------------------------------
+// STEP 80: Harvest cells from microwells for immunostaining.
+//   Remove media; wash with 1 mL PBS. Add 1 mL trypsin
+//   (0.25% wt/vol + EDTA); incubate 37C for 3 min.
+//   Neutralise with equal volume fresh supplemented DMEM.
+//   Release clusters by gentle pipetting. Centrifuge at
+//   335g for 3 min; resuspend pellet in 1 mL PBS.
+//   BioScript models this as: mix (trypsin wash) ->
+//   heat (37C, 3 min) -> mix (neutralise) -> drain
+//   (remove supernatant) -> mix (resuspend in PBS).
+// ------------------------------------------------------------
+
+harvestPBS     = dispense 1 units of PBS
+trypsinEDTA    = dispense 1 units of TrypsinEDTA
+trypsinMix     = mix harvestPBS with trypsinEDTA for 3m
+heat trypsinMix at 37c for 3m
+
+freshMedia2    = dispense 1 units of SupplementedDMEM
+neutralisedCells = mix trypsinMix with freshMedia2 for 1m
+drain neutralisedCells
+
+resuspPBS      = dispense 1 units of PBS
+harvestedCells = mix resuspPBS with neutralisedCells for 1m
+
+// ------------------------------------------------------------
+// STEP 83B: Fixed-cell immunofluorescence staining.
+//
+//   (i)   Fix cells with 4% (wt/vol) PFA for 10 min on ice.
+//   (ii)  Block with 2.5% (wt/vol) BSA in PBS, 30 min on ice.
+//   (iii) Permeabilise with 0.1% (vol/vol) Triton X-100,
+//         1 min on ice.
+//   (iv)  PBS wash; centrifuge 335g, 3 min.
+//   (v)   Incubate with primary antibodies in 2.5% BSA/PBS:
+//         - pan-CK antibody (FITC, 1:50) - epithelial CTC marker
+//         - CD45 antibody (APC, 1:50)    - leukocyte marker
+//         - Hoechst dye (1 M, 1:1000)    - nuclear stain
+//         30 min on ice in the dark.
+//   Key phenotypes:
+//         CK+/CD45-/Hoechst+ = putative CTC
+//         CD45+/Hoechst+     = leukocyte feeder cell
+//   `heat` at 4c models all on-ice incubation steps.
+// ------------------------------------------------------------
+
+// (i) Fixation with 4% PFA, 10 min on ice.
+pfaFixative    = dispense 1 units of ParaformaldehydeFixative
+fixedCells     = mix harvestedCells with pfaFixative for 10m
+heat fixedCells at 4c for 10m
+
+// (ii) Blocking with 2.5% BSA in PBS, 30 min on ice.
+bsaBlock       = dispense 1 units of BSA
+blockedCells   = mix fixedCells with bsaBlock for 30m
+heat blockedCells at 4c for 30m
+
+// (iii) Permeabilisation with 0.1% Triton X-100, 1 min on ice.
+tritonX        = dispense 1 units of TritonX100
+permCells      = mix blockedCells with tritonX for 1m
+heat permCells at 4c for 1m
+
+// (iv) PBS wash to remove Triton X-100.
+pbsWash2       = dispense 1 units of PBS
+washedCells    = mix permCells with pbsWash2 for 3m
+drain washedCells
+
+// (v) Primary antibody + nuclear stain incubation, 30 min on ice.
+panCKAb        = dispense 1 units of PanCytokeratinAb
+cd45Ab         = dispense 1 units of CD45Ab
+hoechst        = dispense 1 units of HoechstDye
+abMix1         = mix panCKAb with cd45Ab for 5s
+abMix          = mix abMix1 with hoechst for 5s
+stainedCells   = mix washedCells with abMix for 30m
+heat stainedCells at 4c for 30m
+
+// ------------------------------------------------------------
+// STEP 84: Final PBS wash and resuspension for imaging.
+//   Wash stained cells with 5 mL PBS; pellet at 335g, 3 min;
+//   resuspend in 100 uL PBS. Transfer to 8-well chamber
+//   (Nunc Lab-Tek) for imaging on Olympus IX71 confocal
+//   (filter sets ET460/50m, ET535/50m, ET605/70).
+// ------------------------------------------------------------
+
+finalWashPBS   = dispense 1 units of PBS
+imagingCells   = mix stainedCells with finalWashPBS for 3m
+
+stainingSignal = detect immunostainingDetection on imagingCells for 30s
+
+// ============================================================
+// BB8 / BB9: Immunostaining QC gate
+// Pass (BB8): stainingSignal > 0 -> CTC markers detected
+//             (CK+/CD45-/Hoechst+ cells in clusters);
+//             dispose stained cell preparation.
+// Fail (BB9): stainingSignal <= 0 -> no CTC markers
+//             (false negative: check permeabilisation,
+//             antibody expiry, or antibody concentration);
+//             drain preparation.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (stainingSignal > 0) {
+    dispose imagingCells
+} else {
+    drain imagingCells
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose immunostaining QC signal. Experiment ends.
+// ============================================================
+
+dispose stainingSignal
+
+// [terminal -- no further instructions; exit node for CFG]

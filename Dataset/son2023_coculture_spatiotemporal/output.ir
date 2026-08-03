@@ -1,0 +1,149 @@
+bsbbif_2_t:
+	dispose(gradientChamber1[0])
+bsbbif_3_f:
+	gradientWaste1[0] = mix(gradientChamber1[0], washBuffer21[0]) @ 2.0SECOND
+	dispose(gradientWaste1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(gradientSignal1[0])
+	sinkFlow1[0] = dispense(FreshMedium)
+	gradientJoin1[0] = dispense(FreshMedium)
+	imagingChamber1[0] = mix(sinkFlow1[0], gradientJoin1[0]) @ 2.0SECOND
+	heat(imagingChamber1[0]) @ 37.0CELSIUS @ 12000.0SECOND
+	nfkbSignal1[0] = detect(nfkbTranslocationDetection, imagingChamber1[0]) @ 30.0SECOND
+	if nfkbSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	fibronectinCoat1[0] = dispense(Fibronectin)
+	pbsWash11[0] = dispense(PBS)
+	coatingMix1[0] = mix(fibronectinCoat1[0], pbsWash11[0]) @ 5.0SECOND
+	heat(coatingMix1[0]) @ 25.0CELSIUS @ 1800.0SECOND
+	washBuffer11[0] = dispense(DMEM_HighGlucose)
+	chambersCoated1[0] = mix(coatingMix1[0], washBuffer11[0]) @ 2.0SECOND
+	fibroblasts1[0] = dispense(RelA_DsRed_3T3_Fibroblasts)
+	dmemBase1[0] = dispense(DMEM_HighGlucose)
+	fibroblastSuspension1[0] = mix(fibroblasts1[0], dmemBase1[0]) @ 5.0SECOND
+	loadedFibroblasts1[0] = mix(chambersCoated1[0], fibroblastSuspension1[0]) @ 5.0SECOND
+	heat(loadedFibroblasts1[0]) @ 37.0CELSIUS @ 18000.0SECOND
+	hoechstStain1[0] = dispense(Hoechst33342)
+	stainedFibroblasts1[0] = mix(loadedFibroblasts1[0], hoechstStain1[0]) @ 600.0SECOND
+	macrophages1[0] = dispense(RelA_GFP_RAW264_Macrophages)
+	macrophageMedium1[0] = dispense(DMEM_HighGlucose)
+	macrophageSuspension1[0] = mix(macrophages1[0], macrophageMedium1[0]) @ 5.0SECOND
+	loadedMacrophages1[0] = mix(macrophageSuspension1[0], stainedFibroblasts1[0]) @ 2.0SECOND
+	heat(loadedMacrophages1[0]) @ 37.0CELSIUS @ 1800.0SECOND
+	lpsStimulus1[0] = dispense(LPS_50ngmL)
+	macrophageStimulated1[0] = mix(loadedMacrophages1[0], lpsStimulus1[0]) @ 600.0SECOND
+	washBuffer21[0] = dispense(FreshMedium)
+	lpsWashed1[0] = mix(macrophageStimulated1[0], washBuffer21[0]) @ 2.0SECOND
+	cy5Tracer1[0] = dispense(CyanonineFive)
+	gradientChamber1[0] = mix(lpsWashed1[0], cy5Tracer1[0]) @ 5.0SECOND
+	heat(gradientChamber1[0]) @ 37.0CELSIUS @ 24000.0SECOND
+	gradientSignal1[0] = detect(gradientDetection, gradientChamber1[0]) @ 10.0SECOND
+	if gradientSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(imagingChamber1[0])
+bsbbif_6_f:
+	nfkbWaste1[0] = mix(imagingChamber1[0], sinkFlow1[0]) @ 2.0SECOND
+	dispose(nfkbWaste1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(nfkbSignal1[0])
+	trypLESolution1[0] = dispense(TrypLE)
+	pbsRetrieval1[0] = dispense(PBS)
+	detachedCells1[0] = mix(trypLESolution1[0], pbsRetrieval1[0]) @ 70.0SECOND
+	pbsNear1[0] = dispense(PBS)
+	lysisNear1[0] = dispense(LysisBuffer)
+	nearCells1[0] = mix(detachedCells1[0], pbsNear1[0]) @ 5.0SECOND
+	nearLysate1[0] = mix(nearCells1[0], lysisNear1[0]) @ 5.0SECOND
+	pbsMid1[0] = dispense(PBS)
+	lysisMid1[0] = dispense(LysisBuffer)
+	midCells1[0] = mix(detachedCells1[0], pbsMid1[0]) @ 5.0SECOND
+	midLysate1[0] = mix(midCells1[0], lysisMid1[0]) @ 5.0SECOND
+	pbsFar1[0] = dispense(PBS)
+	lysisFar1[0] = dispense(LysisBuffer)
+	farCells1[0] = mix(detachedCells1[0], pbsFar1[0]) @ 5.0SECOND
+	farLysate1[0] = mix(farCells1[0], lysisFar1[0]) @ 5.0SECOND
+	heat(nearLysate1[0]) @ 4.0CELSIUS @ 57600.0SECOND
+	heat(midLysate1[0]) @ 4.0CELSIUS @ 57600.0SECOND
+	heat(farLysate1[0]) @ 4.0CELSIUS @ 57600.0SECOND
+	geneExprSignal1[0] = detect(geneExpressionDetection, nearLysate1[0]) @ 30.0SECOND
+	if geneExprSignal1[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(nearLysate1[0])
+	dispose(midLysate1[0])
+	dispose(farLysate1[0])
+bsbbif_9_f:
+	lysateWasteN1[0] = mix(nearLysate1[0], pbsNear1[0]) @ 2.0SECOND
+	lysateWasteM1[0] = mix(midLysate1[0], pbsMid1[0]) @ 2.0SECOND
+	lysateWasteF1[0] = mix(farLysate1[0], pbsFar1[0]) @ 2.0SECOND
+	dispose(lysateWasteN1[0])
+	dispose(lysateWasteM1[0])
+	dispose(lysateWasteF1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(geneExprSignal1[0])
+	fibronectinCoat21[0] = dispense(Fibronectin)
+	pbsWash21[0] = dispense(PBS)
+	coatingMix21[0] = mix(fibronectinCoat21[0], pbsWash21[0]) @ 5.0SECOND
+	heat(coatingMix21[0]) @ 25.0CELSIUS @ 1800.0SECOND
+	washBuffer31[0] = dispense(DMEM_HighGlucose)
+	chambersCoated21[0] = mix(coatingMix21[0], washBuffer31[0]) @ 2.0SECOND
+	fibroblasts21[0] = dispense(RelA_DsRed_3T3_Fibroblasts)
+	dmemBase21[0] = dispense(DMEM_HighGlucose)
+	fibroblastSusp21[0] = mix(fibroblasts21[0], dmemBase21[0]) @ 5.0SECOND
+	loadedFibroblasts21[0] = mix(chambersCoated21[0], fibroblastSusp21[0]) @ 5.0SECOND
+	heat(loadedFibroblasts21[0]) @ 37.0CELSIUS @ 18000.0SECOND
+	hoechstStain21[0] = dispense(Hoechst33342)
+	stainedFibroblasts21[0] = mix(loadedFibroblasts21[0], hoechstStain21[0]) @ 600.0SECOND
+	tnfaStimulus1[0] = dispense(TNFa_30ngmL)
+	tnfaChamber1[0] = mix(stainedFibroblasts21[0], tnfaStimulus1[0]) @ 5.0SECOND
+	heat(tnfaChamber1[0]) @ 37.0CELSIUS @ 28800.0SECOND
+	sinkFlow21[0] = dispense(FreshMedium)
+	gradientJoin21[0] = dispense(FreshMedium)
+	imagingChamber21[0] = mix(sinkFlow21[0], gradientJoin21[0]) @ 2.0SECOND
+	heat(imagingChamber21[0]) @ 37.0CELSIUS @ 28800.0SECOND
+	geneExprSignal21[0] = detect(geneExpressionDetection, imagingChamber21[0]) @ 30.0SECOND
+	if geneExprSignal21[0] > 0	|	true: jump bsbbif_11_t	|	false: jump bsbbif_12_f
+bsbbif_11_t:
+	dispose(imagingChamber21[0])
+bsbbif_12_f:
+	tnfaWaste1[0] = mix(imagingChamber21[0], sinkFlow21[0]) @ 2.0SECOND
+	dispose(tnfaWaste1[0])
+	jump: bsbbif_13_j
+bsbbif_13_j:
+	trypLE21[0] = dispense(TrypLE)
+	pbs21[0] = dispense(PBS)
+	detached21[0] = mix(trypLE21[0], pbs21[0]) @ 70.0SECOND
+	pbsNear21[0] = dispense(PBS)
+	lysisNear21[0] = dispense(LysisBuffer)
+	nearCells21[0] = mix(detached21[0], pbsNear21[0]) @ 5.0SECOND
+	nearLysate21[0] = mix(nearCells21[0], lysisNear21[0]) @ 5.0SECOND
+	pbsMid21[0] = dispense(PBS)
+	lysisMid21[0] = dispense(LysisBuffer)
+	midCells21[0] = mix(detached21[0], pbsMid21[0]) @ 5.0SECOND
+	midLysate21[0] = mix(midCells21[0], lysisMid21[0]) @ 5.0SECOND
+	pbsFar21[0] = dispense(PBS)
+	lysisFar21[0] = dispense(LysisBuffer)
+	farCells21[0] = mix(detached21[0], pbsFar21[0]) @ 5.0SECOND
+	farLysate21[0] = mix(farCells21[0], lysisFar21[0]) @ 5.0SECOND
+	heat(nearLysate21[0]) @ 4.0CELSIUS @ 57600.0SECOND
+	heat(midLysate21[0]) @ 4.0CELSIUS @ 57600.0SECOND
+	heat(farLysate21[0]) @ 4.0CELSIUS @ 57600.0SECOND
+	geneExprSignal31[0] = detect(geneExpressionDetection, nearLysate21[0]) @ 30.0SECOND
+	if geneExprSignal31[0] > 0	|	true: jump bsbbif_14_t	|	false: jump bsbbif_15_f
+bsbbif_14_t:
+	dispose(nearLysate21[0])
+	dispose(midLysate21[0])
+	dispose(farLysate21[0])
+bsbbif_15_f:
+	lysateWasteN22[0] = mix(nearLysate21[0], pbsNear21[0]) @ 2.0SECOND
+	lysateWasteM22[0] = mix(midLysate21[0], pbsMid21[0]) @ 2.0SECOND
+	lysateWasteF22[0] = mix(farLysate21[0], pbsFar21[0]) @ 2.0SECOND
+	dispose(lysateWasteN22[0])
+	dispose(lysateWasteM22[0])
+	dispose(lysateWasteF22[0])
+	jump: bsbbif_16_j
+bsbbif_16_j:
+	dispose(geneExprSignal21[0])
+	dispose(geneExprSignal31[0])
+	NOP

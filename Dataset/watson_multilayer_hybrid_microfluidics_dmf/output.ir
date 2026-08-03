@@ -1,0 +1,46 @@
+bsbbif_2_t:
+	dispose(dilution1Analysed1[0])
+	dispose(dilution2Analysed1[0])
+bsbbif_3_f:
+	dispose(dilution1Analysed1[0])
+	dispose(dilution2Analysed1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(dilutionSignal11[0])
+	dispose(dilutionSignal21[0])
+	afbsaDroplet1[0] = dispense(AF_BSA)
+	pepsinDroplet1[0] = dispense(PepsinSolution)
+	pepsinReaction1[0] = mix(afbsaDroplet1[0], pepsinDroplet1[0]) @ 5.0SECOND
+	heat(pepsinReaction1[0]) @ 25.0CELSIUS @ 1800.0SECOND
+	pepsinAnalysed1[0] = mix(pepsinReaction1[0], pepsinDroplet1[0]) @ 2.0SECOND
+	storedPepsinDrop1[0] = dispense(AF_BSA)
+	digestionSignalPepsin1[0] = detect(proteinDigestionDetection, pepsinAnalysed1[0]) @ 60.0SECOND
+	trypsinDroplet1[0] = dispense(TrypsinSolution)
+	trypsinReaction1[0] = mix(storedPepsinDrop1[0], trypsinDroplet1[0]) @ 5.0SECOND
+	heat(trypsinReaction1[0]) @ 25.0CELSIUS @ 1800.0SECOND
+	sequentialDigestAnalysed1[0] = mix(trypsinReaction1[0], trypsinDroplet1[0]) @ 2.0SECOND
+	digestionSignalSeq1[0] = detect(proteinDigestionDetection, sequentialDigestAnalysed1[0]) @ 60.0SECOND
+	if digestionSignalPepsin1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	stockDroplet1[0] = dispense(AnalyteFluorescein)
+	diluent11[0] = dispense(Diluent)
+	mergedDrop11[0] = mix(stockDroplet1[0], diluent11[0]) @ 10.0SECOND
+	dilution1Analysed1[0] = mix(mergedDrop11[0], diluent11[0]) @ 2.0SECOND
+	storedDrop11[0] = dispense(Diluent)
+	dilutionSignal11[0] = detect(serialDilutionDetection, dilution1Analysed1[0]) @ 30.0SECOND
+	diluent21[0] = dispense(Diluent)
+	mergedDrop21[0] = mix(storedDrop11[0], diluent21[0]) @ 10.0SECOND
+	dilution2Analysed1[0] = mix(mergedDrop21[0], diluent21[0]) @ 2.0SECOND
+	dilutionSignal21[0] = detect(serialDilutionDetection, dilution2Analysed1[0]) @ 30.0SECOND
+	if dilutionSignal11[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(pepsinAnalysed1[0])
+	dispose(sequentialDigestAnalysed1[0])
+bsbbif_6_f:
+	dispose(pepsinAnalysed1[0])
+	dispose(sequentialDigestAnalysed1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(digestionSignalPepsin1[0])
+	dispose(digestionSignalSeq1[0])
+	NOP

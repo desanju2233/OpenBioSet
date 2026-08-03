@@ -1,0 +1,237 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Automated Microfluidic Platform for Dynamic and Combinatorial Drug Screening
+               of Tumor Organoids
+Source Link  : https://www.nature.com/articles/s41467-020-19058-4
+DOI          : https://doi.org/10.1038/s41467-020-19058-4
+Journal      : Nature Communications (2020), Volume 11, Article 5271
+Authors      : Brooke Schuster, Michael Junkin, Sara Saheb Kashaf, et al. (Savas Tay lab)
+Platform     : Two-part PDMS microfluidic device: 200-well 3D organoid culture chamber array
+               + solenoid-valve multiplexer control device; automated via MATLAB GUI
+
+
+OVERVIEW
+--------
+This protocol describes an automated high-throughput microfluidic platform for culturing
+patient-derived pancreatic ductal adenocarcinoma (PDAC) organoids in Matrigel and performing
+individual, combinatorial, and temporal/sequential drug screens. The system supports up to
+20 independent fluidic conditions and 10 patient samples in a single experiment across 200
+individual culture wells.
+
+The BioScript file encodes three experimental arms:
+  (A) Single-agent drug screens: 7 FDA-approved chemotherapies at 72-h continuous exposure,
+      with a 48-h media replenishment step (Patient 1).
+  (B) Temporal/sequential combination drug regimens: 5 standard-of-care PDAC regimens
+      delivered in clinically-mirrored pulse sequences (Patient 1).
+  (C) Multi-patient parallel comparison: Gemcitabine + 5-FU temporal arm run simultaneously
+      for Patients 1, 2, and 3 (mirrors Fig. 5 heatmap experiment).
+
+All 14 treatment wells converge at exactly 4320 minutes (72 hours) for the apoptosisQC
+detect gate, ensuring parallel biological comparison at an identical timestamp.
+
+
+DEVICE ARCHITECTURE
+-------------------
+Chamber layer  : PDMS 200-well array; average well depth 610 um (significantly deeper than
+                 typical microfluidic devices of 100-200 um); glass slide base.
+Channel layer  : PDMS fluidic channels, 455 um height; reversibly clamped onto chamber layer
+                 via polycarbonate plate and six screws; valve-less design allows Matrigel
+                 loading by manual pipetting without risk of channel clogging.
+Well array     : 200 wells divided into 20 subsets of 10; each subset receives one fluidic
+                 condition from the multiplexer.
+Multiplexer    : Valve-based reusable control device; up to 30 solutions pre-loaded;
+                 solenoid valves controlled by custom MATLAB GUI (CSV/tab-delimited input);
+                 supply pressure 5 psi; valve closing pressure 35-40 psi.
+Microscope     : Nikon Eclipse Ti inverted microscope; automated translational stage;
+                 ORCA-Flash 4.0 CMOS camera (Hamamatsu); 10x objective; NIS-Elements software;
+                 imaging every 2-4 h; Life Imaging Service GmbH environmental enclosure
+                 (37 C / 5% CO2 / 100% RH).
+
+
+CELL LINES AND CULTURE
+-----------------------
+Cell type      : Patient-derived pancreatic ductal adenocarcinoma (PDAC) organoids
+                 (Patients 1, 2, and 3; IRB12-1108 and IRB13-1149; UCM 2014-2017)
+Cell prep      : Tumor samples digested and dissociated; single cells embedded in 70%
+                 GFR Matrigel (Corning 356231) / 30% complete organoid media; passed through
+                 40 um cell strainer before loading; passaged via mechanical dissociation +
+                 TrypLE Express (Fisher Scientific 12605-010).
+Complete media : Intesticult (Stemcell Technologies 6005) supplemented with A83-01 (0.5 uM),
+                 FGF10 (100 ng/mL), Gastrin I (10 nM), N-acetyl-L-cysteine (10 mM),
+                 Nicotinamide (10 mM), B27 (1x), Primocin (1 mg/mL), Y-27632 (10.5 uM).
+Growth phase   : 14+ days on platform; organoids grow from single cells to ~500 um glandular
+                 structures; automated media exchange every 38 h; continuous time-lapse imaging.
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Organoid Culture Establishment (Section 1, BB1)
+  Operation  : dispense + mix (abstracts manual pipetting of cells in Matrigel/media mixture
+               into 610-um wells, followed by Matrigel gelation and channel layer clamping)
+  Arms       : 14 independent wells (one per treatment arm; each with fresh dispensed culture)
+  Loading    : 70% GFR Matrigel + 30% complete organoid media + dissociated single cells
+  Notes      : Each arm uses independently dispensed cells, Matrigel, and media. No fluid
+               variable is shared between arms.
+
+Step 2 | 14-Day Growth Phase (Section 2, BB1)
+  Operation  : heat at 37 C for 20160m (14 days = 1209600 s in IR)
+  Conditions : 37 C / 5% CO2 / 100% RH (Life Imaging Service GmbH environmental chamber)
+  Duration   : 14 days minimum (until organoids reach ~500 um diameter and are visibly mature)
+  Feeding    : Automated media exchange every 38 h via multiplexer
+  Imaging    : Phase contrast + fluorescence, every 2-4 h, MATLAB auto-segmentation
+  Notes      : heat is void/in-place in BioScript (no LHS assignment); same instruction
+               applied to all 14 culture wells.
+
+Step 3 | Single-Agent Drug Screen, Patient 1, 72-h Arm (Section 3, BB1)
+  Drugs      : Gemcitabine 100 nM, Paclitaxel 10 nM, 5-FU 100 nM, Docetaxel 10 nM,
+               CPT-11 100 nM, Oxaliplatin 100 nM, Cisplatin 100 nM
+  Markers    : Caspase 3/7 5 uM (Essen Bioscience 4400, apoptosis);
+               Propidium iodide 1.5 uM (Thermo Fisher P3566, cell death)
+  Phase 1    : Drug exposure 0-48 h (2880m)
+  Refresh    : Fresh complete media + drug dispensed and mixed at 48-h mark
+  Phase 2    : Continued drug exposure 48-72 h (1440m)
+  Total      : 2880m + 1440m = 4320m = 72 h
+  QC arm     : Gemcitabine arm used for apoptosisQC detect gate
+  Fix A      : Split into two phases to correctly place the 48-h replenishment boundary
+               (original 4320m single mix delayed replenishment to 72h+10s)
+
+Step 4 | Temporal FOLFIRINOX, Patient 1 (Section 4, BB1)
+  Clinical   : Standard IV FOLFIRINOX for PDAC; mirrors real patient treatment sequence
+  Sequence   : CPT-11 100 nM (120m) -> Oxaliplatin 100 nM (120m) ->
+               High-dose 5-FU 1 uM (30m) -> Low-dose 5-FU 100 nM (4050m)
+  Total      : 120+120+30+4050 = 4320m = 72 h
+  Fix B      : Final 5-FU extended to 4050m; paper states "low dose 5-FU continued until
+               the end of the 72-h experiment" (not 46h/2760m from clinical text block)
+
+Step 5 | Temporal FOLFIRI, Patient 1 (Section 5, BB1)
+  Sequence   : CPT-11 100 nM (240m) -> High-dose 5-FU 1 uM (30m) ->
+               Low-dose 5-FU 100 nM (4050m)
+  Total      : 240+30+4050 = 4320m = 72 h
+  Fix B      : Final 5-FU extended from 2880m to 4050m
+
+Step 6 | Temporal FOLFOX, Patient 1 (Section 6, BB1)
+  Sequence   : Oxaliplatin 100 nM (240m) -> High-dose 5-FU 1 uM (30m) ->
+               Low-dose 5-FU 100 nM (4050m)
+  Total      : 240+30+4050 = 4320m = 72 h
+  Fix B      : Final 5-FU extended from 2880m to 4050m
+
+Step 7 | Temporal Gemcitabine + 5-FU, Patient 1 (Section 7, BB1)
+  Cycles     : 2 cycles, unrolled (no loop constructs in BioScript)
+  Cycle 1    : Gemcitabine 100 nM (240m) -> Low-dose 5-FU 100 nM (2880m)
+  Cycle 2    : Gemcitabine 100 nM (240m) -> Low-dose 5-FU 100 nM (960m) [truncated]
+  Total      : 240+2880+240+960 = 4320m = 72 h
+  Fix C      : Cycle 2 final 5-FU truncated from 2880m to 960m per Fig 4f visual
+               truncation at the 72-h assay read boundary
+
+Step 8 | Temporal Gemcitabine + Paclitaxel, Patient 1 (Section 8, BB1)
+  Cycles     : 2 cycles, unrolled
+  Cycle 1    : Gemcitabine 100 nM (240m) -> Paclitaxel 10 nM (240m) -> Media (1440m)
+  Cycle 2    : Gemcitabine 100 nM (240m) -> Paclitaxel 10 nM (240m) -> Media (1920m)
+  Total      : 240+240+1440+240+240+1920 = 4320m = 72 h
+  Clinical   : Most effective regimen for Patient 1 (Fig 4g); retrospectively consistent
+               with clinical outcome (Table 2: gemcitabine+paclitaxel administered last)
+  Fix C      : Final media step padded from 1440m to 1920m to reach 72-h boundary
+  Note       : Table 1 schedule encoded here; Fig 4g shows a different schedule
+               (Cycle1: 2h Gem + 2h Pac + 44h Media; Cycle2: 2h Gem + 4h Pac + 18h Media).
+               Table 1 selected as primary encoding per reviewer guidance.
+
+Step 9 | Multi-Patient Parallel Gem+5FU Temporal (Section 9, BB1)
+  Patients   : Patient 2 and Patient 3 (Patient 1 encoded in Section 7)
+  Mirrors    : Fig. 5 high-throughput simultaneous 3-patient experiment
+  Structure  : Identical to Section 7 (same temporal cycle, same 960m truncation)
+  QC gate    : Patient 2 arm (p2Finished) used for multiPatQC detect;
+               P2 was most sensitive (p=7E-07 vs control, Fig 5b)
+  Fix C      : Same 960m truncation applied to p2Finished and p3Finished
+
+
+QC GATES AND CFG
+-----------------
+
+Primary QC gate (apoptosisQC):
+  Detect     : apoptosisDetection on gemFinished, 30s
+  BB2 (pass) : apoptosisQC > 0 -> dispose all 12 P1 arm droplets
+  BB3 (fail) : apoptosisQC <= 0 -> drain all 12 P1 arm droplets
+  BB4 (join) : dispose apoptosisQC signal
+
+Secondary QC gate (multiPatQC):
+  Detect     : apoptosisDetection on p2Finished, 30s
+  BB5 (pass) : multiPatQC > 0 -> dispose p2Finished, p3Finished
+  BB6 (fail) : multiPatQC <= 0 -> drain p2Finished, p3Finished
+  BB7 (term) : dispose multiPatQC; device disassembled for organoid harvest
+               (channel layer removed; wells exposed for sequencing, expansion, or grafting)
+
+CFG edges    : BB1->BB2, BB1->BB3, BB2->BB4, BB3->BB4,
+               BB4->BB5, BB4->BB6, BB5->BB7, BB6->BB7
+DAG shape    : Two sequential diamond gates converging at terminal BB7
+
+
+BIOSCRIPT COMPILER NOTES
+--------------------------
+BioScript file : schuster_organoid_drug_screening.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 7 basic blocks (BB1-BB7), 2 if/else gates, 8 CFG edges
+DAG file       : schuster_organoid_drug_screening_main_dag.dot
+Duration units : s and m only (h token not supported by BioScript compiler)
+
+Duration conversions used:
+  30 min  = 30m    (IR: 1800.0 SECOND)
+  2 h     = 120m   (IR: 7200.0 SECOND)
+  4 h     = 240m   (IR: 14400.0 SECOND)
+  16 h    = 960m   (IR: 57600.0 SECOND)
+  24 h    = 1440m  (IR: 86400.0 SECOND)
+  32 h    = 1920m  (IR: 115200.0 SECOND)
+  48 h    = 2880m  (IR: 172800.0 SECOND)
+  67.5 h  = 4050m  (IR: 243000.0 SECOND)
+  72 h    = 4320m  (IR: 259200.0 SECOND)
+  14 days = 20160m (IR: 1209600.0 SECOND)
+
+Modules        : apoptosisDetection (Caspase 3/7), cellDeathDetection (propidium iodide)
+Manifests      : PDAC_P1_Cells, PDAC_P2_Cells, PDAC_P3_Cells, GFR_Matrigel,
+                 CompleteOrganoidMedia, Gemcitabine_100nM, Paclitaxel_10nM,
+                 FluorouracilLow_100nM, FluorouracilHigh_1uM, Docetaxel_10nM,
+                 CPT11_100nM, Oxaliplatin_100nM, Cisplatin_100nM,
+                 Caspase37_Reagent, PropidiumIodide
+No loops       : All multi-cycle regimens fully unrolled (Gem+5FU x2, Gem+Pac x2)
+heat void      : heat is void/in-place; no LHS assignment anywhere
+detect SSA     : Each detect result (apoptosisQC, multiPatQC) assigned exactly once
+Fluid SSA      : Each arm has independently dispensed cultures, markers, and drugs;
+                 no fluid variable used as source in more than one mix/detect on its
+                 linear execution chain
+ASCII only     : File is strict ASCII; all Unicode removed (checkmarks, arrows replaced
+                 with OK and <--) to prevent ANTLR4 FileStream UnicodeDecodeError
+Encoding scope : Patient 1 full arm (7 single-agent + 5 temporal);
+                 Patients 2 and 3 encoded for Gem+5FU temporal parallel comparison only
+
+
+FIXES APPLIED (iterative review corrections)
+--------------------------------------------
+
+FIX A (Section 3) -- 48-hour replenishment bug:
+  Issue  : Original code ran a single 4320m mix then appended replenishment after 72h+10s,
+           violating the paper's "48-h mark replenishment" specification.
+  Fix    : Each single-agent arm split into:
+           phase1 (2880m) + dispense fresh media+drug + phase2 (1440m) = 4320m total.
+
+FIX B (Sections 4, 5, 6) -- Duration deficits in temporal FOLFIRINOX/FOLFIRI/FOLFOX:
+  Issue  : Final 5-FU step encoded as 2880m (48h) or 2760m (46h) from Table 1 text,
+           leaving each arm 21.5h short of the 72-h endpoint; wells would sit idle.
+  Fix    : Final low-dose 5-FU step extended to 4050m in all three regimens.
+           Paper explicitly states: "low dose 5-FU continued until the end of the 72-h
+           experiment." 120+120+30+4050 = 4320m; 240+30+4050 = 4320m.
+
+FIX C (Sections 7, 8, 9) -- Gem+5FU overshoot and Gem+Pac undershoot:
+  Issue  : Gem+5FU two-cycle unroll totalled 6240m (104h), overshooting by 32h.
+           Gem+Pac two-cycle unroll totalled 3840m (64h), undershooting by 8h.
+           Reviewer first suggested 1200m truncation for Gem+5FU (giving 4560m, incorrect).
+           Corrected to 960m (240+2880+240+960=4320m).
+  Fix    : Gem+5FU cycle 2 final 5-FU -> 960m; same applied to P2 and P3 in Section 9.
+           Gem+Pac cycle 2 final media -> 1920m (240+240+1440+240+240+1920=4320m).
+
+FIX UNICODE -- ANTLR4 UnicodeDecodeError:
+  Issue  : UTF-8 checkmark (U+2713, 0xe2 0x9c 0x93) and left arrow (U+2190) in comments
+           caused UnicodeDecodeError at byte position 14172 when ANTLR4 FileStream
+           attempted ASCII decode.
+  Fix    : Decoded file as UTF-8, replaced all non-ASCII chars with ASCII equivalents
+           (U+2713 -> "OK", U+2190 -> "<--"), re-encoded as strict ASCII.

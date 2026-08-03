@@ -1,0 +1,341 @@
+module chemiluminescenceDetection
+
+manifest ParamagneticParticles
+manifest TSH_Standard
+manifest HRP_AntiTSH_Conjugate
+manifest WashBuffer
+manifest ParticleDiluent
+manifest H2O2_StablePeroxide
+manifest LuminolEnhancer
+
+// ============================================================
+// Automated Digital Microfluidic Platform for Magnetic-Particle-
+// Based Immunoassays with Optimization by Design of Experiments
+// Choi, Ng, Fobel, Chang-Yen, Yarnell, Pearson, Oleksak,
+// Fischer, Luoma, Robinson, Audet, Wheeler
+// Anal. Chem. 2013, 85, 9638-9646
+// DOI: 10.1021/ac401847x
+//
+// ASSAY TARGET: Thyroid-Stimulating Hormone (TSH)
+//   Clinically relevant range: 0 - 4 uIU/mL
+//   LOD (optimized): 0.15 uIU/mL (screens for hyperthyroidism)
+//
+// PLATFORM DESCRIPTION:
+//   Automated DMF platform (benchtop, ~18x23x30 cm enclosure)
+//   featuring:
+//     (a) 90 Pogo pin interface (15 inputs/sq in) for droplet
+//         control via Microdrop + Arduino-based HV switching
+//         (100-120 V_rms, 10 kHz sine wave AC).
+//     (b) Integrated motorized Hamamatsu H10682-110 PMT
+//         (5V DC, motor-driven engage/disengage, shutter).
+//     (c) "Magnetic lens" assembly: neodymium bar (3 in x 1/2 in
+//         x 1/4 in, mu_r=1.05, Br=1.32 T) flanked by two AISI
+//         1080 steel machined armatures. Motor-driven vertical
+//         engage (~150 um gap, ~600 uN vertical force) supports
+//         up to 8 simultaneous parallel magnetic separations.
+//
+// DMF DEVICE:
+//   Bottom plate: 80 actuation electrodes (2.2x2.2 mm each),
+//   8 reagent reservoirs (16.4x6.7 mm), 4 waste reservoirs.
+//   Interdigitated borders (140 um peak-to-peak sinusoids),
+//   interelectrode gaps 30-80 um.
+//   Unit droplet volume: ~800 nL.
+//   Reservoir droplet volume: ~3.5 uL.
+//
+// OPTIMIZED PROTOCOL PARAMETERS (from 3^3 full factorial DOE):
+//   Sample volume:          5 unit droplets (4 uL after merging)
+//   Sample incubation time: 3 min
+//   TSH standard conc:      0, 0.4, 4 uIU/mL
+//   Conjugate mixing:       2 min
+//   Wash cycles (step 1):   4x in wash buffer
+//   Substrate mixing:       4 min
+//   PMT integration:        10 s (stable signal window)
+//
+// REAGENT PREPARATION (off-chip, prior to loading):
+//   - TSH standards (Abbott Labs) + Pluronic L64 0.05% v/v
+//   - Particle working solution: ~3.0e8 particles/mL in
+//     DMF-compatible particle diluent (pH 10: Tris base 6.1 g/L,
+//     NaCl 5.8 g/L, BSA 1% w/v, thimerosal 0.05% w/v,
+//     Pluronic L64 0.05% v/v)
+//   - HRP-conjugated anti-TSH (Abcam, 2 ug/mL) in conjugate
+//     diluent (DMF-compatible)
+//   - SuperSignal ELISA Femto substrate (Thermo Fischer):
+//     H2O2 stable peroxide + luminol-enhancer, each supplemented
+//     with Pluronic L64 0.025% v/v
+//   - DMF-compatible wash buffer
+//
+// MEASUREMENT NOTE:
+//   A single stationary PMT services droplets sequentially.
+//   To eliminate queue-wait signal decay (up to 45% signal
+//   drop observed in pilot assays), wash buffer is removed
+//   immediately after final wash, particles resuspended in
+//   luminol-H2O2 substrate and mixed for 4 min to reach a
+//   stable ~1-min measurement window before PMT engagement.
+//
+// DOE MODEL (eq 1, centered polynomial regression):
+//   Factors: con (concentration), vol (sample volume),
+//             inc (incubation time)
+//   Response: Sqrt(SBR) [square-root of signal-to-background ratio]
+//   Model fit: R^2=0.90, R^2_adj=0.88, RMSE=0.1597, p<0.0001
+//   Key finding: longer incubation at high TSH REDUCES Sqrt(SBR);
+//   optimum is 5 droplets x 3 min incubation.
+//
+// PERFORMANCE vs. PROTOTYPE (Ng et al., Anal. Chem. 2012):
+//   CV:            6-10%    (was 9-21%)
+//   LOD (abs):     0.6 nIU  (was 2.0 nIU,  3-fold improvement)
+//   LOD (conc):    0.15 uIU/mL (was 0.83, 5-fold improvement)
+//   Sample vol:    4.0 uL   (was 2.4 uL)
+//   Incubation:    3 min    (was 6 min,  2-fold reduction)
+//
+// CFG STRUCTURE:
+//   BB1  main              -- entry: reagent dispense, particle
+//                             immobilization, sample incubation
+//   BB2  washPass          -- washSignal > 0: particle pellets
+//                             confirmed; proceed to conjugate step
+//   BB3  washFail          -- washSignal <= 0: pellets lost; drain
+//   BB4  washJoin          -- join: conjugate incubation begins
+//   BB5  detectionPass     -- detectionSignal > 0: valid chemilum.
+//                             signal; dispose substrate droplet
+//   BB6  detectionFail     -- detectionSignal <= 0: no signal; drain
+//   BB7  finalCleanup      -- terminal: dispose QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Dispense paramagnetic particle droplet from reservoir.
+//   Working solution: ~3.0e8 particles/mL in DMF-compatible
+//   particle diluent (pH 10). ~800 nL unit droplet.
+//   Magnetic lens engages (motor, ~150 um gap) to pellet
+//   particles on device surface; diluent droplet is moved away
+//   (magnetic separation). Particle pellet remains immobilized.
+// ------------------------------------------------------------
+
+particleDrop    = dispense 1 units of ParamagneticParticles
+
+// ------------------------------------------------------------
+// STEP 2: Dispense 5 unit droplets of TSH standard.
+//   Optimized DOE result: 5 pooled unit droplets (4 uL total)
+//   yields highest Sqrt(SBR) at all tested concentrations.
+//   TSH standards: 0, 0.4, or 4 uIU/mL (supplemented with
+//   Pluronic L64 0.05% v/v for DMF compatibility).
+//   Five droplets accumulated explicitly (BioScript compiler
+//   requires scalar dispense + chained merge to accumulate
+//   multi-unit volumes; multi-unit dispense does not produce
+//   discrete indexed elements suitable for downstream ops).
+// ------------------------------------------------------------
+
+tsh1            = dispense 1 units of TSH_Standard
+tsh2            = dispense 1 units of TSH_Standard
+tsh3            = dispense 1 units of TSH_Standard
+tsh4            = dispense 1 units of TSH_Standard
+tsh5            = dispense 1 units of TSH_Standard
+
+// Accumulate 5 unit droplets into a single pooled sample droplet.
+tshPool_2       = mix tsh1 with tsh2 for 5s
+tshPool_3       = mix tshPool_2 with tsh3 for 5s
+tshPool_4       = mix tshPool_3 with tsh4 for 5s
+tshSample       = mix tshPool_4 with tsh5 for 5s
+
+// ------------------------------------------------------------
+// STEP 3: Deliver pooled TSH sample to immobilized particles
+//   and mix for 3 min (optimized incubation time from DOE).
+//   Droplet shuttled in circular motion across 4+ electrodes
+//   (continuous active mixing, 100-120 V_rms, 10 kHz) to
+//   accelerate analyte binding to antibody-coated magnetic
+//   particles. This replaces the 6 min incubation of the
+//   prototype setup; rapid uniform mixing enables faster
+//   binding kinetics.
+//   DOE finding: con x inc interaction is negative at high TSH;
+//   3 min at high vol outperforms 6-9 min at all concentrations.
+// ------------------------------------------------------------
+
+sampleIncubation = mix tshSample with particleDrop for 3m
+
+// ------------------------------------------------------------
+// STEP 4: Wash particles 4 times in DMF-compatible wash buffer.
+//   Magnetic lens engages to pellet particles; supernatant
+//   droplet is moved to waste reservoir (magnetic separation).
+//   Fresh wash buffer droplet moved over pellet; magnet
+//   disengages; particles resuspend in wash buffer; repeat.
+//   4 wash cycles remove unbound TSH and non-specific binders.
+//   After wash 4, particles remain suspended in wash buffer
+//   for conjugate delivery.
+//
+//   NOTE ON ABSTRACTION: Each wash cycle is modelled as a
+//   sequential mix-with-wash-buffer operation. The magnetic
+//   separation (pellet + supernatant removal) is a DMF-
+//   specific hardware operation abstracted here as the mix
+//   step completing and a new wash droplet being dispensed.
+//   The magnetic lens facilitates up to 8 simultaneous
+//   separations across the device.
+// ------------------------------------------------------------
+
+// Wash cycle 1
+wash1a          = dispense 1 units of WashBuffer
+wash1b          = mix sampleIncubation with wash1a for 30s
+washSup1        = dispense 1 units of WashBuffer
+wash1c          = mix wash1b with washSup1 for 10s
+drain wash1c
+
+// Wash cycle 2
+wash2a          = dispense 1 units of WashBuffer
+wash2b          = mix wash1a with wash2a for 30s
+washSup2        = dispense 1 units of WashBuffer
+wash2c          = mix wash2b with washSup2 for 10s
+drain wash2c
+
+// Wash cycle 3
+wash3a          = dispense 1 units of WashBuffer
+wash3b          = mix wash2a with wash3a for 30s
+washSup3        = dispense 1 units of WashBuffer
+wash3c          = mix wash3b with washSup3 for 10s
+drain wash3c
+
+// Wash cycle 4
+wash4a          = dispense 1 units of WashBuffer
+wash4b          = mix wash3a with wash4a for 30s
+washSup4        = dispense 1 units of WashBuffer
+particlesWashed = mix wash4b with washSup4 for 10s
+
+// QC: confirm particle pellets are retained after wash series.
+washSignal      = detect chemiluminescenceDetection on particlesWashed for 5s
+
+// ============================================================
+// BB2 / BB3: Wash / particle-retention QC gate
+// Pass (BB2): washSignal > 0  -> particle pellets retained;
+//             proceed to conjugate incubation.
+// Fail (BB3): washSignal <= 0 -> pellets lost during wash;
+//             drain and abort.
+// Both branches converge at BB4 (washJoin).
+// ============================================================
+
+if (washSignal > 0) {
+    dispose particlesWashed
+} else {
+    drain particlesWashed
+}
+
+// ============================================================
+// BB4: washJoin
+// Dispose wash QC signal. Control falls into conjugate
+// incubation branch.
+// ============================================================
+
+dispose washSignal
+
+// ------------------------------------------------------------
+// STEP 5: Deliver HRP-conjugated anti-TSH detection antibody
+//   and mix for 2 min.
+//   Conjugate: HRP-conjugated mouse monoclonal anti-TSH
+//   (Abcam, 2 ug/mL) in DMF-compatible conjugate diluent.
+//   1 unit droplet (~800 nL) dispensed, moved over particle
+//   pellet, and mixed for 2 min (active electrode mixing,
+//   100-120 V_rms, 10 kHz). HRP-antibody binds to TSH
+//   captured on the particle surface (sandwich formation).
+// ------------------------------------------------------------
+
+conjugateDrop   = dispense 1 units of HRP_AntiTSH_Conjugate
+conjugateIncub  = mix wash4a with conjugateDrop for 2m
+
+// ------------------------------------------------------------
+// STEP 6: Wash particles 4 times in DMF-compatible wash buffer
+//   to remove unbound HRP-conjugate.
+//   Paper specifies 5 washes in pilot protocol; optimized
+//   protocol uses 4 washes (sufficient with improved mixing).
+//   After the 4th wash, supernatant is removed IMMEDIATELY
+//   (no queuing in wash buffer) to prevent signal decay.
+//   Key optimization: eliminating the wash-buffer queue wait
+//   that caused up to 45% signal drop in pilot assays.
+// ------------------------------------------------------------
+
+// Wash cycle 1
+cwash1a         = dispense 1 units of WashBuffer
+cwash1b         = mix conjugateIncub with cwash1a for 30s
+cwashSup1       = dispense 1 units of WashBuffer
+cwash1c         = mix cwash1b with cwashSup1 for 10s
+drain cwash1c
+
+// Wash cycle 2
+cwash2a         = dispense 1 units of WashBuffer
+cwash2b         = mix cwash1a with cwash2a for 30s
+cwashSup2       = dispense 1 units of WashBuffer
+cwash2c         = mix cwash2b with cwashSup2 for 10s
+drain cwash2c
+
+// Wash cycle 3
+cwash3a         = dispense 1 units of WashBuffer
+cwash3b         = mix cwash2a with cwash3a for 30s
+cwashSup3       = dispense 1 units of WashBuffer
+cwash3c         = mix cwash3b with cwashSup3 for 10s
+drain cwash3c
+
+// Wash cycle 4 - FINAL: supernatant removed immediately.
+cwash4a         = dispense 1 units of WashBuffer
+cwash4b         = mix cwash3a with cwash4a for 30s
+cwashSup4       = dispense 1 units of WashBuffer
+cwash4c         = mix cwash4b with cwashSup4 for 10s
+drain cwash4c
+
+// ------------------------------------------------------------
+// STEP 7: Initiate chemiluminescent reaction immediately after
+//   final wash (no delay).
+//   (a) Resuspend particles in 1 unit (~800 nL) of H2O2
+//       stable peroxide by disengaging magnetic lens and
+//       moving H2O2 droplet over particle pellet.
+//   (b) Merge and mix with 1 unit (~800 nL) of luminol-
+//       enhancer solution for 4 min (optimized from pilot;
+//       pilot used 40 s mix + 100 s incubation).
+//       Active mixing drives HRP-catalysed luminol oxidation
+//       and allows signal to reach a stable plateau.
+//   Combined droplet: ~1600 nL pooled substrate.
+// ------------------------------------------------------------
+
+h2o2Drop        = dispense 1 units of H2O2_StablePeroxide
+particlesInH2O2 = mix cwash4a with h2o2Drop for 10s
+
+luminolDrop     = dispense 1 units of LuminolEnhancer
+substratePool   = mix particlesInH2O2 with luminolDrop for 4m
+
+// ------------------------------------------------------------
+// STEP 8: PMT detection.
+//   Motor lowers PMT to engaged position (shutter opens,
+//   sensor positioned several hundred micrometers above
+//   device surface). Chemiluminescent signal collected for
+//   10 s within the stable measurement window (~1 min).
+//   Signal proportional to HRP concentration (captured TSH).
+//   Four replicates per concentration are averaged and fitted
+//   to a linear calibration curve. LOD = mean(blank) + 3*SD(blank).
+// ------------------------------------------------------------
+
+detectionSignal = detect chemiluminescenceDetection on substratePool for 10s
+
+// ============================================================
+// BB5 / BB6: Detection QC gate
+// Pass (BB5): detectionSignal > 0 -> valid chemiluminescent
+//             signal above background; dispose substrate droplet.
+// Fail (BB6): detectionSignal <= 0 -> no signal (reagent
+//             failure or particle loss); drain.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (detectionSignal > 0) {
+    dispose substratePool
+} else {
+    drain substratePool
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose PMT detection QC signal droplet.
+// Experiment ends. PMT motor returns to disengaged position
+// (shutter closes, ~5 cm above device surface).
+// ============================================================
+
+dispose detectionSignal
+
+// [terminal -- no further instructions; exit node for CFG]

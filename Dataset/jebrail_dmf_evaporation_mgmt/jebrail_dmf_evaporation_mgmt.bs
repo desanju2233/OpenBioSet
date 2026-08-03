@@ -1,0 +1,741 @@
+module rnaFragmentationDetection
+module cdnaSynthesisDetection
+module pcrProductDetection
+
+manifest RNA_PBMC
+manifest FragmentationBuffer
+manifest StopSolution
+manifest NucleaseFreeWater
+manifest PrimerPP_RT
+manifest MasterMixCDNA
+manifest PrimerPP_TS
+manifest PCRMasterMix
+manifest PCRPrimers
+manifest M13mp18_Template
+
+// ============================================================
+// A Solvent Replenishment Solution for Managing Evaporation
+// of Biochemical Reactions in Air-Matrix Digital Microfluidics
+// Jebrail, Renzi, Sinha et al., Sandia National Laboratories,
+// Lab on a Chip (2015).
+// DOI: 10.1039/C5LC00703H
+//
+// This file encodes the three DMF-mediated biochemical
+// protocols demonstrated in the paper:
+//
+//   PROTOCOL 1 -- RNA Fragmentation
+//     Reagents: 3 x 0.5 uL human PBMC total RNA (380 ng/uL)
+//               + 0.5 uL 10X NEBNext fragmentation buffer
+//               -> 2 uL reaction droplet
+//     Temperature: 94 C, 3 min (= 180 s)
+//     Evaporation replenishment: 6 x 0.5 uL nuclease-free water
+//       added sequentially during incubation (just-in-time).
+//     Termination: 4 C, 1 x 0.5 uL NEBNext stop solution.
+//     QC: rnaFragmentationDetection (Bioanalyzer RNA Nano 6000)
+//
+//   PROTOCOL 2 -- First-Strand cDNA Synthesis (Peregrine)
+//     Step A: 0.5 uL fragmented RNA + 0.5 uL primer PP_RT
+//             incubated 65 C, 2 min (= 120 s), then 4 C.
+//     Step B: 3 x 0.5 uL master mix merged; 25 C, 3 min (= 180 s),
+//             then 42 C, 1 min (= 60 s).
+//     Step C: 0.5 uL primer PP_TS merged; 42 C, 60 min (= 3600 s).
+//             Evaporation replenishment: 9 x 0.5 uL water during
+//             42 C 60-min incubation.
+//     Step D: termination: 70 C, 5 min (= 300 s).
+//             Evaporation replenishment: 4 x 0.5 uL water during
+//             termination incubation.
+//     QC: cdnaSynthesisDetection (qPCR Ct assay + Bioanalyzer)
+//
+//   PROTOCOL 3 -- PCR (M13mp18 template, 200 bp amplicon)
+//     Reagents: 0.5 uL PCR master mix + 0.5 uL primers
+//               + 0.5 uL M13mp18 template -> 1.5 uL droplet
+//     Cycling: 95 C 45 s; 33 x (95 C 20 s, 50 C 30 s, 68 C 45 s);
+//              68 C 5 min (= 300 s).
+//     Cycling modelled as sequential heat steps (see note below).
+//     Evaporation replenishment: 1 x 0.5 uL water per cycle
+//       (33 total); modelled as 33 chained dispense+mix steps
+//       between the two heat blocks.
+//     QC: pcrProductDetection (gel electrophoresis, 200 bp band)
+//
+// DEVICE: 6-layer PCB, 100 actuation electrodes (1.6x1.6 mm),
+//   7 fluid reservoirs, 4 TEC thermal zones, 4 RTD sensors.
+//   Top plate: ITO on glass coated with 50 nm Teflon-AF.
+//   Bottom plate: Cu/Ni/Au electrodes, 50 nm Teflon-AF.
+//   Gap spacing: 185 um (RNA fragmentation, cDNA) or 800 um (PCR).
+//   Driving potential: 80-100 Vrms, 18 kHz.
+//   Through-hole (0.8 mm ID) for replenishing droplet delivery
+//   via PEEK tubing from external syringe pump.
+//
+// EVAPORATION REPLENISHMENT ABSTRACTION:
+//   The paper's central innovation is "just-in-time" merging of
+//   pre-heated solvent droplets to counteract evaporation during
+//   high-temperature incubations. In BioScript, each replenishment
+//   event is modelled as:
+//     waterN = dispense 1 units of NucleaseFreeWater
+//     rxnDroplet = mix rxnDroplet with waterN for 5s
+//   This captures: (1) dispensing from the through-hole syringe
+//   reservoir onto the DMF surface; (2) transport to the thermal
+//   zone edge for pre-heating (5 s abstracted into mix duration);
+//   (3) merging with the reaction droplet to restore volume.
+//   The 15-20% volume loss threshold and <=1 C temperature change
+//   on merging are physical constraints handled by the TEC control
+//   board and cannot be represented in BioScript primitives.
+//
+// TEMPERATURE TRANSITIONS:
+//   Rapid temperature change is achieved by shuttling the reaction
+//   droplet between thermal zones set to different temperatures.
+//   Each `heat` statement models one steady-state incubation phase;
+//   droplet transport between zones is implicit between statements.
+//
+// PCR CYCLING NOTE:
+//   BioScript has no loop primitive. The 33 PCR cycles are encoded
+//   as two heat blocks (denaturation and anneal/extend phases)
+//   with the 33 interleaved replenishment steps between them.
+//   This is a necessary abstraction; the compiler will emit a
+//   linear CFG rather than a cyclic one, which correctly captures
+//   the sequential electrode actuation schedule.
+//
+// CFG STRUCTURE:
+//   BB1  main             -- entry: RNA fragmentation protocol
+//   BB2  rnaPass          -- rnaSignal > 0: valid fragments;
+//                            dispose reaction droplet
+//   BB3  rnaFail          -- rnaSignal <= 0: fragmentation failed;
+//                            drain reaction droplet
+//   BB4  rnaJoin          -- join: cDNA synthesis branch begins
+//   BB5  cdnaPass         -- cdnaSignal > 0: valid cDNA yield;
+//                            dispose reaction droplet
+//   BB6  cdnaFail         -- cdnaSignal <= 0: synthesis failed;
+//                            drain reaction droplet
+//   BB7  cdnaJoin         -- join: PCR branch begins
+//   BB8  pcrPass          -- pcrSignal > 0: correct 200 bp band;
+//                            dispose PCR droplet
+//   BB9  pcrFail          -- pcrSignal <= 0: no product; drain
+//   BB10 finalCleanup     -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 1: Dispense RNA sample droplets.
+//   Three independent 0.5 uL droplets of human PBMC total RNA
+//   (380 ng/uL each) dispensed from their reservoir.
+//   Paper M&M: "three 0.5 uL droplets of human PBMC total RNA
+//   (each 380 ng/uL)."
+// ------------------------------------------------------------
+
+rna1 = dispense 1 units of RNA_PBMC
+rna2 = dispense 1 units of RNA_PBMC
+rna3 = dispense 1 units of RNA_PBMC
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 2: Dispense fragmentation buffer droplet.
+//   0.5 uL 10X NEBNext fragmentation buffer dispensed from
+//   its reservoir. Will be merged with all three RNA droplets.
+// ------------------------------------------------------------
+
+fragBuffer = dispense 1 units of FragmentationBuffer
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 3: Merge all reagents into reaction droplet.
+//   Merge the three RNA droplets and fragmentation buffer
+//   sequentially. On-chip mixing for 10 s per merge step.
+//   Final reaction droplet: 2 uL (4 x 0.5 uL).
+//   Paper M&M: "mixed together on the DMF device surface"
+//   and "transported to a thermal zone."
+// ------------------------------------------------------------
+
+rnaMix1   = mix rna1 with rna2 for 10s
+rnaMix2   = mix rnaMix1 with rna3 for 10s
+rnaRxn    = mix rnaMix2 with fragBuffer for 10s
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 4: Incubate at 94 C for 3 min (= 180 s).
+//   Thermal fragmentation of RNA. Droplet transported to
+//   thermal zone (94 C). TEC closed-loop PID control.
+//   Without replenishment, droplet dries in <2 min (paper).
+//   `heat` is void/in-place; rnaRxn variable persists.
+// ------------------------------------------------------------
+
+heat rnaRxn at 94c for 180s
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 5: Evaporation replenishment (6 water
+//   droplets). Six 0.5 uL nuclease-free water droplets are
+//   delivered just-in-time through the through-hole syringe
+//   interface, pre-heated at the thermal zone edge, and merged
+//   to restore reaction volume (paper: 6 total replenishments
+//   over 3 min at 94 C; replenish when volume drops 15-20%).
+// ------------------------------------------------------------
+
+w1_rna = dispense 1 units of NucleaseFreeWater
+rnaRxn = mix rnaRxn with w1_rna for 5s
+
+w2_rna = dispense 1 units of NucleaseFreeWater
+rnaRxn = mix rnaRxn with w2_rna for 5s
+
+w3_rna = dispense 1 units of NucleaseFreeWater
+rnaRxn = mix rnaRxn with w3_rna for 5s
+
+w4_rna = dispense 1 units of NucleaseFreeWater
+rnaRxn = mix rnaRxn with w4_rna for 5s
+
+w5_rna = dispense 1 units of NucleaseFreeWater
+rnaRxn = mix rnaRxn with w5_rna for 5s
+
+w6_rna = dispense 1 units of NucleaseFreeWater
+rnaRxn = mix rnaRxn with w6_rna for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 6: Cool to 4 C and add stop solution.
+//   Droplet shuttled to the 4 C thermal zone to terminate
+//   fragmentation. 0.5 uL NEBNext stop solution dispensed
+//   and merged with the cooled reaction droplet.
+//   Paper M&M: "cooled to 4 C, and RNA fragmentation was
+//   terminated by supplementing the reaction with a 0.5 uL
+//   droplet of NEBNext stop solution."
+// ------------------------------------------------------------
+
+heat rnaRxn at 4c for 30s
+
+stopSol   = dispense 1 units of StopSolution
+rnaRxn    = mix rnaRxn with stopSol for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 7: QC detection.
+//   rnaFragmentationDetection abstracts offline fragment-size
+//   analysis (Agilent 2100 Bioanalyzer, RNA Nano 6000 Chip).
+//   Expected: fragments predominantly 40-1000 nt, peak ~150 nt,
+//   no residual 18S/28S rRNA peaks.
+// ------------------------------------------------------------
+
+rnaSignal = detect rnaFragmentationDetection on rnaRxn for 30s
+
+// ============================================================
+// BB2 / BB3: RNA fragmentation QC gate
+// Pass (BB2): rnaSignal > 0 -> valid fragment distribution;
+//             dispose reaction droplet.
+// Fail (BB3): rnaSignal <= 0 -> fragmentation failed; drain.
+// Both branches converge at BB4 (rnaJoin).
+// ============================================================
+
+if (rnaSignal > 0) {
+    dispose rnaRxn
+} else {
+    drain rnaRxn
+}
+
+// ============================================================
+// BB4: rnaJoin
+// Dispose RNA QC signal droplet. Control falls into the
+// cDNA synthesis branch (BB5/BB6).
+// ============================================================
+
+dispose rnaSignal
+
+// ============================================================
+// PROTOCOL 2: First-Strand cDNA Synthesis (Peregrine Method)
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 1 (Step A): Dispense fragmented RNA and
+//   primer PP_RT.
+//   0.5 uL fragmented human PBMC total RNA (100 ng) and
+//   0.5 uL primer PP_RT (25 mM) dispensed from reservoirs,
+//   merged and mixed on DMF surface.
+//   Paper M&M: "a 0.5 uL droplet of fragmented human PBMC
+//   total RNA (100 ng) and a 0.5 uL droplet of primer PP_RT
+//   (25 mM) were dispensed from their respective reservoirs,
+//   merged and mixed."
+// ------------------------------------------------------------
+
+fragRNA   = dispense 1 units of RNA_PBMC
+ppRT      = dispense 1 units of PrimerPP_RT
+
+cdnaRxn   = mix fragRNA with ppRT for 10s
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 2 (Step A cont.): Denaturation at 65 C,
+//   2 min (= 120 s), then immediately cool to 4 C.
+//   Denatures RNA secondary structure for efficient priming.
+//   Transport to 65 C zone, then 4 C zone.
+// ------------------------------------------------------------
+
+heat cdnaRxn at 65c for 120s
+heat cdnaRxn at 4c for 30s
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 3 (Step B): Merge master mix droplets.
+//   Three 0.5 uL master mix droplets (45% 5X First-Strand
+//   Buffer, 5.5% 20 mM DTT, 22% 10 mM dNTP mix, 5.5%
+//   RiboGuard RNase inhibitor, 22% SMARTScribe RT, 0.1%
+//   Pluronics F-127 w/v) dispensed and merged sequentially.
+//   Paper M&M: "three droplets of master mix [0.5 uL each]
+//   were dispensed onto the DMF surface, merged with the
+//   1 uL droplet."
+// ------------------------------------------------------------
+
+mm1 = dispense 1 units of MasterMixCDNA
+mm2 = dispense 1 units of MasterMixCDNA
+mm3 = dispense 1 units of MasterMixCDNA
+
+mmCombined = mix mm1 with mm2 for 5s
+mmCombined = mix mmCombined with mm3 for 5s
+cdnaRxn    = mix cdnaRxn with mmCombined for 10s
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 4 (Step B cont.): Incubate at 25 C (RT)
+//   for 3 min (= 180 s), then 42 C for 1 min (= 60 s).
+//   RT incubation: primer annealing to fragmented RNA template.
+//   42 C incubation: reverse transcriptase activation.
+// ------------------------------------------------------------
+
+heat cdnaRxn at 25c for 180s
+heat cdnaRxn at 42c for 60s
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 5 (Step C): Merge primer PP_TS.
+//   0.5 uL of primer PP_TS (12 mM) dispensed and merged with
+//   the reaction droplet.
+//   Paper M&M: "a 0.5 uL droplet of primer PP_TS (12 mM)
+//   was merged with the reaction droplet."
+// ------------------------------------------------------------
+
+ppTS    = dispense 1 units of PrimerPP_TS
+cdnaRxn = mix cdnaRxn with ppTS for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 6 (Step C cont.): Incubate at 42 C for
+//   60 min (= 3600 s). SMARTScribe RT template-switching and
+//   extension. Reaction volume maintained by evaporation
+//   replenishment (9 x 0.5 uL water, paper M&M: "nine
+//   replenishing droplets were added during the incubation
+//   at 42 C for 1 h").
+//   NOTE: heat first, then replenishment events modelled
+//   as interleaved dispense+mix steps below.
+// ------------------------------------------------------------
+
+heat cdnaRxn at 42c for 3600s
+
+// Evaporation replenishment: 9 water droplets during 42 C / 1 h
+w1_cdna = dispense 1 units of NucleaseFreeWater
+cdnaRxn = mix cdnaRxn with w1_cdna for 5s
+
+w2_cdna = dispense 1 units of NucleaseFreeWater
+cdnaRxn = mix cdnaRxn with w2_cdna for 5s
+
+w3_cdna = dispense 1 units of NucleaseFreeWater
+cdnaRxn = mix cdnaRxn with w3_cdna for 5s
+
+w4_cdna = dispense 1 units of NucleaseFreeWater
+cdnaRxn = mix cdnaRxn with w4_cdna for 5s
+
+w5_cdna = dispense 1 units of NucleaseFreeWater
+cdnaRxn = mix cdnaRxn with w5_cdna for 5s
+
+w6_cdna = dispense 1 units of NucleaseFreeWater
+cdnaRxn = mix cdnaRxn with w6_cdna for 5s
+
+w7_cdna = dispense 1 units of NucleaseFreeWater
+cdnaRxn = mix cdnaRxn with w7_cdna for 5s
+
+w8_cdna = dispense 1 units of NucleaseFreeWater
+cdnaRxn = mix cdnaRxn with w8_cdna for 5s
+
+w9_cdna = dispense 1 units of NucleaseFreeWater
+cdnaRxn = mix cdnaRxn with w9_cdna for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 7 (Step D): Termination at 70 C, 5 min
+//   (= 300 s). Inactivates SMARTScribe RT. 4 x 0.5 uL water
+//   replenishments during this incubation.
+//   Paper M&M: "the reaction was terminated by incubating at
+//   70 C for 5 min ... four [replenishing droplets] during
+//   the incubation at 70 C."
+// ------------------------------------------------------------
+
+heat cdnaRxn at 70c for 300s
+
+// Evaporation replenishment: 4 water droplets during 70 C / 5 min
+w10_cdna = dispense 1 units of NucleaseFreeWater
+cdnaRxn  = mix cdnaRxn with w10_cdna for 5s
+
+w11_cdna = dispense 1 units of NucleaseFreeWater
+cdnaRxn  = mix cdnaRxn with w11_cdna for 5s
+
+w12_cdna = dispense 1 units of NucleaseFreeWater
+cdnaRxn  = mix cdnaRxn with w12_cdna for 5s
+
+w13_cdna = dispense 1 units of NucleaseFreeWater
+cdnaRxn  = mix cdnaRxn with w13_cdna for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 8: QC detection.
+//   cdnaSynthesisDetection abstracts the qPCR Ct assay
+//   (SsoFast EvaGreen, primers PP_P1/PP_P2, CFX96; 95 C 45 s,
+//   25 x [95 C 5 s, 60 C 30 s]) and Bioanalyzer High
+//   Sensitivity DNA Assay Chip readout of ds-cDNA libraries.
+//   Expected: Ct comparable to conventional benchscale;
+//   ds-cDNA size profile indistinguishable from control.
+// ------------------------------------------------------------
+
+cdnaSignal = detect cdnaSynthesisDetection on cdnaRxn for 30s
+
+// ============================================================
+// BB5 / BB6: cDNA synthesis QC gate
+// Pass (BB5): cdnaSignal > 0 -> valid cDNA yield; dispose.
+// Fail (BB6): cdnaSignal <= 0 -> synthesis failed; drain.
+// Both branches converge at BB7 (cdnaJoin).
+// ============================================================
+
+if (cdnaSignal > 0) {
+    dispose cdnaRxn
+} else {
+    drain cdnaRxn
+}
+
+// ============================================================
+// BB7: cdnaJoin
+// Dispose cDNA QC signal. Control falls into PCR branch
+// (BB8/BB9).
+// ============================================================
+
+dispose cdnaSignal
+
+// ============================================================
+// PROTOCOL 3: PCR (Bacteriophage M13mp18, 200 bp amplicon)
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 3 - STEP 1: Dispense PCR reagent droplets.
+//   Three 0.5 uL droplets:
+//     (a) PCR master mix: Hot Start Taq 2X MM + 2x extra Taq
+//         (0.025 U/uL Hot Start Taq in 2X MM; doubled Taq).
+//     (b) Primers: forward TGTTAATACTGACCGCCTCAC +
+//         reverse CAGTAATAAAAGGGACATTCTGGC; 200 bp amplicon
+//         spanning positions 4905-5104 of M13mp18 (X02513.1);
+//         mixed equimolar, 4 uM per primer in 4X stock -> 2 uM final.
+//     (c) Template: M13mp18 ssDNA, 250 pg/uL.
+//   All three dispensed from separate reservoirs.
+// ------------------------------------------------------------
+
+pcrMM       = dispense 1 units of PCRMasterMix
+pcrPrimers  = dispense 1 units of PCRPrimers
+pcrTemplate = dispense 1 units of M13mp18_Template
+
+// ------------------------------------------------------------
+// PROTOCOL 3 - STEP 2: Merge PCR reagents into reaction droplet.
+//   Paper M&M: "droplets of master mix, primers, and template
+//   (0.5 uL each) were dispensed from their respective
+//   reservoirs, merged and mixed on the DMF surface."
+//   Final 1.5 uL droplet transported to thermal zone.
+// ------------------------------------------------------------
+
+pcrMix1 = mix pcrMM with pcrPrimers for 5s
+pcrRxn  = mix pcrMix1 with pcrTemplate for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 3 - STEP 3: Initial denaturation: 95 C, 45 s.
+//   Hot Start Taq activation. Droplet shuttled to 95 C zone.
+// ------------------------------------------------------------
+
+heat pcrRxn at 95c for 45s
+
+// ------------------------------------------------------------
+// PROTOCOL 3 - STEP 4: 33 PCR cycles.
+//   Cycling profile per cycle:
+//     Denaturation: 95 C, 20 s
+//     Annealing:    50 C, 30 s (Tm of primers ~57-60 C)
+//     Extension:    68 C, 45 s (~1 kb/min Hot Start Taq rate)
+//
+//   Replenishment: 1 x 0.5 uL water added per cycle after
+//   the 95 C denaturation step (paper: "adding one droplet
+//   upon completion of each temperature cycle").
+//
+//   BioScript has no loop construct. All 33 cycles are encoded
+//   as sequential denaturation + anneal/extend heat blocks with
+//   one interleaved replenishment step per cycle.
+//
+//   NOTE ON HEAT BLOCK GROUPING:
+//   The two intra-cycle temperatures (50 C and 68 C) are encoded
+//   together as one anneal block followed by one extend block
+//   to keep per-cycle structure clear. Denaturation (95 C)
+//   is separated so the replenishment water dispense can be
+//   inserted between denaturation and anneal/extend.
+// ------------------------------------------------------------
+
+// -- Cycle 1 --
+heat pcrRxn at 95c for 20s
+wPCR01 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR01 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 2 --
+heat pcrRxn at 95c for 20s
+wPCR02 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR02 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 3 --
+heat pcrRxn at 95c for 20s
+wPCR03 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR03 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 4 --
+heat pcrRxn at 95c for 20s
+wPCR04 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR04 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 5 --
+heat pcrRxn at 95c for 20s
+wPCR05 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR05 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 6 --
+heat pcrRxn at 95c for 20s
+wPCR06 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR06 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 7 --
+heat pcrRxn at 95c for 20s
+wPCR07 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR07 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 8 --
+heat pcrRxn at 95c for 20s
+wPCR08 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR08 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 9 --
+heat pcrRxn at 95c for 20s
+wPCR09 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR09 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 10 --
+heat pcrRxn at 95c for 20s
+wPCR10 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR10 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 11 --
+heat pcrRxn at 95c for 20s
+wPCR11 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR11 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 12 --
+heat pcrRxn at 95c for 20s
+wPCR12 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR12 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 13 --
+heat pcrRxn at 95c for 20s
+wPCR13 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR13 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 14 --
+heat pcrRxn at 95c for 20s
+wPCR14 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR14 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 15 --
+heat pcrRxn at 95c for 20s
+wPCR15 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR15 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 16 --
+heat pcrRxn at 95c for 20s
+wPCR16 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR16 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 17 --
+heat pcrRxn at 95c for 20s
+wPCR17 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR17 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 18 --
+heat pcrRxn at 95c for 20s
+wPCR18 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR18 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 19 --
+heat pcrRxn at 95c for 20s
+wPCR19 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR19 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 20 --
+heat pcrRxn at 95c for 20s
+wPCR20 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR20 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 21 --
+heat pcrRxn at 95c for 20s
+wPCR21 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR21 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 22 --
+heat pcrRxn at 95c for 20s
+wPCR22 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR22 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 23 --
+heat pcrRxn at 95c for 20s
+wPCR23 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR23 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 24 --
+heat pcrRxn at 95c for 20s
+wPCR24 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR24 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 25 --
+heat pcrRxn at 95c for 20s
+wPCR25 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR25 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 26 --
+heat pcrRxn at 95c for 20s
+wPCR26 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR26 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 27 --
+heat pcrRxn at 95c for 20s
+wPCR27 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR27 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 28 --
+heat pcrRxn at 95c for 20s
+wPCR28 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR28 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 29 --
+heat pcrRxn at 95c for 20s
+wPCR29 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR29 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 30 --
+heat pcrRxn at 95c for 20s
+wPCR30 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR30 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 31 --
+heat pcrRxn at 95c for 20s
+wPCR31 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR31 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 32 --
+heat pcrRxn at 95c for 20s
+wPCR32 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR32 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// -- Cycle 33 --
+heat pcrRxn at 95c for 20s
+wPCR33 = dispense 1 units of NucleaseFreeWater
+pcrRxn = mix pcrRxn with wPCR33 for 5s
+heat pcrRxn at 50c for 30s
+heat pcrRxn at 68c for 45s
+
+// ------------------------------------------------------------
+// PROTOCOL 3 - STEP 5: Final extension: 68 C, 5 min (= 300 s).
+//   Completes all partially extended amplicons. Paper: "and
+//   finally 68 C for 5 min." No additional replenishment
+//   events specified for this step in the paper.
+// ------------------------------------------------------------
+
+heat pcrRxn at 68c for 300s
+
+// ------------------------------------------------------------
+// PROTOCOL 3 - STEP 6: QC detection.
+//   pcrProductDetection abstracts gel electrophoresis readout
+//   (2% agarose E-Gel system, Life Technologies).
+//   Expected: single band at 200 bp comparable to conventional
+//   PCR; slightly reduced yield vs. benchscale acceptable.
+// ------------------------------------------------------------
+
+pcrSignal = detect pcrProductDetection on pcrRxn for 30s
+
+// ============================================================
+// BB8 / BB9: PCR product QC gate
+// Pass (BB8): pcrSignal > 0 -> 200 bp product detected;
+//             dispose PCR reaction droplet.
+// Fail (BB9): pcrSignal <= 0 -> no product; drain.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (pcrSignal > 0) {
+    dispose pcrRxn
+} else {
+    drain pcrRxn
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose all three QC signal droplets. Experiment ends.
+// ============================================================
+
+dispose pcrSignal
+
+// [terminal -- no further instructions; exit node for CFG]

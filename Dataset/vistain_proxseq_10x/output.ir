@@ -1,0 +1,140 @@
+bsbbif_2_t:
+	dispose(dbcoReaction1[0])
+bsbbif_3_f:
+	dispose(dbcoReaction1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(dbcoSignal1[0])
+	oligoA1[0] = dispense(AzideDNA_OligoA)
+	oligoB1[0] = dispense(AzideDNA_OligoB)
+	probeA_raw1[0] = mix(purifiedDbcoAb1[0], oligoA1[0]) @ 2.0SECOND
+	purifiedDbcoAb_B1[0] = dispense(PBS)
+	probeB_raw1[0] = mix(purifiedDbcoAb_B1[0], oligoB1[0]) @ 2.0SECOND
+	heat(probeA_raw1[0]) @ 4.0CELSIUS @ 57600.0SECOND
+	heat(probeB_raw1[0]) @ 4.0CELSIUS @ 57600.0SECOND
+	salmonSpermDNA1[0] = dispense(SalmonSpermDNA)
+	bsaPBS1[0] = dispense(BlockerBSA_PBS)
+	probeBindingBuf1[0] = mix(salmonSpermDNA1[0], bsaPBS1[0]) @ 2.0SECOND
+	probeA1[0] = mix(probeA_raw1[0], probeBindingBuf1[0]) @ 2.0SECOND
+	probeBindingBuf21[0] = dispense(BlockerBSA_PBS)
+	probeB1[0] = mix(probeB_raw1[0], probeBindingBuf21[0]) @ 2.0SECOND
+	proxseqProbePanel1[0] = mix(probeA1[0], probeB1[0]) @ 2.0SECOND
+	singleCellSample1[0] = dispense(SingleCells)
+	fcxBlocker1[0] = dispense(TruStain_FcX)
+	bsaWash1[0] = dispense(BlockerBSA_PBS)
+	blockedCells1[0] = mix(singleCellSample1[0], fcxBlocker1[0]) @ 600.0SECOND
+	washedCells11[0] = mix(blockedCells1[0], bsaWash1[0]) @ 300.0SECOND
+	stainedCells1[0] = mix(washedCells11[0], proxseqProbePanel1[0]) @ 2700.0SECOND
+	heat(stainedCells1[0]) @ 37.0CELSIUS @ 2700.0SECOND
+	bsaWash21[0] = dispense(BlockerBSA_PBS)
+	bsaWash31[0] = dispense(BlockerBSA_PBS)
+	bsaWash41[0] = dispense(BlockerBSA_PBS)
+	wash11[0] = mix(stainedCells1[0], bsaWash21[0]) @ 120.0SECOND
+	wash21[0] = mix(wash11[0], bsaWash31[0]) @ 120.0SECOND
+	wash31[0] = mix(wash21[0], bsaWash41[0]) @ 120.0SECOND
+	ligBuffer1[0] = dispense(LigationBuffer)
+	t4Ligase1[0] = dispense(T4_Ligase)
+	rnaseInhib1[0] = dispense(RNaseInhibitor)
+	ligationMix1[0] = mix(ligBuffer1[0], t4Ligase1[0]) @ 2.0SECOND
+	ligationMixFull1[0] = mix(ligationMix1[0], rnaseInhib1[0]) @ 2.0SECOND
+	ligatedCells1[0] = mix(wash31[0], ligationMixFull1[0]) @ 2.0SECOND
+	heat(ligatedCells1[0]) @ 37.0CELSIUS @ 1800.0SECOND
+	bsaWash51[0] = dispense(BlockerBSA_PBS)
+	bsaWash61[0] = dispense(BlockerBSA_PBS)
+	postLigWash11[0] = mix(ligatedCells1[0], bsaWash51[0]) @ 120.0SECOND
+	postLigWash21[0] = mix(postLigWash11[0], bsaWash61[0]) @ 120.0SECOND
+	deadCellKit1[0] = dispense(DeadCellRemovalKit)
+	piStain1[0] = dispense(PropidiumIodide)
+	viableCells1[0] = mix(postLigWash21[0], deadCellKit1[0]) @ 600.0SECOND
+	stainedForSort1[0] = mix(postLigWash21[0], piStain1[0]) @ 300.0SECOND
+	viabilitySignal1[0] = detect(viabilityDetection, stainedForSort1[0]) @ 30.0SECOND
+	if viabilitySignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	rawAntibody1[0] = dispense(PBS)
+	antibodyPBS1[0] = dispense(PBS)
+	bufferExchange11[0] = mix(rawAntibody1[0], antibodyPBS1[0]) @ 300.0SECOND
+	antibodyPBS21[0] = dispense(PBS)
+	bufferExchange21[0] = mix(bufferExchange11[0], antibodyPBS21[0]) @ 300.0SECOND
+	antibodyPBS31[0] = dispense(PBS)
+	concentratedAb1[0] = mix(bufferExchange21[0], antibodyPBS31[0]) @ 600.0SECOND
+	dmsoSolvent1[0] = dispense(DMSO)
+	dbcoNHS1[0] = dispense(DBCO_NHS_Ester)
+	dbcoStock1[0] = mix(dbcoNHS1[0], dmsoSolvent1[0]) @ 2.0SECOND
+	pbsDilutionQC1[0] = dispense(PBS)
+	dbcoDiluted1[0] = mix(dbcoStock1[0], pbsDilutionQC1[0]) @ 2.0SECOND
+	dbcoReaction1[0] = mix(dbcoDiluted1[0], concentratedAb1[0]) @ 2.0SECOND
+	heat(dbcoReaction1[0]) @ 0.0CELSIUS @ 3600.0SECOND
+	purifyPBS11[0] = dispense(PBS)
+	purifiedDbcoAb11[0] = mix(dbcoReaction1[0], purifyPBS11[0]) @ 300.0SECOND
+	purifyPBS21[0] = dispense(PBS)
+	purifiedDbcoAb21[0] = mix(purifiedDbcoAb11[0], purifyPBS21[0]) @ 300.0SECOND
+	purifyPBS31[0] = dispense(PBS)
+	purifiedDbcoAb1[0] = mix(purifiedDbcoAb21[0], purifyPBS31[0]) @ 600.0SECOND
+	dbcoSignal1[0] = detect(dbcoConjugationQC, purifiedDbcoAb1[0]) @ 30.0SECOND
+	if dbcoSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(stainedForSort1[0])
+bsbbif_6_f:
+	dispose(stainedForSort1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(viabilitySignal1[0])
+	chromiumGELBeads1[0] = dispense(Chromium_GELBeads)
+	chromiumOil1[0] = dispense(Chromium_Oil)
+	gemDroplets1[0] = mix(viableCells1[0], chromiumGELBeads1[0]) @ 2.0SECOND
+	gemEmulsion1[0] = mix(gemDroplets1[0], chromiumOil1[0]) @ 2700.0SECOND
+	kapaReadyMix1[0] = dispense(KAPA_HiFi_ReadyMix)
+	dntpMix1[0] = dispense(dNTP_Mix)
+	ampMix1[0] = mix(kapaReadyMix1[0], dntpMix1[0]) @ 2.0SECOND
+	amplifiedProduct1[0] = mix(gemEmulsion1[0], ampMix1[0]) @ 2.0SECOND
+	heat(amplifiedProduct1[0]) @ 72.0CELSIUS @ 1800.0SECOND
+	spriBeads_cDNA1[0] = dispense(SPRIselect_Beads)
+	spriBeads_PLA1[0] = dispense(SPRIselect_Beads)
+	spriMix_cDNA1[0] = mix(amplifiedProduct1[0], spriBeads_cDNA1[0]) @ 300.0SECOND
+	spriMix_PLA1[0] = mix(amplifiedProduct1[0], spriBeads_PLA1[0]) @ 300.0SECOND
+	bufferEB11[0] = dispense(BufferEB)
+	elutedCDNA1[0] = mix(spriMix_cDNA1[0], bufferEB11[0]) @ 300.0SECOND
+	librarySignal1[0] = detect(proxseqLibraryQC, elutedCDNA1[0]) @ 30.0SECOND
+	if librarySignal1[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(spriMix_cDNA1[0])
+bsbbif_9_f:
+	dispose(spriMix_cDNA1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(librarySignal1[0])
+	tenxLibraryKit1[0] = dispense(KAPA_HiFi_ReadyMix)
+	gexLibrary1[0] = mix(elutedCDNA1[0], tenxLibraryKit1[0]) @ 1800.0SECOND
+	heat(gexLibrary1[0]) @ 72.0CELSIUS @ 1200.0SECOND
+	spriBeads21[0] = dispense(SPRIselect_Beads)
+	bufferEB21[0] = dispense(BufferEB)
+	plaCleanup1[0] = mix(spriMix_PLA1[0], spriBeads21[0]) @ 300.0SECOND
+	plaEluted1[0] = mix(plaCleanup1[0], bufferEB21[0]) @ 300.0SECOND
+	kapaForPLA1[0] = dispense(KAPA_HiFi_ReadyMix)
+	nfWater1[0] = dispense(NucleaseFreeWater)
+	plaPcrMix1[0] = mix(kapaForPLA1[0], nfWater1[0]) @ 2.0SECOND
+	plaAmplified1[0] = mix(plaEluted1[0], plaPcrMix1[0]) @ 2.0SECOND
+	heat(plaAmplified1[0]) @ 60.0CELSIUS @ 1500.0SECOND
+	spriBeads31[0] = dispense(SPRIselect_Beads)
+	bufferEB31[0] = dispense(BufferEB)
+	plaSpriClean1[0] = mix(plaAmplified1[0], spriBeads31[0]) @ 300.0SECOND
+	plaLibrary1[0] = mix(plaSpriClean1[0], bufferEB31[0]) @ 300.0SECOND
+	assaySignal1[0] = detect(plaProductDetection, plaLibrary1[0]) @ 30.0SECOND
+	if assaySignal1[0] > 0	|	true: jump bsbbif_11_t	|	false: jump bsbbif_12_f
+bsbbif_11_t:
+	phiXControl1[0] = dispense(PhiX_Control)
+	seqKit1[0] = dispense(NextSeq_MidOutput_Kit)
+	gexSeqPool1[0] = mix(gexLibrary1[0], phiXControl1[0]) @ 300.0SECOND
+	phiXForPLA1[0] = dispense(PhiX_Control)
+	plaSeqPool1[0] = mix(plaLibrary1[0], phiXForPLA1[0]) @ 300.0SECOND
+	seqRunMix1[0] = mix(plaSeqPool1[0], seqKit1[0]) @ 2.0SECOND
+	heat(seqRunMix1[0]) @ 4.0CELSIUS @ 36000.0SECOND
+	dispose(gexSeqPool1[0])
+	dispose(seqRunMix1[0])
+bsbbif_12_f:
+	dispose(plaLibrary1[0])
+	dispose(gexLibrary1[0])
+	jump: bsbbif_13_j
+bsbbif_13_j:
+	dispose(assaySignal1[0])
+	NOP

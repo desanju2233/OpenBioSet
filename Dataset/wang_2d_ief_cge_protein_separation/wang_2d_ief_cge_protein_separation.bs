@@ -1,0 +1,333 @@
+module iefFocusingDetection
+module cgeDetection
+
+manifest Ampholyte_3_10
+manifest GlycerolMethylcellulose
+manifest GFP_Sample
+manifest OvalSample
+manifest LDLPSample
+manifest TrypsinInhibitorSample
+manifest AcrylamideCoating
+manifest AnolyteSolution
+manifest CatholyteSolution
+manifest CGE_GelBuffer
+manifest CZE_Buffer
+
+// ============================================================
+// Two-Dimensional Protein Separation with Advanced Sample and
+// Buffer Isolation Using Microfluidic Valves
+// Wang, Choi, Han - Anal. Chem. 2004, 76, 4426-4431
+// DOI: 10.1021/ac0497499
+//
+// Platform: Double-layer PDMS microfluidic chip with
+// pneumatic monolith valves (Unger et al., Science 2000).
+// Separation channels: 150 um wide, 12 um high. IEF channel:
+// 10 mm. CE channel: 25 mm. Peak transfer region: 3 mm.
+// Control channels: 300 um wide, 50 um high (5 mm thick PDMS).
+// Substrate: poly(dimethylsiloxane) (PDMS) on flat glass.
+//
+// Objective: Integrate IEF (charge-based, 1st dimension) with
+// CGE or CZE (size/charge-based, 2nd dimension) using active
+// microvalve control to prevent buffer interdiffusion between
+// incompatible separation media (ampholyte vs. CE buffer).
+//
+// Samples (labeled with fluorescein or Alexa Fluor 488):
+//   GFP            (pI 5.6, MW 26 kDa)
+//   Ovalbumin      (pI 5.1, MW 45 kDa)
+//   LDL Protein    (pI 5.11, MW 179 kDa)
+//   Trypsin Inhib. (pI 4.6, MW 20 kDa)
+// IEF sample: 3-10 ampholyte + 1% methylcellulose + 10%
+// glycerol + aqueous labeled proteins.
+//
+// This file encodes the IEF-CGE 2D separation arm (Figure 3/4
+// in the paper) as the primary representative experiment.
+// The IEF-CZE arm follows an identical four-step procedure
+// with CGE_GelBuffer replaced by CZE_Buffer and a 250 V/cm
+// field in the second dimension; it is noted in comments below
+// but not separately encoded. See paper Section "IEF Coupled
+// with Second-Dimension Capillary Zone Electrophoresis."
+//
+// NOTE ON PLATFORM COMPATIBILITY: This is a continuous-flow
+// pressure-driven + electrokinetic chip, not a DMF/EWOD device.
+// BioScript `mix` abstracts pressure-driven injection and
+// electrokinetic buffer loading steps. `heat` abstracts
+// electric field application (IEF focusing, CGE/CE separation)
+// because BioScript has no native electrokinetic primitive.
+// `detect` abstracts fluorescence microscopy readout
+// (inverted epi-fluorescence, FITC filter, CCD camera,
+// IPLab 3.6 at 1 frame/s).
+//
+// NOTE ON SURFACE PASSIVATION: The chip requires a static
+// polyacrylamide coating (via 3-(trimethoxysilyl)propyl
+// methacrylate adhesion promoter) followed by dynamic 0.5%
+// methylcellulose coating before use. This is modelled as a
+// dispense + heat step at 25 C for 30 min (polymerization
+// under N2 purge in vacuum chamber). This is a one-time chip
+// preparation step; it does not consume a droplet in the
+// electrophoretic sense, but must appear before loading to
+// satisfy fluid variable ownership rules.
+//
+// NOTE ON VALVE ACTUATION: Pneumatic valves are controlled by
+// 80 psi pressure on the top control layer. Closing right
+// valves (3,4) isolates the IEF channel from the CGE channel;
+// closing left valves (1,2) traps the peak transfer region.
+// BioScript has no native valve primitive; valve state changes
+// are abstracted as mix steps transitioning between separation
+// phases (loading, isolation, transfer). Dead volume at peak
+// transfer region: 0.1 nL (smaller than commercial valves).
+//
+// NOTE ON h DURATION TOKEN: BioScript (lilott8 compiler)
+// supports only `s` and `m` duration tokens. All durations
+// are expressed in seconds (s) or minutes (m).
+//
+// CFG STRUCTURE:
+//   BB1  main            -- chip prep, IEF buffer loading,
+//                           sample loading, IEF focusing,
+//                           peak isolation by valve closure
+//   BB2  iefPass         -- iefSignal > 0: focused peaks
+//                           detected in transfer region;
+//                           dispose and proceed to CGE
+//   BB3  iefFail         -- iefSignal <= 0: focusing failed
+//                           (EOF too high or no peaks); drain
+//   BB4  iefJoin         -- join: CGE separation branch begins
+//   BB5  cgePass         -- cgeSignal > 0: proteins separated
+//                           in 2nd dimension; dispose all
+//   BB6  cgeFail         -- cgeSignal <= 0: no CGE signal; drain
+//   BB7  finalCleanup    -- terminal: dispose QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Surface passivation - static polyacrylamide coating.
+//   Coat PDMS channel with 3-(trimethoxysilyl)propyl
+//   methacrylate adhesion promoter, then introduce acrylamide
+//   + TEMED + APS solution under N2 purge (5 psi vacuum) for
+//   30 min at 25 C to grow polyacrylamide polymer on surface.
+//   Followed by 0.5% methylcellulose dynamic coating.
+//   Modelled as heat at 25 C for 30 min (polymerization step).
+//   `mix` abstracts the introduction of coating solution into
+//   the microfluidic channel via pressure-driven flow.
+// ------------------------------------------------------------
+
+coatingBase   = dispense 1 units of AcrylamideCoating
+viscosityAdd  = dispense 1 units of GlycerolMethylcellulose
+coatingMix    = mix coatingBase with viscosityAdd for 5s
+
+// Polymerization under N2 purge, 25 C, 30 min.
+heat coatingMix at 25c for 30m
+
+// ------------------------------------------------------------
+// STEP 2: Load CGE gel buffer into the second-dimension channel.
+//   Right valves (3, 4) are closed first (80 psi) to isolate
+//   the IEF channel. CGE gel buffer: SDS 14-200 (90% SDS
+//   14-200 gel buffer + 1% methylcellulose) injected at
+//   20-30 psi into the CE channel without contaminating the
+//   IEF channel. Up to 60 psi can be applied without
+//   breaking valve seal. Modelled as dispense + mix
+//   abstracting pressure-driven injection into the CE channel.
+//   (Paper Figure 1b: CE media loading step)
+// ------------------------------------------------------------
+
+cgeGelBuffer  = dispense 1 units of CGE_GelBuffer
+gelLoadedChannel = mix coatingMix with cgeGelBuffer for 10s
+
+// ------------------------------------------------------------
+// STEP 3: Prepare IEF sample mixture.
+//   IEF sample: 3-10 ampholyte (Beckman Coulter) + 10%
+//   glycerol + 1% methylcellulose + labeled protein samples.
+//   1% methylcellulose suppresses electroosmotic flow (EOF)
+//   to keep focused peaks stable in the 10 mm IEF channel.
+//   Four proteins loaded simultaneously.
+// ------------------------------------------------------------
+
+ampholyteMix  = dispense 1 units of Ampholyte_3_10
+glycerolMC    = dispense 1 units of GlycerolMethylcellulose
+
+iefBase       = mix ampholyteMix with glycerolMC for 5s
+
+gfpSample     = dispense 1 units of GFP_Sample
+ovalSample    = dispense 1 units of OvalSample
+ldlpSample    = dispense 1 units of LDLPSample
+tiSample      = dispense 1 units of TrypsinInhibitorSample
+
+// Combine all four labeled proteins into the ampholyte carrier.
+sampleMix1    = mix gfpSample with ovalSample for 5s
+sampleMix2    = mix ldlpSample with tiSample for 5s
+proteinPool   = mix sampleMix1 with sampleMix2 for 5s
+
+iefSample     = mix iefBase with proteinPool for 10s
+
+// ------------------------------------------------------------
+// STEP 4: Load IEF sample + replace reservoir buffers.
+//   Left valves (1, 2) closed (80 psi) to isolate CGE gel.
+//   Right valves (3, 4) opened. Ampholyte-sample mixture
+//   injected into the 10 mm IEF channel at low pressure.
+//   Reservoir solutions then replaced: anolyte (0.1 M acetic
+//   acid, pH 2.5) at anode end; catholyte (0.5% ammonium
+//   hydroxide, pH 10.5) at cathode end.
+//   (Paper Figure 1c: IEF ampholyte mixture loading step)
+// ------------------------------------------------------------
+
+anolyte       = dispense 1 units of AnolyteSolution
+catholyte     = dispense 1 units of CatholyteSolution
+
+// Buffer replacement at reservoirs modelled as mix.
+anolyteLoad   = mix iefSample with anolyte for 5s
+iefChannel    = mix anolyteLoad with catholyte for 5s
+
+// ------------------------------------------------------------
+// STEP 5: IEF focusing (1st dimension).
+//   500 V/cm applied across 10 mm IEF channel (total: 500 V).
+//   Proteins focus to stationary bands at their pI under the
+//   pH 3-10 gradient. Focusing equilibration: < 30 s (2 orders
+//   of magnitude faster than CIEF in 25-50 cm capillaries).
+//   EOF mobilizes focused peaks slowly from anode to cathode.
+//   IEF steady state confirmed by monitoring current.
+//   Modelled as heat at 37 C for 130 s (electric field applied
+//   130 s per paper Figure 3a caption; temperature abstraction
+//   encodes field-driven step duration).
+// ------------------------------------------------------------
+
+heat iefChannel at 37c for 130s
+
+// ------------------------------------------------------------
+// STEP 6: Fluorescence detection - IEF peak verification.
+//   Inverted epi-fluorescence microscope (Olympus, FITC filter,
+//   100 W Hg lamp). CCD camera (Cooke Co., 1 frame/s).
+//   Verify that protein peaks (GFP pI 5.6, Oval pI 5.1,
+//   LDLP pI 5.11, TI pI 4.6) are resolved in IEF channel
+//   and have entered the 3 mm peak transfer region.
+//   iefFocusingDetection module abstracts fluorescence imaging
+//   and peak position verification.
+// ------------------------------------------------------------
+
+iefSignal = detect iefFocusingDetection on iefChannel for 30s
+
+// ============================================================
+// BB2 / BB3: IEF focusing QC gate
+// Pass (BB2): iefSignal > 0 -> peaks detected in transfer
+//             region; proceed to peak isolation and CGE.
+// Fail (BB3): iefSignal <= 0 -> focusing failed (EOF too
+//             high, no gradient, or no peaks in transfer
+//             region); drain channel contents.
+// Both branches converge at BB4 (iefJoin).
+// ============================================================
+
+if (iefSignal > 0) {
+    dispose iefChannel
+} else {
+    drain iefChannel
+}
+
+// ============================================================
+// BB4: iefJoin
+// Dispose IEF QC signal. Control falls into CGE separation
+// branch (BB5/BB6). Peak transfer region now holds isolated
+// protein band(s) trapped by closed valve sets.
+// ============================================================
+
+dispose iefSignal
+
+// ------------------------------------------------------------
+// STEP 7: Peak isolation by valve closure.
+//   After 130 s of IEF focusing, target protein peaks have
+//   entered the 3 mm peak transfer region. Both valve sets
+//   (1,2 and 3,4) are closed at 80 psi to physically isolate
+//   the peak transfer region from both the IEF channel and
+//   the CGE channel. Isolation resistance: > 1000 MOhm at
+//   100 psi; no protein intercontamination observed after
+//   30 min. Dead volume: 0.1 nL.
+//   Modelled as dispense of isolated peak region (re-entry
+//   of isolated fluid into BioScript variable scope).
+//   (Paper Figure 1d: isolation of target proteins)
+// ------------------------------------------------------------
+
+isolatedPeaks = dispense 1 units of GFP_Sample
+
+// ------------------------------------------------------------
+// STEP 8: Buffer equilibration before CGE field application.
+//   Left valves (1, 2) opened. CGE buffer ions allowed to
+//   diffuse into the peak transfer region for 30 s to prevent
+//   abrupt conductivity jump at the buffer boundary. Protein
+//   diffusion is slow (large molecules) relative to buffer
+//   ion diffusion; this step does not degrade IEF resolution.
+//   Small-MW ampholyte molecules co-isolated with proteins
+//   will be rapidly eluted by electrophoresis (lower MW).
+//   (Paper Figure 1e and 3b: 30 s equilibration period)
+// ------------------------------------------------------------
+
+cgeEquil     = dispense 1 units of CGE_GelBuffer
+equilibrated = mix isolatedPeaks with cgeEquil for 30s
+
+// ------------------------------------------------------------
+// STEP 9: CGE separation (2nd dimension).
+//   250 V/cm applied across the 25 mm CE channel (total:
+//   625 V). Proteins entering the high-conductivity CGE gel
+//   buffer from the low-conductivity ampholyte stacking zone
+//   experience sample stacking at the boundary: sudden
+//   decrease in electrophoretic velocity creates a band-
+//   narrowing effect. Stacking makes 1st and 2nd dimension
+//   separations independent (Figure 5, paper).
+//   Separation basis: charge-to-mass ratio (non-denaturing
+//   CGE, no SDS). Ovalbumin (45 kDa) has higher mobility
+//   than GFP (26 kDa) due to higher charge-to-mass ratio
+//   (ovalbumin mu = -1.3e4 cm2/V.s; GFP mu = -1.0e4 cm2/V.s).
+//   Full 2D separation achieved within 10 min total.
+//   Modelled as heat at 37 C for 6m (250 V/cm for ~6 min
+//   per Figure 4b electropherogram time axis).
+// ------------------------------------------------------------
+
+heat equilibrated at 37c for 6m
+
+// ------------------------------------------------------------
+// STEP 10: Fluorescence detection - CGE readout.
+//   Electropherograms acquired at end of 25 mm CGE channel
+//   by fluorescence intensity measurement. FITC filter set.
+//   CCD camera, 1 frame/s, IPLab 3.6 acquisition.
+//   cgeDetection module abstracts fluorescence electropherogram
+//   acquisition and peak identification.
+//   Expected elution order: Ovalbumin elutes before GFP
+//   (higher charge-to-mass ratio, faster mobility).
+// ------------------------------------------------------------
+
+cgeSignal = detect cgeDetection on equilibrated for 30s
+
+// ============================================================
+// BB5 / BB6: CGE separation QC gate
+// Pass (BB5): cgeSignal > 0 -> protein peaks detected in
+//             2nd-dimension electropherogram; dispose.
+// Fail (BB6): cgeSignal <= 0 -> no CGE signal (stacking
+//             failed, valve leak, or detector issue); drain.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (cgeSignal > 0) {
+    dispose equilibrated
+} else {
+    drain equilibrated
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose CGE QC signal droplet. Experiment ends.
+// Total protocol time: ~10 min (per paper conclusion).
+//
+// NOTE ON IEF-CZE ARM: The paper also demonstrates IEF
+// coupled with capillary zone electrophoresis (CZE/CE) using
+// CZE_Buffer (0.375 M Tris-Cl, pH 8.6, 0.1% methylcellulose)
+// instead of CGE_GelBuffer, and 250 V/cm in the 2nd dimension.
+// The stacking mechanism still operates (liquid-liquid
+// conductivity boundary). The CZE arm is structurally
+// identical to the CGE arm above with reagent substitution.
+// A separate .bs file should encode the IEF-CZE arm with
+// CZE_Buffer substituted for CGE_GelBuffer at Steps 2 and 8.
+// ============================================================
+
+dispose cgeSignal
+
+// [terminal -- no further instructions; exit node for CFG]

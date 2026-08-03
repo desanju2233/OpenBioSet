@@ -1,0 +1,394 @@
+module msDetection
+module nmrDetection
+
+manifest Boc_Ala_SH
+manifest Boc_Val_SH
+manifest Az_Ala_An
+manifest Az_Pro_An
+manifest RaneyNickel
+manifest MeOH
+
+// ============================================================
+// Combinatorial Synthesis of Peptidomimetics Using Digital
+// Microfluidics. Jebrail, Assem, Mudrik, Dryden, Lin, Yudin,
+// Wheeler. J. Flow Chem. 2012, 2(3), 103-107.
+// DOI: 10.1556/JFC-D-12-00012
+//
+// Platform: Two-plate DMF device (chromium bottom electrode
+//   array + ITO top plate). 88 square actuation electrodes
+//   (2.2x2.2 mm, 140 um peak-to-peak sinusoid interdigitated
+//   borders), 10 reservoir electrodes (5x5 mm each).
+//   Unit droplet: ~900 nL. Reservoir droplet: ~4.5 uL.
+//   Driving potential: 70-100 V_rms, 18 kHz sine wave
+//   (Agilent function generator + amplifier).
+//   Spacer thickness: 180 um (double-sided tape, 2 layers).
+//   Device materials: chromium electrodes, ITO top plate,
+//   hydrophobic insulator coating.
+//
+// REAGENTS:
+//   A1 = Boc-Ala-SH  (thioacid peptide)
+//   A2 = Boc-Val-SH  (thioacid peptide)
+//   B1 = Az-Ala-An   (NH aziridine-terminated amino acid)
+//   B2 = Az-Pro-An   (NH aziridine-terminated amino acid)
+//   All starting materials at 0.1 M in MeOH (HPLC-grade).
+//   RaNi: Raney Nickel catalyst (~5 mg in MeOH) per droplet.
+//
+// PROTOCOL OVERVIEW:
+//   PART 1 (Steps 1-4): Combinatorial ligation -- 16 steps
+//     producing 4 peptidomimetic products A1-B1, A1-B2,
+//     A2-B1, A2-B2 via N2 atmosphere thioacid-aziridine
+//     ligation. Reaction: N2, RT, 1h, in MeOH.
+//   PART 2 (Steps 5-8): Desulfurization -- 16 additional
+//     steps per set. RaNi catalyst reduces the thiol in
+//     each peptidomimetic product at RT for 15 min, then
+//     magnetic immobilisation of RaNi and product isolation.
+//
+// NOTE ON GLOVEBOX: Steps 3-4 run inside a miniaturised
+//   Petri-dish glovebox (150 mm o.d., 15 mm h) purged with
+//   N2 at ~50 mL/min for 2 min to maintain inert atmosphere.
+//   BioScript has no glovebox primitive; the N2 atmosphere
+//   is abstracted as a heat step at 25 C (RT) with the
+//   ligation incubation duration (60 min = 60m).
+//
+// NOTE ON MAGNETIC SEPARATION: In Step 7, a Neodymium Iron
+//   Boron magnet immobilises RaNi to the device surface.
+//   The supernatant (desulfurized product in MeOH) is then
+//   driven away by electrode actuation. BioScript has no
+//   magnet primitive; this is abstracted as a `drain` on
+//   the catalyst-containing droplet after detection, followed
+//   by disposal of the product supernatant.
+//   KNOWN COMPILER BEHAVIOUR (Bug 2): lilott8/BioScript
+//   maps `drain` to the same IR opcode as `dispose`. The
+//   magnetic-separation semantic is preserved in source
+//   comments only; both collapse to dispose() in the IR.
+//
+// NOTE ON SOLVENT EVAPORATION: After ligation (Step 4) and
+//   after desulfurization isolation (Step 8), the top plate
+//   is removed and solvent is allowed to evaporate at RT
+//   (15 min post-ligation, 30 min post-desulfurization).
+//   BioScript has no evaporation primitive; these steps are
+//   abstracted as heat at 25 C for 15m and 30m respectively.
+//
+// NOTE ON COMPILER: This file targets lilott8/BioScript.
+//   Duration tokens: s (seconds), m (minutes) only.
+//   No array indexing; all droplets are scalar named variables.
+//   Each of the 4 ligation reactions is encoded independently
+//   (4 x 4 steps = 16 steps PART 1; 4 x 4 steps = 16 steps
+//   PART 2), matching the paper's step count exactly.
+//
+// CFG STRUCTURE:
+//   BB1  main             -- dispense all 8 starting material
+//                            droplets, perform 4 ligations,
+//                            N2 incubation, solvent evaporation
+//   BB2  ligationPass     -- ligationSignal > 0: all 4 products
+//                            confirmed by MS; proceed to PART 2
+//   BB3  ligationFail     -- ligationSignal <= 0: ligation QC
+//                            failed; drain products
+//   BB4  ligationJoin     -- join: desulfurization branch begins
+//   BB5  desulfPass       -- desulfSignal > 0: desulfurized
+//                            products confirmed; dispose all
+//   BB6  desulfFail       -- desulfSignal <= 0: assay failed;
+//                            drain all desulfurized droplets
+//   BB7  finalCleanup     -- terminal: dispose QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// PART 1 -- STEP 1: Dispense 8 starting material droplets
+//   (two droplets each of A1, A2, B1, B2).
+//   All reagents at 0.1 M in MeOH (HPLC-grade).
+//   Each unit droplet: ~900 nL, dispensed from reservoir
+//   (4.5 uL) by applying 70-100 V_rms at 18 kHz to the
+//   reservoir electrode, pinching off a unit droplet onto
+//   the actuation electrode array.
+// ------------------------------------------------------------
+
+// Thioacid peptide A1 (Boc-Ala-SH) -- two droplets
+a1_drop1 = dispense 1 units of Boc_Ala_SH
+a1_drop2 = dispense 1 units of Boc_Ala_SH
+
+// Thioacid peptide A2 (Boc-Val-SH) -- two droplets
+a2_drop1 = dispense 1 units of Boc_Val_SH
+a2_drop2 = dispense 1 units of Boc_Val_SH
+
+// NH aziridine-terminated amino acid B1 (Az-Ala-An) -- two droplets
+b1_drop1 = dispense 1 units of Az_Ala_An
+b1_drop2 = dispense 1 units of Az_Ala_An
+
+// NH aziridine-terminated amino acid B2 (Az-Pro-An) -- two droplets
+b2_drop1 = dispense 1 units of Az_Pro_An
+b2_drop2 = dispense 1 units of Az_Pro_An
+
+// ------------------------------------------------------------
+// PART 1 -- STEP 2: Merge reagent pairs for 4 combinatorial
+//   ligation reactions (A1xB1, A1xB2, A2xB1, A2xB2).
+//   Droplets driven by sequential electrode actuation at
+//   70-100 V_rms, 18 kHz; merging occurs when two droplets
+//   share an electrode and coalesce.
+// ------------------------------------------------------------
+
+// Merge A1 + B1 -> A1_B1 raw merge
+a1b1_merge = mix a1_drop1 with b1_drop1 for 5s
+
+// Merge A1 + B2 -> A1_B2 raw merge
+a1b2_merge = mix a1_drop2 with b2_drop1 for 5s
+
+// Merge A2 + B1 -> A2_B1 raw merge
+a2b1_merge = mix a2_drop1 with b1_drop2 for 5s
+
+// Merge A2 + B2 -> A2_B2 raw merge
+a2b2_merge = mix a2_drop2 with b2_drop2 for 5s
+
+// ------------------------------------------------------------
+// PART 1 -- STEP 3: Mix and react under N2 (miniaturised
+//   glovebox). Each merged droplet is mixed for 60 s by
+//   actuating in a circular motion on four electrodes
+//   (70-100 V_rms, 18 kHz), then incubated for 1 h at RT
+//   under N2 atmosphere. Reaction: thioacid-aziridine
+//   ligation forming a peptide bond isostere with a thiol
+//   sidechain (sulfa-Ala/Val backbone, rAla/rPro C-terminus).
+//   N2 atmosphere maintained by miniaturised Petri-dish
+//   glovebox (purged 50 mL/min, 2 min; sealed with parafilm).
+//   BioScript abstraction: heat at 25 C for 60m models the
+//   RT incubation; the mixing step is encoded separately below.
+//
+//   Products (expected m/z, ESI-MS positive ion mode):
+//     A1-B1: Boc-Ala-Cys-rAla-Anilide  m/z 425
+//     A1-B2: Boc-Ala-Cys-rPro-Anilide  m/z 451
+//     A2-B1: Boc-Val-Cys-rAla-Anilide  m/z 452  (paper: 452)
+//     A2-B2: Boc-Val-Cys-rPro-Anilide  m/z 479
+// ------------------------------------------------------------
+
+// Active mixing (60 s circular actuation) followed by N2 incubation (1h)
+a1b1_mixed = mix a1b1_merge with a1b1_merge for 60s
+a1b2_mixed = mix a1b2_merge with a1b2_merge for 60s
+a2b1_mixed = mix a2b1_merge with a2b1_merge for 60s
+a2b2_mixed = mix a2b2_merge with a2b2_merge for 60s
+
+// N2 atmosphere incubation at RT (25 C) for 1 h (60 min)
+heat a1b1_mixed at 25c for 60m
+heat a1b2_mixed at 25c for 60m
+heat a2b1_mixed at 25c for 60m
+heat a2b2_mixed at 25c for 60m
+
+// ------------------------------------------------------------
+// PART 1 -- STEP 4: Solvent evaporation to isolate
+//   peptidomimetic solid products.
+//   Device removed from glovebox; top plate removed to
+//   expose dried spots. Solvent (MeOH) allowed to evaporate
+//   at RT for 15 min. Products remain as dried solids on
+//   the bottom plate electrode surface.
+//   BioScript abstraction: heat at 25 C for 15m.
+// ------------------------------------------------------------
+
+heat a1b1_mixed at 25c for 15m
+heat a1b2_mixed at 25c for 15m
+heat a2b1_mixed at 25c for 15m
+heat a2b2_mixed at 25c for 15m
+
+// ------------------------------------------------------------
+// LIGATION QC: ESI-MS detection on representative product
+//   (A1-B1 used as QC sentinel; paper verifies all 4 in
+//   triplicate, ~2.3 mM in MeOH + 0.1% formic acid,
+//   Agilent 1200 series quadrupole MS, positive ion mode,
+//   50 V applied voltage, 100 C capillary, 0.5 mL/min,
+//   average of 67 acquisitions).
+//   Expected m/z 425 for A1-B1.
+// ------------------------------------------------------------
+
+ligationSignal = detect msDetection on a1b1_mixed for 30s
+
+// ============================================================
+// BB2 / BB3: Ligation QC gate
+// Pass (BB2): ligationSignal > 0 -> MS confirms peptidomimetic
+//             product present; proceed to desulfurization.
+// Fail (BB3): ligationSignal <= 0 -> no product signal;
+//             drain all ligation products.
+// Both branches converge at BB4 (ligationJoin).
+// ============================================================
+
+if (ligationSignal > 0) {
+    dispose a1b1_mixed
+    dispose a1b2_mixed
+    dispose a2b1_mixed
+    dispose a2b2_mixed
+} else {
+    drain a1b1_mixed
+    drain a1b2_mixed
+    drain a2b1_mixed
+    drain a2b2_mixed
+}
+
+// ============================================================
+// BB4: ligationJoin
+// Dispose ligation QC signal. Control falls into
+// desulfurization branch (BB5/BB6).
+// ============================================================
+
+dispose ligationSignal
+
+// ============================================================
+// PART 2: Desulfurization with Raney Nickel (RaNi)
+// ============================================================
+
+// ------------------------------------------------------------
+// PART 2 -- STEP 5: Re-dissolve dried peptidomimetic products
+//   in MeOH. Top plate replaced; a 900-nL MeOH droplet is
+//   dispensed from the reservoir and driven to each dried
+//   product spot by electrode actuation to re-solubilise.
+//   Products resolved: A1-B1 (m/z 425), A1-B2 (m/z 451),
+//   A2-B1 (m/z 452), A2-B2 (m/z 479).
+//
+//   NOTE: In PART 2, the four products are re-encoded as
+//   fresh dispense + resolubilisation events because the
+//   PART 1 solids are treated as new starting droplets for
+//   the desulfurization sub-protocol.
+// ------------------------------------------------------------
+
+meoh_a1b1 = dispense 1 units of MeOH
+meoh_a1b2 = dispense 1 units of MeOH
+meoh_a2b1 = dispense 1 units of MeOH
+meoh_a2b2 = dispense 1 units of MeOH
+
+// Re-dissolve each product solid in MeOH
+a1b1_dissolved = mix meoh_a1b1 with a1b1_mixed for 5s
+a1b2_dissolved = mix meoh_a1b2 with a1b2_mixed for 5s
+a2b1_dissolved = mix meoh_a2b1 with a2b1_mixed for 5s
+a2b2_dissolved = mix meoh_a2b2 with a2b2_mixed for 5s
+
+// ------------------------------------------------------------
+// PART 2 -- STEP 6: Dispense RaNi catalyst droplets and merge
+//   with each dissolved peptidomimetic product droplet.
+//   RaNi: ~5 mg Raney Nickel (Ni-Al alloy grains) suspended
+//   in MeOH. Dispensed as 4.5-uL reservoir-volume droplets
+//   (one per assay area). Merged with each product droplet
+//   on the electrode array by sequential actuation.
+//   Raney Nickel catalyses desulfurization: removes the -SH
+//   from the cysteine-like sulfa backbone to yield the
+//   reduced amide bond (confirmed by NMR peaks at 4.05 and
+//   4.29 ppm for the reduced amide CH protons).
+// ------------------------------------------------------------
+
+rani_a1b1 = dispense 1 units of RaneyNickel
+rani_a1b2 = dispense 1 units of RaneyNickel
+rani_a2b1 = dispense 1 units of RaneyNickel
+rani_a2b2 = dispense 1 units of RaneyNickel
+
+// Merge each product with RaNi catalyst
+desulf_a1b1_raw = mix a1b1_dissolved with rani_a1b1 for 5s
+desulf_a1b2_raw = mix a1b2_dissolved with rani_a1b2 for 5s
+desulf_a2b1_raw = mix a2b1_dissolved with rani_a2b1 for 5s
+desulf_a2b2_raw = mix a2b2_dissolved with rani_a2b2 for 5s
+
+// ------------------------------------------------------------
+// PART 2 -- STEP 7: Mix and incubate at RT for 15 min.
+//   Each merged droplet mixed for 60 s at RT (25 C) by
+//   circular electrode actuation, then incubated for 15 min
+//   at RT. Desulfurization converts the thiol sidechain to H
+//   (reduced amide bond). RaNi catalyst consumed in situ.
+//
+//   Expected desulfurized products (ESI-MS m/z):
+//     desulf A1-B1: m/z 393
+//     desulf A1-B2: m/z 419
+//     desulf A2-B1: m/z 421
+//     desulf A2-B2: m/z 447
+// ------------------------------------------------------------
+
+desulf_a1b1_mixed = mix desulf_a1b1_raw with desulf_a1b1_raw for 60s
+desulf_a1b2_mixed = mix desulf_a1b2_raw with desulf_a1b2_raw for 60s
+desulf_a2b1_mixed = mix desulf_a2b1_raw with desulf_a2b1_raw for 60s
+desulf_a2b2_mixed = mix desulf_a2b2_raw with desulf_a2b2_raw for 60s
+
+heat desulf_a1b1_mixed at 25c for 15m
+heat desulf_a1b2_mixed at 25c for 15m
+heat desulf_a2b1_mixed at 25c for 15m
+heat desulf_a2b2_mixed at 25c for 15m
+
+// ------------------------------------------------------------
+// PART 2 -- STEP 8: Magnetic immobilisation of RaNi and
+//   product isolation by solvent evaporation.
+//   A Neodymium Iron Boron (NdFeB) magnet is placed beneath
+//   the device to immobilise the ferromagnetic RaNi grains
+//   to the bottom plate surface. The supernatant droplet
+//   (containing desulfurized product in MeOH, now RaNi-free)
+//   is driven away by electrode actuation to a clean area.
+//   Top plate removed; MeOH evaporated at RT for 30 min.
+//   Products remain as dried solids for off-chip analysis.
+//
+//   BioScript abstraction: `drain` models the magnetic
+//   immobilisation and removal of RaNi-containing phase;
+//   heat at 25 C for 30m models solvent evaporation of
+//   the product supernatant.
+//
+//   NMR verification (desulf A1-B1, CD3OD, 400 MHz):
+//   Peaks at 4.05 and 4.29 ppm (reduced amide bond),
+//   1.44 ppm (Boc protecting group), 7.60-7.17 ppm (phenyl).
+//   Nearly identical to macroscale synthesis spectrum.
+// ------------------------------------------------------------
+
+// Magnetic immobilisation: drain RaNi-containing mixed droplets
+drain desulf_a1b1_mixed
+drain desulf_a1b2_mixed
+drain desulf_a2b1_mixed
+drain desulf_a2b2_mixed
+
+// Dispense fresh MeOH to collect the supernatant product
+meoh_prod_a1b1 = dispense 1 units of MeOH
+meoh_prod_a1b2 = dispense 1 units of MeOH
+meoh_prod_a2b1 = dispense 1 units of MeOH
+meoh_prod_a2b2 = dispense 1 units of MeOH
+
+// Solvent evaporation to isolate desulfurized product solids
+heat meoh_prod_a1b1 at 25c for 30m
+heat meoh_prod_a1b2 at 25c for 30m
+heat meoh_prod_a2b1 at 25c for 30m
+heat meoh_prod_a2b2 at 25c for 30m
+
+// ------------------------------------------------------------
+// DESULFURIZATION QC: ESI-MS detection on representative
+//   product (desulf A1-B1 used as QC sentinel; expected
+//   m/z 393). Paper verifies all 4 desulfurized products
+//   in triplicate by MS and confirms A1-B1 desulf by 1H NMR
+//   (500 MHz, capillary tube 100 um i.d., 512 scans).
+//   NMR module abstracts both MS and NMR QC here.
+// ------------------------------------------------------------
+
+desulfSignal = detect nmrDetection on meoh_prod_a1b1 for 30s
+
+// ============================================================
+// BB5 / BB6: Desulfurization QC gate
+// Pass (BB5): desulfSignal > 0 -> desulfurized products
+//             confirmed; dispose all isolated product droplets.
+// Fail (BB6): desulfSignal <= 0 -> no signal (RaNi failure
+//             or product loss); drain all.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (desulfSignal > 0) {
+    dispose meoh_prod_a1b1
+    dispose meoh_prod_a1b2
+    dispose meoh_prod_a2b1
+    dispose meoh_prod_a2b2
+} else {
+    drain meoh_prod_a1b1
+    drain meoh_prod_a1b2
+    drain meoh_prod_a2b1
+    drain meoh_prod_a2b2
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose desulfurization QC signal droplet.
+// Experiment ends. All 8 products (4 peptidomimetics +
+// 4 desulfurized analogues) have been synthesised in 32
+// total processing steps on a single DMF device.
+// ============================================================
+
+dispose desulfSignal
+
+// [terminal -- no further instructions; exit node for CFG]

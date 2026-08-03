@@ -1,0 +1,291 @@
+module fluorescenceDetection
+module absorbanceDetection
+
+manifest FluoresceinStock
+manifest DilutionBuffer
+manifest IonicLiquidStock
+manifest WildTypeYeast
+manifest MutantYeast1
+manifest MutantYeast2
+
+// ============================================================
+// Integrated droplet-digital microfluidic (ID2M) system for
+// on-demand droplet creation, mixing, incubation, and sorting.
+// Ahmadi, Samlali, Vo, Shih. Lab Chip, 2019, 19, 524-535.
+// DOI: 10.1039/c8lc01170b
+//
+// Two protocols are encoded in sequence:
+//
+// PROTOCOL 1: On-chip fluorescein calibration / dilution series.
+//   For each of four conditions (undiluted 1 mM stock, 2x, 4x,
+//   8x), a fresh 1 mM fluorescein stock droplet (~30 nL,
+//   T-junction on-demand generation) is merged with the
+//   appropriate number of fresh on-demand dilution-buffer
+//   droplets (0, 1, 3, or 7 respectively) to yield 1, 0.5,
+//   0.25, and 0.125 mM droplets. Each droplet is detected by
+//   the optical-fibre fluorescence interface (530 nm) and
+//   n-ary sorted (4 channels) according to its threshold
+//   intensity (~1900, ~1350, ~950, ~700 a.u. respectively).
+//
+// PROTOCOL 2: Yeast / ionic-liquid (IL) n-ary screening assay.
+//   Single yeast cells (wild-type, mutant#1, mutant#2) are
+//   Poisson-encapsulated in ~35 nL droplets, merged on-demand
+//   with a 200 mM IL droplet (final 100 mM IL), trapped and
+//   incubated for 24 h at 30 C, then passed through the
+//   absorbance detection region and n-ary sorted by cell
+//   density (OD ~0.04-0.07 = no growth/WT, ~0.6 = mutant#1,
+//   ~1.0 = mutant#2).
+//
+// DROPLET VOLUMES: T-junction on-demand droplets ~30-35 nL,
+//   tuned by oil flow rate (0.001-0.06 uL/s) at constant
+//   aqueous flow (0.0005 uL/s). Actuation: 200 V_rms, 15 kHz.
+//   Oil-phase (HFE7500 + fluorosurfactant) flow rate in main
+//   channel: 0.01 uL/s. Throughput: ~1 Hz.
+//
+// CFG STRUCTURE:
+//   BB1  main              -- device init; dilution-series
+//                              generation, detection, sorting
+//   BB2  calPass           -- fluorescein signal > threshold:
+//                              dispose sorted droplets
+//   BB3  calFail           -- signal <= threshold: drain
+//   BB4  calJoin           -- join: yeast/IL assay branch begins
+//   BB5  ilPass            -- absorbance signal > 0: growth
+//                              detected; dispose / branch by OD
+//   BB6  ilFail            -- absorbance signal <= 0: no growth
+//                              (WT-like); drain
+//   BB7  finalCleanup      -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 1: On-demand T-junction generation of the
+//   fluorescein stock droplet (1 mM in 1 M NaOH buffer, pH 9).
+//   ~30 nL droplet formed at the T-junction (200 V_rms, 15 kHz)
+//   intersecting the oil phase (0.01 uL/s) with aqueous flow
+//   of fluorescein at 0.0005 uL/s.
+//
+//   NOTE ON DROPLET LINEARITY: every droplet variable below is
+//   dispensed fresh and consumed exactly once (either by a
+//   single mix, a single detect, or a single dispose/drain).
+//   A droplet that has been merged into another droplet by
+//   `mix` no longer exists as an independent unit and must
+//   never be referenced again -- the BioScript compiler does
+//   not currently enforce this, so an earlier version of this
+//   script silently reused already-consumed buffer and stock
+//   droplets, producing an IR with droplets detected/disposed
+//   after they no longer physically existed. Each of the four
+//   conditions (stock, 2x, 4x, 8x) below therefore gets its
+//   own independent fresh stock droplet, matching the paper's
+//   per-condition dispensing (rather than serially diluting
+//   the previous condition's droplet).
+// ------------------------------------------------------------
+
+fluorStockCheck = dispense 1 units of FluoresceinStock
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 2: Generate the 2x dilution (0.5 mM).
+//   Fresh stock droplet + 1 fresh buffer droplet (1:1, 2 units
+//   total) merged and mixed in the mixing area (back-and-forth
+//   actuation for several seconds). Ratio: 1 mM / 2 = 0.5 mM.
+// ------------------------------------------------------------
+
+fluorStock2x   = dispense 1 units of FluoresceinStock
+bufFor2x       = dispense 1 units of DilutionBuffer
+
+dil2x          = mix fluorStock2x with bufFor2x for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 3: Generate the 4x dilution (0.25 mM).
+//   Fresh stock droplet + 3 fresh buffer droplets (1:3, 4 units
+//   total). The 3 buffer droplets are chain-merged into a
+//   single combined buffer droplet first, then merged once
+//   with the stock droplet. Ratio: 1 mM / 4 = 0.25 mM.
+// ------------------------------------------------------------
+
+fluorStock4x   = dispense 1 units of FluoresceinStock
+buf4x_a        = dispense 1 units of DilutionBuffer
+buf4x_b        = dispense 1 units of DilutionBuffer
+buf4x_c        = dispense 1 units of DilutionBuffer
+
+buf4x_ab       = mix buf4x_a with buf4x_b for 5s
+buf4x_abc      = mix buf4x_ab with buf4x_c for 5s
+
+dil4x          = mix fluorStock4x with buf4x_abc for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 4: Generate the 8x dilution (0.125 mM).
+//   Fresh stock droplet + 7 fresh buffer droplets (1:7, 8 units
+//   total; matches paper's "maximum 8x dilution of stock
+//   analyte" given the device's minimal-inlet constraint).
+//   The 7 buffer droplets are chain-merged into one combined
+//   buffer droplet, then merged once with the stock droplet.
+//   Ratio: 1 mM / 8 = 0.125 mM.
+// ------------------------------------------------------------
+
+fluorStock8x   = dispense 1 units of FluoresceinStock
+buf8x_1        = dispense 1 units of DilutionBuffer
+buf8x_2        = dispense 1 units of DilutionBuffer
+buf8x_3        = dispense 1 units of DilutionBuffer
+buf8x_4        = dispense 1 units of DilutionBuffer
+buf8x_5        = dispense 1 units of DilutionBuffer
+buf8x_6        = dispense 1 units of DilutionBuffer
+buf8x_7        = dispense 1 units of DilutionBuffer
+
+buf8x_12       = mix buf8x_1 with buf8x_2 for 5s
+buf8x_123      = mix buf8x_12 with buf8x_3 for 5s
+buf8x_1234     = mix buf8x_123 with buf8x_4 for 5s
+buf8x_12345    = mix buf8x_1234 with buf8x_5 for 5s
+buf8x_123456   = mix buf8x_12345 with buf8x_6 for 5s
+buf8x_1234567  = mix buf8x_123456 with buf8x_7 for 5s
+
+dil8x          = mix fluorStock8x with buf8x_1234567 for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 5: Optical-fibre fluorescence detection
+//   (530 nm strip-chart, 100 ms integration, boxcar width 3,
+//   5 scans) of each dilution droplet as it passes the
+//   detection region prior to n-ary sorting.
+// ------------------------------------------------------------
+
+calSignalStock = detect fluorescenceDetection on fluorStockCheck for 30s
+calSignal2x    = detect fluorescenceDetection on dil2x for 30s
+calSignal4x    = detect fluorescenceDetection on dil4x for 30s
+calSignal8x    = detect fluorescenceDetection on dil8x for 30s
+
+// ============================================================
+// BB2 / BB3: Calibration QC / sorting gate (keyed on the
+// undiluted 1 mM stock signal, expected highest, ~1900 a.u.
+// sorting threshold).
+// Pass (BB2): calSignalStock > 0 -> all four droplets exceed
+//             their respective detection thresholds and are
+//             routed to one of the four n-ary sorting channels
+//             (dispose models successful sort-and-collect).
+// Fail (BB3): calSignalStock <= 0 -> below detection threshold
+//             (~700 a.u. floor); droplets routed to waste/drain.
+// Both branches converge at BB4 (calJoin).
+// ============================================================
+
+if (calSignalStock > 0) {
+    dispose fluorStockCheck
+    dispose dil2x
+    dispose dil4x
+    dispose dil8x
+} else {
+    drain fluorStockCheck
+    drain dil2x
+    drain dil4x
+    drain dil8x
+}
+
+// ============================================================
+// BB4: calJoin
+// Dispose calibration QC signals. Control falls into the
+// yeast / ionic-liquid screening branch (BB5/BB6).
+// ============================================================
+
+dispose calSignalStock
+dispose calSignal2x
+dispose calSignal4x
+dispose calSignal8x
+
+// ============================================================
+// PROTOCOL 2: Yeast mutant library n-ary screening in ionic
+// liquid (1-ethyl-3-methylimidazolium acetate, IL)
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 1: Poisson single-cell encapsulation via
+//   flow-focusing (cell suspension 2x10^5 cells/mL + 1% BSA,
+//   flow rates 0.0008 uL/s cells : 0.01 uL/s oil) generating
+//   ~35 nL droplets, one per cell type: wild-type and the two
+//   fastest-growing IL-tolerant EMS mutants.
+// ------------------------------------------------------------
+
+wtDroplet      = dispense 1 units of WildTypeYeast
+mut1Droplet    = dispense 1 units of MutantYeast1
+mut2Droplet    = dispense 1 units of MutantYeast2
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 2: On-demand T-junction generation of IL
+//   droplets (200 mM stock, ~35 nL) for merging with each
+//   cell droplet. Each cell droplet receives its own IL
+//   droplet so that, after 1:1 merging, the final on-chip IL
+//   concentration is 100 mM.
+// ------------------------------------------------------------
+
+ilDropWT       = dispense 1 units of IonicLiquidStock
+ilDropMut1     = dispense 1 units of IonicLiquidStock
+ilDropMut2     = dispense 1 units of IonicLiquidStock
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 3: Merge each single-cell droplet with its
+//   200 mM IL droplet in the mixing area (actuation sequence,
+//   200 V_rms, 15 kHz), producing a final 100 mM IL droplet
+//   containing a single yeast cell.
+// ------------------------------------------------------------
+
+wtMix          = mix wtDroplet with ilDropWT for 5s
+mut1Mix        = mix mut1Droplet with ilDropMut1 for 5s
+mut2Mix        = mix mut2Droplet with ilDropMut2 for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 4: Trap and incubate each merged droplet
+//   in one of the four on-chip incubation regions for 24 h at
+//   30 C in a humidified chamber (closed-loop TEC control).
+// ------------------------------------------------------------
+
+heat wtMix at 30c for 1440m
+heat mut1Mix at 30c for 1440m
+heat mut2Mix at 30c for 1440m
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 5: Post-incubation absorbance detection.
+//   Optical-fibre absorbance interface (boxcar width 2, 2
+//   scans) measures cell density. Expected OD: wild-type
+//   ~0.04-0.07 (no growth, indistinguishable from oil), mutant
+//   #1 ~0.6, mutant #2 ~1.0.
+// ------------------------------------------------------------
+
+ilSignalWT     = detect absorbanceDetection on wtMix for 30s
+ilSignalMut1   = detect absorbanceDetection on mut1Mix for 30s
+ilSignalMut2   = detect absorbanceDetection on mut2Mix for 30s
+
+// ============================================================
+// BB5 / BB6: IL-tolerance n-ary sorting gate (keyed on mutant#2
+// signal, expected highest absorbance / cell density).
+// Pass (BB5): ilSignalMut2 > 0 -> growth detected; all three
+//             droplets routed to their respective n-ary sorting
+//             channels by absorbance level (dispose models
+//             successful sort-and-collect for downstream
+//             analysis, e.g. single-cell sequencing).
+// Fail (BB6): ilSignalMut2 <= 0 -> no growth signal above oil
+//             background; droplets routed to waste/drain.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (ilSignalMut2 > 0) {
+    dispose wtMix
+    dispose mut1Mix
+    dispose mut2Mix
+} else {
+    drain wtMix
+    drain mut1Mix
+    drain mut2Mix
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose all three IL-tolerance QC signal droplets.
+// Experiment ends.
+// ============================================================
+
+dispose ilSignalWT
+dispose ilSignalMut1
+dispose ilSignalMut2
+
+// [terminal -- no further instructions; exit node for CFG]

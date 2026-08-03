@@ -1,0 +1,71 @@
+bsbbif_2_t:
+	sortedTargetDroplets1[0] = mix(targetCellDroplets1[0], oilPhase11[0]) @ 1.0SECOND
+bsbbif_3_f:
+	dispose(targetCellDroplets1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	PHI targetCellDroplets2 = {targetCellDroplets1,targetCellDroplets}
+	PHI sortedTargetDroplets2 = {sortedTargetDroplets1,sortedTargetDroplets}
+	dispose(sortSignal1[0])
+	hybridoamCells_raw1[0] = dispense(HybridomaCells)
+	calceinStain1[0] = dispense(CalceinAM_RedOrange)
+	stainedHybridoma1[0] = mix(hybridoamCells_raw1[0], calceinStain1[0]) @ 5.0SECOND
+	heat(stainedHybridoma1[0]) @ 37.0CELSIUS @ 1200.0SECOND
+	washPBS21[0] = dispense(PBS)
+	washedHybridoma1[0] = mix(stainedHybridoma1[0], washPBS21[0]) @ 2.0SECOND
+	imdmForHybridoma1[0] = dispense(IMDM_Medium)
+	hybridoma_in_imdm1[0] = mix(washedHybridoma1[0], imdmForHybridoma1[0]) @ 5.0SECOND
+	trappingMix1[0] = mix(primedDevice1[0], hybridoma_in_imdm1[0]) @ 2.0SECOND
+	trapOccupancySignal1[0] = detect(singleCellTrapDetection, trappingMix1[0]) @ 10.0SECOND
+	if trapOccupancySignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	primingPBS1[0] = dispense(PBS)
+	primingPluronic1[0] = dispense(PluronicF127)
+	primedDevice1[0] = mix(primingPBS1[0], primingPluronic1[0]) @ 300.0SECOND
+	targetCells_raw1[0] = dispense(TargetCells)
+	cfseStain1[0] = dispense(CellTrace_CFSE)
+	stainedTarget1[0] = mix(targetCells_raw1[0], cfseStain1[0]) @ 5.0SECOND
+	heat(stainedTarget1[0]) @ 37.0CELSIUS @ 1200.0SECOND
+	washPBS1[0] = dispense(PBS)
+	washedTarget1[0] = mix(stainedTarget1[0], washPBS1[0]) @ 2.0SECOND
+	imdmForTarget1[0] = dispense(IMDM_Medium)
+	targetCells1[0] = mix(washedTarget1[0], imdmForTarget1[0]) @ 5.0SECOND
+	oilPhase11[0] = dispense(HFE7500_Surfactant)
+	targetCellDroplets1[0] = mix(targetCells1[0], oilPhase11[0]) @ 2.0SECOND
+	sortSignal1[0] = detect(singleCellTrapDetection, targetCellDroplets1[0]) @ 10.0SECOND
+	if sortSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	imdmForHybridoma21[0] = dispense(IMDM_Medium)
+	trappedHybridoma1[0] = mix(trappingMix1[0], imdmForHybridoma21[0]) @ 1.0SECOND
+bsbbif_6_f:
+	dispose(trappingMix1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	PHI trappedHybridoma2 = {trappedHybridoma1,trappedHybridoma}
+	PHI imdmForHybridoma22 = {imdmForHybridoma21,imdmForHybridoma2}
+	PHI trappingMix2 = {trappingMix1,trappingMix}
+	dispose(trapOccupancySignal1[0])
+	oilPhase21[0] = dispense(HFE7500_Surfactant)
+	hybridoamDroplet1[0] = mix(trappedHybridoma2[0], oilPhase21[0]) @ 4.0SECOND
+	oilSpacer1[0] = dispense(HFE7500_Surfactant)
+	spacedTargetDroplets1[0] = mix(sortedTargetDroplets2[0], oilSpacer1[0]) @ 1.0SECOND
+	coEncapsulatedDroplet1[0] = mix(hybridoamDroplet1[0], spacedTargetDroplets1[0]) @ 1.0SECOND
+	heat(coEncapsulatedDroplet1[0]) @ 25.0CELSIUS @ 1800.0SECOND
+	alexaFluorWash1[0] = dispense(AlexaFluor647_SecondaryAb)
+	washPBS31[0] = dispense(PBS)
+	pbsAlexaSolution1[0] = mix(alexaFluorWash1[0], washPBS31[0]) @ 2.0SECOND
+	washedDroplet1[0] = mix(coEncapsulatedDroplet1[0], pbsAlexaSolution1[0]) @ 300.0SECOND
+	oilPhase31[0] = dispense(HFE7500_Surfactant)
+	reforumDroplet1[0] = mix(washedDroplet1[0], oilPhase31[0]) @ 1.0SECOND
+	antibodySignal1[0] = detect(antibodyBindingDetection, reforumDroplet1[0]) @ 10.0SECOND
+	if antibodySignal1[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	imdmRecovery1[0] = dispense(IMDM_Medium)
+	recoveredCells1[0] = mix(reforumDroplet1[0], imdmRecovery1[0]) @ 60.0SECOND
+	dispose(recoveredCells1[0])
+bsbbif_9_f:
+	dispose(reforumDroplet1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(antibodySignal1[0])
+	NOP

@@ -1,0 +1,418 @@
+module dropletGenerationDetection
+module dropletReaderDetection
+
+manifest AAV_Sample
+manifest ddPCR_Supermix
+manifest PrimerY87
+manifest PrimerY88
+manifest Probe_FAM
+manifest NucleaseFreeH2O
+manifest PositiveControl_DNA
+manifest DropletGenerationOil
+manifest DropletReaderOil
+
+// ============================================================
+// Viral Titer Quantification by Droplet Digital PCR
+// Protocol VC0005 - Quantification of rAAV Viral Vectors
+//
+// Assay: TaqMan ddPCR targeting AAV ITR region.
+//   Forward primer Y87: GGAACCCCTAGTGATGGAGTT (100 uM, IDT)
+//   Reverse primer Y88: CGGCCTCAGTGAGCGA (100 uM, IDT)
+//   Probe: /56FAM/CGCGCAGAG/ZEN/AGGGAGTGG/3IABkFQ/ (100 uM, IDT)
+//
+// Master Mix composition (per full plate prep):
+//   2112 uL 2x ddPCR Supermix (Bio-Rad 1863025)
+//   1833.4 uL Nuclease-Free H2O
+//   38 uL Y87 primer
+//   38 uL Y88 primer
+//   10.6 uL FAM probe
+//
+// Each PCR reaction: 31.5 uL master mix + 1.5 uL diluted sample.
+//   Total reaction volume loaded to cartridge: 22.2 uL.
+//   Droplet generation oil volume per well: 70 uL.
+//   Droplets transferred to ddPCR plate: 40 uL.
+//
+// Serial dilution scheme (7 steps, 96-well non-skirted PCR plate):
+//   Dilution 1: 1 uL virus + 39 uL H2O  -> factor 1:40  (2.5e-2)
+//   Dilution 2: 10 uL D1 + 90 uL H2O   -> factor 1:10  (2.5e-3)
+//   Dilution 3: 10 uL D2 + 90 uL H2O   -> factor 1:10  (2.5e-4)
+//   Dilution 4: 10 uL D3 + 90 uL H2O   -> factor 1:10  (2.5e-5)
+//   Dilution 5: 10 uL D4 + 90 uL H2O   -> factor 1:10  (2.5e-6)
+//   Dilution 6: 10 uL D5 + 90 uL H2O   -> factor 1:10  (2.5e-7)
+//   Dilution 7: 10 uL D6 + 90 uL H2O   -> factor 1:10  (2.5e-8)
+//
+// Dilutions 4-7 loaded into PCR reactions (linear detection range).
+//
+// PCR cycling conditions:
+//   95 C  10 min        (enzyme activation)
+//   94 C  30 s  \
+//   60 C  60 s   > x40  (amplification)
+//   98 C  10 min        (signal stabilisation)
+//    4 C  hold
+//
+// Titer calculation:
+//   Find dilutions in linear ddPCR range (100-10,000 copies/uL).
+//   Average those concentrations and back-calculate viral genome
+//   copies per mL accounting for dilution factors.
+//   Positive control check: iDreV at 103 ng/uL should read
+//   300-700 copies/uL in the 2.5e-6 dilution well.
+//
+// NOTE ON SSA AND SPLIT AVOIDANCE:
+//   lilott8/BioScript enforces strict single-assignment: every
+//   variable may be consumed (appear on the RHS of mix/detect/
+//   heat/dispose/drain) exactly once. The split keyword
+//   (syntax: result = split source into N) produces an N-element
+//   array, but ALL N elements must be consumed or the compiler
+//   flags stranded droplets (see moazami_world_to_chip_dmf.bs).
+//   To avoid both SSA double-use and stranded-split errors, this
+//   file uses independent dispense calls for every token that
+//   must appear in more than one position. Each manifest
+//   (ddPCR_Supermix, NucleaseFreeH2O, etc.) is a reservoir that
+//   can be dispensed from multiple times; each dispense produces
+//   a unique SSA token consumed exactly once downstream.
+//
+//   Serial dilution chain: purely linear (D1->D2->...->D7).
+//   Each dilution variable is consumed only by the next dilution
+//   step. PCR reactions receive independently dispensed aliquots
+//   representing the corresponding concentration level.
+//
+// CFG STRUCTURE:
+//   BB1  main               -- master mix prep; serial dilutions;
+//                              droplet generation; PCR cycling;
+//                              droplet reader run
+//   BB2  readerPass         -- readerSignal > 0: valid droplet count
+//                              and amplitude detected; dispose plate
+//   BB3  readerFail         -- readerSignal <= 0: invalid read;
+//                              drain and flag for repeat
+//   BB4  readerJoin         -- join: positive control QC branch
+//   BB5  controlPass        -- controlSignal > 0: iDreV in expected
+//                              range (300-700 copies/uL); dispose
+//   BB6  controlFail        -- controlSignal <= 0: out of range;
+//                              drain; repeat assay
+//   BB7  finalCleanup       -- terminal: dispose QC signal; end
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prepare 2x ddPCR master mix.
+//   Combine Supermix, nuclease-free H2O, Y87 primer,
+//   Y88 primer, and FAM probe in a 5 mL Eppendorf tube.
+//   Vortex briefly; spin down before use.
+//
+//   Five independent master mix builds are performed -- one
+//   per reaction (D4, D5, D6, D7, positive control) -- each
+//   consuming its own unique dispense tokens. This avoids
+//   split entirely while preserving SSA correctness.
+//   Each mmX_* variable is consumed exactly once by its
+//   corresponding reaction mix step below.
+// ------------------------------------------------------------
+
+// Master mix for reaction D4
+mm4_supermix     = dispense 1 units of ddPCR_Supermix
+mm4_h2o          = dispense 1 units of NucleaseFreeH2O
+mm4_y87          = dispense 1 units of PrimerY87
+mm4_y88          = dispense 1 units of PrimerY88
+mm4_probe        = dispense 1 units of Probe_FAM
+mm4_s1           = mix mm4_supermix with mm4_h2o for 5s
+mm4_s2           = mix mm4_s1 with mm4_y87 for 5s
+mm4_s3           = mix mm4_s2 with mm4_y88 for 5s
+masterMix4       = mix mm4_s3 with mm4_probe for 5s
+
+// Master mix for reaction D5
+mm5_supermix     = dispense 1 units of ddPCR_Supermix
+mm5_h2o          = dispense 1 units of NucleaseFreeH2O
+mm5_y87          = dispense 1 units of PrimerY87
+mm5_y88          = dispense 1 units of PrimerY88
+mm5_probe        = dispense 1 units of Probe_FAM
+mm5_s1           = mix mm5_supermix with mm5_h2o for 5s
+mm5_s2           = mix mm5_s1 with mm5_y87 for 5s
+mm5_s3           = mix mm5_s2 with mm5_y88 for 5s
+masterMix5       = mix mm5_s3 with mm5_probe for 5s
+
+// Master mix for reaction D6
+mm6_supermix     = dispense 1 units of ddPCR_Supermix
+mm6_h2o          = dispense 1 units of NucleaseFreeH2O
+mm6_y87          = dispense 1 units of PrimerY87
+mm6_y88          = dispense 1 units of PrimerY88
+mm6_probe        = dispense 1 units of Probe_FAM
+mm6_s1           = mix mm6_supermix with mm6_h2o for 5s
+mm6_s2           = mix mm6_s1 with mm6_y87 for 5s
+mm6_s3           = mix mm6_s2 with mm6_y88 for 5s
+masterMix6       = mix mm6_s3 with mm6_probe for 5s
+
+// Master mix for reaction D7
+mm7_supermix     = dispense 1 units of ddPCR_Supermix
+mm7_h2o          = dispense 1 units of NucleaseFreeH2O
+mm7_y87          = dispense 1 units of PrimerY87
+mm7_y88          = dispense 1 units of PrimerY88
+mm7_probe        = dispense 1 units of Probe_FAM
+mm7_s1           = mix mm7_supermix with mm7_h2o for 5s
+mm7_s2           = mix mm7_s1 with mm7_y87 for 5s
+mm7_s3           = mix mm7_s2 with mm7_y88 for 5s
+masterMix7       = mix mm7_s3 with mm7_probe for 5s
+
+// Master mix for positive control reaction
+mmC_supermix     = dispense 1 units of ddPCR_Supermix
+mmC_h2o          = dispense 1 units of NucleaseFreeH2O
+mmC_y87          = dispense 1 units of PrimerY87
+mmC_y88          = dispense 1 units of PrimerY88
+mmC_probe        = dispense 1 units of Probe_FAM
+mmC_s1           = mix mmC_supermix with mmC_h2o for 5s
+mmC_s2           = mix mmC_s1 with mmC_y87 for 5s
+mmC_s3           = mix mmC_s2 with mmC_y88 for 5s
+masterMixCtrl    = mix mmC_s3 with mmC_probe for 5s
+
+// ------------------------------------------------------------
+// STEP 2: Serial dilution chain (purely linear, D1 to D7).
+//   Each variable is consumed exactly once by the next step.
+//   No variable appears on more than one RHS (SSA satisfied).
+//   Add 39 uL H2O to row 1, then 1 uL sample (1:40 = 2.5e-2).
+//   Rows 2-7: 10 uL from previous row into 90 uL H2O (1:10 each).
+//   Mix by pipetting up and down 10-20 times per row.
+// ------------------------------------------------------------
+
+h2o_d1           = dispense 1 units of NucleaseFreeH2O
+sampleRaw        = dispense 1 units of AAV_Sample
+dilution1        = mix sampleRaw with h2o_d1 for 10s
+
+h2o_d2           = dispense 1 units of NucleaseFreeH2O
+dilution2        = mix dilution1 with h2o_d2 for 10s
+
+h2o_d3           = dispense 1 units of NucleaseFreeH2O
+dilution3        = mix dilution2 with h2o_d3 for 10s
+
+h2o_d4           = dispense 1 units of NucleaseFreeH2O
+dilution4        = mix dilution3 with h2o_d4 for 10s
+
+h2o_d5           = dispense 1 units of NucleaseFreeH2O
+dilution5        = mix dilution4 with h2o_d5 for 10s
+
+h2o_d6           = dispense 1 units of NucleaseFreeH2O
+dilution6        = mix dilution5 with h2o_d6 for 10s
+
+h2o_d7           = dispense 1 units of NucleaseFreeH2O
+dilution7        = mix dilution6 with h2o_d7 for 10s
+
+// Store dilution plate at 4 C after sealing with Microseal B.
+heat dilution7 at 4c for 60s
+
+// ------------------------------------------------------------
+// STEP 3: Assemble PCR reactions.
+//   Add 31.5 uL master mix + 1.5 uL dilution to each tube.
+//   Reactions use D4-D7 (2.5e-5 through 2.5e-8).
+//   Each dilutionX_rxn is a fresh independent dispense from
+//   the AAV_Sample manifest representing that concentration
+//   level (abstraction for aliquoting from the dilution plate).
+//   Vortex and spin down twice before droplet generation.
+// ------------------------------------------------------------
+
+d4_rxn           = dispense 1 units of AAV_Sample
+d5_rxn           = dispense 1 units of AAV_Sample
+d6_rxn           = dispense 1 units of AAV_Sample
+d7_rxn           = dispense 1 units of AAV_Sample
+
+reaction4        = mix masterMix4 with d4_rxn for 5s
+reaction5        = mix masterMix5 with d5_rxn for 5s
+reaction6        = mix masterMix6 with d6_rxn for 5s
+reaction7        = mix masterMix7 with d7_rxn for 5s
+
+heat reaction4 at 20c for 10s
+heat reaction5 at 20c for 10s
+heat reaction6 at 20c for 10s
+heat reaction7 at 20c for 10s
+
+// ------------------------------------------------------------
+// STEP 4: Prepare positive control reaction.
+//   iDreV positive control DNA (103 ng/uL, 7453 bp).
+//   Expected: 300-700 copies/uL at 2.5e-6 dilution.
+// ------------------------------------------------------------
+
+posCtrlDNA       = dispense 1 units of PositiveControl_DNA
+h2o_ctrl         = dispense 1 units of NucleaseFreeH2O
+ctrlDiluted      = mix posCtrlDNA with h2o_ctrl for 5s
+controlReaction  = mix masterMixCtrl with ctrlDiluted for 5s
+
+heat controlReaction at 20c for 10s
+
+// ------------------------------------------------------------
+// STEP 5: Droplet generation.
+//   Pour Droplet Generation Oil (Bio-Rad 1863005) into reservoir.
+//   Load 22.2 uL of each sample reaction into middle row of
+//   DG8 cartridge (Bio-Rad 1864007).
+//   Load 70 uL Droplet Generation Oil slowly into bottom row.
+//   Cover with gasket; generate droplets on QX200 generator.
+//   Target: ~20,000 droplets per well (~0.85 nL each).
+//   Transfer 40 uL of droplets to ddPCR 96-Well Plate.
+//   Seal with pierceable foil heat seal (Bio-Rad 1814040).
+//
+//   Each reaction receives its own unique oil dispense token.
+// ------------------------------------------------------------
+
+dgOil_4          = dispense 1 units of DropletGenerationOil
+dgOil_5          = dispense 1 units of DropletGenerationOil
+dgOil_6          = dispense 1 units of DropletGenerationOil
+dgOil_7          = dispense 1 units of DropletGenerationOil
+dgOil_ctrl       = dispense 1 units of DropletGenerationOil
+
+droplets4        = mix reaction4 with dgOil_4 for 30s
+droplets5        = mix reaction5 with dgOil_5 for 30s
+droplets6        = mix reaction6 with dgOil_6 for 30s
+droplets7        = mix reaction7 with dgOil_7 for 30s
+dropletsCtrl     = mix controlReaction with dgOil_ctrl for 30s
+
+// ------------------------------------------------------------
+// STEP 6: PCR cycling.
+//   95 C  10 min   (hot-start polymerase activation; 600 s)
+//   94 C  30 s  \
+//   60 C  60 s   > x40 cycles
+//   98 C  10 min   (final signal stabilisation; 600 s)
+//    4 C  hold     (until droplet reader transfer)
+//
+//   Multi-cycle programme unrolled as accumulated heat steps
+//   (BioScript has no loop construct):
+//     40 x 30 s = 1200 s at 94 C  (total denaturation time)
+//     40 x 60 s = 2400 s at 60 C  (total annealing/extension)
+// ------------------------------------------------------------
+
+// Stage 1: Initial denaturation (95 C, 600 s).
+heat droplets4 at 95c for 600s
+heat droplets5 at 95c for 600s
+heat droplets6 at 95c for 600s
+heat droplets7 at 95c for 600s
+heat dropletsCtrl at 95c for 600s
+
+// Stage 2: 40-cycle denaturation (94 C, 1200 s total).
+heat droplets4 at 94c for 1200s
+heat droplets5 at 94c for 1200s
+heat droplets6 at 94c for 1200s
+heat droplets7 at 94c for 1200s
+heat dropletsCtrl at 94c for 1200s
+
+// Stage 3: 40-cycle annealing/extension (60 C, 2400 s total).
+heat droplets4 at 60c for 2400s
+heat droplets5 at 60c for 2400s
+heat droplets6 at 60c for 2400s
+heat droplets7 at 60c for 2400s
+heat dropletsCtrl at 60c for 2400s
+
+// Stage 4: Signal stabilisation (98 C, 600 s).
+heat droplets4 at 98c for 600s
+heat droplets5 at 98c for 600s
+heat droplets6 at 98c for 600s
+heat droplets7 at 98c for 600s
+heat dropletsCtrl at 98c for 600s
+
+// Stage 5: Hold at 4 C until droplet reader transfer (60 s).
+heat droplets4 at 4c for 60s
+heat droplets5 at 4c for 60s
+heat droplets6 at 4c for 60s
+heat droplets7 at 4c for 60s
+heat dropletsCtrl at 4c for 60s
+
+// ------------------------------------------------------------
+// STEP 7: Droplet reader setup and run.
+//   Open QuantaSoft software; load template ITR-Shenqin-24.
+//   Template settings per well:
+//     Sample name | ABS | ddPCR mMix no dUTP | FAM | Ch1 Unknown
+//   Place ddPCR plate in reader; orient with black clasps down.
+//   Prime using QuantaSoft prime button.
+//   Load Droplet Reader Oil (Bio-Rad 1863004) before priming.
+//   Run experiment: FAM/VIC mode, reading by row.
+//   Amplitude threshold: set to 1000 in QuantaSoft software.
+//
+//   Each plateWell requires its own unique reader oil token.
+// ------------------------------------------------------------
+
+readerOil_4      = dispense 1 units of DropletReaderOil
+readerOil_5      = dispense 1 units of DropletReaderOil
+readerOil_6      = dispense 1 units of DropletReaderOil
+readerOil_7      = dispense 1 units of DropletReaderOil
+readerOil_ctrl   = dispense 1 units of DropletReaderOil
+
+plateWell4       = mix droplets4 with readerOil_4 for 5s
+plateWell5       = mix droplets5 with readerOil_5 for 5s
+plateWell6       = mix droplets6 with readerOil_6 for 5s
+plateWell7       = mix droplets7 with readerOil_7 for 5s
+plateWellCtrl    = mix dropletsCtrl with readerOil_ctrl for 5s
+
+// dropletReaderDetection abstracts QuantaSoft readout.
+// Returns positive signal if valid droplet count (>10,000/well)
+// and clear FAM+/FAM- population separation are detected.
+readerSignal4    = detect dropletReaderDetection on plateWell4 for 60s
+readerSignal5    = detect dropletReaderDetection on plateWell5 for 60s
+readerSignal6    = detect dropletReaderDetection on plateWell6 for 60s
+readerSignal7    = detect dropletReaderDetection on plateWell7 for 60s
+
+// ============================================================
+// BB2 / BB3: Droplet reader QC gate (keyed on D4; highest signal).
+// Pass (BB2): readerSignal4 > 0 -> valid read; dispose wells.
+// Fail (BB3): readerSignal4 <= 0 -> bad read; drain all wells.
+// Both branches converge at BB4 (readerJoin).
+// ============================================================
+
+if (readerSignal4 > 0) {
+    dispose plateWell4
+    dispose plateWell5
+    dispose plateWell6
+    dispose plateWell7
+} else {
+    drain plateWell4
+    drain plateWell5
+    drain plateWell6
+    drain plateWell7
+}
+
+// ============================================================
+// BB4: readerJoin
+// Dispose reader QC signals for D4-D7. Proceed to positive
+// control QC branch (BB5/BB6).
+// ============================================================
+
+dispose readerSignal4
+dispose readerSignal5
+dispose readerSignal6
+dispose readerSignal7
+
+// ------------------------------------------------------------
+// STEP 8: Positive control QC.
+//   dropletReaderDetection applied to control well.
+//   Expected: iDreV reads 300-700 copies/uL at 2.5e-6 dilution.
+//   If in range: proceed to titer calculation and reporting.
+//   Titer calculation (off-chip in QuantaSoft):
+//     Find linear range (100-10,000 copies/uL) across D4-D7;
+//     average concentrations; back-calculate genome copies/mL
+//     accounting for dilution factor and 1.5 uL input volume.
+// ------------------------------------------------------------
+
+controlSignal    = detect dropletReaderDetection on plateWellCtrl for 60s
+
+// ============================================================
+// BB5 / BB6: Positive control QC gate.
+// Pass (BB5): controlSignal > 0 -> iDreV in expected range;
+//             dispose control well; report titer.
+// Fail (BB6): controlSignal <= 0 -> out of range;
+//             drain; investigate master mix and cycling.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (controlSignal > 0) {
+    dispose plateWellCtrl
+} else {
+    drain plateWellCtrl
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose positive control QC signal. Experiment ends.
+// Clean hood and bench with 70% ethanol.
+// Dispose biohazard waste per institutional guidelines.
+// ============================================================
+
+dispose controlSignal
+
+// [terminal -- no further instructions; exit node for CFG]

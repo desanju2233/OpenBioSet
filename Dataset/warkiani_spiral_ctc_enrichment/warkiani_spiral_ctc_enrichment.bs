@@ -1,0 +1,551 @@
+module ctcDetection
+module viabilityDetection
+module her2FISHDetection
+
+manifest WholeBlood
+manifest RBCLysisBuffer
+manifest PBS
+manifest EDTA_BSA_Buffer
+manifest MCF7_Cells
+manifest T24_Cells
+manifest SheathFluid
+manifest Paraformaldehyde
+manifest TritonX100
+manifest PanCytokeratinFITC
+manifest CD45_APC
+manifest Hoechst
+manifest PropidiumIodide
+manifest RNase
+manifest Formamide_SSC
+manifest SSC_Wash
+manifest HER2_FISHProbe
+manifest DAPI
+
+instructions:
+
+// ============================================================
+// An Ultra-High-Throughput Spiral Microfluidic Biochip for
+// the Enrichment of Circulating Tumor Cells
+// Warkiani, Khoo, Tan, Bhagat, Lim, Yap, Lee, Soo,
+// Han, Lim -- Analyst, 2014, 139, 3245-3255
+// DOI: 10.1039/c4an00355a
+//
+// Platform: Multiplexed spiral microfluidic biochip
+//   (3 stacked single-layer PDMS spiral chips, each with
+//   2 inlets and 2 outlets). Fabricated by standard SU-8
+//   lithography and PDMS soft lithography (1:10 ratio,
+//   cured 80 C, 1-2 h). Device bonded onto a microscopic
+//   glass slide by air plasma.
+//
+// Separation principle: Inertial focusing + Dean drag forces
+//   inside rectangular-cross-section spiral microchannels.
+//   CTCs (>15 um) equilibrate near inner wall; smaller
+//   hematological cells (RBCs, WBCs, platelets, <20 um)
+//   migrate to outer wall under Dean vortex influence,
+//   enabling label-free, size-based separation at dual outlet.
+//
+// Key performance metrics:
+//   Throughput:   7.5 mL blood in <10 min (multiplexed)
+//   Sensitivity:  100% (10/10 patient samples positive)
+//   WBC depletion: ~99.99% (from ~7e6 nucleated cells)
+//   Purity:       1 CTC per 30-100 WBCs (~4 log depletion)
+//   Recovery:     20-135 CTCs/mL (breast and lung patients)
+//   Cell viability: >90% (PI staining, <10% dead)
+//   Recovery efficiency: 87.6% MCF-7; 76.4% T24 (spiked)
+//   Sample flow rate: 350 uL/min; Sheath: 750 uL/min
+//   Sample concentration: 2x (7.5 mL -> 3.75 mL)
+//
+// NOTE ON FLOW ABSTRACTION: `mix` statements abstract
+//   continuous-flow microfluidic channel events (cell loading,
+//   hydrodynamic focusing, Dean vortex separation) rather than
+//   DMF electrode mixing. This is consistent with the
+//   abstraction used in samlali_hybrid_microfluidics_isoclone.bs
+//   for channel-based trapping and encapsulation events.
+//
+// NOTE ON RBC LYSIS: Whole blood is lysed with ammonium
+//   chloride RBC lysis buffer before on-chip processing.
+//   Removes RBCs, concentrates nucleated cells 2x for faster
+//   processing. Cell loss not significant (98% recovery,
+//   p=0.82). Lysis does not alter cell morphology (p=0.2).
+//
+// NOTE ON DURATION TOKENS: BioScript supports s and m only.
+//   All paper durations converted accordingly.
+//   Overnight hybridization (42 C) approximated as 600m (10 h).
+//
+// NOTE ON CELL CULTURE PRE-INCUBATION (FIX #8):
+//   MCF-7 and T24 cells are cultured in DMEM + 10% FBS +
+//   1% pen-strep at 37 C / 5% CO2 until 80% confluence before
+//   spiking. Following samlali convention, this is modelled as
+//   heat at 37c for 2880m (48 h representative culture period)
+//   applied to the cell manifests before resuspension in
+//   EDTA_BSA_Buffer. Trypsin/EDTA dissociation is abstracted
+//   into the same heat step.
+//
+// THREE PROTOCOLS encoded in sequence:
+//
+//   PROTOCOL 1 (BB1-BB4): MCF-7 recovery efficiency experiment.
+//     Fresh healthy donor blood -> RBC lysis -> MCF-7 spike
+//     -> spiral chip separation -> ctcDetection QC gate.
+//     Expected: 87.6% recovery efficiency (Fig. 4A).
+//
+//   PROTOCOL 2 (BB5-BB8): T24 cell viability experiment.
+//     Fresh healthy donor blood (independent from Protocol 1)
+//     -> RBC lysis -> T24 spike -> spiral chip separation ->
+//     PI staining + pan-CK/CD45 staining -> viabilityDetection
+//     QC gate. Expected: <10% PI+ (high viability) (Fig. 4B).
+//
+//   PROTOCOL 3 (BB9-BB14): Clinical CTC enrichment from
+//     patient blood. Fresh clinical blood -> RBC lysis ->
+//     spiral chip separation -> PFA fixation -> Triton X-100
+//     permeabilization -> IF staining (Pan-CK/CD45/Hoechst) ->
+//     ctcDetection QC gate -> HER2 FISH (pass branch only).
+//
+// CFG STRUCTURE:
+//   BB1  main            -- entry: MCF-7 culture, blood prep,
+//                           RBC lysis, spike, on-chip separation
+//   BB2  mcf7Pass        -- ctcSignal > 0: CTCs recovered, dispose
+//   BB3  mcf7Fail        -- ctcSignal <= 0: no CTCs, drain
+//   BB4  mcf7Join        -- join: T24 viability protocol begins
+//   BB5  viabSep         -- fresh blood, T24 spike, on-chip sep,
+//                           fixation, PI + pan-CK/CD45 staining
+//   BB6  viabPass        -- viabilitySignal > 0: viable, dispose
+//   BB7  viabFail        -- viabilitySignal <= 0: low viab, drain
+//   BB8  viabJoin        -- join: clinical protocol begins
+//   BB9  clinSep         -- clinical blood, lysis, on-chip sep,
+//                           PFA fixation, permeabilization, IF
+//   BB10 clinPass        -- clinicalSignal > 0: CTCs detected,
+//                           proceed to HER2 FISH
+//   BB11 clinFail        -- clinicalSignal <= 0: no CTCs, drain
+//   BB12 finalCleanup    -- terminal: dispose QC signal, end
+// ============================================================
+
+// ============================================================
+// BB1: main
+// PROTOCOL 1 -- MCF-7 spiked recovery efficiency experiment
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Culture MCF-7 cells prior to spiking.
+//   MCF-7 (breast adenocarcinoma, HTB-22, ATCC, ~20 um diam.)
+//   cultured in high-glucose DMEM + 10% FBS + 1% pen-strep
+//   at 37 C / 5% CO2 until 80% confluence. Sub-cultivated
+//   1:3 twice a week. Media replaced every 48 h.
+//   Dissociated with 0.01% trypsin / 5.3 mM EDTA (Lonza).
+//   FIX #8: Cell culture pre-incubation modelled as heat
+//   at 37c for 2880m (48 h), consistent with samlali.bs.
+// ------------------------------------------------------------
+
+mcf7Cells       = dispense 1 units of MCF7_Cells
+heat mcf7Cells at 37c for 2880m
+
+// ------------------------------------------------------------
+// STEP 2: Resuspend MCF-7 in EDTA+BSA buffer.
+//   Cells resuspended in PBS + 2 mM EDTA + 0.5% BSA
+//   (Miltenyi Biotec, Germany) to prevent non-specific
+//   adsorption on tubing and microchannel walls.
+//   Spike concentration: 500 cells per 7.5 mL whole blood.
+// ------------------------------------------------------------
+
+edtaBsaBuffer   = dispense 1 units of EDTA_BSA_Buffer
+mcf7Resuspended = mix mcf7Cells with edtaBsaBuffer for 1m
+
+// ------------------------------------------------------------
+// STEP 3: Prepare healthy donor blood and perform RBC lysis.
+//   7.5 mL whole blood collected in Vacutainer EDTA tubes
+//   (Becton-Dickinson, NJ, USA). Processed within 2-4 h.
+//   Lysed with ammonium chloride RBC lysis buffer (Bioscience,
+//   USA) for 5 min at RT under continuous gentle mixing.
+//   Centrifuged at 1000xg for 5 min (modelled as heat at 25c).
+//   Nucleated cell pellet resuspended in PBS. Concentrated
+//   to 3.75 mL (2x) for optimal on-chip WBC input (~14e6).
+// ------------------------------------------------------------
+
+wholeBlood1     = dispense 1 units of WholeBlood
+rbcLysis1       = dispense 1 units of RBCLysisBuffer
+lysedBlood1     = mix wholeBlood1 with rbcLysis1 for 5m
+
+// Centrifugation at 1000xg, 5 min (no centrifuge primitive;
+// modelled as heat at 25c for 5m per compiler convention).
+heat lysedBlood1 at 25c for 5m
+
+pbs1            = dispense 1 units of PBS
+nucleated1      = mix lysedBlood1 with pbs1 for 1m
+
+// ------------------------------------------------------------
+// STEP 4: Spike MCF-7 cells into nucleated cell fraction.
+//   500 MCF-7 cells spiked into the 7.5 mL nucleated fraction
+//   at clinically relevant concentration for recovery testing.
+//   MCF-7 and T24 are spiked in separate, independent
+//   experiments (not co-spiked). (FIX #2)
+// ------------------------------------------------------------
+
+spikedMcf7      = mix nucleated1 with mcf7Resuspended for 1m
+
+// ------------------------------------------------------------
+// STEP 5: On-chip separation -- MCF-7 spiked sample.
+//   Nucleated fraction (2x concentrated, 3.75 mL) loaded at
+//   sample inlet. PBS sheath fluid at sheath inlet.
+//   Sample: 350 uL/min; Sheath: 750 uL/min; ~10 min total.
+//   Dean vortex + inertial lift: CTCs to inner wall (CTC
+//   outlet); WBCs/RBCs/platelets to outer wall (waste outlet).
+//   Enrichment: ~10^4-fold from nucleated cell fraction.
+//   NOTE: `mix` abstracts channel-based hydrodynamic separation.
+// ------------------------------------------------------------
+
+sheath1         = dispense 1 units of SheathFluid
+mcf7Separated   = mix spikedMcf7 with sheath1 for 10m
+
+ctcSignal       = detect ctcDetection on mcf7Separated for 30s
+
+// ============================================================
+// BB2 / BB3: MCF-7 Recovery QC gate
+// Pass (BB2): ctcSignal > 0 -> CTCs recovered at CTC outlet.
+//   Expected recovery: 87.6% for MCF-7 at 500 cells/7.5 mL.
+//   Identified by pan-CK+/CD45- immunofluorescence (Fig. 4A).
+// Fail (BB3): ctcSignal <= 0 -> no CTCs detected; drain.
+// Both branches converge at BB4 (mcf7Join).
+// ============================================================
+
+if (ctcSignal > 0) {
+    dispose mcf7Separated
+} else {
+    drain mcf7Separated
+}
+
+// ============================================================
+// BB4: mcf7Join
+// Dispose MCF-7 QC signal. T24 viability protocol begins.
+// ============================================================
+
+dispose ctcSignal
+
+// ============================================================
+// BB5: viabSep
+// PROTOCOL 2 -- T24 cell viability experiment
+// Independent fresh blood sample; independent T24 culture.
+// (FIX #1: T24 viability arm now uses its own WholeBlood
+//  dispense and lysis sequence, not nucleated1 from Protocol 1
+//  which was already consumed by spikedMcf7.)
+// (FIX #2: MCF-7 and T24 are fully independent experiments.)
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 6: Culture T24 cells prior to viability spiking.
+//   T24 (bladder carcinoma, HTB-4, ATCC, ~30 um diameter).
+//   Same culture conditions as MCF-7 (DMEM + 10% FBS +
+//   1% pen-strep, 37 C / 5% CO2, 80% confluence).
+//   FIX #8: Pre-incubation modelled as heat at 37c for 2880m.
+// ------------------------------------------------------------
+
+t24Cells        = dispense 1 units of T24_Cells
+heat t24Cells at 37c for 2880m
+
+edtaBsa2        = dispense 1 units of EDTA_BSA_Buffer
+t24Resuspended  = mix t24Cells with edtaBsa2 for 1m
+
+// ------------------------------------------------------------
+// STEP 7: Prepare fresh healthy donor blood for viability arm.
+//   Independent 7.5 mL blood sample (separate from Protocol 1).
+//   Same RBC lysis and PBS resuspension as STEP 3.
+//   A known concentration of T24 cells spiked into whole blood
+//   before lysis; T24 counts compared before and after lysis
+//   to quantify cell loss incurred by the lysis step.
+// ------------------------------------------------------------
+
+wholeBlood2     = dispense 1 units of WholeBlood
+rbcLysis2       = dispense 1 units of RBCLysisBuffer
+lysedBlood2     = mix wholeBlood2 with rbcLysis2 for 5m
+
+heat lysedBlood2 at 25c for 5m
+
+pbs2            = dispense 1 units of PBS
+nucleated2      = mix lysedBlood2 with pbs2 for 1m
+
+spikedT24       = mix nucleated2 with t24Resuspended for 1m
+
+// ------------------------------------------------------------
+// STEP 8: On-chip separation -- T24 spiked viability sample.
+//   Same spiral biochip parameters as STEP 5.
+//   CTC outlet fraction collected; viability assessed
+//   immediately after retrieval.
+// ------------------------------------------------------------
+
+sheath2         = dispense 1 units of SheathFluid
+t24Separated    = mix spikedT24 with sheath2 for 10m
+
+// ------------------------------------------------------------
+// STEP 9: Viability staining -- PI + pan-CK/CD45 panel.
+//   FIX #3: The paper's viability assay uses BOTH PI staining
+//   (to identify dead cells, ex 488/em 617 nm) AND pan-CK/CD45
+//   IF staining (to confirm recovered cells are cancer cells,
+//   not contaminating WBCs). Both reagents are now included.
+//   Outlet samples fixed with 4% PFA for 10 min at RT.
+//   Permeabilized with 0.1% Triton X-100 in PBS.
+//   FIX #4: PFA fixation and Triton X-100 permeabilization
+//   are now explicitly represented with their own manifests
+//   and mix/heat steps, matching the paper's IF protocol.
+//   Antibody cocktail: pan-CK FITC (1:100) + APC-CD45 (1:100)
+//   + Hoechst + PI in PBS buffer, 30 min on ice.
+// ------------------------------------------------------------
+
+// Fixation: 4% paraformaldehyde (PFA), 10 min at RT (25 C).
+pfa1            = dispense 1 units of Paraformaldehyde
+t24Fixed        = mix t24Separated with pfa1 for 10m
+heat t24Fixed at 25c for 10m
+
+// Permeabilization: 0.1% Triton X-100 in PBS, brief wash.
+triton1         = dispense 1 units of TritonX100
+pbs3            = dispense 1 units of PBS
+tritonPbs1      = mix triton1 with pbs3 for 1m
+t24Permeabilized = mix t24Fixed with tritonPbs1 for 5m
+
+// Staining cocktail: pan-CK FITC + APC-CD45 + Hoechst + PI.
+panCK1          = dispense 1 units of PanCytokeratinFITC
+cd45Ab1         = dispense 1 units of CD45_APC
+hoechst1        = dispense 1 units of Hoechst
+piStain         = dispense 1 units of PropidiumIodide
+
+viabStainMix1   = mix panCK1 with cd45Ab1 for 1m
+viabStainMix2   = mix viabStainMix1 with hoechst1 for 1m
+viabStainFull   = mix viabStainMix2 with piStain for 1m
+
+stainedViability = mix t24Permeabilized with viabStainFull for 30m
+
+// Incubation on ice (4 C) for 30 min (paper: antibody
+// cocktail + Hoechst in PBS buffer, 30 min on ice).
+heat stainedViability at 4c for 30m
+
+// Viability detection: <10% PI+ cells = high viability.
+// Quantified by BD Accuri C6 flow cytometer; cells gated
+// on forward/side scatter and fluorescence intensity.
+viabilitySignal = detect viabilityDetection on stainedViability for 30s
+
+// ============================================================
+// BB6 / BB7: Viability QC gate
+// Pass (BB6): viabilitySignal > 0 -> <10% PI+ (high viability,
+//   >90% viable). Neither lysis nor spiral shear significantly
+//   impacts cell viability (p=0.6687 vs control, N=3).
+// Fail (BB7): viabilitySignal <= 0 -> >10% PI+ (low viability;
+//   lysis or shear damage); drain.
+// Both branches converge at BB8 (viabJoin).
+// ============================================================
+
+if (viabilitySignal > 0) {
+    dispose stainedViability
+} else {
+    drain stainedViability
+}
+
+// ============================================================
+// BB8: viabJoin
+// Dispose viability QC signal. Clinical protocol begins.
+// ============================================================
+
+dispose viabilitySignal
+
+// ============================================================
+// BB9: clinSep
+// PROTOCOL 3 -- Clinical CTC enrichment from patient blood
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 10: Collect clinical blood sample.
+//   7.5 mL whole blood from Stage IV metastatic breast or
+//   lung cancer patient. Collected in Vacutainer EDTA tubes.
+//   Processed within 2-4 h to prevent blood coagulation.
+//   10 patient samples total (5 breast cancer, 5 NSCLC).
+//   5 healthy donor samples used as controls.
+//   IRB-approved protocol (Institutional Review Board).
+// ------------------------------------------------------------
+
+clinicalBlood   = dispense 1 units of WholeBlood
+
+// ------------------------------------------------------------
+// STEP 11: RBC lysis of clinical sample.
+//   Same ammonium chloride lysis protocol as STEP 3.
+//   7.5 mL lysed, centrifuged at 1000xg for 5 min, resuspended
+//   in PBS and concentrated to 3.75 mL (2x) for on-chip input.
+//   Optimal WBC input: ~14e6 WBCs (2x concentration selected
+//   by characterisation experiments, Fig. 2B).
+//   Input velocity: 350 uL/min sample, 750 uL/min sheath.
+// ------------------------------------------------------------
+
+rbcLysis3       = dispense 1 units of RBCLysisBuffer
+clinLysed       = mix clinicalBlood with rbcLysis3 for 5m
+
+heat clinLysed at 25c for 5m
+
+pbs4            = dispense 1 units of PBS
+clinNucleated   = mix clinLysed with pbs4 for 1m
+
+// ------------------------------------------------------------
+// STEP 12: On-chip separation of clinical sample.
+//   Multiplexed spiral biochip (3 stacked chips):
+//   Sample: 350 uL/min; Sheath: 750 uL/min; ~10 min total.
+//   CTCs (15-35 um, pan-CK+/CD45-) collected at inner outlet.
+//   WBCs (12-15 um, CD45+) exit at waste outlet.
+//   WBC depletion: ~99.99% from 7e6 input nucleated cells.
+//   Robustness confirmed: ~900-1200 WBCs collected/5 min
+//   uniformly across 0-30 min processing window (Fig. 2C).
+// ------------------------------------------------------------
+
+sheath3         = dispense 1 units of SheathFluid
+clinSeparated   = mix clinNucleated with sheath3 for 10m
+
+// ------------------------------------------------------------
+// STEP 13: PFA fixation and Triton X-100 permeabilization.
+//   FIX #4: Fixation and permeabilization now explicitly
+//   encoded as separate steps with their own manifests,
+//   matching the paper's IF staining protocol (Section 2.3).
+//   CTC outlet fraction fixed with 4% PFA for 10 min at RT.
+//   Permeabilized with 0.1% Triton X-100 in PBS.
+//   These steps are required before antibody staining for
+//   intracellular pan-cytokeratin detection.
+// ------------------------------------------------------------
+
+// Fixation: 4% PFA, 10 min at RT (25 C).
+pfa2            = dispense 1 units of Paraformaldehyde
+clinFixed       = mix clinSeparated with pfa2 for 10m
+heat clinFixed at 25c for 10m
+
+// Permeabilization: 0.1% Triton X-100 in PBS.
+triton2         = dispense 1 units of TritonX100
+pbs5            = dispense 1 units of PBS
+tritonPbs2      = mix triton2 with pbs5 for 1m
+clinPermeabilized = mix clinFixed with tritonPbs2 for 5m
+
+// ------------------------------------------------------------
+// STEP 14: Immunofluorescence (IF) staining for CTC ID.
+//   Staining panel (Miltenyi Biotec Asia Pacific, Singapore):
+//     - Hoechst (DNA, nuclear counterstain)
+//     - Pan-cytokeratin-FITC antibody (1:100, epithelial marker)
+//     - APC-conjugated anti-CD45 antibody (1:100, WBC marker)
+//   Incubated 30 min on ice in PBS buffer.
+//   CTC scoring: Hoechst+ / Pan-CK+ / CD45-
+//   Imaged by epi-fluorescence microscopy and/or BD Accuri C6.
+//   Cells gated on forward/side scatter and fluorescence.
+// ------------------------------------------------------------
+
+panCK2          = dispense 1 units of PanCytokeratinFITC
+cd45Ab2         = dispense 1 units of CD45_APC
+hoechst2        = dispense 1 units of Hoechst
+
+ifStainMix      = mix panCK2 with cd45Ab2 for 1m
+ifStainFull     = mix ifStainMix with hoechst2 for 1m
+
+stainedClinical = mix clinPermeabilized with ifStainFull for 30m
+heat stainedClinical at 4c for 30m
+
+clinicalSignal  = detect ctcDetection on stainedClinical for 30s
+
+// ============================================================
+// BB10 / BB11: Clinical CTC detection QC gate
+// Pass (BB10): clinicalSignal > 0 -> CTCs detected
+//   (Hoechst+/Pan-CK+/CD45-). Proceed to HER2 FISH.
+//   Expected counts: 20-67 CTCs/mL (breast cancer, n=5);
+//   33-135 CTCs/mL (lung cancer, n=5). 100% detection (10/10).
+//   Healthy donor background: 1-4 CK+ cells/mL (controls).
+// Fail (BB11): clinicalSignal <= 0 -> no CTCs above threshold;
+//   drain (consistent with healthy donor control result).
+// Both branches converge at BB12 (finalCleanup).
+// ============================================================
+
+if (clinicalSignal > 0) {
+
+    // ----------------------------------------------------------
+    // STEP 15: HER2 FISH analysis on isolated CTCs.
+    //   Performed on HER2+ breast cancer patient samples (n=5).
+    //   Paper protocol (Section 2.4 - DNA fluorescence FISH):
+    //
+    //   (a) Cytospin onto slides (600 rpm, 6 min).
+    //   (b) Fix in 4% PFA, 10 min RT.
+    //   (c) Dehydrate via ethanol series (80%, 90%, 100%).
+    //   (d) RNase treatment: 4 mg/mL, 40 min at 37 C.
+    //       FIX #6: RNase step now explicitly encoded.
+    //   (e) Denature: 70% formamide/2xSSC, 80 C, 10 min.
+    //       FIX #5: 80 C denaturation step now encoded.
+    //   (f) Hybridize HER2 probe (HER-2/neu gene locus, red)
+    //       + CEP17 (chr.17 centromere, green) at 42 C overnight.
+    //       Approximated as 600m (10 h) per BioScript s/m limit.
+    //   (g) Post-hybridization wash: 50% formamide/2xSSC then
+    //       2xSSC at 45 C under shaking.
+    //       FIX #7: Wash steps at 45 C now explicitly encoded.
+    //   (h) DAPI counterstain; coverslip (50x50 mm, Fisher).
+    //
+    //   HER2 amplification criterion: HER2/CEP17 ratio > 2
+    //   in single nuclei.
+    //   Result: 3 of 5 HER2+ patients showed HER2-negative CTCs
+    //   (HER2/CEP17 < 2), indicating CTC heterogeneity vs.
+    //   primary tumor (Fig. 5C).
+    //
+    //   NOTE ON REAGENT MANIFESTS: Formamide_SSC encodes
+    //   70% formamide/2xSSC (denaturation, step e) and
+    //   50% formamide/2xSSC (post-hybridization wash, step g).
+    //   SSC_Wash encodes the 2xSSC final wash (step g).
+    //   Both are separately dispensed at their respective steps.
+    // ----------------------------------------------------------
+
+    her2Probe       = dispense 1 units of HER2_FISHProbe
+    dapiStain       = dispense 1 units of DAPI
+
+    // (b+c) Fixation (4% PFA, 10 min RT) and ethanol
+    //   dehydration series (80%, 90%, 100%) -- abstracted as
+    //   a single heat step at 25c for 10m (RT processing).
+    pfa3            = dispense 1 units of Paraformaldehyde
+    fishFixed       = mix stainedClinical with pfa3 for 10m
+    heat fishFixed at 25c for 10m
+
+    // (d) RNase treatment: 4 mg/mL RNase in PBS/0.2% Tween 20,
+    //   40 min at 37 C. Removes RNA to prevent non-specific
+    //   probe binding. FIX #6.
+    rnase           = dispense 1 units of RNase
+    rnaseTreated    = mix fishFixed with rnase for 40m
+    heat rnaseTreated at 37c for 40m
+
+    // (e) Denaturation: 70% formamide/2xSSC, 80 C, 10 min.
+    //   Denatures double-stranded DNA to allow probe access.
+    //   FIX #5.
+    formamideSsc    = dispense 1 units of Formamide_SSC
+    denatured       = mix rnaseTreated with formamideSsc for 10m
+    heat denatured at 80c for 10m
+
+    // (f) Probe hybridization: HER2 + CEP17 probes applied
+    //   directly to slides at 42 C overnight (approximated
+    //   as 600m = 10 h per BioScript s/m constraint).
+    //   Dark and humid conditions throughout.
+    her2ProbeMix    = mix denatured with her2Probe for 1m
+    heat her2ProbeMix at 42c for 600m
+
+    // (g) Post-hybridization washes.
+    //   Wash 1: 50% formamide/2xSSC at 45 C under shaking.
+    //   Wash 2: 2xSSC at 45 C under shaking.
+    //   FIX #7: Wash steps now explicitly encoded.
+    formamideWash   = dispense 1 units of Formamide_SSC
+    sscWash         = dispense 1 units of SSC_Wash
+
+    washed1         = mix her2ProbeMix with formamideWash for 5m
+    heat washed1 at 45c for 5m
+
+    washed2         = mix washed1 with sscWash for 5m
+    heat washed2 at 45c for 5m
+
+    // (h) DAPI counterstain; coverslip (50x50 mm).
+    dapiMix         = mix washed2 with dapiStain for 5m
+
+    her2Signal      = detect her2FISHDetection on dapiMix for 30s
+
+    dispose dapiMix
+    dispose her2Signal
+
+} else {
+    drain stainedClinical
+}
+
+// ============================================================
+// BB12: finalCleanup (terminal)
+// Dispose clinical CTC QC signal. Experiment ends.
+// ============================================================
+
+dispose clinicalSignal
+
+// [terminal -- no further instructions; exit node for CFG]

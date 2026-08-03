@@ -1,0 +1,72 @@
+bsbbif_2_t:
+	dispose(plasDdpcrRxn1[0])
+bsbbif_3_f:
+	dispose(plasDdpcrRxn1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(proteinSignal1[0])
+	randomPrimersDisp1[0] = dispense(RandomPrimers)
+	waterDisp1[0] = dispense(NucleaseFreeWater)
+	primerAnnealMix1[0] = mix(mRNALysate1[0], randomPrimersDisp1[0]) @ 5.0SECOND
+	primerAnnealFull1[0] = mix(primerAnnealMix1[0], waterDisp1[0]) @ 5.0SECOND
+	heat(primerAnnealFull1[0]) @ 70.0CELSIUS @ 300.0SECOND
+	heat(primerAnnealFull1[0]) @ 4.0CELSIUS @ 300.0SECOND
+	goScriptRT1[0] = dispense(GoScript_RT_System)
+	rnaseOut1[0] = dispense(RNaseOUT)
+	dntpsDisp1[0] = dispense(dNTPs)
+	mgcl2Disp1[0] = dispense(MgCl2)
+	rtBufferMix1[0] = mix(goScriptRT1[0], rnaseOut1[0]) @ 5.0SECOND
+	rtReagentsMix1[0] = mix(rtBufferMix1[0], dntpsDisp1[0]) @ 5.0SECOND
+	rtMasterMix1[0] = mix(rtReagentsMix1[0], mgcl2Disp1[0]) @ 5.0SECOND
+	rtFullRxn1[0] = mix(primerAnnealFull1[0], rtMasterMix1[0]) @ 5.0SECOND
+	heat(rtFullRxn1[0]) @ 25.0CELSIUS @ 300.0SECOND
+	heat(rtFullRxn1[0]) @ 42.0CELSIUS @ 3600.0SECOND
+	heat(rtFullRxn1[0]) @ 70.0CELSIUS @ 900.0SECOND
+	ddpcrSupermix21[0] = dispense(ddPCR_Supermix_Probes)
+	taqmanProbe21[0] = dispense(CD147_TaqManAssay_Probe2)
+	rtDdpcrMix1[0] = mix(ddpcrSupermix21[0], taqmanProbe21[0]) @ 5.0SECOND
+	rtDdpcrRxn1[0] = mix(rtFullRxn1[0], rtDdpcrMix1[0]) @ 5.0SECOND
+	heat(rtDdpcrRxn1[0]) @ 95.0CELSIUS @ 600.0SECOND
+	heat(rtDdpcrRxn1[0]) @ 94.0CELSIUS @ 2100.0SECOND
+	heat(rtDdpcrRxn1[0]) @ 98.0CELSIUS @ 600.0SECOND
+	mRNASignal1[0] = detect(rtddpcrDetection, rtDdpcrRxn1[0]) @ 30.0SECOND
+	if mRNASignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	cellLysate1[0] = dispense(TM_Buffer_01X)
+	sortedCell1[0] = dispense(HEK293T_Cells)
+	lysate1[0] = mix(sortedCell1[0], cellLysate1[0]) @ 300.0SECOND
+	proteinFraction1[0] = dispense(TM_Buffer_01X)
+	proteinLysate1[0] = mix(lysate1[0], proteinFraction1[0]) @ 5.0SECOND
+	mRNAFraction1[0] = dispense(TM_Buffer_01X)
+	mRNALysate1[0] = mix(lysate1[0], mRNAFraction1[0]) @ 5.0SECOND
+	probesSolution1[0] = dispense(ProximityProbe1_CD147)
+	probe2Disp1[0] = dispense(ProximityProbe2_CD147)
+	probesMix1[0] = mix(probesSolution1[0], probe2Disp1[0]) @ 5.0SECOND
+	probeBindingRxn1[0] = mix(proteinLysate1[0], probesMix1[0]) @ 3600.0SECOND
+	heat(probeBindingRxn1[0]) @ 37.0CELSIUS @ 3600.0SECOND
+	connectorOligo1[0] = dispense(ConnectorOligonucleotide)
+	ligationSoln1[0] = dispense(LigationSolution)
+	ligationPrep1[0] = mix(connectorOligo1[0], ligationSoln1[0]) @ 5.0SECOND
+	ligationRxn1[0] = mix(probeBindingRxn1[0], ligationPrep1[0]) @ 600.0SECOND
+	heat(ligationRxn1[0]) @ 37.0CELSIUS @ 600.0SECOND
+	proteaseDisp1[0] = dispense(ProteaseSolution)
+	afterProtease1[0] = mix(ligationRxn1[0], proteaseDisp1[0]) @ 600.0SECOND
+	heat(afterProtease1[0]) @ 37.0CELSIUS @ 600.0SECOND
+	heat(afterProtease1[0]) @ 95.0CELSIUS @ 900.0SECOND
+	ddpcrSupermix1[0] = dispense(ddPCR_Supermix_Probes)
+	universalPCR1[0] = dispense(UniversalPCRAssay)
+	ddpcrMix1[0] = mix(ddpcrSupermix1[0], universalPCR1[0]) @ 5.0SECOND
+	plasDdpcrRxn1[0] = mix(afterProtease1[0], ddpcrMix1[0]) @ 5.0SECOND
+	heat(plasDdpcrRxn1[0]) @ 95.0CELSIUS @ 600.0SECOND
+	heat(plasDdpcrRxn1[0]) @ 94.0CELSIUS @ 2100.0SECOND
+	heat(plasDdpcrRxn1[0]) @ 98.0CELSIUS @ 600.0SECOND
+	proteinSignal1[0] = detect(ddpcrDetection, plasDdpcrRxn1[0]) @ 30.0SECOND
+	if proteinSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(rtDdpcrRxn1[0])
+bsbbif_6_f:
+	dispose(rtDdpcrRxn1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(mRNASignal1[0])
+	NOP

@@ -1,0 +1,456 @@
+module cellTrackingDetection
+module lysM_GFP_Detection
+module f480_MacrophageDetection
+module erkktr_ERKDetection
+
+manifest PBS
+manifest Fibronectin
+manifest PluronicF127
+manifest StemSpanSFEM
+manifest SCF_IL3_IL6_Media
+manifest MCSF_Media
+manifest RhodamineDextran_40kDa
+manifest PolystyrenBeads_10um
+manifest LysM_GFP_GMPs
+manifest AntiF480_APC_Antibody
+manifest DMEM_SelfRenewing
+manifest DMEM_Starvation
+manifest FGF1_StarvationMedia
+manifest MuESC_ERKKTR
+
+instructions:
+
+// ============================================================
+// Automated Microfluidic System for Dynamic Stimulation and
+// Tracking of Single Cells
+// Dettinger, Frank, Etzrodt, Ahmed, Reimann, Trenzinger,
+// Loeffler, Kokkaliaris, Schroeder, Tay
+// Analytical Chemistry, 2018
+// DOI: 10.1021/acs.analchem.8b00312
+//
+// Two protocols are encoded in sequence:
+//
+// PROTOCOL 1: Long-term culture and differentiation of murine
+//   hematopoietic stem and progenitor cells (GMPs) under
+//   dynamic M-CSF / permissive media stimulation via
+//   diffusion-based media exchange every 30 min. LysM-GFP
+//   expression tracked over 96 h as a differentiation marker.
+//   In-culture F4/80 antibody staining performed as macrophage
+//   commitment reporter.
+//
+// PROTOCOL 2: Dynamic FGF1 stimulation of murine embryonic
+//   stem cells (muESCs) expressing the ERK kinase translocation
+//   reporter (ERKKTR). Chip oscillates between FGF1-containing
+//   starvation media and plain starvation media with 5 s / 2 s
+//   flow pulses and 32 min / 15 min incubation periods.
+//   ERK nuclear-to-cytoplasmic ratio imaged every 3 min.
+//
+// CHIP ARCHITECTURE:
+//   Two-layer PDMS device. 48 independent cell culture chambers
+//   (1000 um x 350 um x 25 um tall). 16 independent inputs,
+//   2 outlets/harvesting ports. On-chip four-valve peristaltic
+//   pump. Two media reservoirs per chamber connected via
+//   50-um-wide diffusion ports (Fick's Law diffusive exchange).
+//   Flow switching strategy alternates left and right reservoir
+//   flushing to prevent direct flow into culture chambers.
+//   Media equilibration time: ~10-20 min per chamber.
+//
+// NOTE ON FLOW ABSTRACTION:
+//   `mix` steps represent the valve-controlled flow-switching
+//   and diffusive media exchange events. No direct flow enters
+//   culture chambers; diffusion is the sole mass-transfer mode
+//   inside the cell culture area. The `mix` primitive is used
+//   here to represent the convergence of the culture droplet
+//   with fresh media in the flanking reservoir channels, which
+//   then equilibrate by diffusion through the 50-um port.
+//
+// NOTE ON TIMING:
+//   BioScript duration tokens: s (seconds), m (minutes) only.
+//   96 h = 5760 m. 48 h = 2880 m. 16 h = 960 m. 7 d = 10080 m.
+//
+// CFG STRUCTURE:
+//   BB1  main                 -- chip priming, validation,
+//                                GMP seeding and culture
+//   BB2  differentiationPass  -- lysM_GFP signal > 0: M-CSF
+//                                drove differentiation; dispose
+//   BB3  differentiationFail  -- lysM_GFP signal <= 0: no
+//                                differentiation detected; drain
+//   BB4  differentiationJoin  -- join: antibody staining branch
+//   BB5  antibodyPass         -- f480Signal > 0: macrophage
+//                                commitment confirmed; dispose
+//   BB6  antibodyFail         -- f480Signal <= 0: no F4/80
+//                                signal; drain
+//   BB7  antibodyJoin         -- join: muESC ERKKTR protocol
+//   BB8  erkPass              -- erkSignal > 0: valid ERK
+//                                translocation detected; dispose
+//   BB9  erkFail              -- erkSignal <= 0: no ERK
+//                                response; drain
+//   BB10 finalCleanup         -- terminal: dispose all QC
+//                                signals, experiment ends
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prime chip with PBS to expel air from all channels.
+//   Pressure applied via liquid supply lines while outlet
+//   valves remain closed. Required before all biological use.
+//   Surface must be fully wetted prior to functionalization.
+// ------------------------------------------------------------
+
+primingPBS = dispense 1 units of PBS
+
+// ------------------------------------------------------------
+// STEP 2: Surface functionalization with fibronectin.
+//   Flow fibronectin (150 ng/mL) through all flow channels
+//   for 3 h at room temperature (~25 C) to coat PDMS surfaces.
+//   This step promotes hematopoietic progenitor attachment and
+//   prevents non-specific adhesion during long-term culture.
+//   Followed by extensive PBS washing and media equilibration.
+//   NOTE: `mix` here represents flow-through coating of
+//   channel surfaces, not droplet-level mixing.
+// ------------------------------------------------------------
+
+fibronectinCoat  = dispense 1 units of Fibronectin
+coatedDevice     = mix primingPBS with fibronectinCoat for 3m
+
+// 3 h functionalization at room temperature (180 m).
+heat coatedDevice at 25c for 180m
+
+// Wash with PBS after coating to remove unbound fibronectin.
+pbsWash = dispense 1 units of PBS
+washedDevice = mix coatedDevice with pbsWash for 5s
+
+// ------------------------------------------------------------
+// STEP 3: Chip validation - bead flow test.
+//   10-um polystyrene beads (Spherotech) are flushed through
+//   device after 0.1% Triton-X detergent treatment to prevent
+//   aggregation. Bead translocation within cell culture area
+//   is confirmed to be <2 um after 15 s of media reservoir
+//   flushing, validating absence of direct flow in chambers.
+//   40 kDa rhodamine-dextran (300 uM) used for diffusion rate
+//   calibration (comparable size to cytokines).
+// ------------------------------------------------------------
+
+beads            = dispense 1 units of PolystyrenBeads_10um
+rhodamineDextran = dispense 1 units of RhodamineDextran_40kDa
+
+// Simulate 15 s reservoir flush to validate chamber isolation.
+beadValidation   = mix beads with washedDevice for 15s
+diffusionCalib   = mix rhodamineDextran with washedDevice for 30m
+
+validationSignal = detect cellTrackingDetection on beadValidation for 15s
+
+// ============================================================
+// Flow switching: alternating left/right reservoir fill.
+// Reservoir 1 (left) filled first; right-side valves closed.
+// Then mirrored to fill right reservoir; left valves closed.
+// This eliminates cross-chamber pressure-driven flow.
+// Oscillation periods: 20 min or 40 min (paper Fig. 2B).
+// Steady state reached within 10 min of each switching cycle.
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 1: Seed LysM-GFP GMPs into chip chambers.
+//   4-90 GMPs seeded per chamber via pressurized
+//   microcentrifuge tube through PEEK tubing (ID = 65 um).
+//   Peristaltic pump allows precise deposition of cell number.
+//   lin-/Sca1-/c-Kit+/CD34+/CD16/32+ cells sorted by FACS
+//   from C57BL/6J LysM-GFP bone marrow (male, 12-14 weeks).
+//   Chip pre-filled with Stem-Span SFEM + 10% FCS + SCF/IL3/IL6.
+// ------------------------------------------------------------
+
+gmpCells         = dispense 1 units of LysM_GFP_GMPs
+sfemMedia        = dispense 1 units of StemSpanSFEM
+
+// Load cells into chamber via targeted seeding (peristaltic pump).
+seededChamber    = mix gmpCells with sfemMedia for 2s
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 2: Baseline culture in permissive media.
+//   Stem-Span SFEM + 1% pen/strep + 10% FCS + 100 ng/mL SCF +
+//   10 ng/mL IL3 + 10 ng/mL IL6. Diffusion-based media
+//   exchange every 30 min (flow-switching, ~30 min intervals).
+//   Cells maintained without direct flow across culture area.
+//   Proliferation and cell cycle comparable to standard Ibidi
+//   VI channel slides (paper Figs. S1A, S1B).
+//
+//   NOTE: 48 h initial expansion before M-CSF arm switch.
+//   48 h = 2880 m.
+// ------------------------------------------------------------
+
+permissiveMedia  = dispense 1 units of SCF_IL3_IL6_Media
+
+// Exchange 1: left reservoir filled with fresh permissive media.
+feedCycle1L      = mix seededChamber with permissiveMedia for 5s
+
+// Exchange 2: right reservoir filled (alternating strategy).
+permissiveMedia2 = dispense 1 units of SCF_IL3_IL6_Media
+feedCycle1R      = mix feedCycle1L with permissiveMedia2 for 5s
+
+// Baseline proliferation phase (48 h = 2880 m) at 37 C.
+// 5% CO2 / 5% O2 / 90% N2 maintained by stage-top enclosure.
+heat feedCycle1R at 37c for 2880m
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 3: Switch to M-CSF differentiation media.
+//   20 ng/mL M-CSF replaces SCF/IL3/IL6 in media reservoirs.
+//   Flow-switching maintains diffusion exchange every 30 min.
+//   LysM-GFP expression monitored by time-lapse fluorescence
+//   imaging every 30 min (Nikon Ti-eclipse, 10x/NA0.45, ORCA
+//   Flash IV camera). Single-cell tracking performed using tTt.
+//   Observation period: 96 h from seeding (= 5760 m total,
+//   so 5760 - 2880 = 2880 m remaining after baseline phase).
+//
+//   Result: 77% of M-CSF colonies upregulate LysM-GFP within
+//   96 h vs. 54% without M-CSF (p=0.001636, Kolmogorov-Smirnov).
+// ------------------------------------------------------------
+
+mcsfMedia        = dispense 1 units of MCSF_Media
+
+// Flow-switch cycle: M-CSF into left reservoir.
+mcsfFeedL        = mix feedCycle1R with mcsfMedia for 5s
+
+// Flow-switch cycle: M-CSF into right reservoir.
+mcsfMedia2       = dispense 1 units of MCSF_Media
+mcsfFeedR        = mix mcsfFeedL with mcsfMedia2 for 5s
+
+// Differentiation culture (2880 m = remaining 48 h of 96 h total).
+heat mcsfFeedR at 37c for 2880m
+
+// Detect LysM-GFP upregulation as macrophage differentiation signal.
+differentiationSignal = detect lysM_GFP_Detection on mcsfFeedR for 30s
+
+// ============================================================
+// BB2 / BB3: Differentiation QC gate
+// Pass (BB2): differentiationSignal > 0 -> LysM-GFP
+//             upregulation detected (macrophage commitment);
+//             dispose culture droplet and continue.
+// Fail (BB3): differentiationSignal <= 0 -> no detectable
+//             LysM-GFP induction; drain culture droplet.
+// Both branches converge at BB4 (differentiationJoin).
+// ============================================================
+
+if (differentiationSignal > 0) {
+    dispose mcsfFeedR
+} else {
+    drain mcsfFeedR
+}
+
+// ============================================================
+// BB4: differentiationJoin
+// Dispose differentiation QC signal. Control falls into
+// in-culture antibody staining branch (BB5/BB6).
+// ============================================================
+
+dispose differentiationSignal
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 4: In-culture continuous antibody staining.
+//   Anti-F4/80-APC antibody (clone BM8, eBioscience,
+//   0.2 mg/mL at 1:10,000 dilution) added to all media during
+//   M-CSF culture period. Automated fluid replacement
+//   incorporates antibody in each 30-min diffusion feed cycle.
+//   F4/80 is a molecular reporter for macrophage commitment.
+//   Fluorescence signal detected on differentiated cells
+//   confirms macrophage lineage.
+// ------------------------------------------------------------
+
+freshGMPs        = dispense 1 units of LysM_GFP_GMPs
+antibodyMedia    = dispense 1 units of AntiF480_APC_Antibody
+mcsfForAb        = dispense 1 units of MCSF_Media
+mcsfWithAb       = mix antibodyMedia with mcsfForAb for 5s
+
+// Seed fresh GMPs for antibody staining experiment.
+sfemMedia2       = dispense 1 units of StemSpanSFEM
+antibodyChamber  = mix freshGMPs with sfemMedia2 for 2s
+
+// Baseline phase in permissive media (2880 m) before antibody run.
+permissiveBase   = dispense 1 units of SCF_IL3_IL6_Media
+abFeedBaseL      = mix antibodyChamber with permissiveBase for 5s
+permissiveBase2  = dispense 1 units of SCF_IL3_IL6_Media
+abFeedBaseR      = mix abFeedBaseL with permissiveBase2 for 5s
+heat abFeedBaseR at 37c for 2880m
+
+// Switch to M-CSF + antibody media for full 96 h observation.
+// Anti-F4/80-APC continuously present in diffusion media.
+mcsfAb           = dispense 1 units of AntiF480_APC_Antibody
+mcsfAbFeedL      = mix abFeedBaseR with mcsfAb for 5s
+mcsfAb2          = dispense 1 units of AntiF480_APC_Antibody
+mcsfAbFeedR      = mix mcsfAbFeedL with mcsfAb2 for 5s
+heat mcsfAbFeedR at 37c for 2880m
+
+// Detect F4/80 fluorescence as macrophage commitment signal.
+f480Signal = detect f480_MacrophageDetection on mcsfAbFeedR for 30s
+
+// ============================================================
+// BB5 / BB6: Antibody staining QC gate
+// Pass (BB5): f480Signal > 0 -> F4/80-APC fluorescence
+//             detected on differentiated cells; dispose.
+// Fail (BB6): f480Signal <= 0 -> no macrophage marker
+//             detected; drain.
+// Both branches converge at BB7 (antibodyJoin).
+// ============================================================
+
+if (f480Signal > 0) {
+    dispose mcsfAbFeedR
+} else {
+    drain mcsfAbFeedR
+}
+
+// ============================================================
+// BB7: antibodyJoin
+// Dispose antibody staining QC signal. Control falls into
+// muESC ERKKTR dynamic stimulation branch (BB8/BB9).
+// ============================================================
+
+dispose f480Signal
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 1: Seed murine ESCs (ERKKTR reporter).
+//   Line R1 muESCs expressing ERK kinase translocation
+//   reporter (ERKKTR). ~10 cells seeded per chamber.
+//   E-Cadherin (150 ng/mL) used instead of fibronectin for
+//   ESC surface functionalization (already encoded in STEP 2
+//   above as a general fibronectin step - for ESCs, substitute
+//   E-Cadherin in the same step; BioScript does not distinguish
+//   surface coating reagent identity at the compiler level).
+//
+//   Cells cultured 2 days under self-renewing conditions:
+//   DMEM + 10% FCS + 1000 U/mL Lif. Medium replaced every
+//   30 min by diffusion feed cycle.
+//   2 days = 2880 m.
+// ------------------------------------------------------------
+
+muESCells        = dispense 1 units of MuESC_ERKKTR
+selfRenewMedia   = dispense 1 units of DMEM_SelfRenewing
+
+// Seed muESCs into functionalized chamber.
+escChamber       = mix muESCells with selfRenewMedia for 2s
+
+// 2-day self-renewing culture at 37 C (2880 m).
+selfRenewMedia2  = dispense 1 units of DMEM_SelfRenewing
+escFeedL         = mix escChamber with selfRenewMedia2 for 5s
+selfRenewMedia3  = dispense 1 units of DMEM_SelfRenewing
+escFeedR         = mix escFeedL with selfRenewMedia3 for 5s
+heat escFeedR at 37c for 2880m
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 2: Overnight starvation before stimulation.
+//   Cells switched to 0.5% FCS DMEM without Lif for 16 h
+//   prior to FGF1 stimulation experiments. Same 30-min
+//   diffusion feeding cadence. Starvation synchronises
+//   ERK baseline state across all cells.
+//   16 h = 960 m.
+// ------------------------------------------------------------
+
+starvationMedia  = dispense 1 units of DMEM_Starvation
+
+starvFeedL       = mix escFeedR with starvationMedia for 5s
+starvationMedia2 = dispense 1 units of DMEM_Starvation
+starvFeedR       = mix starvFeedL with starvationMedia2 for 5s
+
+// Overnight starvation (960 m = 16 h) at 37 C.
+heat starvFeedR at 37c for 960m
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 3: Dynamic FGF1 stimulation cycle.
+//   Chip programmed to oscillate between:
+//     - FGF1 arm:  10 ng/mL recombinant mouse FGF1 (R&D
+//                  Systems) in starvation media; 5 s flow
+//                  pulse into left reservoir; 32 min incubation.
+//     - Wash arm:  plain starvation media; 2 s flow pulse
+//                  into right reservoir; 15 min incubation.
+//   This produces periodically increasing and decreasing
+//   levels of FGF1 in the cell culture chamber over several
+//   hours (paper Section: Embryonic Stem Cell Culture).
+//
+//   NOTE ON ABSTRACTION: Each `mix` step below encodes one
+//   complete flow-switching event (reservoir fill + passive
+//   diffusion equilibration). The 5 s / 2 s durations are
+//   the reservoir flushing pulses. Incubation (32 m / 15 m)
+//   is represented by the subsequent `heat` at 37 C.
+//   Three complete oscillation cycles are encoded
+//   (FGF1 on -> off -> on -> off -> on -> off) to represent
+//   the multi-hour dynamic stimulation experiment.
+//
+//   93% of cells adjacent to reservoir respond within 3 min.
+//   All cells respond within 10 min of stimulation onset.
+//   ERK activity imaged every 3 min (ERKKTR nuclear/cyto ratio).
+// ------------------------------------------------------------
+
+fgf1Media        = dispense 1 units of FGF1_StarvationMedia
+
+// ---- Oscillation Cycle 1: FGF1 ON ----
+// 5 s pulse: FGF1 starvation media flows into left reservoir.
+fgf1FeedL_C1     = mix starvFeedR with fgf1Media for 5s
+
+// 32 min incubation: FGF1 diffuses into cell culture area.
+heat fgf1FeedL_C1 at 37c for 32m
+
+// 2 s pulse: plain starvation media washes right reservoir.
+washMedia1       = dispense 1 units of DMEM_Starvation
+washFeedR_C1     = mix fgf1FeedL_C1 with washMedia1 for 2s
+
+// 15 min incubation: FGF1 dilutes from chamber by diffusion.
+heat washFeedR_C1 at 37c for 15m
+
+// ---- Oscillation Cycle 2: FGF1 ON ----
+fgf1Media2       = dispense 1 units of FGF1_StarvationMedia
+fgf1FeedL_C2     = mix washFeedR_C1 with fgf1Media2 for 5s
+heat fgf1FeedL_C2 at 37c for 32m
+
+washMedia2       = dispense 1 units of DMEM_Starvation
+washFeedR_C2     = mix fgf1FeedL_C2 with washMedia2 for 2s
+heat washFeedR_C2 at 37c for 15m
+
+// ---- Oscillation Cycle 3: FGF1 ON ----
+fgf1Media3       = dispense 1 units of FGF1_StarvationMedia
+fgf1FeedL_C3     = mix washFeedR_C2 with fgf1Media3 for 5s
+heat fgf1FeedL_C3 at 37c for 32m
+
+washMedia3       = dispense 1 units of DMEM_Starvation
+washFeedR_C3     = mix fgf1FeedL_C3 with washMedia3 for 2s
+heat washFeedR_C3 at 37c for 15m
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 4: Detect ERK kinase translocation signal.
+//   ERKKTR nuclear-to-cytoplasmic ratio reported by the
+//   erkktr_ERKDetection module. Images taken every 3 min
+//   over entire dynamic stimulation period. Signal reflects
+//   ERK activity as a function of oscillating FGF1 input.
+//   Signal keyed on final wash-phase chamber state.
+// ------------------------------------------------------------
+
+erkSignal = detect erkktr_ERKDetection on washFeedR_C3 for 3m
+
+// ============================================================
+// BB8 / BB9: ERK detection QC gate
+// Pass (BB8): erkSignal > 0 -> ERK translocation detected
+//             (nuclear C/N ratio drop confirms FGF1 response);
+//             dispose ESC chamber contents.
+// Fail (BB9): erkSignal <= 0 -> no detectable ERK response;
+//             drain ESC chamber contents.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (erkSignal > 0) {
+    dispose washFeedR_C3
+} else {
+    drain washFeedR_C3
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose all outstanding QC signal droplets.
+// Dispose chip validation signal from STEP 3.
+// Experiment ends.
+// ============================================================
+
+dispose erkSignal
+dispose validationSignal
+dispose diffusionCalib
+
+// [terminal -- no further instructions; exit node for CFG]

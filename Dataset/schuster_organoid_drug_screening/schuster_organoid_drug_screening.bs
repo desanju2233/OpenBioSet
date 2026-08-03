@@ -1,0 +1,592 @@
+module apoptosisDetection
+module cellDeathDetection
+
+manifest PDAC_P1_Cells
+manifest PDAC_P2_Cells
+manifest PDAC_P3_Cells
+manifest GFR_Matrigel
+manifest CompleteOrganoidMedia
+manifest Gemcitabine_100nM
+manifest Paclitaxel_10nM
+manifest FluorouracilLow_100nM
+manifest FluorouracilHigh_1uM
+manifest Docetaxel_10nM
+manifest CPT11_100nM
+manifest Oxaliplatin_100nM
+manifest Cisplatin_100nM
+manifest Caspase37_Reagent
+manifest PropidiumIodide
+
+// ============================================================
+// Automated Microfluidic Platform for Dynamic and
+// Combinatorial Drug Screening of Tumor Organoids
+// Schuster et al., Nature Communications (2020) 11:5271
+// DOI: 10.1038/s41467-020-19058-4
+//
+// Platform: Two-part PDMS device -- 200-well 3D culture
+// chamber array (610 um deep, 20 independent channels) +
+// solenoid-valve multiplexer control device (up to 30
+// chemical inputs, automated via MATLAB GUI).
+//
+// Biological scope: Patient-derived PDAC organoids from
+// 3 patients grown in GFR Matrigel (14+ days) then subject to:
+//   (A) Single-agent screens: 7 chemotherapies, 72-h arm
+//   (B) 5 temporal/sequential combination regimens (Patient 1)
+//   (C) Multi-patient parallel Gem+5FU temporal (P1/P2/P3)
+//
+// ABSTRACTION NOTES:
+//   - Each `mix` encodes one directed fluid event (multiplexer
+//     valve actuation delivering one drug slug to one channel
+//     subset). A single source droplet is consumed per mix.
+//   - cultureP1/P2/P3 are re-dispensed fresh for each
+//     independent treatment arm (separate wells on device).
+//   - `heat` is void/in-place; no assignment.
+//   - Duration tokens: s and m only.
+//       2 h   = 120m   |  30 min = 30m
+//       4 h   = 240m   |  48 h  = 2880m
+//       72 h  = 4320m  |  7 d   = 10080m
+//       14 d  = 20160m |  24 h  = 1440m
+//   - No loops: all multi-cycle regimens unrolled.
+//   - Each detect result assigned once; disposed after gate.
+//   - drain used on failed QC paths.
+//
+// CFG STRUCTURE:
+//   BB1  main              -- culture, growth, all drug arms
+//   BB2  apoptosisPass     -- apoptosisQC > 0: dispose all P1
+//   BB3  apoptosisFail     -- apoptosisQC <= 0: drain all P1
+//   BB4  assayJoin         -- dispose QC signal; multi-pt arm
+//   BB5  multiPatPass      -- multiPatQC > 0: dispose P2/P3
+//   BB6  multiPatFail      -- multiPatQC <= 0: drain P2/P3
+//   BB7  finalCleanup      -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// SECTION 1: Organoid culture establishment
+//
+// Each treatment arm gets its own fresh culture (independent
+// wells on the 200-well array). `mix` abstracts manual
+// pipetting of dissociated single cells in 70% GFR Matrigel /
+// 30% complete media into 610-um wells, followed by Matrigel
+// gelation at 37 C and clamping of channel layer.
+// ------------------------------------------------------------
+
+// --- Patient 1: Single-agent gemcitabine arm (72-h) ---
+sa_mat_gem  = dispense 1 units of GFR_Matrigel
+sa_med_gem  = dispense 1 units of CompleteOrganoidMedia
+sa_cel_gem  = dispense 1 units of PDAC_P1_Cells
+sa_gel_gem  = mix sa_mat_gem with sa_med_gem for 5s
+sa_cult_gem = mix sa_cel_gem with sa_gel_gem for 10s
+
+// --- Patient 1: Single-agent paclitaxel arm (72-h) ---
+sa_mat_pac  = dispense 1 units of GFR_Matrigel
+sa_med_pac  = dispense 1 units of CompleteOrganoidMedia
+sa_cel_pac  = dispense 1 units of PDAC_P1_Cells
+sa_gel_pac  = mix sa_mat_pac with sa_med_pac for 5s
+sa_cult_pac = mix sa_cel_pac with sa_gel_pac for 10s
+
+// --- Patient 1: Single-agent 5-FU arm (72-h) ---
+sa_mat_fu   = dispense 1 units of GFR_Matrigel
+sa_med_fu   = dispense 1 units of CompleteOrganoidMedia
+sa_cel_fu   = dispense 1 units of PDAC_P1_Cells
+sa_gel_fu   = mix sa_mat_fu with sa_med_fu for 5s
+sa_cult_fu  = mix sa_cel_fu with sa_gel_fu for 10s
+
+// --- Patient 1: Single-agent docetaxel arm (72-h) ---
+sa_mat_doc  = dispense 1 units of GFR_Matrigel
+sa_med_doc  = dispense 1 units of CompleteOrganoidMedia
+sa_cel_doc  = dispense 1 units of PDAC_P1_Cells
+sa_gel_doc  = mix sa_mat_doc with sa_med_doc for 5s
+sa_cult_doc = mix sa_cel_doc with sa_gel_doc for 10s
+
+// --- Patient 1: Single-agent CPT-11 arm (72-h) ---
+sa_mat_cpt  = dispense 1 units of GFR_Matrigel
+sa_med_cpt  = dispense 1 units of CompleteOrganoidMedia
+sa_cel_cpt  = dispense 1 units of PDAC_P1_Cells
+sa_gel_cpt  = mix sa_mat_cpt with sa_med_cpt for 5s
+sa_cult_cpt = mix sa_cel_cpt with sa_gel_cpt for 10s
+
+// --- Patient 1: Single-agent oxaliplatin arm (72-h) ---
+sa_mat_oxa  = dispense 1 units of GFR_Matrigel
+sa_med_oxa  = dispense 1 units of CompleteOrganoidMedia
+sa_cel_oxa  = dispense 1 units of PDAC_P1_Cells
+sa_gel_oxa  = mix sa_mat_oxa with sa_med_oxa for 5s
+sa_cult_oxa = mix sa_cel_oxa with sa_gel_oxa for 10s
+
+// --- Patient 1: Single-agent cisplatin arm (72-h) ---
+sa_mat_cis  = dispense 1 units of GFR_Matrigel
+sa_med_cis  = dispense 1 units of CompleteOrganoidMedia
+sa_cel_cis  = dispense 1 units of PDAC_P1_Cells
+sa_gel_cis  = mix sa_mat_cis with sa_med_cis for 5s
+sa_cult_cis = mix sa_cel_cis with sa_gel_cis for 10s
+
+// --- Patient 1: Temporal FOLFIRINOX arm ---
+fol_mat     = dispense 1 units of GFR_Matrigel
+fol_med     = dispense 1 units of CompleteOrganoidMedia
+fol_cel     = dispense 1 units of PDAC_P1_Cells
+fol_gel     = mix fol_mat with fol_med for 5s
+fol_cult    = mix fol_cel with fol_gel for 10s
+
+// --- Patient 1: Temporal FOLFIRI arm ---
+firi_mat    = dispense 1 units of GFR_Matrigel
+firi_med    = dispense 1 units of CompleteOrganoidMedia
+firi_cel    = dispense 1 units of PDAC_P1_Cells
+firi_gel    = mix firi_mat with firi_med for 5s
+firi_cult   = mix firi_cel with firi_gel for 10s
+
+// --- Patient 1: Temporal FOLFOX arm ---
+fox_mat     = dispense 1 units of GFR_Matrigel
+fox_med     = dispense 1 units of CompleteOrganoidMedia
+fox_cel     = dispense 1 units of PDAC_P1_Cells
+fox_gel     = mix fox_mat with fox_med for 5s
+fox_cult    = mix fox_cel with fox_gel for 10s
+
+// --- Patient 1: Temporal Gemcitabine + 5-FU arm ---
+gf_mat      = dispense 1 units of GFR_Matrigel
+gf_med      = dispense 1 units of CompleteOrganoidMedia
+gf_cel      = dispense 1 units of PDAC_P1_Cells
+gf_gel      = mix gf_mat with gf_med for 5s
+gf_cult     = mix gf_cel with gf_gel for 10s
+
+// --- Patient 1: Temporal Gemcitabine + Paclitaxel arm ---
+gp_mat      = dispense 1 units of GFR_Matrigel
+gp_med      = dispense 1 units of CompleteOrganoidMedia
+gp_cel      = dispense 1 units of PDAC_P1_Cells
+gp_gel      = mix gp_mat with gp_med for 5s
+gp_cult     = mix gp_cel with gp_gel for 10s
+
+// --- Patient 2: Gem+5FU temporal (multi-patient arm) ---
+p2_mat      = dispense 1 units of GFR_Matrigel
+p2_med      = dispense 1 units of CompleteOrganoidMedia
+p2_cel      = dispense 1 units of PDAC_P2_Cells
+p2_gel      = mix p2_mat with p2_med for 5s
+p2_cult     = mix p2_cel with p2_gel for 10s
+
+// --- Patient 3: Gem+5FU temporal (multi-patient arm) ---
+p3_mat      = dispense 1 units of GFR_Matrigel
+p3_med      = dispense 1 units of CompleteOrganoidMedia
+p3_cel      = dispense 1 units of PDAC_P3_Cells
+p3_gel      = mix p3_mat with p3_med for 5s
+p3_cult     = mix p3_cel with p3_gel for 10s
+
+// ------------------------------------------------------------
+// SECTION 2: 14-day growth phase
+//
+// All 14 culture wells incubated at 37 C / 5% CO2 / 100% RH.
+// Automated media exchange every 38 h via multiplexer.
+// Continuous time-lapse imaging (Nikon Eclipse Ti, x10,
+// every 2-4 h) tracks organoid growth from single cells to
+// ~500 um 3D glandular structures. 14 days = 20160 min.
+// heat is void/in-place per BioScript compiler spec.
+// ------------------------------------------------------------
+
+heat sa_cult_gem at 37c for 20160m
+heat sa_cult_pac at 37c for 20160m
+heat sa_cult_fu  at 37c for 20160m
+heat sa_cult_doc at 37c for 20160m
+heat sa_cult_cpt at 37c for 20160m
+heat sa_cult_oxa at 37c for 20160m
+heat sa_cult_cis at 37c for 20160m
+heat fol_cult    at 37c for 20160m
+heat firi_cult   at 37c for 20160m
+heat fox_cult    at 37c for 20160m
+heat gf_cult     at 37c for 20160m
+heat gp_cult     at 37c for 20160m
+heat p2_cult     at 37c for 20160m
+heat p3_cult     at 37c for 20160m
+
+// ============================================================
+// SECTION 3: Single-agent drug screen (Patient 1, 72-h arm)
+//
+// 7 chemotherapies delivered to independent channel subsets.
+// Viability markers co-delivered with drug at treatment start:
+//   Caspase 3/7 (5 uM, Essen Bioscience 4400): apoptosis
+//   Propidium iodide (1.5 uM, Thermo Fisher P3566): death
+//
+// FIX A (48-h replenishment bug): Each arm is split into two
+// sequential phases so the media+drug replenishment lands
+// exactly at the 48-h boundary, not after 72 h:
+//   Phase 1: drug exposure, 48 h = 2880m
+//   Replenishment: fresh media + drug dispensed and mixed
+//   Phase 2: continued drug exposure, 24 h = 1440m
+// Total per arm: 2880m + 1440m = 4320m = 72 h. Correct.
+// ============================================================
+
+// Gemcitabine 100 nM (72-h continuous, 48-h replenishment)
+// Phase 1: 0-48 h; replenishment at 48 h; Phase 2: 48-72 h.
+// gem_drug1 consumed in phase1; gem_drug2 dispensed fresh for phase2.
+gem_casp    = dispense 1 units of Caspase37_Reagent
+gem_pi      = dispense 1 units of PropidiumIodide
+gem_drug1   = dispense 1 units of Gemcitabine_100nM
+gem_mark1   = mix sa_cult_gem with gem_casp for 5s
+gem_mark2   = mix gem_mark1 with gem_pi for 5s
+gem_phase1  = mix gem_mark2 with gem_drug1 for 2880m
+gem_ref_med = dispense 1 units of CompleteOrganoidMedia
+gem_drug2   = dispense 1 units of Gemcitabine_100nM
+gem_ref1    = mix gem_phase1 with gem_ref_med for 5s
+gem_ref2    = mix gem_ref1 with gem_drug2 for 5s
+gemFinished = mix gem_ref2 with gem_ref2 for 1440m
+
+// Paclitaxel 10 nM (72-h continuous, 48-h replenishment)
+pac_casp    = dispense 1 units of Caspase37_Reagent
+pac_pi      = dispense 1 units of PropidiumIodide
+pac_drug1   = dispense 1 units of Paclitaxel_10nM
+pac_mark1   = mix sa_cult_pac with pac_casp for 5s
+pac_mark2   = mix pac_mark1 with pac_pi for 5s
+pac_phase1  = mix pac_mark2 with pac_drug1 for 2880m
+pac_ref_med = dispense 1 units of CompleteOrganoidMedia
+pac_drug2   = dispense 1 units of Paclitaxel_10nM
+pac_ref1    = mix pac_phase1 with pac_ref_med for 5s
+pac_ref2    = mix pac_ref1 with pac_drug2 for 5s
+pacFinished = mix pac_ref2 with pac_ref2 for 1440m
+
+// 5-FU 100 nM (72-h continuous, 48-h replenishment)
+fu_casp     = dispense 1 units of Caspase37_Reagent
+fu_pi       = dispense 1 units of PropidiumIodide
+fu_drug1    = dispense 1 units of FluorouracilLow_100nM
+fu_mark1    = mix sa_cult_fu with fu_casp for 5s
+fu_mark2    = mix fu_mark1 with fu_pi for 5s
+fu_phase1   = mix fu_mark2 with fu_drug1 for 2880m
+fu_ref_med  = dispense 1 units of CompleteOrganoidMedia
+fu_drug2    = dispense 1 units of FluorouracilLow_100nM
+fu_ref1     = mix fu_phase1 with fu_ref_med for 5s
+fu_ref2     = mix fu_ref1 with fu_drug2 for 5s
+fuFinished  = mix fu_ref2 with fu_ref2 for 1440m
+
+// Docetaxel 10 nM (72-h continuous, 48-h replenishment)
+doc_casp    = dispense 1 units of Caspase37_Reagent
+doc_pi      = dispense 1 units of PropidiumIodide
+doc_drug1   = dispense 1 units of Docetaxel_10nM
+doc_mark1   = mix sa_cult_doc with doc_casp for 5s
+doc_mark2   = mix doc_mark1 with doc_pi for 5s
+doc_phase1  = mix doc_mark2 with doc_drug1 for 2880m
+doc_ref_med = dispense 1 units of CompleteOrganoidMedia
+doc_drug2   = dispense 1 units of Docetaxel_10nM
+doc_ref1    = mix doc_phase1 with doc_ref_med for 5s
+doc_ref2    = mix doc_ref1 with doc_drug2 for 5s
+docFinished = mix doc_ref2 with doc_ref2 for 1440m
+
+// CPT-11 100 nM (72-h continuous, 48-h replenishment)
+cpt_casp    = dispense 1 units of Caspase37_Reagent
+cpt_pi      = dispense 1 units of PropidiumIodide
+cpt_drug1   = dispense 1 units of CPT11_100nM
+cpt_mark1   = mix sa_cult_cpt with cpt_casp for 5s
+cpt_mark2   = mix cpt_mark1 with cpt_pi for 5s
+cpt_phase1  = mix cpt_mark2 with cpt_drug1 for 2880m
+cpt_ref_med = dispense 1 units of CompleteOrganoidMedia
+cpt_drug2   = dispense 1 units of CPT11_100nM
+cpt_ref1    = mix cpt_phase1 with cpt_ref_med for 5s
+cpt_ref2    = mix cpt_ref1 with cpt_drug2 for 5s
+cptFinished = mix cpt_ref2 with cpt_ref2 for 1440m
+
+// Oxaliplatin 100 nM (72-h continuous, 48-h replenishment)
+oxa_casp    = dispense 1 units of Caspase37_Reagent
+oxa_pi      = dispense 1 units of PropidiumIodide
+oxa_drug1   = dispense 1 units of Oxaliplatin_100nM
+oxa_mark1   = mix sa_cult_oxa with oxa_casp for 5s
+oxa_mark2   = mix oxa_mark1 with oxa_pi for 5s
+oxa_phase1  = mix oxa_mark2 with oxa_drug1 for 2880m
+oxa_ref_med = dispense 1 units of CompleteOrganoidMedia
+oxa_drug2   = dispense 1 units of Oxaliplatin_100nM
+oxa_ref1    = mix oxa_phase1 with oxa_ref_med for 5s
+oxa_ref2    = mix oxa_ref1 with oxa_drug2 for 5s
+oxaFinished = mix oxa_ref2 with oxa_ref2 for 1440m
+
+// Cisplatin 100 nM (72-h continuous, 48-h replenishment)
+cis_casp    = dispense 1 units of Caspase37_Reagent
+cis_pi      = dispense 1 units of PropidiumIodide
+cis_drug1   = dispense 1 units of Cisplatin_100nM
+cis_mark1   = mix sa_cult_cis with cis_casp for 5s
+cis_mark2   = mix cis_mark1 with cis_pi for 5s
+cis_phase1  = mix cis_mark2 with cis_drug1 for 2880m
+cis_ref_med = dispense 1 units of CompleteOrganoidMedia
+cis_drug2   = dispense 1 units of Cisplatin_100nM
+cis_ref1    = mix cis_phase1 with cis_ref_med for 5s
+cis_ref2    = mix cis_ref1 with cis_drug2 for 5s
+cisFinished = mix cis_ref2 with cis_ref2 for 1440m
+
+// QC detect on gemcitabine arm (primary single-agent QC signal)
+apoptosisQC = detect apoptosisDetection on gemFinished for 30s
+
+// ============================================================
+// SECTION 4: Temporal FOLFIRINOX (Patient 1)
+//
+// Clinically-mirrored sequential delivery (Table 1, paper):
+//   CPT-11 100 nM       : 2 h      = 120m
+//   Oxaliplatin 100 nM  : 2 h      = 120m
+//   High-dose 5-FU 1 uM : 30 min   = 30m
+//   Low-dose 5-FU 100 nM: 67.5 h   = 4050m
+//   Total                          = 4320m = 72 h  OK
+//
+// FIX B: low-dose 5-FU extended to 4050m (not 2760m/46h from
+// clinical text) so platform runs until end of 72-h experiment
+// per paper: "continued with low dose 5-FU until the end of
+// the 72-h experiment". 120+120+30+4050 = 4320m.
+// Viability markers co-delivered at treatment start.
+// ============================================================
+
+fol_casp    = dispense 1 units of Caspase37_Reagent
+fol_pi      = dispense 1 units of PropidiumIodide
+fol_mark1   = mix fol_cult with fol_casp for 5s
+fol_mark2   = mix fol_mark1 with fol_pi for 5s
+
+fol_cpt     = dispense 1 units of CPT11_100nM
+fol_step1   = mix fol_mark2 with fol_cpt for 120m
+
+fol_oxa     = dispense 1 units of Oxaliplatin_100nM
+fol_step2   = mix fol_step1 with fol_oxa for 120m
+
+fol_fuH     = dispense 1 units of FluorouracilHigh_1uM
+fol_step3   = mix fol_step2 with fol_fuH for 30m
+
+fol_fuL     = dispense 1 units of FluorouracilLow_100nM
+folFinished = mix fol_step3 with fol_fuL for 4050m
+
+// ============================================================
+// SECTION 5: Temporal FOLFIRI (Patient 1)
+//
+// Sequential delivery (Table 1 + 72-h boundary fix):
+//   CPT-11 100 nM       : 4 h      = 240m
+//   High-dose 5-FU 1 uM : 30 min   = 30m
+//   Low-dose 5-FU 100 nM: 67.5 h   = 4050m
+//   Total                          = 4320m = 72 h  OK
+// FIX B: 240+30+4050 = 4320m.
+// ============================================================
+
+firi_casp   = dispense 1 units of Caspase37_Reagent
+firi_pi     = dispense 1 units of PropidiumIodide
+firi_mark1  = mix firi_cult with firi_casp for 5s
+firi_mark2  = mix firi_mark1 with firi_pi for 5s
+
+firi_cpt    = dispense 1 units of CPT11_100nM
+firi_step1  = mix firi_mark2 with firi_cpt for 240m
+
+firi_fuH    = dispense 1 units of FluorouracilHigh_1uM
+firi_step2  = mix firi_step1 with firi_fuH for 30m
+
+firi_fuL    = dispense 1 units of FluorouracilLow_100nM
+firiFinished = mix firi_step2 with firi_fuL for 4050m
+
+// ============================================================
+// SECTION 6: Temporal FOLFOX (Patient 1)
+//
+// Sequential delivery (Table 1 + 72-h boundary fix):
+//   Oxaliplatin 100 nM  : 4 h      = 240m
+//   High-dose 5-FU 1 uM : 30 min   = 30m
+//   Low-dose 5-FU 100 nM: 67.5 h   = 4050m
+//   Total                          = 4320m = 72 h  OK
+// FIX B: 240+30+4050 = 4320m.
+// ============================================================
+
+fox_casp    = dispense 1 units of Caspase37_Reagent
+fox_pi      = dispense 1 units of PropidiumIodide
+fox_mark1   = mix fox_cult with fox_casp for 5s
+fox_mark2   = mix fox_mark1 with fox_pi for 5s
+
+fox_oxa     = dispense 1 units of Oxaliplatin_100nM
+fox_step1   = mix fox_mark2 with fox_oxa for 240m
+
+fox_fuH     = dispense 1 units of FluorouracilHigh_1uM
+fox_step2   = mix fox_step1 with fox_fuH for 30m
+
+fox_fuL     = dispense 1 units of FluorouracilLow_100nM
+foxFinished = mix fox_step2 with fox_fuL for 4050m
+
+// ============================================================
+// SECTION 7: Temporal Gemcitabine + 5-FU (Patient 1)
+//
+// Sequential delivery (Table 1); 2 cycles, unrolled.
+// FIX C: Cycle 2 final 5-FU truncated per Fig 4f visual
+// truncation at the 72-h assay read point:
+//   Cycle 1: Gemcitabine 100 nM  (4 h  = 240m)
+//            Low-dose 5-FU 100nM (48 h = 2880m)
+//   Cycle 2: Gemcitabine 100 nM  (4 h  = 240m)
+//            Low-dose 5-FU 100nM (16 h = 960m)   <-- truncated
+//   Total: 240+2880+240+960 = 4320m = 72 h  OK
+//   QC detect fires at 72-h mark; all arms synchronized.
+// ============================================================
+
+gf_casp     = dispense 1 units of Caspase37_Reagent
+gf_pi       = dispense 1 units of PropidiumIodide
+gf_mark1    = mix gf_cult with gf_casp for 5s
+gf_mark2    = mix gf_mark1 with gf_pi for 5s
+
+// Cycle 1
+gf_gem1     = dispense 1 units of Gemcitabine_100nM
+gf_step1    = mix gf_mark2 with gf_gem1 for 240m
+
+gf_fu1      = dispense 1 units of FluorouracilLow_100nM
+gf_step2    = mix gf_step1 with gf_fu1 for 2880m
+
+// Cycle 2
+gf_gem2     = dispense 1 units of Gemcitabine_100nM
+gf_step3    = mix gf_step2 with gf_gem2 for 240m
+
+gf_fu2      = dispense 1 units of FluorouracilLow_100nM
+gfFinished  = mix gf_step3 with gf_fu2 for 960m
+
+// ============================================================
+// SECTION 8: Temporal Gemcitabine + Paclitaxel (Patient 1)
+//
+// Sequential delivery (Table 1); 2 cycles, unrolled:
+//   Cycle 1: Gemcitabine 100 nM  (4 h  = 240m)
+//            Paclitaxel 10 nM    (4 h  = 240m)
+//            Normal media        (24 h = 1440m)
+//   Cycle 2: Gemcitabine 100 nM  (4 h  = 240m)
+//            Paclitaxel 10 nM    (4 h  = 240m)
+//            Normal media        (24 h = 1440m)
+//
+// Most effective regimen for Patient 1 (Fig 4g);
+// retrospectively consistent with clinical outcome (Table 2).
+// ============================================================
+
+gp_casp     = dispense 1 units of Caspase37_Reagent
+gp_pi       = dispense 1 units of PropidiumIodide
+gp_mark1    = mix gp_cult with gp_casp for 5s
+gp_mark2    = mix gp_mark1 with gp_pi for 5s
+
+// Cycle 1
+gp_gem1     = dispense 1 units of Gemcitabine_100nM
+gp_step1    = mix gp_mark2 with gp_gem1 for 240m
+
+gp_pac1     = dispense 1 units of Paclitaxel_10nM
+gp_step2    = mix gp_step1 with gp_pac1 for 240m
+
+gp_med1     = dispense 1 units of CompleteOrganoidMedia
+gp_step3    = mix gp_step2 with gp_med1 for 1440m
+
+// Cycle 2
+gp_gem2     = dispense 1 units of Gemcitabine_100nM
+gp_step4    = mix gp_step3 with gp_gem2 for 240m
+
+gp_pac2     = dispense 1 units of Paclitaxel_10nM
+gp_step5    = mix gp_step4 with gp_pac2 for 240m
+
+gp_med2     = dispense 1 units of CompleteOrganoidMedia
+gpFinished  = mix gp_step5 with gp_med2 for 1920m
+
+// ============================================================
+// SECTION 9: Multi-patient parallel Gem+5FU temporal
+// (Patient 2 and Patient 3; mirrors Fig. 5 heatmap)
+//
+// Same temporal cycle structure as Section 7; independent
+// cultures for P2 and P3 (pre-established in Section 1).
+// QC gate keys on P2 (most sensitive; p=7E-07, Fig 5b).
+// ============================================================
+
+// Patient 2 arm
+p2_casp     = dispense 1 units of Caspase37_Reagent
+p2_pi       = dispense 1 units of PropidiumIodide
+p2_mark1    = mix p2_cult with p2_casp for 5s
+p2_mark2    = mix p2_mark1 with p2_pi for 5s
+
+p2_gem1     = dispense 1 units of Gemcitabine_100nM
+p2_step1    = mix p2_mark2 with p2_gem1 for 240m
+
+p2_fu1      = dispense 1 units of FluorouracilLow_100nM
+p2_step2    = mix p2_step1 with p2_fu1 for 2880m
+
+p2_gem2     = dispense 1 units of Gemcitabine_100nM
+p2_step3    = mix p2_step2 with p2_gem2 for 240m
+
+p2_fu2      = dispense 1 units of FluorouracilLow_100nM
+p2Finished  = mix p2_step3 with p2_fu2 for 960m
+
+// Patient 3 arm
+p3_casp     = dispense 1 units of Caspase37_Reagent
+p3_pi       = dispense 1 units of PropidiumIodide
+p3_mark1    = mix p3_cult with p3_casp for 5s
+p3_mark2    = mix p3_mark1 with p3_pi for 5s
+
+p3_gem1     = dispense 1 units of Gemcitabine_100nM
+p3_step1    = mix p3_mark2 with p3_gem1 for 240m
+
+p3_fu1      = dispense 1 units of FluorouracilLow_100nM
+p3_step2    = mix p3_step1 with p3_fu1 for 2880m
+
+p3_gem2     = dispense 1 units of Gemcitabine_100nM
+p3_step3    = mix p3_step2 with p3_gem2 for 240m
+
+p3_fu2      = dispense 1 units of FluorouracilLow_100nM
+p3Finished  = mix p3_step3 with p3_fu2 for 960m
+
+multiPatQC  = detect apoptosisDetection on p2Finished for 30s
+
+// ============================================================
+// BB2 / BB3: Primary QC gate (P1 gemcitabine apoptosis signal)
+//
+// Pass (BB2): apoptosisQC > 0 -> valid caspase 3/7 readout;
+//             dispose all P1 single-agent and temporal droplets.
+// Fail (BB3): apoptosisQC <= 0 -> detection failure; drain all.
+// Both converge at BB4 (assayJoin).
+// ============================================================
+
+if (apoptosisQC > 0) {
+    dispose gemFinished
+    dispose pacFinished
+    dispose fuFinished
+    dispose docFinished
+    dispose cptFinished
+    dispose oxaFinished
+    dispose cisFinished
+    dispose folFinished
+    dispose firiFinished
+    dispose foxFinished
+    dispose gfFinished
+    dispose gpFinished
+} else {
+    drain gemFinished
+    drain pacFinished
+    drain fuFinished
+    drain docFinished
+    drain cptFinished
+    drain oxaFinished
+    drain cisFinished
+    drain folFinished
+    drain firiFinished
+    drain foxFinished
+    drain gfFinished
+    drain gpFinished
+}
+
+// ============================================================
+// BB4: assayJoin
+// Dispose P1 apoptosis QC signal. Control falls into
+// multi-patient parallel QC gate (BB5/BB6).
+// ============================================================
+
+dispose apoptosisQC
+
+// ============================================================
+// BB5 / BB6: Multi-patient QC gate (P2 apoptosis signal)
+//
+// Pass (BB5): multiPatQC > 0 -> valid P2 caspase 3/7 signal;
+//             dispose P2 and P3 finished culture droplets.
+// Fail (BB6): multiPatQC <= 0 -> detection failure; drain.
+// Both converge at BB7 (finalCleanup).
+// ============================================================
+
+if (multiPatQC > 0) {
+    dispose p2Finished
+    dispose p3Finished
+} else {
+    drain p2Finished
+    drain p3Finished
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose multi-patient QC signal droplet.
+// Experiment ends; device disassembled for organoid harvesting
+// (channel layer removed; wells exposed for sequencing,
+// expansion, or grafting per paper Methods section).
+// ============================================================
+
+dispose multiPatQC
+
+// [terminal -- no further instructions; exit node for CFG]

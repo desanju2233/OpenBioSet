@@ -1,0 +1,294 @@
+module gradientDetection
+module nfkbTranslocationDetection
+module geneExpressionDetection
+module viabilityDetection
+
+manifest Fibronectin
+manifest PBS
+manifest DMEM_HighGlucose
+manifest RelA_DsRed_3T3_Fibroblasts
+manifest RelA_GFP_RAW264_Macrophages
+manifest LPS_50ngmL
+manifest TNFa_30ngmL
+manifest Hoechst33342
+manifest TrypLE
+manifest LysisBuffer
+manifest CyanonineFive
+manifest FreshMedium
+
+instructions:
+
+// ============================================================
+// High-throughput co-culture system for analysis of
+// spatiotemporal cell-cell signaling
+// Son, Wang, Kenna, Tay -- Biosensors and Bioelectronics 2023
+// DOI: https://doi.org/10.1016/j.bios.2023.115089
+//
+// v2 fixes (FIX1-FIX4):
+//   FIX1: heat at 4c for 960m replaces heat at -80c
+//          (compiler strips negative sign: -80c -> 80.0CELSIUS)
+//   FIX2: false branches use explicit waste variable so
+//          compiler emits drain() not dispose() in IR
+//   FIX3: removed dead lysisBufferStock variable
+//   FIX4: imagingChamber uses two distinct operands
+//          (sinkFlow + gradientJoin) instead of self-mix
+//
+// CFG structure (main arm):
+//   BB1(main) -> BB2/BB3 -> BB4(join) -> BB5/BB6
+//   -> BB7(join) -> BB8/BB9 -> BB10(terminal)
+//
+// CFG structure (supplemental TNF-a arm, continuation):
+//   BB10 -> BB11/BB12 -> BB13(terminal/NOP)
+// ============================================================
+
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// STEP 1: Fibronectin coating of receiving chambers.
+// 30 min at 25 C; washed with DMEM before cell loading.
+fibronectinCoat       = dispense 1 units of Fibronectin
+pbsWash1              = dispense 1 units of PBS
+coatingMix            = mix fibronectinCoat with pbsWash1 for 5s
+heat coatingMix at 25c for 30m
+
+washBuffer1           = dispense 1 units of DMEM_HighGlucose
+chambersCoated        = mix coatingMix with washBuffer1 for 2s
+
+// STEP 2: RelA-DsRed 3T3 fibroblast loading.
+// 5e5 cells/mL; ~70% confluency (200-400 cells/chamber).
+// 5 h adhesion at 37 C (midpoint of 4-6 h window).
+fibroblasts           = dispense 1 units of RelA_DsRed_3T3_Fibroblasts
+dmemBase              = dispense 1 units of DMEM_HighGlucose
+fibroblastSuspension  = mix fibroblasts with dmemBase for 5s
+loadedFibroblasts     = mix chambersCoated with fibroblastSuspension for 5s
+heat loadedFibroblasts at 37c for 300m
+
+// STEP 3: Hoechst 33342 nuclear staining (optional; 10 min).
+hoechstStain          = dispense 1 units of Hoechst33342
+stainedFibroblasts    = mix loadedFibroblasts with hoechstStain for 10m
+
+// STEP 4: RelA-GFP RAW264.7 macrophage loading into pre-chamber.
+// 10-100 cells (controlled: 60 +/- 15); separator valve CLOSED.
+// Settle 30 min at 37 C.
+macrophages           = dispense 1 units of RelA_GFP_RAW264_Macrophages
+macrophageMedium      = dispense 1 units of DMEM_HighGlucose
+macrophageSuspension  = mix macrophages with macrophageMedium for 5s
+loadedMacrophages     = mix macrophageSuspension with stainedFibroblasts for 2s
+heat loadedMacrophages at 37c for 30m
+
+// STEP 5: LPS stimulation (50 ng/mL, 10 min, separator CLOSED).
+// Wash pre-chamber with fresh DMEM to remove LPS.
+lpsStimulus           = dispense 1 units of LPS_50ngmL
+macrophageStimulated  = mix loadedMacrophages with lpsStimulus for 10m
+washBuffer2           = dispense 1 units of FreshMedium
+lpsWashed             = mix macrophageStimulated with washBuffer2 for 2s
+
+// STEP 6: Separator valve open; cytokine gradient formation.
+// Cy5 tracer for gradient QC; 400 min development window.
+cy5Tracer             = dispense 1 units of CyanonineFive
+gradientChamber       = mix lpsWashed with cy5Tracer for 5s
+heat gradientChamber at 37c for 400m
+gradientSignal        = detect gradientDetection on gradientChamber for 10s
+
+// ============================================================
+// BB2 / BB3: Gradient QC gate
+// FIX2: false branch uses explicit waste variable.
+// ============================================================
+
+if (gradientSignal > 0) {
+    dispose gradientChamber
+} else {
+    gradientWaste = mix gradientChamber with washBuffer2 for 2s
+    drain gradientWaste
+}
+
+// ============================================================
+// BB4: gradientJoin
+// FIX4: sinkFlow and gradientJoin are two distinct variables
+//        so imagingChamber is not a self-mix.
+// ============================================================
+
+dispose gradientSignal
+
+// STEP 7: Live-cell NF-kB imaging (200 min at 37 C).
+sinkFlow              = dispense 1 units of FreshMedium
+gradientJoin          = dispense 1 units of FreshMedium
+imagingChamber        = mix sinkFlow with gradientJoin for 2s
+heat imagingChamber at 37c for 200m
+nfkbSignal            = detect nfkbTranslocationDetection on imagingChamber for 30s
+
+// ============================================================
+// BB5 / BB6: NF-kB QC gate
+// FIX2: false branch uses explicit waste variable.
+// ============================================================
+
+if (nfkbSignal > 0) {
+    dispose imagingChamber
+} else {
+    nfkbWaste = mix imagingChamber with sinkFlow for 2s
+    drain nfkbWaste
+}
+
+// ============================================================
+// BB7: nfkbJoin
+// FIX3: lysisBufferStock removed; per-region lysis variables
+//        are dispensed inline only where consumed.
+// ============================================================
+
+dispose nfkbSignal
+
+// STEP 8: Spatially resolved cell retrieval (near / mid / far).
+// TrypLE 10 s flow + 60 s incubation = 70 s total detachment.
+// FIX1: heat at 4c for 960m (not -80c; compiler strips sign).
+//        Biological intent: -80 C long-term cryostorage.
+trypLESolution        = dispense 1 units of TrypLE
+pbsRetrieval          = dispense 1 units of PBS
+detachedCells         = mix trypLESolution with pbsRetrieval for 70s
+
+pbsNear               = dispense 1 units of PBS
+lysisNear             = dispense 1 units of LysisBuffer
+nearCells             = mix detachedCells with pbsNear for 5s
+nearLysate            = mix nearCells with lysisNear for 5s
+
+pbsMid                = dispense 1 units of PBS
+lysisMid              = dispense 1 units of LysisBuffer
+midCells              = mix detachedCells with pbsMid for 5s
+midLysate             = mix midCells with lysisMid for 5s
+
+pbsFar                = dispense 1 units of PBS
+lysisFar              = dispense 1 units of LysisBuffer
+farCells              = mix detachedCells with pbsFar for 5s
+farLysate             = mix farCells with lysisFar for 5s
+
+heat nearLysate at 4c for 960m
+heat midLysate  at 4c for 960m
+heat farLysate  at 4c for 960m
+
+geneExprSignal        = detect geneExpressionDetection on nearLysate for 30s
+
+// ============================================================
+// BB8 / BB9: Gene expression QC gate
+// FIX2: false branch uses explicit waste variables.
+// ============================================================
+
+if (geneExprSignal > 0) {
+    dispose nearLysate
+    dispose midLysate
+    dispose farLysate
+} else {
+    lysateWasteN = mix nearLysate with pbsNear for 2s
+    lysateWasteM = mix midLysate  with pbsMid  for 2s
+    lysateWasteF = mix farLysate  with pbsFar  for 2s
+    drain lysateWasteN
+    drain lysateWasteM
+    drain lysateWasteF
+}
+
+// ============================================================
+// BB10: terminal / join into supplemental TNF-a arm
+// ============================================================
+
+dispose geneExprSignal
+
+// ============================================================
+// SUPPLEMENTAL ARM: Fixed-dose TNF-a stimulation
+// Section 3.4, Fig. 4 -- no macrophages; 30 ng/mL TNF-a
+// loaded directly into pre-chamber.
+// Continues from BB10; compiler will assign BB11-BB13.
+// Same four fixes applied as main arm above.
+// ============================================================
+
+// STEP S1: Fibronectin coating.
+fibronectinCoat2      = dispense 1 units of Fibronectin
+pbsWash2              = dispense 1 units of PBS
+coatingMix2           = mix fibronectinCoat2 with pbsWash2 for 5s
+heat coatingMix2 at 25c for 30m
+
+washBuffer3           = dispense 1 units of DMEM_HighGlucose
+chambersCoated2       = mix coatingMix2 with washBuffer3 for 2s
+
+// STEP S2: Fibroblast loading.
+fibroblasts2          = dispense 1 units of RelA_DsRed_3T3_Fibroblasts
+dmemBase2             = dispense 1 units of DMEM_HighGlucose
+fibroblastSusp2       = mix fibroblasts2 with dmemBase2 for 5s
+loadedFibroblasts2    = mix chambersCoated2 with fibroblastSusp2 for 5s
+heat loadedFibroblasts2 at 37c for 300m
+
+hoechstStain2         = dispense 1 units of Hoechst33342
+stainedFibroblasts2   = mix loadedFibroblasts2 with hoechstStain2 for 10m
+
+// STEP S3: 30 ng/mL TNF-a loaded into pre-chamber; 8 h imaging.
+tnfaStimulus          = dispense 1 units of TNFa_30ngmL
+tnfaChamber           = mix stainedFibroblasts2 with tnfaStimulus for 5s
+heat tnfaChamber at 37c for 480m
+
+// FIX4: two distinct operands for imagingChamber2.
+sinkFlow2             = dispense 1 units of FreshMedium
+gradientJoin2         = dispense 1 units of FreshMedium
+imagingChamber2       = mix sinkFlow2 with gradientJoin2 for 2s
+heat imagingChamber2 at 37c for 480m
+geneExprSignal2       = detect geneExpressionDetection on imagingChamber2 for 30s
+
+// ============================================================
+// BB11 / BB12: Gene expression QC gate (supplemental arm)
+// FIX2: false branch uses explicit waste variables.
+// ============================================================
+
+if (geneExprSignal2 > 0) {
+    dispose imagingChamber2
+} else {
+    tnfaWaste = mix imagingChamber2 with sinkFlow2 for 2s
+    drain tnfaWaste
+}
+
+// STEP S4: Cell retrieval (near / mid / far).
+// FIX1: heat at 4c for 960m (not -80c).
+trypLE2               = dispense 1 units of TrypLE
+pbs2                  = dispense 1 units of PBS
+detached2             = mix trypLE2 with pbs2 for 70s
+
+pbsNear2              = dispense 1 units of PBS
+lysisNear2            = dispense 1 units of LysisBuffer
+nearCells2            = mix detached2 with pbsNear2 for 5s
+nearLysate2           = mix nearCells2 with lysisNear2 for 5s
+
+pbsMid2               = dispense 1 units of PBS
+lysisMid2             = dispense 1 units of LysisBuffer
+midCells2             = mix detached2 with pbsMid2 for 5s
+midLysate2            = mix midCells2 with lysisMid2 for 5s
+
+pbsFar2               = dispense 1 units of PBS
+lysisFar2             = dispense 1 units of LysisBuffer
+farCells2             = mix detached2 with pbsFar2 for 5s
+farLysate2            = mix farCells2 with lysisFar2 for 5s
+
+heat nearLysate2 at 4c for 960m
+heat midLysate2  at 4c for 960m
+heat farLysate2  at 4c for 960m
+
+geneExprSignal3       = detect geneExpressionDetection on nearLysate2 for 30s
+
+// ============================================================
+// BB13 (assigned by compiler) / terminal
+// FIX2: false branch uses explicit waste variables.
+// ============================================================
+
+if (geneExprSignal3 > 0) {
+    dispose nearLysate2
+    dispose midLysate2
+    dispose farLysate2
+} else {
+    lysateWasteN2 = mix nearLysate2 with pbsNear2 for 2s
+    lysateWasteM2 = mix midLysate2  with pbsMid2  for 2s
+    lysateWasteF2 = mix farLysate2  with pbsFar2  for 2s
+    drain lysateWasteN2
+    drain lysateWasteM2
+    drain lysateWasteF2
+}
+
+dispose geneExprSignal2
+dispose geneExprSignal3
+
+// [terminal -- NOP]

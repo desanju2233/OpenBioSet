@@ -1,0 +1,506 @@
+{
+  "protocol": {
+    "title": "Macrophage memory emerges from coordinated transcription factor and chromatin dynamics",
+    "source": "Cell Systems 16, 101171, February 19, 2025",
+    "doi": "10.1016/j.cels.2025.101171",
+    "platform": "Automated microfluidic live-cell imaging + off-chip ATAC-seq and RNA-seq",
+    "cell_type": "Primary bone-marrow-derived macrophages (BMDMs) from RelA(mVenus/mVenus) C57BL/6J transgenic mice",
+    "objective": "Systematic profiling of innate immune memory in primary macrophages through sequential inflammatory ligand stimulation, live-cell NF-kB dynamics imaging, chromatin accessibility (ATAC-seq), and transcriptomic (RNA-seq) profiling; deep-learning prediction of memory-conditioned gene expression",
+
+    "device": {
+      "type": "PDMS multilayer microfluidic device",
+      "chambers": 64,
+      "inputs": 14,
+      "control": "Pneumatic solenoid valves driven by custom MATLAB graphical interface",
+      "tubing": "PEEK tubing (VICI)",
+      "input_pressure_psi": 4,
+      "microscope": "Nikon Ti2 epifluorescence",
+      "camera": "Hamamatsu ORCA-Flash4.0 V2",
+      "imaging_interval_min": 6,
+      "magnification": "20x",
+      "channels": {
+        "mVenus_RelA": { "excitation_nm": 508, "exposure_s": 1 },
+        "Hoechst":     { "excitation_nm": 395, "exposure_ms": 50 }
+      },
+      "live_imaging_apparatus": "Life Imaging Services incubation chamber",
+      "live_imaging_conditions": { "temperature_C": 37, "co2_pct": 5, "humidity_pct": 98 }
+    },
+
+    "mouse_model": {
+      "strain": "RelA(mVenus/mVenus) (RelA^V/V) C57BL/6J",
+      "age_weeks": "6-12",
+      "sex": "male and female",
+      "housing": "specific pathogen-free",
+      "fluorescent_tag": "mVenus fused to endogenous RelA (NF-kB subunit)",
+      "reference": "Adelaja et al., Immunity 2021"
+    },
+
+    "reagents": {
+      "culture_media": {
+        "base": "RPMI-1640",
+        "supplements": [
+          "10% heat-inactivated FBS (Omega)",
+          "1% penicillin/streptomycin (Lonza/Corning)",
+          "1% NEAA (Corning)",
+          "1% HEPES (Gibco/Corning)",
+          "1% sodium pyruvate (Corning)",
+          "1% L-glutamine (Fisher/Corning)",
+          "0.1% beta-mercaptoethanol (Gibco)"
+        ],
+        "differentiation_supplement": "20 ng/mL recombinant murine m-CSF (Peprotech)"
+      },
+      "cell_lift_reagent": "10 mM EDTA (Fisher) in PBS (Gibco)",
+      "nuclear_stain": {
+        "reagent": "Hoechst 33342",
+        "concentration_uM": 1,
+        "staining_duration_min": 5
+      },
+      "device_coating": {
+        "reagent": "Human fibronectin (R&D Systems 1918-FN)",
+        "concentration_mg_mL": "0.2-0.4",
+        "diluent": "PBS",
+        "coating_duration": "overnight"
+      },
+      "ligands": {
+        "LPS":         { "source": "Invivogen tlrl-3pelps", "full_name": "Ultrapure LPS from E. coli O111:B4", "doses_ng_mL": [0.1, 0.3, 1, 3], "screen_dose_ng_mL": 1 },
+        "TNFa":        { "source": "R&D Systems 410-MT-010/CF", "full_name": "Murine tumor necrosis factor alpha", "doses_ng_mL": [1, 3, 10, 30], "screen_dose_ng_mL": 10 },
+        "PAM2CSK4":    { "source": "Invivogen tlrl-pm2s-1", "doses_pg_mL": [30, 100, 300], "screen_dose_pg_mL": 300 },
+        "CpG":         { "source": "Invivogen tlrl-1668", "full_name": "ODN 1668", "doses_nM": [10, 30, 100], "screen_dose_nM": 100 },
+        "PolyIC":      { "source": "Invivogen tlrl-pic", "full_name": "HMW polyinosinic-polycytidylic acid", "doses_ng_mL": [100, 300, 1000], "screen_dose_ng_mL": 300 },
+        "IL1b":        { "source": "R&D Systems 401-ML-010/CF", "full_name": "Murine interleukin 1 beta", "doses_ng_mL": [3, 10, 30] }
+      },
+      "ligand_storage": "-80 C; reconstituted in ultrapure water; single-use aliquots",
+      "ligand_delivery": "Diluted in complete media + 20 ng/mL m-CSF immediately before use; stored on ice; 4 psi via PEEK tubing",
+      "atac_seq_reagents": {
+        "lysis_buffer": "10 mM Tris-HCl pH 7.5, 3 mM MgCl2, 10 mM NaCl, 0.1% IGEPAL CA-630",
+        "transposase_mix": "25 uL 2X TD Buffer (Illumina) + 2.5 uL TD Enzyme 1 (Illumina) + 22.5 uL nuclease-free water",
+        "cell_lift": "Accutase (ThermoFisher) + gentle scraping",
+        "purification": "MinElute PCR purification kit (Qiagen)",
+        "library_primers": "Illumina Nextera sequencing primers",
+        "sequencing_platform": "Illumina NovaSeq SP, 50 bp paired-end"
+      },
+      "rna_seq_reagents": {
+        "lysis_buffer": "RLT buffer (Qiagen) + 1% beta-mercaptoethanol",
+        "rna_extraction": "Dynabeads (Invitrogen)",
+        "reverse_transcription": {
+          "enzyme": "Maxima HMinus RT (Thermo Fisher)",
+          "primer_1": "poly-dT oligo",
+          "primer_2": "template switching oligo: 5'-AAGCAGTGGTATCAACGCAGAGTGAATRGGG-3'"
+        },
+        "second_strand": "KAPA HiFi (Roche); primer: 5'-AAGCAGTGGTATCAACGCAGAGT-3'",
+        "library_prep": "Nextera XT (Illumina FC-131-1024)",
+        "mean_fragment_size_bp": "400-600",
+        "sequencing_platform": "NextSeq550 (Illumina), NextSeq 500/550 high output kit v2"
+      }
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "BMDM differentiation — initial seeding",
+        "protocol": "PROTOCOL 1",
+        "bb": "BB1",
+        "inputs": ["BoneMarrowCells", "CompleteMCM", "MCSF"],
+        "operation": "mix",
+        "duration_m": 2,
+        "temperature_C": 37,
+        "co2_pct": 5,
+        "notes": "Bone marrow isolated from femurs and tibias of 6-12 week old RelA^V/V mice. Seeded in complete RPMI + 20 ng/mL m-CSF to initiate macrophage differentiation."
+      },
+      {
+        "id": "S2",
+        "name": "BMDM differentiation — Day 2 feed",
+        "protocol": "PROTOCOL 1",
+        "bb": "BB1",
+        "inputs": ["CompleteMCM", "MCSF"],
+        "operation": "mix",
+        "duration_m": 2880,
+        "duration_h_equivalent": 48,
+        "notes": "Fresh complete media + m-CSF added on Day 2."
+      },
+      {
+        "id": "S3",
+        "name": "BMDM differentiation — Day 4 feed",
+        "protocol": "PROTOCOL 1",
+        "bb": "BB1",
+        "inputs": ["CompleteMCM", "MCSF"],
+        "operation": "mix",
+        "duration_m": 2880,
+        "duration_h_equivalent": 48,
+        "notes": "Fresh complete media + m-CSF added on Day 4."
+      },
+      {
+        "id": "S4",
+        "name": "BMDM differentiation — Day 6 feed and Day 7 lift",
+        "protocol": "PROTOCOL 1",
+        "bb": "BB1",
+        "inputs": ["CompleteMCM", "MCSF", "PBS"],
+        "operation": "mix",
+        "duration_m": 4320,
+        "duration_h_equivalent": 72,
+        "lift_reagent": "10 mM EDTA in PBS",
+        "notes": "Day 6 feed with m-CSF. Day 7-9: adherent BMDMs washed with PBS, lifted with EDTA/PBS, resuspended at 10^7 cells/mL in phenol-red-free RPMI for device loading."
+      },
+      {
+        "id": "S5",
+        "name": "Microfluidic device coating and priming",
+        "protocol": "PROTOCOL 1",
+        "bb": "BB1",
+        "inputs": ["Fibronectin", "PBS", "CompleteMCM"],
+        "operation": "mix",
+        "coating_duration_m": 480,
+        "coating_duration_h_equivalent": 8,
+        "flush_duration_m": 10,
+        "notes": "Device chambers coated overnight with 0.2-0.4 mg/mL fibronectin in PBS. Flushed with complete media before cell loading. Device mounted on Nikon Ti2 at 37 C / 5% CO2 / 98% humidity."
+      },
+      {
+        "id": "S6",
+        "name": "Hoechst staining and cell loading onto microfluidic device",
+        "protocol": "PROTOCOL 1",
+        "bb": "BB1",
+        "inputs": ["HoechstStain", "PBS"],
+        "operation": "mix",
+        "stain_concentration_uM": 1,
+        "stain_duration_min": 5,
+        "wash": "complete media",
+        "loading_duration_m": 30,
+        "notes": "1 uM Hoechst 33342 in complete media for 5 min; washed with complete media. Cells loaded and allowed to adhere ~30 min before imaging. No phototoxicity or cell death observed over 12-16 h imaging."
+      },
+      {
+        "id": "S7",
+        "name": "Ligand A stimulation — polyI:C (PRIMING arm, Arm 1)",
+        "protocol": "PROTOCOL 2",
+        "bb": "BB1",
+        "arm": "Arm 1 (polyI:C -> TNFa)",
+        "ligand": "PolyIC",
+        "concentration_ng_mL": 300,
+        "diluent": "CompleteMCM + 20 ng/mL m-CSF",
+        "operation": "mix (channel perfusion abstraction)",
+        "duration_m": 240,
+        "duration_h_equivalent": 4,
+        "delivery_pressure_psi": 4,
+        "tubing": "PEEK",
+        "notes": "polyI:C activates TLR3/TRIF pathway; primes subsequent NF-kB response to TNF-a. Representative condition from 80-condition screen (Fig 1F, 2A, 2C). Positive controls: media -> 10 ng/mL TNFa; media -> 1 ng/mL LPS. Negative control: complete media only."
+      },
+      {
+        "id": "S8",
+        "name": "Ligand B stimulation — TNF-a (PRIMING arm, Arm 1)",
+        "protocol": "PROTOCOL 2",
+        "bb": "BB1",
+        "arm": "Arm 1 (polyI:C -> TNFa)",
+        "ligand": "TNFa",
+        "concentration_ng_mL": 10,
+        "diluent": "CompleteMCM + 20 ng/mL m-CSF",
+        "operation": "mix (channel perfusion abstraction)",
+        "duration_m": 240,
+        "duration_h_equivalent": 4,
+        "notes": "Ligand A aspirated; Ligand B delivered via same channel. NF-kB nuclear translocation (RelA-mVenus Nuc/Cyto ratio) tracked at 6-min intervals over 240 min. >300 cells per condition; two independent preparations."
+      },
+      {
+        "id": "S9",
+        "name": "Ligand A stimulation — CpG (TOLERANCE arm, Arm 2)",
+        "protocol": "PROTOCOL 2",
+        "bb": "BB1",
+        "arm": "Arm 2 (CpG -> TNFa)",
+        "ligand": "CpG",
+        "concentration_nM": 100,
+        "diluent": "CompleteMCM + 20 ng/mL m-CSF",
+        "operation": "mix (channel perfusion abstraction)",
+        "duration_m": 240,
+        "duration_h_equivalent": 4,
+        "device_variable": "deviceWithCells_arm2",
+        "notes": "CpG activates TLR9/MyD88 pathway; tolerises NF-kB response to subsequent TNF-a. Parallel run on separate chamber set (deviceWithCells_arm2). Highest tolerising dose (Fig 1E, 2A)."
+      },
+      {
+        "id": "S10",
+        "name": "Ligand B stimulation — TNF-a (TOLERANCE arm, Arm 2)",
+        "protocol": "PROTOCOL 2",
+        "bb": "BB1",
+        "arm": "Arm 2 (CpG -> TNFa)",
+        "ligand": "TNFa",
+        "concentration_ng_mL": 10,
+        "diluent": "CompleteMCM + 20 ng/mL m-CSF",
+        "operation": "mix (channel perfusion abstraction)",
+        "duration_m": 240,
+        "duration_h_equivalent": 4,
+        "notes": "CpG arm Ligand B step. NF-kB dynamics tracked identically to Arm 1."
+      },
+      {
+        "id": "S11",
+        "name": "Live-cell NF-kB dynamics detection and QC gate",
+        "protocol": "PROTOCOL 3",
+        "bb": "BB1 -> BB2/BB3",
+        "detection_module": "nfkbDynamicsDetection",
+        "detection_duration_m": 240,
+        "detection_duration_h_equivalent": 4,
+        "readout": "RelA-mVenus nuclear/cytoplasmic (Nuc/Cyto) ratio per cell per 6-min frame",
+        "cells_per_condition_min": 300,
+        "metrics": {
+          "AUC": "trapezoidal approximation over 240 min Ligand B window",
+          "early_AUC": "first 120 min (20 frames)",
+          "late_AUC": "last 120 min (20 frames)",
+          "max_amplitude": "identified via loess-smoothed trace (3-frame interval, min prominence 0.1)",
+          "peak_timing": "frame at half-maximal amplitude",
+          "normalisation": "AUC from memory-conditioned cells divided by mean naive AUC (AUC_0) for same Ligand B"
+        },
+        "mutual_information": {
+          "method": "Jetka et al. 2019, PLOS Comp Biol",
+          "input": "dynamic vector of 20 evenly-spaced time points over 4 h stimulus interval",
+          "range_bits": "0 (indistinguishable) to 1 (fully distinguishable)",
+          "max_observed_bits": 0.9
+        },
+        "image_analysis": "MATLAB 2021a; flat field + dark frame correction; nuclear segmentation from Hoechst channel; cell tracking >99% accuracy over 8 h",
+        "branch": {
+          "pass": { "condition": "nfkbPrimingSignal > 0", "action": "dispose(stimulatedArmB)", "bb": "BB2" },
+          "fail": { "condition": "nfkbPrimingSignal <= 0", "action": "drain(stimulatedArmB)", "bb": "BB3" }
+        }
+      },
+      {
+        "id": "S12",
+        "name": "ATAC-seq — BMDM replating and stimulation",
+        "protocol": "PROTOCOL 4",
+        "bb": "BB4",
+        "cell_density_per_well": "7.5e5",
+        "plate_format": "6-well",
+        "rest_duration_m": 480,
+        "rest_duration_h_equivalent": 8,
+        "stimulus_conditions": [
+          { "reagent": "PolyIC", "concentration": "1 ug/mL", "duration_m": 240 },
+          { "reagent": "CpG",    "concentration": "100 nM",  "duration_m": 240 },
+          { "reagent": "LPS",    "concentration": "1 ng/mL", "duration_m": 240 },
+          { "reagent": "TNFa",   "concentration": "10 ng/mL","duration_m": 240 }
+        ],
+        "sequential_conditions": [
+          "PolyIC -> TNFa (4h each)",
+          "PolyIC -> LPS  (4h each)",
+          "CpG   -> TNFa  (4h each)",
+          "CpG   -> LPS   (4h each)"
+        ],
+        "representative_encoded": "PolyIC single-stimulus (1 ug/mL, 240 min)",
+        "notes": "BMDMs replated on Day 7 from matureBMDMs dispense; overnight rest in complete media + m-CSF before stimulation."
+      },
+      {
+        "id": "S13",
+        "name": "ATAC-seq — nuclei isolation",
+        "protocol": "PROTOCOL 4",
+        "bb": "BB4",
+        "cell_count": "5e4",
+        "lift_reagent": "Accutase (ThermoFisher) + gentle cell scraping",
+        "lysis_buffer": "10 mM Tris-HCl pH 7.5 / 3 mM MgCl2 / 10 mM NaCl / 0.1% IGEPAL CA-630",
+        "lysis_temperature_C": 4,
+        "centrifugation": "10 min at 500 x g",
+        "operation": "mix + heat at 4c for 10m",
+        "notes": "Cold lysis to preserve nuclei integrity. Centrifuge step modelled as heat(4C, 10m) in BioScript."
+      },
+      {
+        "id": "S14",
+        "name": "ATAC-seq — transposase reaction",
+        "protocol": "PROTOCOL 4",
+        "bb": "BB4",
+        "transposase_mix": "25 uL 2X TD Buffer + 2.5 uL TD Enzyme 1 (Illumina) + 22.5 uL nuclease-free water",
+        "reaction_temperature_C": 37,
+        "reaction_duration_min": 30,
+        "shaking_rpm": 800,
+        "operation": "mix + heat at 37c for 30m",
+        "purification": "MinElute PCR purification kit (Qiagen)",
+        "notes": "Transposase fragments open chromatin and tags with sequencing adapters. Modelled as heat(37C, 30m) in BioScript."
+      },
+      {
+        "id": "S15",
+        "name": "ATAC-seq — PCR amplification, library prep, and QC gate",
+        "protocol": "PROTOCOL 4",
+        "bb": "BB4 -> BB5/BB6",
+        "primers": "Illumina Nextera sequencing primers",
+        "pcr_initial_extension": { "temperature_C": 72, "duration_min": 5 },
+        "pcr_cycles": "n cycles at 98C/30s -> 63C/30s -> 72C/1min (typically 12 cycles)",
+        "operation": "mix + heat at 72c for 30m",
+        "sequencing": "Illumina NovaSeq SP, 50 bp paired-end",
+        "detection_module": "atacSeqDetection",
+        "detection_duration_s": 30,
+        "bioinformatics": {
+          "alignment": "bowtie2 v2.2.5, mm10 genome, MAPQ>30, --very-sensitive --non-deterministic",
+          "deduplication": "Picard MarkDuplicates v2.18.29",
+          "peak_calling": "MACS3 v3.0.0b1, FDR 0.01, -f BAMPE, -g mm, --nomodel",
+          "peak_merging": "iterative overlap peak merging (Corces et al. 2018)",
+          "quantification": "featureCounts (R package)",
+          "differential_accessibility": "edgeR + limma vs media control",
+          "motif_enrichment": "monaLisa (R/Bioconductor) with JASPAR2022 database",
+          "peak_annotation": "ChIPseeker (R package)",
+          "track_visualisation": "Rtracklayer (R package)"
+        },
+        "branch": {
+          "pass": { "condition": "atacSignal > 0", "action": "dispose(atacLibrary)", "bb": "BB5" },
+          "fail": { "condition": "atacSignal <= 0", "action": "drain(atacLibrary)",   "bb": "BB6" }
+        }
+      },
+      {
+        "id": "S16",
+        "name": "RNA-seq — BMDM replating and sequential stimulation",
+        "protocol": "PROTOCOL 5",
+        "bb": "BB7",
+        "cell_density_per_well": "1.5e5",
+        "plate_format": "24-well",
+        "rest_duration_m": 480,
+        "rest_duration_h_equivalent": 8,
+        "stimulus_A": { "reagent": "PolyIC", "concentration": "1 ug/mL (representative)", "duration_m": 240 },
+        "stimulus_B": { "reagent": "TNFa",   "concentration": "10 ng/mL",                  "duration_m": 240 },
+        "replicates": 3,
+        "all_conditions_encoded": [
+          "PolyIC -> TNFa (priming)",
+          "CpG   -> TNFa  (tolerance)",
+          "PolyIC -> LPS  (priming)",
+          "CpG   -> LPS   (tolerance)"
+        ],
+        "notes": "Ligand A applied 4 h; aspirated; Ligand B applied 4 h; aspirated; cells lysed. Media aspirated between each step."
+      },
+      {
+        "id": "S17",
+        "name": "RNA-seq — cell lysis and RNA extraction",
+        "protocol": "PROTOCOL 5",
+        "bb": "BB7",
+        "lysis_reagent": "RLT buffer (Qiagen) + 1% beta-mercaptoethanol",
+        "rna_extraction": "Dynabeads (Invitrogen)",
+        "operation": "mix for 5m",
+        "notes": "Aspirate Ligand B; add RLT buffer directly to well; RNA extracted from lysate using Dynabeads."
+      },
+      {
+        "id": "S18",
+        "name": "RNA-seq — reverse transcription, library prep, and QC gate",
+        "protocol": "PROTOCOL 5",
+        "bb": "BB7 -> BB8/BB9",
+        "reverse_transcription": {
+          "enzyme": "Maxima HMinus RT (Thermo Fisher)",
+          "temperature_C": 55,
+          "duration_m": 60,
+          "oligos": ["poly-dT", "template switching oligo (5'-AAGCAGTGGTATCAACGCAGAGTGAATRGGG-3')"]
+        },
+        "second_strand": {
+          "enzyme": "KAPA HiFi (Roche)",
+          "primer": "5'-AAGCAGTGGTATCAACGCAGAGT-3'",
+          "cycles": 1
+        },
+        "purification": "Ampure XP beads (Beckman Coulter)",
+        "library_prep": "Nextera XT (Illumina FC-131-1024)",
+        "mean_fragment_size_bp": "400-600",
+        "sequencing": "NextSeq550 (Illumina), NextSeq 500/550 high output kit v2",
+        "operation": "mix + heat at 55c for 60m",
+        "detection_module": "rnaSeqDetection",
+        "detection_duration_s": 30,
+        "bioinformatics": {
+          "alignment": "STAR (GRCm38 reference genome), default parameters",
+          "quantification": "featureCounts (R package)",
+          "differential_expression": "edgeR + limma; FDR < 0.01, fold change > 1 vs naive",
+          "pathway_visualisation": "Pathview (R package, KEGG mmu04064)",
+          "overrepresentation": "gProfiler (GO:BP and KEGG databases)",
+          "tf_enrichment": "ChEA3 (ENCODE ChIP-seq library)",
+          "synergy_antagonism_formula": "DAB_memory = (AB - (B + dAB + dB)) / (B + dAB + dB); synergy > 0.25, antagonism < -0.25"
+        },
+        "branch": {
+          "pass": { "condition": "rnaSignal > 0", "action": "dispose(rnaLibrary)", "bb": "BB8" },
+          "fail": { "condition": "rnaSignal <= 0", "action": "drain(rnaLibrary)",   "bb": "BB9" }
+        }
+      }
+    ],
+
+    "deep_learning_model": {
+      "architecture": "Multilayer perceptron (MLP)",
+      "framework": "TensorFlow (Abadi et al. 2016)",
+      "input_features": {
+        "chromatin_atac": 133,
+        "tf_dynamics_nfkb": 48,
+        "total": 181,
+        "atac_detail": "Peak accessibility (CPM) and TF motif counts for 18 TFs across 3 most proximal ATAC peaks in proximal (-1500 to +500 bp) and distal (-3000 to -1500 / +500 to +3000 bp) promoter regions; chromatin regulators without motifs (EZH2, HDAC, NELFE)",
+        "nfkb_detail": "Peak height, AUC, and activation time per stimulation condition"
+      },
+      "output": "4-class gene expression classification per gene per stimulus condition",
+      "classes": {
+        "1": "downregulated (< 0.66x naive)",
+        "2": "unchanged (0.87-1.5x naive)",
+        "3": "upregulated (3-10x naive)",
+        "4": "highly upregulated (>= 20x naive)"
+      },
+      "layers": "2-3 hidden layers; first layer = n_inputs nodes; subsequent layers = half or quarter of prior layer",
+      "regularisation": "10% dropout after each layer",
+      "activation": "ReLU",
+      "optimiser": "Adam",
+      "validation": "5-fold cross-validation (8894 total samples)",
+      "overall_accuracy_pct": 72.8,
+      "baseline_random_accuracy_pct": 38.7,
+      "nfkb_only_accuracy_pct": 61.8,
+      "chromatin_only_accuracy_pct": 64.7,
+      "top_4_motif_accuracy_pct": 51.2,
+      "top_motifs_by_predictive_importance": ["RelA", "Fos (AP-1)", "Stat1/Stat2", "c/EBPD", "Irf3", "Irf7", "Irf8"]
+    },
+
+    "key_results": {
+      "memory_phenotypes": ["priming (polyI:C -> increased NF-kB AUC)", "tolerance (CpG/LPS/PAM -> decreased NF-kB AUC)"],
+      "mutual_information_max_bits": 0.9,
+      "chromatin_finding": "Initial stimulus dominates chromatin landscape even after re-exposure to second stimulus; first stimulus Spearman r ~0.79 vs second stimulus r ~0.37-0.44",
+      "synergistic_transcripts_priming": 572,
+      "antagonistic_transcripts_priming": 394,
+      "synergistic_transcripts_tolerance": 214,
+      "antagonistic_transcripts_tolerance": 366,
+      "in_vivo_model": {
+        "model": "Sublethal murine endotoxemia (12.5 mg/kg LPS i.p.)",
+        "readout": "Peritoneal macrophages isolated 4 h post-injection; NF-kB dynamics in microfluidic device",
+        "result": "TNF-a response significantly attenuated; LPS response completely abolished in endotoxin-treated mice"
+      }
+    },
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1",  "label": "main",          "type": "entry",         "content": "BMDM differentiation, device prep, cell loading, sequential ligand stimulation (both arms)" },
+        { "id": "BB2",  "label": "bsbbif_2_t",    "type": "branch_true",   "condition": "nfkbPrimingSignal > 0",  "action": "dispose(stimulatedArmB)" },
+        { "id": "BB3",  "label": "bsbbif_3_f",    "type": "branch_false",  "condition": "nfkbPrimingSignal <= 0", "action": "drain(stimulatedArmB)" },
+        { "id": "BB4",  "label": "bsbbif_4_j",    "type": "join",          "content": "dispose CpG arm + NF-kB signals; begin ATAC-seq branch" },
+        { "id": "BB5",  "label": "bsbbif_5_t",    "type": "branch_true",   "condition": "atacSignal > 0",         "action": "dispose(atacLibrary)" },
+        { "id": "BB6",  "label": "bsbbif_6_f",    "type": "branch_false",  "condition": "atacSignal <= 0",        "action": "drain(atacLibrary)" },
+        { "id": "BB7",  "label": "bsbbif_7_j",    "type": "join",          "content": "dispose ATAC signal; begin RNA-seq branch" },
+        { "id": "BB8",  "label": "bsbbif_8_t",    "type": "branch_true",   "condition": "rnaSignal > 0",          "action": "dispose(rnaLibrary)" },
+        { "id": "BB9",  "label": "bsbbif_9_f",    "type": "branch_false",  "condition": "rnaSignal <= 0",         "action": "drain(rnaLibrary)" },
+        { "id": "BB10", "label": "bsbbif_10_j",   "type": "terminal",      "content": "dispose rnaSignal; NOP" }
+      ],
+      "edges": [
+        ["BB1","BB2"], ["BB1","BB3"],
+        ["BB2","BB4"], ["BB3","BB4"],
+        ["BB4","BB5"], ["BB4","BB6"],
+        ["BB5","BB7"], ["BB6","BB7"],
+        ["BB7","BB8"], ["BB7","BB9"],
+        ["BB8","BB10"],["BB9","BB10"]
+      ]
+    },
+
+    "bioscript": {
+      "file": "wang2025_macrophage_memory.bs",
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "ir_output": "wang2025_macrophage_memory.ir",
+      "dag_output": "wang2025_macrophage_memory_main_dag.dot",
+      "basic_blocks": 10,
+      "cfg_edges": 12,
+      "if_else_gates": 3,
+      "modules": ["nfkbDynamicsDetection", "atacSeqDetection", "rnaSeqDetection"],
+      "manifests": [
+        "BoneMarrowCells", "PBS", "CompleteMCM", "MCSF", "Fibronectin",
+        "HoechstStain", "LPS", "TNFa", "PolyIC", "CpG", "PAM2CSK4",
+        "IL1b", "Accutase", "TransposaseReactionMix", "ATACLibraryPrimers",
+        "NexteraXTKit", "RLT_Buffer"
+      ],
+      "duration_conversions": {
+        "2880m":  "48 h (BMDM feed intervals); IR: 172800.0 SECOND",
+        "480m":   "8 h (overnight rest/device coating); IR: 28800.0 SECOND",
+        "240m":   "4 h (ligand stimulation / NF-kB imaging); IR: 14400.0 SECOND",
+        "60m":    "1 h (RT step); IR: 3600.0 SECOND",
+        "30m":    "30 min (transposase / PCR extension); IR: 1800.0 SECOND",
+        "10m":    "10 min (centrifugation / nuclei lysis cold step); IR: 600.0 SECOND",
+        "5m":     "5 min (Hoechst stain / cell lysis); IR: 300.0 SECOND",
+        "30s":    "30 s (all detect calls); IR: 30.0 SECOND"
+      },
+      "fixes_applied": [
+        "FIX1: Removed unused module viabilityDetection",
+        "FIX2: Removed unused manifest TrizolReagent",
+        "FIX3: Split deviceWithCells into deviceWithCells_arm1 and deviceWithCells_arm2 to prevent double-consumption of same IR variable by priming and tolerance arms"
+      ],
+      "biological_scope_note": "80-condition ligand screen represented by two arms: polyI:C->TNFa (priming) and CpG->TNFa (tolerance). All 6 ligands x dose x duration combinations follow the same structure and require separate .bs files or parameterised extensions."
+    }
+  }
+}

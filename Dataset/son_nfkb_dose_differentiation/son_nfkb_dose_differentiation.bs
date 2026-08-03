@@ -1,0 +1,501 @@
+module nfkbNuclearLocalizationDetection
+module geneExpressionDetection
+module viabilityDetection
+
+manifest MEF_p65_DsRed_H2BGFPCells
+manifest TNF_Alpha
+manifest IL1Beta
+manifest Pam2CSK4
+manifest DMEM_FluoroBrite
+manifest Fibronectin_PBS
+manifest TrypsinEDTA
+manifest LysisBuffer
+manifest FDA_PI_Stain
+
+// ============================================================
+// Input Dose Differentiation by NF-kB
+// Son, Wang, Tu, Metzig, Patel, Husain, Lin, Murugan,
+// Hoffmann, Tay -- bioRxiv 752394, September 2019.
+//
+// Protocol: Microfluidic live-cell analysis of NF-kB
+// (p65-DsRed) nuclear localization dynamics in 3T3 MEFs
+// under dynamically varying cytokine (TNF / IL-1beta / Pam)
+// concentrations delivered via a multiplexed PDMS microfluidic
+// chip. Includes: device priming, cell loading, cytokine
+// stimulation under instant / linear / exponential / random
+// input dynamics, live-cell fluorescence imaging, downstream
+// RT-qPCR gene expression measurement, and cell viability QC.
+//
+// PLATFORM: Two-layer PDMS microfluidic chip (64 independent
+// chambers, >500 cells/chamber). Flow layer: AZ40XT (25 um) +
+// SU-8 3025 (30 um). Control layer: SU-8 3025 (25 um).
+// Lithography: Heidelberg MLA150, 375 nm, 280 mJ/cm2.
+// Actuated at 25-30 psi via solenoid valves (Matlab GUI).
+// Input media pressurized at 3-4 psi through PEEK tubing.
+//
+// IMAGING: Nikon Ti2, 20x, CMOS (Hamamatsu ORCA-Flash4.0 V2),
+// 5-min intervals. p65-DsRed: 555 nm ex, 0.5-1 s exposure.
+// H2B-GFP: 485 nm ex, 50-100 ms exposure.
+// ~100,000 cells inspected manually; ~30,000 selected for
+// analysis. NF-kB traces extracted via custom Matlab software
+// using nuclear H2B-GFP mask + p65-DsRed nuclear fluorescence.
+//
+// KEY FINDING: NF-kB responds to log(delta_cytokine), not to
+// absolute cytokine level -- behaving as a dose differentiator.
+// A20 and IkBa negative feedbacks provide short-term memory
+// of prior cytokine level and continuously reset IKK cycling.
+//
+// NOTE ON `mix` ABSTRACTION: `mix` steps in the cell loading
+// and stimulation blocks abstract microfluidic channel-based
+// delivery events (flow-through feeding via valve actuation),
+// not DMF electrode mixing. Reagent delivery is pressure-driven
+// through PEEK tubing; chamber feeding is automated via GUI.
+//
+// NOTE ON DURATION TOKENS: BioScript supports s and m only.
+// Long incubations (e.g. overnight coating) are expressed in
+// minutes: 12 h = 720m.
+//
+// CFG STRUCTURE:
+//   BB1  main                -- device priming, fibronectin
+//                               coating, cell loading, baseline
+//                               imaging, cytokine stimulation
+//                               (instant / linear / exponential
+//                               / random input dynamics)
+//   BB2  nfkbPass            -- nfkbSignal > 0: valid oscillatory
+//                               NF-kB response detected; carry
+//                               forward to viability and gene
+//                               expression branches
+//   BB3  nfkbFail            -- nfkbSignal <= 0: no NF-kB
+//                               response (e.g. dead cells or
+//                               failed stimulation); drain
+//   BB4  nfkbJoin            -- join: viability QC branch
+//   BB5  viabilityPass       -- viabilitySignal > 0: cells
+//                               viable post-experiment; carry
+//                               forward to gene expression
+//   BB6  viabilityFail       -- viabilitySignal <= 0: low
+//                               viability; drain
+//   BB7  viabilityJoin       -- join: gene expression branch
+//   BB8  geneExprPass        -- geneExprSignal > 0: target gene
+//                               mRNA successfully detected by
+//                               RT-qPCR; dispose lysate
+//   BB9  geneExprFail        -- geneExprSignal <= 0: qPCR
+//                               failure; drain lysate
+//   BB10 finalCleanup        -- terminal: dispose all QC
+//                               signals; experiment ends
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Fibronectin surface coating of microfluidic chambers.
+//         Chambers filled with 1:3 fibronectin (1 mg/mL) in
+//         sterile PBS and incubated overnight at room
+//         temperature (~25 C) for thorough coating before
+//         cell loading.
+//         12 h incubation = 720 min.
+// ------------------------------------------------------------
+
+fibronectinSolution = dispense 1 units of Fibronectin_PBS
+
+// Overnight coating at room temperature (25 C, 720 min).
+heat fibronectinSolution at 25c for 720m
+
+// ------------------------------------------------------------
+// STEP 2: Flush chambers with FluoroBrite DMEM to remove
+//         unbound fibronectin and equilibrate the device to
+//         cell culture conditions (37 C, 5% CO2) before
+//         cell loading.
+//         NOTE: `mix` abstracts a pressure-driven channel
+//         flush event, not DMF mixing.
+// ------------------------------------------------------------
+
+flushMedia      = dispense 1 units of DMEM_FluoroBrite
+primedChamber   = mix fibronectinSolution with flushMedia for 5m
+
+// Equilibrate device to cell culture environment.
+heat primedChamber at 37c for 60m
+
+// ------------------------------------------------------------
+// STEP 3: Load 3T3 MEFs (p65-DsRed / H2B-GFP) into
+//         microfluidic chambers.
+//         Cell concentration: 5 x 10^6 cells/mL targeting
+//         ~50% confluency per chamber (>500 cells/chamber).
+//         Cells settle for at least 60 min after loading
+//         before any stimulation begins.
+//         NOTE: `mix` abstracts the gravity-assisted cell
+//         sedimentation and channel loading event.
+// ------------------------------------------------------------
+
+mefCells        = dispense 1 units of MEF_p65_DsRed_H2BGFPCells
+loadedChamber   = mix mefCells with primedChamber for 2s
+
+// 60 min settling period at 37 C / 5% CO2 before stimulation.
+heat loadedChamber at 37c for 60m
+
+// ------------------------------------------------------------
+// STEP 4: Baseline imaging (pre-stimulation, t = 0).
+//         Nuclear p65-DsRed and H2B-GFP images acquired every
+//         5 min to establish pre-stimulus NF-kB localization
+//         baseline in each cell (n > 200 per condition).
+//         Acquisition: 555 nm ex / 485 nm ex, 20x, 5-min
+//         intervals. This detect call abstracts the live-cell
+//         fluorescence imaging module used throughout the
+//         experiment; the same module is reused for all
+//         downstream imaging time points.
+// ------------------------------------------------------------
+
+baselineSignal  = detect nfkbNuclearLocalizationDetection on loadedChamber for 30m
+
+// ------------------------------------------------------------
+// STEP 5a: Instant (step) cytokine increase -- TNF.
+//          TNF-alpha (Life Technologies, PMC3014) instantly
+//          increased to 10 ng/mL and maintained at that level.
+//          Chambers also replenished with 10 ng/mL TNF every
+//          60 min to compensate for degradation (Fig. 7).
+//          Strong initial NF-kB translocation peak at ~25 min,
+//          followed by exponential decay in oscillation amplitude
+//          -- demonstrating desensitisation to constant input.
+//          NOTE: `mix` abstracts pressure-driven media exchange
+//          (valve actuation, 3-4 psi, via Matlab GUI).
+// ------------------------------------------------------------
+
+tnfInstant      = dispense 1 units of TNF_Alpha
+stimInstantTNF  = mix loadedChamber with tnfInstant for 5s
+
+// Record NF-kB nuclear localization during 300 min constant
+// TNF stimulation (imaging every 5 min; total 60 frames).
+nfkbInstantTNF  = detect nfkbNuclearLocalizationDetection on stimInstantTNF for 300m
+
+// ------------------------------------------------------------
+// STEP 5b: Instant (step) cytokine increase -- IL-1beta.
+//          IL-1beta (R&D Systems, 401ML010CF) instantly
+//          increased to 2.5 ng/mL and maintained.
+//          Response dynamics parallel TNF (Fig. 1A): strong
+//          initial peak, followed by oscillation decay.
+// ------------------------------------------------------------
+
+il1bInstant     = dispense 1 units of IL1Beta
+stimInstantIL1B = mix loadedChamber with il1bInstant for 5s
+
+nfkbInstantIL1B = detect nfkbNuclearLocalizationDetection on stimInstantIL1B for 300m
+
+// ------------------------------------------------------------
+// STEP 6a: Linear ramp -- TNF.
+//          TNF concentration increased in linear stepwise
+//          increments of 1 ng/mL every 60 min until the
+//          maximum dose is reached. Sustained NF-kB
+//          oscillations observed with constant peak AUC at
+//          each ramping step, consistent with differentiator
+//          behaviour (NF-kB ~ log(delta_cytokine)).
+//          NOTE: Each ramp step modelled as a sequential mix
+//          representing a new media exchange event at the
+//          next concentration.
+// ------------------------------------------------------------
+
+tnfLinear1      = dispense 1 units of TNF_Alpha
+stimLinTNF_s1   = mix loadedChamber with tnfLinear1 for 5s
+nfkbLinTNF_s1   = detect nfkbNuclearLocalizationDetection on stimLinTNF_s1 for 60m
+
+tnfLinear2      = dispense 1 units of TNF_Alpha
+stimLinTNF_s2   = mix stimLinTNF_s1 with tnfLinear2 for 5s
+nfkbLinTNF_s2   = detect nfkbNuclearLocalizationDetection on stimLinTNF_s2 for 60m
+
+tnfLinear3      = dispense 1 units of TNF_Alpha
+stimLinTNF_s3   = mix stimLinTNF_s2 with tnfLinear3 for 5s
+nfkbLinTNF_s3   = detect nfkbNuclearLocalizationDetection on stimLinTNF_s3 for 60m
+
+tnfLinear4      = dispense 1 units of TNF_Alpha
+stimLinTNF_s4   = mix stimLinTNF_s3 with tnfLinear4 for 5s
+nfkbLinTNF_s4   = detect nfkbNuclearLocalizationDetection on stimLinTNF_s4 for 60m
+
+tnfLinear5      = dispense 1 units of TNF_Alpha
+stimLinTNF_s5   = mix stimLinTNF_s4 with tnfLinear5 for 5s
+nfkbLinTNF_s5   = detect nfkbNuclearLocalizationDetection on stimLinTNF_s5 for 60m
+
+// ------------------------------------------------------------
+// STEP 6b: Linear ramp -- IL-1beta.
+//          IL-1beta increased in linear steps of 0.5 ng/mL
+//          every 60 min (Fig. 2A). Peak AUC remains constant
+//          across all steps (dose differentiation confirmed).
+// ------------------------------------------------------------
+
+il1bLinear1     = dispense 1 units of IL1Beta
+stimLinIL1B_s1  = mix loadedChamber with il1bLinear1 for 5s
+nfkbLinIL1B_s1  = detect nfkbNuclearLocalizationDetection on stimLinIL1B_s1 for 60m
+
+il1bLinear2     = dispense 1 units of IL1Beta
+stimLinIL1B_s2  = mix stimLinIL1B_s1 with il1bLinear2 for 5s
+nfkbLinIL1B_s2  = detect nfkbNuclearLocalizationDetection on stimLinIL1B_s2 for 60m
+
+il1bLinear3     = dispense 1 units of IL1Beta
+stimLinIL1B_s3  = mix stimLinIL1B_s2 with il1bLinear3 for 5s
+nfkbLinIL1B_s3  = detect nfkbNuclearLocalizationDetection on stimLinIL1B_s3 for 60m
+
+il1bLinear4     = dispense 1 units of IL1Beta
+stimLinIL1B_s4  = mix stimLinIL1B_s3 with il1bLinear4 for 5s
+nfkbLinIL1B_s4  = detect nfkbNuclearLocalizationDetection on stimLinIL1B_s4 for 60m
+
+il1bLinear5     = dispense 1 units of IL1Beta
+stimLinIL1B_s5  = mix stimLinIL1B_s4 with il1bLinear5 for 5s
+nfkbLinIL1B_s5  = detect nfkbNuclearLocalizationDetection on stimLinIL1B_s5 for 60m
+
+// ------------------------------------------------------------
+// STEP 7a: Exponential ramp -- TNF.
+//          TNF concentration doubled every 60 min (from a
+//          starting dose up to maximum 10 ng/mL).
+//          NF-kB AUC increases linearly with log(delta_TNF);
+//          fitted slope R^2 ~ 0.963 (Fig. 2B).
+//          Each step represents a 2-fold increase in TNF
+//          delivered by media exchange.
+//          5 doublings: covering ~6 min to 120 min doubling
+//          times across experiments (Supplementary Fig. 1-3).
+// ------------------------------------------------------------
+
+tnfExp1         = dispense 1 units of TNF_Alpha
+stimExpTNF_s1   = mix loadedChamber with tnfExp1 for 5s
+nfkbExpTNF_s1   = detect nfkbNuclearLocalizationDetection on stimExpTNF_s1 for 60m
+
+tnfExp2         = dispense 1 units of TNF_Alpha
+stimExpTNF_s2   = mix stimExpTNF_s1 with tnfExp2 for 5s
+nfkbExpTNF_s2   = detect nfkbNuclearLocalizationDetection on stimExpTNF_s2 for 60m
+
+tnfExp3         = dispense 1 units of TNF_Alpha
+stimExpTNF_s3   = mix stimExpTNF_s2 with tnfExp3 for 5s
+nfkbExpTNF_s3   = detect nfkbNuclearLocalizationDetection on stimExpTNF_s3 for 60m
+
+tnfExp4         = dispense 1 units of TNF_Alpha
+stimExpTNF_s4   = mix stimExpTNF_s3 with tnfExp4 for 5s
+nfkbExpTNF_s4   = detect nfkbNuclearLocalizationDetection on stimExpTNF_s4 for 60m
+
+tnfExp5         = dispense 1 units of TNF_Alpha
+stimExpTNF_s5   = mix stimExpTNF_s4 with tnfExp5 for 5s
+nfkbExpTNF_s5   = detect nfkbNuclearLocalizationDetection on stimExpTNF_s5 for 60m
+
+// ------------------------------------------------------------
+// STEP 7b: Exponential ramp -- IL-1beta.
+//          IL-1beta doubled every 60 min up to 2.5 ng/mL max
+//          (Fig. 2B). AUC at each step fitted to log(delta)
+//          with same differentiator relationship as TNF.
+// ------------------------------------------------------------
+
+il1bExp1        = dispense 1 units of IL1Beta
+stimExpIL1B_s1  = mix loadedChamber with il1bExp1 for 5s
+nfkbExpIL1B_s1  = detect nfkbNuclearLocalizationDetection on stimExpIL1B_s1 for 60m
+
+il1bExp2        = dispense 1 units of IL1Beta
+stimExpIL1B_s2  = mix stimExpIL1B_s1 with il1bExp2 for 5s
+nfkbExpIL1B_s2  = detect nfkbNuclearLocalizationDetection on stimExpIL1B_s2 for 60m
+
+il1bExp3        = dispense 1 units of IL1Beta
+stimExpIL1B_s3  = mix stimExpIL1B_s2 with il1bExp3 for 5s
+nfkbExpIL1B_s3  = detect nfkbNuclearLocalizationDetection on stimExpIL1B_s3 for 60m
+
+il1bExp4        = dispense 1 units of IL1Beta
+stimExpIL1B_s4  = mix stimExpIL1B_s3 with il1bExp4 for 5s
+nfkbExpIL1B_s4  = detect nfkbNuclearLocalizationDetection on stimExpIL1B_s4 for 60m
+
+il1bExp5        = dispense 1 units of IL1Beta
+stimExpIL1B_s5  = mix stimExpIL1B_s4 with il1bExp5 for 5s
+nfkbExpIL1B_s5  = detect nfkbNuclearLocalizationDetection on stimExpIL1B_s5 for 60m
+
+// ------------------------------------------------------------
+// STEP 8: Random fluctuating input -- TNF.
+//         TNF levels increased and decreased in random order
+//         (0 to 10 ng/mL range) every 60 min (Fig. 2C).
+//         AUC vs delta_TNF: linear for positive changes
+//         (correlation coefficient ~0.91), sharp drop for
+//         any decrease -- confirming rectified differentiator
+//         behaviour under arbitrary input complexity.
+//         4 random steps modelled as sequential media
+//         exchanges; the alternating increase/decrease pattern
+//         is represented by alternating dispense-and-mix cycles
+//         (abstraction of Matlab GUI-driven valve scheduling).
+// ------------------------------------------------------------
+
+tnfRand1        = dispense 1 units of TNF_Alpha
+stimRandTNF_s1  = mix loadedChamber with tnfRand1 for 5s
+nfkbRandTNF_s1  = detect nfkbNuclearLocalizationDetection on stimRandTNF_s1 for 60m
+
+tnfRand2        = dispense 1 units of TNF_Alpha
+stimRandTNF_s2  = mix stimRandTNF_s1 with tnfRand2 for 5s
+nfkbRandTNF_s2  = detect nfkbNuclearLocalizationDetection on stimRandTNF_s2 for 60m
+
+tnfRand3        = dispense 1 units of TNF_Alpha
+stimRandTNF_s3  = mix stimRandTNF_s2 with tnfRand3 for 5s
+nfkbRandTNF_s3  = detect nfkbNuclearLocalizationDetection on stimRandTNF_s3 for 60m
+
+tnfRand4        = dispense 1 units of TNF_Alpha
+stimRandTNF_s4  = mix stimRandTNF_s3 with tnfRand4 for 5s
+nfkbRandTNF_s4  = detect nfkbNuclearLocalizationDetection on stimRandTNF_s4 for 60m
+
+// ------------------------------------------------------------
+// STEP 9: TLR2 ligand control -- Pam2CSK4 exponential ramp.
+//         Pam (InvivoGen, tlrl-pm2s) doubled every 30 or 60 min
+//         from 0.2 to 12.8 ng/mL (Fig. 3A).
+//         Single-cell clustering (Matlab linkage, ward/
+//         correlation) shows majority of cells exhibit 1-2
+//         sharp peaks only; AUC slopes span negative to
+//         positive values -- confirming absence of dose
+//         differentiation for TLR2 ligand.
+//         Differentiator behaviour is cytokine-receptor-
+//         specific (TNFR/IL-1R pathway, not TLR2).
+// ------------------------------------------------------------
+
+pamExp1         = dispense 1 units of Pam2CSK4
+stimExpPam_s1   = mix loadedChamber with pamExp1 for 5s
+nfkbExpPam_s1   = detect nfkbNuclearLocalizationDetection on stimExpPam_s1 for 60m
+
+pamExp2         = dispense 1 units of Pam2CSK4
+stimExpPam_s2   = mix stimExpPam_s1 with pamExp2 for 5s
+nfkbExpPam_s2   = detect nfkbNuclearLocalizationDetection on stimExpPam_s2 for 60m
+
+pamExp3         = dispense 1 units of Pam2CSK4
+stimExpPam_s3   = mix stimExpPam_s2 with pamExp3 for 5s
+nfkbExpPam_s3   = detect nfkbNuclearLocalizationDetection on stimExpPam_s3 for 60m
+
+pamExp4         = dispense 1 units of Pam2CSK4
+stimExpPam_s4   = mix stimExpPam_s3 with pamExp4 for 5s
+nfkbExpPam_s4   = detect nfkbNuclearLocalizationDetection on stimExpPam_s4 for 60m
+
+pamExp5         = dispense 1 units of Pam2CSK4
+stimExpPam_s5   = mix stimExpPam_s4 with pamExp5 for 5s
+nfkbExpPam_s5   = detect nfkbNuclearLocalizationDetection on stimExpPam_s5 for 60m
+
+// ------------------------------------------------------------
+// STEP 10: NF-kB response QC gate.
+//          Composite NF-kB signal from the exponential TNF
+//          ramp arm (nfkbExpTNF_s5) is used as QC anchor:
+//          a valid differentiator response requires sustained
+//          oscillatory peaks with positive AUC slope across
+//          steps. Signal > 0 indicates valid NF-kB oscillation
+//          detected by the imaging module.
+// ------------------------------------------------------------
+
+nfkbSignal      = detect nfkbNuclearLocalizationDetection on nfkbExpTNF_s5 for 30s
+
+// ============================================================
+// BB2 / BB3: NF-kB response QC gate
+// Pass (BB2): nfkbSignal > 0 -> valid oscillatory NF-kB
+//             response confirmed; carry forward.
+// Fail (BB3): nfkbSignal <= 0 -> no response (cell death,
+//             stimulation failure); drain chamber contents.
+// Both branches converge at BB4 (nfkbJoin).
+// ============================================================
+
+if (nfkbSignal > 0) {
+    dispose nfkbExpTNF_s5
+} else {
+    drain nfkbExpTNF_s5
+}
+
+// ============================================================
+// BB4: nfkbJoin
+// Dispose NF-kB QC signal. Control falls into the
+// viability assay branch (BB5/BB6).
+// ============================================================
+
+dispose nfkbSignal
+
+// ------------------------------------------------------------
+// STEP 11: Cell viability assay.
+//          After stimulation, cells are stained with FDA/PI
+//          to assess viability. FDA (ex 490 nm / em 526 nm)
+//          labels live cells; PI (ex 488 nm / em 617 nm)
+//          labels dead cells. 10 min staining at room temp.
+//          Expected viability > 80% for valid experiment.
+// ------------------------------------------------------------
+
+fdaPiStain      = dispense 1 units of FDA_PI_Stain
+stainedCells    = mix loadedChamber with fdaPiStain for 10m
+
+viabilitySignal = detect viabilityDetection on stainedCells for 30s
+
+// ============================================================
+// BB5 / BB6: Viability QC gate
+// Pass (BB5): viabilitySignal > 0 -> cells viable (>80%);
+//             carry forward to gene expression measurement.
+// Fail (BB6): viabilitySignal <= 0 -> low viability; drain.
+// Both branches converge at BB7 (viabilityJoin).
+// ============================================================
+
+if (viabilitySignal > 0) {
+    dispose stainedCells
+} else {
+    drain stainedCells
+}
+
+// ============================================================
+// BB7: viabilityJoin
+// Dispose viability QC signal. Control falls into the
+// gene expression measurement branch (BB8/BB9).
+// ============================================================
+
+dispose viabilitySignal
+
+// ------------------------------------------------------------
+// STEP 12: Cell retrieval and lysis for RT-qPCR.
+//          At designated time points during TNF ramping
+//          (instant vs. exponential, Fig. 7), the corner of
+//          the microfluidic chip is cut and cells are
+//          trypsinized (~1 min), then washed into the open
+//          outlet channel with PBS. A 2-3 uL cell droplet
+//          accumulates and is retrieved by pipette into
+//          5 uL lysis buffer (CellsDirect Kit) and snap-
+//          frozen at -80 C. RT and pre-amplification performed
+//          with CellsDirect One-Step RT-qPCR kit.
+//          NOTE: `mix` abstracts the trypsinization and PBS
+//          wash/retrieval step. `heat` at -80 C models snap
+//          freezing; BioScript supports negative temperature
+//          values as per compiler spec.
+//          Targets: A20, RANTES, Ccl2, Zfp36, Casp4,
+//          Serpina3g (normalised to GAPDH by 2^(Cq_target -
+//          Cq_GAPDH)). TaqMan probes on Biorad CFX384.
+// ------------------------------------------------------------
+
+trypsinSolution = dispense 1 units of TrypsinEDTA
+lysisBuffer     = dispense 1 units of LysisBuffer
+
+trypsinizedCells = mix loadedChamber with trypsinSolution for 1m
+retrievedCells   = mix trypsinizedCells with lysisBuffer for 30s
+
+// NOTE: snap-freeze at -80 C is a storage step only and is not
+// representable in BioScript (compiler drops negative sign on
+// temperature; lilott8/BioScript limitation). Freezing is
+// implied between retrievedCells dispense and geneExprSignal
+// detect; no heat call is emitted here.
+
+// RT-qPCR: detect NF-kB target gene mRNA levels.
+// geneExpressionDetection module abstracts CellsDirect RT,
+// pre-amplification, and TaqMan qPCR readout on CFX384.
+geneExprSignal  = detect geneExpressionDetection on retrievedCells for 120m
+
+// ============================================================
+// BB8 / BB9: Gene expression QC gate
+// Pass (BB8): geneExprSignal > 0 -> target gene mRNA
+//             detected above GAPDH baseline (valid qPCR);
+//             dispose lysate.
+// Fail (BB9): geneExprSignal <= 0 -> no mRNA detected
+//             (lysis failure or qPCR error); drain lysate.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (geneExprSignal > 0) {
+    dispose retrievedCells
+} else {
+    drain retrievedCells
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose baseline and gene expression QC signal droplets.
+// Experiment ends.
+// ============================================================
+
+dispose baselineSignal
+dispose geneExprSignal
+
+// [terminal -- no further instructions; exit node for CFG]

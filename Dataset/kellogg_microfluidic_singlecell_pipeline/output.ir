@@ -1,0 +1,66 @@
+bsbbif_2_t:
+	dispose(dilutedProduct1[0])
+	dispose(cellLysate1[0])
+	dispose(imagingSignal1[0])
+bsbbif_3_f:
+	dispose(dilutedProduct1[0])
+	dispose(cellLysate1[0])
+	dispose(imagingSignal1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(qPCRSignal1[0])
+	NOP
+main:
+	primingPBS1[0] = dispense(PBS)
+	primingPluronic1[0] = dispense(PluronicF127)
+	pluronicMix1[0] = mix(primingPBS1[0], primingPluronic1[0]) @ 3600.0SECOND
+	pbsWash11[0] = dispense(PBS)
+	pluronicWashed1[0] = mix(pluronicMix1[0], pbsWash11[0]) @ 1800.0SECOND
+	fibronectinSoln1[0] = dispense(Fibronectin)
+	fibronectinCoated1[0] = mix(pluronicWashed1[0], fibronectinSoln1[0]) @ 43200.0SECOND
+	cellSuspension1[0] = dispense(NIH3T3_Cells)
+	loadedCells1[0] = mix(fibronectinCoated1[0], cellSuspension1[0]) @ 3600.0SECOND
+	heat(loadedCells1[0]) @ 37.0CELSIUS @ 3600.0SECOND
+	feed1Medium1[0] = dispense(CellMedium)
+	fedCells11[0] = mix(loadedCells1[0], feed1Medium1[0]) @ 60.0SECOND
+	heat(fedCells11[0]) @ 37.0CELSIUS @ 7200.0SECOND
+	feed2Medium1[0] = dispense(CellMedium)
+	fedCells21[0] = mix(fedCells11[0], feed2Medium1[0]) @ 60.0SECOND
+	heat(fedCells21[0]) @ 37.0CELSIUS @ 7200.0SECOND
+	feed3Medium1[0] = dispense(CellMedium)
+	fedCells31[0] = mix(fedCells21[0], feed3Medium1[0]) @ 60.0SECOND
+	heat(fedCells31[0]) @ 37.0CELSIUS @ 7200.0SECOND
+	feed4Medium1[0] = dispense(CellMedium)
+	fedCells41[0] = mix(fedCells31[0], feed4Medium1[0]) @ 60.0SECOND
+	heat(fedCells41[0]) @ 37.0CELSIUS @ 7200.0SECOND
+	feed5Medium1[0] = dispense(CellMedium)
+	fedCells51[0] = mix(fedCells41[0], feed5Medium1[0]) @ 60.0SECOND
+	heat(fedCells51[0]) @ 37.0CELSIUS @ 7200.0SECOND
+	feed6Medium1[0] = dispense(CellMedium)
+	fedCells61[0] = mix(fedCells51[0], feed6Medium1[0]) @ 60.0SECOND
+	heat(fedCells61[0]) @ 37.0CELSIUS @ 7200.0SECOND
+	tnfStimulus1[0] = dispense(TNF_Stimulus)
+	stimulatedCells1[0] = mix(fedCells61[0], tnfStimulus1[0]) @ 600.0SECOND
+	washoutMedium1[0] = dispense(CellMedium)
+	postStimCells1[0] = mix(stimulatedCells1[0], washoutMedium1[0]) @ 3600.0SECOND
+	imagingSignal1[0] = detect(liveCellImagingDetection, postStimCells1[0]) @ 18000.0SECOND
+	trypsinSoln1[0] = dispense(Trypsin_EDTA)
+	detachedCells1[0] = mix(postStimCells1[0], trypsinSoln1[0]) @ 180.0SECOND
+	lysisBuffer1[0] = dispense(LysisBuffer)
+	cellLysate1[0] = mix(detachedCells1[0], lysisBuffer1[0]) @ 60.0SECOND
+	rtMix1[0] = dispense(CellsDirect_RTmix)
+	primerPool1[0] = dispense(TaqMan_PrimerPool)
+	superscriptTaq1[0] = dispense(SuperScriptPlatinumTaq)
+	teBuffer1[0] = dispense(TEBuffer)
+	tmp11[0] = mix(rtMix1[0], primerPool1[0]) @ 5.0SECOND
+	tmp21[0] = mix(tmp11[0], superscriptTaq1[0]) @ 5.0SECOND
+	reactionMix1[0] = mix(tmp21[0], teBuffer1[0]) @ 5.0SECOND
+	rtStaReaction1[0] = mix(reactionMix1[0], cellLysate1[0]) @ 5.0SECOND
+	heat(rtStaReaction1[0]) @ 50.0CELSIUS @ 900.0SECOND
+	heat(rtStaReaction1[0]) @ 95.0CELSIUS @ 120.0SECOND
+	heat(rtStaReaction1[0]) @ 60.0CELSIUS @ 3570.0SECOND
+	heat(rtStaReaction1[0]) @ 4.0CELSIUS @ 300.0SECOND
+	teDilutionBuffer1[0] = dispense(TEBuffer)
+	dilutedProduct1[0] = mix(rtStaReaction1[0], teDilutionBuffer1[0]) @ 5.0SECOND
+	qPCRSignal1[0] = detect(qPCRDetection, dilutedProduct1[0]) @ 14400.0SECOND
+	if qPCRSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f

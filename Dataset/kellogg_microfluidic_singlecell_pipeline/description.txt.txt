@@ -1,0 +1,249 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : High-Throughput Microfluidic Single-Cell Analysis Pipeline for Studies of Signaling Dynamics
+Source Link  : https://www.nature.com/articles/nprot.2014.120
+Paper DOI    : https://doi.org/10.1038/nprot.2014.120
+Journal      : Nature Protocols, Vol. 9, No. 7 (2014), pp. 1713-1726
+Platform     : Valve-actuated multilayer PDMS microfluidic cell culture chip (continuous-flow; not DMF)
+
+
+OVERVIEW
+--------
+This protocol describes a complete end-to-end pipeline for microfluidics-based single-cell analysis,
+combining live-cell imaging, automated image analysis, and downstream high-throughput gene expression
+profiling. The system enables a single researcher to generate up to 1 million data points on single-cell
+protein localization within one week, across 48 predesigned experimental conditions using different
+signaling molecules, doses, timings, and combinations.
+
+The pipeline comprises five major phases:
+  1. Chip fabrication and system setup (Steps 1-15)
+  2. Chip surface treatment and cell loading (Steps 16-33)
+  3. Multiplexed cell stimulation and live-cell imaging (Steps 34-43)
+  4. On-chip cell retrieval and high-throughput microfluidic qPCR (Steps 44-60)
+  5. Automated image analysis and data extraction (Steps 59-66)
+
+The chip described (Cell Culture Chip; Gomez-Sjoberg et al., Anal. Chem. 2007) contains 96
+independently controllable 35-nL chambers. Each chamber can culture 1-1,000 mammalian cells.
+Up to 16 reagent inputs are combined by an on-chip herringbone mixer and delivered to selected
+chambers by an on-chip peristaltic pump (~0.35 nL per pump cycle). Programmable valve scripts
+automate chamber surface treatment, cell loading, feeding, stimulation, staining, and retrieval
+without researcher intervention.
+
+Example applications demonstrated in the paper: NF-kB nuclear translocation dynamics in NIH3T3
+mouse fibroblasts (p65-dsRed + H2B-GFP) and RAW264.7 mouse macrophages (p65-GFP + H2B-mCherry)
+under TNF-alpha and LPS stimulation, with downstream 48-gene expression profiling at 30-min
+intervals over 12 h using the Fluidigm BioMark 48.48 Dynamic Array (up to 9,216 simultaneous
+qPCR measurements).
+
+
+DEVICE ARCHITECTURE
+-------------------
+Chip design   : Two PDMS layers (multilayer soft lithography) bonded and mounted on
+                PDMS-coated 50 x 75 mm glass slide.
+Flow layer    : Contains cells and reagents; channels with rounded cross-section
+                (positive photoresist, SU-8); positioned above control layer.
+Control layer : Creates elastomeric membrane valves by deflecting thin PDMS membrane
+                under pneumatic pressure; channels with rectangular cross-section
+                (negative photoresist); spin-coated ~30 um thick at 2500 rpm.
+Chambers      : 96 independent chambers; ~1 x 1 mm2 area, 35 um height, ~35 nL volume.
+                Sieve valves at each chamber entrance and exit trap cells >20 um diameter.
+                Four PDMS pillars inside each chamber prevent ceiling collapse.
+
+Valve control : 48-valve system (six 8-valve solenoid manifolds); USB controller boxes;
+                pressurized air at 20-30 psi. MATLAB or LabVIEW scripting for automation.
+Peristaltic pump: 3-valve in-series sequence; ~0.35 nL per cycle; 30-60 nL/min at
+                0.05-0.1 s valve delay.
+Reagent inputs: Up to 16 vials; pressurized with 5% CO2 at 3-10 psi (200-700 mbar);
+                PTFE tubing for reagents; PEEK tubing for cells.
+Mixer         : On-chip herringbone mixer combines reagents before chamber delivery.
+                InPurge PBS line clears manifold between inputs.
+
+Microscope    : Inverted automated fluorescence (Leica DMI6000B or Nikon Ti-E);
+                stage incubation at 37 C, 5% CO2, >95% humidity.
+                Wide-field preferred (speed + low phototoxicity vs confocal).
+                20x long-distance objective for nuclear-cytoplasm dynamics.
+Software      : muManager (open-source) or manufacturer software for time-lapse control.
+
+
+CELL LINES
+----------
+- NIH3T3 mouse fibroblasts (p65-dsRed + H2B-GFP): NF-kB translocation reporter line.
+  Culture: DMEM + 10% v/v FBS; 37 C, 5% CO2.
+  Loading target: ~150 cells per chamber (~80% confluence at experiment start).
+- RAW264.7 mouse macrophages (p65-GFP + H2B-mCherry): LPS-responsive macrophage line.
+  Culture: DMEM + 10% v/v FBS; 37 C, 5% CO2.
+  Loading target: ~200-300 cells per chamber.
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Chip Surface Treatment -- Pluronic Blocking (Steps 24-29)
+  Reagents  : PBS (Ca2+/Mg2+ free), Pluronic F-127 (0.2% w/v in PBS)
+  Operation : Mix; flow through non-chamber surfaces
+  Duration  : ~60 min (15 min air removal + 1 h incubation)
+  Inlet     : Input #1 (Pluronic); InPurge (PBS)
+  Purpose   : Blocks non-specific mammalian cell adhesion to PDMS channel walls.
+              Air removed by applying flow pressure to closed channel, forcing air
+              through PDMS matrix. Pluronic then incubated 1 h in non-chamber areas.
+
+Step 2 | PBS Wash -- Pluronic Removal (Step 30)
+  Reagents  : PBS
+  Operation : Mix; pressure-driven flow across all non-chamber surfaces
+  Duration  : 30 min
+  Notes     : CRITICAL STEP. Pluronic must be completely washed out before fibronectin
+              coating. Residual Pluronic entering chambers prevents cell adhesion.
+
+Step 3 | Fibronectin Chamber Coating (Step 31)
+  Reagents  : Fibronectin (100 ug/mL in PBS)
+  Operation : Mix; flow into non-chamber areas first (10 min), then open ChIn/ChOut
+              valves in GUI to allow fibronectin to flood chambers
+  Duration  : 2 h to overnight (120-720 min; 720m used in BioScript)
+  Notes     : Fibronectin displaces PBS and air in chambers. Incubation overnight
+              gives reliable ECM coating for NIH3T3 and RAW264.7 cell lines.
+
+Step 4 | Cell Loading (Steps 32-33)
+  Cell line     : NIH3T3 mouse fibroblasts (or RAW264.7 macrophages)
+  Concentration : 5e5 to 2e6 cells/mL; single-cell suspension
+  Volume        : 25-50 uL consumed for 96 chambers
+  Pressurization: 5% CO2 at 3-5 psi; PEEK tubing to CellsIn port
+  Duration      : ~60 min attachment; heat at 37 C for 60 min
+  Options       :
+    (A) Automated: scripted seeding rounds with 10x phase-contrast imaging and
+        intensity threshold cell counting; repeat until target count reached
+        (150 fibroblasts or 200 macrophages per chamber).
+    (B) Manual: visual estimation; sequential chamber seeding; repeat as needed.
+  Notes         : Cells adhere to fibronectin within minutes. PEEK tubing prevents
+                  clumping. Pass cell suspension through 40 um strainer before loading.
+
+Step 5-10 | Cell Feeding -- 6 Rounds at 2-h Intervals (Steps 35-37)
+  Reagents  : CellMedium (DMEM + 10% FBS)
+  Operation : Mix (1 min per round; on-chip pump 30 cycles x ~0.35 nL = ~10.5 nL)
+  Volume    : 30% chamber volume exchanged per round
+  Interval  : 120 min (2 h) between rounds; heat at 37 C for 120m
+  Rounds    : 6 rounds unrolled in BioScript (t = 0, 2, 4, 6, 8, 10 h)
+  Imaging   : Phase-contrast images acquired at each feeding location to monitor
+              cell health and growth (10x magnification; Perfect Focus System recommended)
+  Notes     : 6 rounds cover ~12 h pre-stimulation imaging phase. BioScript has no
+              loop construct; feeding rounds are unrolled explicitly as distinct variables.
+              Dense cultures may require 1-h intervals; sparse cultures 3-h intervals.
+
+Step 11 | TNF-alpha Stimulation (Steps 38-41)
+  Reagents  : TNF_Stimulus (0.01-100 ng/mL in CellMedium)
+  Operation : Mix; pressure-driven full chamber flush (not pump cycling)
+  Duration  : 10-min pulse; 60-min washout with CellMedium
+  Delivery  : PTFE tubing; 5% CO2 at 7 psi
+  Notes     : CRITICAL STEP: log exact timing of each stimulus delivery for alignment
+              with image acquisition timestamps. Additional TNF pulses (e.g. at t=60,
+              120 min) can be added by unrolling further stimulation cycles. Single
+              representative 10-min pulse is encoded in this .bs file. LPS used instead
+              of TNF for RAW264.7 macrophage experiments (Sigma L4524).
+
+Step 12 | Live-Cell Fluorescence Imaging (Steps 41-43)
+  Module    : liveCellImagingDetection
+  Duration  : 300 min (5 h post-stimulation)
+  Channels  : GFP (H2B nuclear label, segmentation seed) + dsRed (p65 NF-kB reporter)
+  Objective : 20x long-distance
+  Readout   : Nuclear p65-dsRed intensity / cytoplasmic p65-dsRed intensity per cell
+              per frame; NF-kB translocation and oscillation dynamics extracted.
+  Analysis  : CellProfiler pipeline:
+              IdentifyPrimaryObjects (nuclei from H2B-GFP),
+              IdentifySecondaryObjects (cytoplasm from p65-dsRed),
+              MeasureObjectIntensity, ExportToSpreadsheet, TrackObjects.
+              Alternatively: MATLAB Image Processing Toolbox custom routines.
+  Notes     : liveCellImagingDetection module abstracts the full CellProfiler/MATLAB
+              image analysis pipeline (Steps 59-66). Imaging runs as an independent
+              process in parallel with the chip stimulation MATLAB script.
+
+Step 13 | Cell Retrieval -- Trypsinization and Lysis (Steps 44-48)
+  Reagents  : Trypsin-EDTA (0.05% w/v 1x), LysisBuffer (CellsDirect resuspension
+              buffer + lysis enhancer; freshly prepared on ice)
+  Trypsin   : Delivered to each chamber; 1-3 min detachment; ~90% retrieval efficiency
+  Collection: PEEK tubing ~10 cm; cells deposited into 96-well plate, 5 uL lysis buffer
+              per well (pre-loaded). Each well sealed with tape immediately after.
+  PBS flush : 3 uL PBS between chambers; prevents cross-contamination.
+  Notes     : Prepare 96-well plate with lysis buffer before retrieval. For time-course
+              experiments at 30-min intervals over 24 h: 48 chambers, one per time point.
+
+Step 14 | RT-STA Reaction Assembly (Steps 49-53)
+  Reagents  : CellsDirect_RTmix (2x), TaqMan_PrimerPool (0.2x),
+              SuperScriptPlatinumTaq, TEBuffer
+  Reaction volume: 10 uL per well
+  Components per reaction:
+    - 5 uL   2x CellsDirect reaction mix
+    - 1.5 uL TE buffer
+    - 2.5 uL 0.2x TaqMan primer pool (48 assays at 45 nM each)
+    - 1.0 uL SuperScript III / Platinum Taq mix
+    - 1.0 uL cell lysate (added at Step 53)
+  Primer pool: Each TaqMan assay (20x, 18 uM) diluted 100x in TE to 0.2x (180 nM);
+               pooled in 1.5 mL tube; 1.5 uL per assay in final volume.
+  Notes     : CRITICAL: 2x CellsDirect reaction mix must be fully thawed on ice and
+              thoroughly mixed. Plate may be stored at -20 C for up to 3 months before
+              adding lysate.
+
+Step 15 | RT-STA Thermal Cycling (Step 54)
+  Operation : Four sequential heat steps on rtStaReaction variable
+  Thermal protocol:
+    RT step           : 50 C, 15 min        (IR: 900.0 SECOND)
+    Taq activation    : 95 C, 2 min         (IR: 120.0 SECOND)
+    14 STA cycles     : 95 C/15 s + 60 C/4 min per cycle;
+                        total cycling = 14 x 255 s = 3570 s;
+                        encoded as single heat at 60 C for 3570 s (IR: 3570.0 SECOND)
+    Post-STA hold     : 4 C, 5 min          (IR: 300.0 SECOND)
+  Notes     : 14 STA cycles are encoded as a single heat step at the dominant 60 C
+              annealing/extension temperature (BioScript has no loop construct).
+              Four sequential heat calls on the same variable are valid in-place ops.
+
+Step 16 | RT-STA Product Dilution (Step 55)
+  Reagents  : TEBuffer
+  Operation : Mix; 22 uL TE added to 11 uL RT-STA product
+  Dilution  : ~1:3 (acceptable range: 1:2 to 1:5)
+  Notes     : Required before Fluidigm chip loading (Step 57).
+
+Step 17 | Fluidigm BioMark qPCR (Steps 56-60)
+  Module    : qPCRDetection
+  Duration  : 240 min (4 h; IFC priming + thermocycling + Ct calculation)
+  Platform  : BioMark HD with IFC controller MX; 48.48 Dynamic Array IFC
+  Capacity  : 48 samples x 48 genes = up to 9,216 simultaneous qPCR reactions
+  Assay wells (left 48):
+    3.75 uL 2x assay loading reagent + 3.75 uL each TaqMan assay (20x)
+  Sample wells (right 48):
+    3.4 uL diluted cDNA + 3.75 uL TaqMan master mix + 0.4 uL sample loading reagent (20x)
+  Analysis  : Fluidigm Real-Time PCR Analysis Software -> Ct values;
+              export as Heat Map Results CSV (File > Export);
+              relative expression = 2^(Ct_gapdh - Ct_gene);
+              MATLAB csvread for downstream import.
+  QC gate   :
+    Pass (bsbbif_2_t): qPCRSignal > 0 -> valid Ct values; dispose all products
+    Fail (bsbbif_3_f): qPCRSignal <= 0 -> no amplification; drain all products
+    Terminal (bsbbif_4_j): dispose qPCRSignal; experiment ends
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : kellogg_microfluidic_singlecell_pipeline.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 4 basic blocks (BB1-BB4), 1 if/else gate, 4 CFG edges
+DAG            : kellogg_microfluidic_singlecell_pipeline_main_dag.dot
+Duration units : All durations converted to seconds (s) or minutes (m) for compiler
+                 compatibility (BioScript supports s and m only; h token not supported).
+                 Key conversions:
+                   720m (fibronectin overnight) -> 43200.0 SECOND
+                   120m (inter-feed incubation x6) -> 7200.0 SECOND
+                   300m (imaging detect) -> 18000.0 SECOND
+                   240m (qPCR detect)    -> 14400.0 SECOND
+                   3570s (14 STA cycles) -> 3570.0 SECOND
+Modules        : liveCellImagingDetection, qPCRDetection
+Manifests (12) : PluronicF127, PBS, Fibronectin, NIH3T3_Cells, CellMedium,
+                 TNF_Stimulus, Trypsin_EDTA, LysisBuffer, CellsDirect_RTmix,
+                 TaqMan_PrimerPool, SuperScriptPlatinumTaq, TEBuffer
+Platform note  : All mix steps abstract pressure-driven fluid exchange through
+                 microchannels and chamber volumes -- not DMF electrode-driven droplet
+                 merging. heat steps model on-stage incubation (37 C, 5% CO2, >95% humidity).
+Feeding unroll : 6 feeding rounds encoded as distinct variables (fedCells1-6) because
+                 BioScript has no loop construct.
+STA cycles     : 14 thermal cycles encoded as single heat at 60 C for 3570s.
+drain->dispose : drain in .bs fail branch normalizes to dispose in IR; expected behavior.
+IR artifact    : bsbbif_2_t lacks an explicit jump instruction to bsbbif_4_j in IR text;
+                 the DOT file confirms both branch edges resolve correctly to BB4.

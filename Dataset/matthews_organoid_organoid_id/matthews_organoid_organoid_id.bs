@@ -1,0 +1,527 @@
+module organoidDetection
+module propidiumIodideDetection
+module mtsViabilityDetection
+module morphologyAnalysis
+
+manifest PDAC_Organoids
+manifest Gemcitabine_3nM
+manifest Gemcitabine_10nM
+manifest Gemcitabine_30nM
+manifest Gemcitabine_100nM
+manifest Gemcitabine_300nM
+manifest Gemcitabine_1000nM
+manifest PropidiumIodide
+manifest MatrigelMatrix
+manifest CompleteMedia
+manifest DMSO_Vehicle
+
+// ============================================================
+// OrganoID: A Versatile Deep Learning Platform for Tracking
+// and Analysis of Single-Organoid Dynamics.
+// Matthews JM, Schuster B, Kashaf SS, et al.
+// PLoS Comput Biol 18(11): e1010584 (2022).
+// DOI: 10.1371/journal.pcbi.1010584
+//
+// Protocol: Gemcitabine dose-response experiment on PDAC
+// (pancreatic ductal adenocarcinoma) organoids. Organoids
+// are cultured in Matrigel, treated with a serial dilution
+// of gemcitabine (3 nM - 1000 nM), and imaged every 4 hours
+// over 72 hours in brightfield + PI fluorescence channels.
+// OrganoID platform segments and tracks individual organoids
+// pixel-by-pixel across timelapse frames, normalises PI
+// fluorescence by organoid area, and computes morphological
+// features (circularity, solidity, eccentricity). A gold-
+// standard MTS viability assay is run at endpoint.
+//
+// NOTE ON BIOLOGICAL SCOPE:
+// Six gemcitabine concentrations (3, 10, 30, 100, 300,
+// 1000 nM) plus a 0 nM vehicle control (DMSO) are tested
+// (n=6 replicates per condition; paper Fig. 3, S6-S7 Fig).
+// This BioScript file encodes the full 7-condition experiment
+// in sequence. Each condition block: (1) embed organoids in
+// Matrigel, (2) add drug / vehicle, (3) add PI stain,
+// (4) image for 72 h (modelled as `heat` at 37 C for 4320m),
+// (5) detect PI signal, (6) branch on viability signal.
+// The MTS assay and final morphology analysis are encoded
+// after all treatment arms converge at the endpoint join.
+//
+// NOTE ON TIMELAPSE ABSTRACTION:
+// The paper images every 4 h over 72 h (18 frames per well).
+// BioScript does not natively support loop constructs. The
+// 72 h incubation period with continuous imaging is therefore
+// abstracted as a single `heat` step (37 C, 4320m = 72 h).
+// The `organoidDetection` module abstracts the OrganoID
+// U-Net inference (pixel-by-pixel segmentation, watershed
+// identification, Munkres tracking) run on all acquired frames.
+//
+// NOTE ON DURATION TOKENS:
+// lilott8/BioScript accepts `s` (seconds) and `m` (minutes)
+// only. All hour-level durations are converted to minutes:
+//   72 h  = 4320 m  (imaging + incubation)
+//   4 h   = 240 m   (MTS endpoint assay)
+//
+// CFG STRUCTURE:
+//   BB1  main              -- embed organoids; 7 treatment arms
+//                             (0 nM control + 6 drug conditions)
+//   BB2  controlPass       -- controlSignal > 0: viable control;
+//                             dispose and proceed to drug arms
+//   BB3  controlFail       -- controlSignal <= 0: experiment fail;
+//                             drain control; flag abort
+//   BB4  controlJoin       -- join: 3 nM treatment arm begins
+//   BB5  drug3Pass         -- 3 nM PI signal > 0: dispose
+//   BB6  drug3Fail         -- 3 nM PI signal <= 0: drain
+//   BB7  drug3Join         -- join: 10 nM treatment arm begins
+//   BB8  drug10Pass        -- 10 nM PI signal > 0: dispose
+//   BB9  drug10Fail        -- 10 nM PI signal <= 0: drain
+//   BB10 drug10Join        -- join: 30 nM treatment arm begins
+//   BB11 drug30Pass        -- 30 nM PI signal > 0: dispose
+//   BB12 drug30Fail        -- 30 nM PI signal <= 0: drain
+//   BB13 drug30Join        -- join: 100 nM treatment arm begins
+//   BB14 drug100Pass       -- 100 nM PI signal > 0: dispose
+//   BB15 drug100Fail       -- 100 nM PI signal <= 0: drain
+//   BB16 drug100Join       -- join: 300 nM treatment arm begins
+//   BB17 drug300Pass       -- 300 nM PI signal > 0: dispose
+//   BB18 drug300Fail       -- 300 nM PI signal <= 0: drain
+//   BB19 drug300Join       -- join: 1000 nM treatment arm begins
+//   BB20 drug1000Pass      -- 1000 nM PI signal > 0: dispose
+//   BB21 drug1000Fail      -- 1000 nM PI signal <= 0: drain
+//   BB22 drug1000Join      -- join: endpoint MTS + morphology
+//   BB23 mtsPass           -- mtsSignal > 0: valid endpoint;
+//                             dispose; run morphology QC
+//   BB24 mtsFail           -- mtsSignal <= 0: invalid endpoint;
+//                             drain all endpoint samples
+//   BB25 morphologyPass    -- morphologySignal > 0: valid shape
+//                             metrics; dispose
+//   BB26 morphologyFail    -- morphologySignal <= 0: invalid;
+//                             drain morphology sample
+//   BB27 finalCleanup      -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Embed PDAC organoids in Matrigel matrix.
+//   Organoids (passage 3-8) resuspended in ice-cold Matrigel
+//   at ~500 organoids/mL. 40 uL domes seeded per well in a
+//   24-well plate and polymerised at 37 C for 20 min before
+//   media overlay. BioScript `mix` abstracts the embedding
+//   and dome-formation step (no DMF electrode mixing).
+//   Matrigel dome solidification modelled as `heat` at 37 C
+//   for 20 min.
+//
+//   NOTE: All 7 treatment conditions use the same organoid
+//   batch. Embedding step is shared; media + drug additions
+//   are condition-specific from STEP 3 onwards.
+// ------------------------------------------------------------
+
+organoidBatch   = dispense 1 units of PDAC_Organoids
+matrigelBase    = dispense 1 units of MatrigelMatrix
+
+embeddedOrganoids = mix organoidBatch with matrigelBase for 5s
+
+// Matrigel polymerisation: 37 C for 20 min.
+heat embeddedOrganoids at 37c for 20m
+
+// ------------------------------------------------------------
+// STEP 2: Overlay with complete growth media and equilibrate.
+//   500 uL complete media (Advanced DMEM/F12 + 10% FBS +
+//   EGF + Noggin + R-spondin1 + Wnt3a) added after gelation.
+//   Organoids equilibrated at 37 C / 5% CO2 for 24 h before
+//   drug addition. 24 h = 1440 min.
+// ------------------------------------------------------------
+
+baseMedia       = dispense 1 units of CompleteMedia
+cultureDomes    = mix embeddedOrganoids with baseMedia for 2s
+
+// 24 h pre-treatment equilibration at 37 C.
+heat cultureDomes at 37c for 1440m
+
+// ------------------------------------------------------------
+// STEP 3 (0 nM CONTROL): Vehicle-treated control condition.
+//   DMSO vehicle added at equivalent volume to highest drug
+//   condition (0.1% v/v final DMSO). Propidium iodide (PI)
+//   added at 1 ug/mL final concentration to all wells for
+//   continuous dead-cell labelling throughout imaging.
+//   PI: excitation 488 nm / emission 617 nm.
+// ------------------------------------------------------------
+
+controlMedia    = dispense 1 units of CompleteMedia
+dmsoVehicle     = dispense 1 units of DMSO_Vehicle
+piStainCtrl     = dispense 1 units of PropidiumIodide
+
+controlDrug     = mix controlMedia with dmsoVehicle for 5s
+controlWell     = mix cultureDomes with controlDrug for 5s
+controlWellPI   = mix controlWell with piStainCtrl for 2s
+
+// ------------------------------------------------------------
+// STEP 4 (0 nM CONTROL): 72 h timelapse imaging at 37 C.
+//   Brightfield images acquired every 4 h (18 frames total).
+//   PI fluorescence channel co-acquired at each timepoint.
+//   `heat` at 37 C for 4320 m abstracts the full 72 h
+//   incubation + concurrent timelapse imaging run.
+//   organoidDetection module abstracts:
+//     (i)  OrganoID U-Net inference on each brightfield frame
+//     (ii) Canny edge + watershed single-organoid identification
+//     (iii) Munkres Hungarian tracking across frames
+//   Outputs: per-organoid area, count, PI fluorescence,
+//   circularity, solidity, eccentricity trajectories.
+// ------------------------------------------------------------
+
+heat controlWellPI at 37c for 4320m
+
+controlSignal   = detect organoidDetection on controlWellPI for 30s
+
+// ============================================================
+// BB2 / BB3: Control viability QC gate
+// Pass (BB2): controlSignal > 0 -> organoids detected and
+//             growing normally in vehicle control; proceed.
+// Fail (BB3): controlSignal <= 0 -> no organoids detected
+//             in control (experiment setup failure); drain.
+// Both branches converge at BB4 (controlJoin).
+// ============================================================
+
+if (controlSignal > 0) {
+    dispose controlWellPI
+} else {
+    drain controlWellPI
+}
+
+// ============================================================
+// BB4: controlJoin
+// Dispose control QC signal. Proceed to 3 nM drug arm.
+// ============================================================
+
+dispose controlSignal
+
+// ------------------------------------------------------------
+// STEP 5 (3 nM GEMCITABINE): Lowest dose treatment arm.
+//   Gemcitabine: FDA-approved nucleoside analogue (dFdC),
+//   inhibits ribonucleotide reductase and DNA synthesis.
+//   Serial dilutions prepared in complete media from 10 mM
+//   DMSO stock. Final DMSO: 0.1% v/v in all conditions.
+//   PI added at same concentration as control (1 ug/mL).
+// ------------------------------------------------------------
+
+media3nM        = dispense 1 units of CompleteMedia
+drug3nM         = dispense 1 units of Gemcitabine_3nM
+pi3nM           = dispense 1 units of PropidiumIodide
+
+treatMedia3     = mix media3nM with drug3nM for 5s
+well3nM         = mix cultureDomes with treatMedia3 for 5s
+well3nMpi       = mix well3nM with pi3nM for 2s
+
+heat well3nMpi at 37c for 4320m
+
+signal3nM       = detect organoidDetection on well3nMpi for 30s
+
+// ============================================================
+// BB5 / BB6: 3 nM arm QC gate
+// ============================================================
+
+if (signal3nM > 0) {
+    dispose well3nMpi
+} else {
+    drain well3nMpi
+}
+
+// ============================================================
+// BB7: drug3Join
+// ============================================================
+
+dispose signal3nM
+
+// ------------------------------------------------------------
+// STEP 6 (10 nM GEMCITABINE)
+// ------------------------------------------------------------
+
+media10nM       = dispense 1 units of CompleteMedia
+drug10nM        = dispense 1 units of Gemcitabine_10nM
+pi10nM          = dispense 1 units of PropidiumIodide
+
+treatMedia10    = mix media10nM with drug10nM for 5s
+well10nM        = mix cultureDomes with treatMedia10 for 5s
+well10nMpi      = mix well10nM with pi10nM for 2s
+
+heat well10nMpi at 37c for 4320m
+
+signal10nM      = detect organoidDetection on well10nMpi for 30s
+
+// ============================================================
+// BB8 / BB9: 10 nM arm QC gate
+// ============================================================
+
+if (signal10nM > 0) {
+    dispose well10nMpi
+} else {
+    drain well10nMpi
+}
+
+// ============================================================
+// BB10: drug10Join
+// ============================================================
+
+dispose signal10nM
+
+// ------------------------------------------------------------
+// STEP 7 (30 nM GEMCITABINE)
+//   Paper reports the clearest dose-response phenotype at
+//   30 nM (Fig 3A): organoid area increases initially then
+//   decreases; organoid count drops sharply above 10 nM.
+//   PI fluorescence rises proportionally to concentration.
+// ------------------------------------------------------------
+
+media30nM       = dispense 1 units of CompleteMedia
+drug30nM        = dispense 1 units of Gemcitabine_30nM
+pi30nM          = dispense 1 units of PropidiumIodide
+
+treatMedia30    = mix media30nM with drug30nM for 5s
+well30nM        = mix cultureDomes with treatMedia30 for 5s
+well30nMpi      = mix well30nM with pi30nM for 2s
+
+heat well30nMpi at 37c for 4320m
+
+signal30nM      = detect organoidDetection on well30nMpi for 30s
+
+// ============================================================
+// BB11 / BB12: 30 nM arm QC gate
+// ============================================================
+
+if (signal30nM > 0) {
+    dispose well30nMpi
+} else {
+    drain well30nMpi
+}
+
+// ============================================================
+// BB13: drug30Join
+// ============================================================
+
+dispose signal30nM
+
+// ------------------------------------------------------------
+// STEP 8 (100 nM GEMCITABINE)
+//   At 100 nM the PI total fluorescence signal is paradoxically
+//   stronger than at 1000 nM (Fig 3C). OrganoID's per-organoid
+//   area normalisation corrects this discrepancy (Fig 3C
+//   bottom), aligning 100 nM and 1000 nM responses correctly.
+// ------------------------------------------------------------
+
+media100nM      = dispense 1 units of CompleteMedia
+drug100nM       = dispense 1 units of Gemcitabine_100nM
+pi100nM         = dispense 1 units of PropidiumIodide
+
+treatMedia100   = mix media100nM with drug100nM for 5s
+well100nM       = mix cultureDomes with treatMedia100 for 5s
+well100nMpi     = mix well100nM with pi100nM for 2s
+
+heat well100nMpi at 37c for 4320m
+
+signal100nM     = detect organoidDetection on well100nMpi for 30s
+
+// ============================================================
+// BB14 / BB15: 100 nM arm QC gate
+// ============================================================
+
+if (signal100nM > 0) {
+    dispose well100nMpi
+} else {
+    drain well100nMpi
+}
+
+// ============================================================
+// BB16: drug100Join
+// ============================================================
+
+dispose signal100nM
+
+// ------------------------------------------------------------
+// STEP 9 (300 nM GEMCITABINE)
+// ------------------------------------------------------------
+
+media300nM      = dispense 1 units of CompleteMedia
+drug300nM       = dispense 1 units of Gemcitabine_300nM
+pi300nM         = dispense 1 units of PropidiumIodide
+
+treatMedia300   = mix media300nM with drug300nM for 5s
+well300nM       = mix cultureDomes with treatMedia300 for 5s
+well300nMpi     = mix well300nM with pi300nM for 2s
+
+heat well300nMpi at 37c for 4320m
+
+signal300nM     = detect organoidDetection on well300nMpi for 30s
+
+// ============================================================
+// BB17 / BB18: 300 nM arm QC gate
+// ============================================================
+
+if (signal300nM > 0) {
+    dispose well300nMpi
+} else {
+    drain well300nMpi
+}
+
+// ============================================================
+// BB19: drug300Join
+// ============================================================
+
+dispose signal300nM
+
+// ------------------------------------------------------------
+// STEP 10 (1000 nM GEMCITABINE): Highest dose arm.
+//   At 1000 nM essentially all organoids are killed; area
+//   and count drop to near-zero by 48 h. Circularity and
+//   solidity decrease markedly; eccentricity increases,
+//   reflecting disrupted, irregular organoid architecture
+//   (Cohen's d effect sizes shown in paper Fig. 3E).
+// ------------------------------------------------------------
+
+media1000nM     = dispense 1 units of CompleteMedia
+drug1000nM      = dispense 1 units of Gemcitabine_1000nM
+pi1000nM        = dispense 1 units of PropidiumIodide
+
+treatMedia1000  = mix media1000nM with drug1000nM for 5s
+well1000nM      = mix cultureDomes with treatMedia1000 for 5s
+well1000nMpi    = mix well1000nM with pi1000nM for 2s
+
+heat well1000nMpi at 37c for 4320m
+
+signal1000nM    = detect organoidDetection on well1000nMpi for 30s
+
+// ============================================================
+// BB20 / BB21: 1000 nM arm QC gate
+// ============================================================
+
+if (signal1000nM > 0) {
+    dispose well1000nMpi
+} else {
+    drain well1000nMpi
+}
+
+// ============================================================
+// BB22: drug1000Join
+// All six drug treatment arms + control have completed.
+// Endpoint assays begin: MTS viability + morphology analysis.
+// ============================================================
+
+dispose signal1000nM
+
+// ------------------------------------------------------------
+// STEP 11: MTS endpoint viability assay (gold standard).
+//   MTS reagent: (3-(4,5-dimethylthiazol-2-yl)-5-(3-carboxy-
+//   methoxyphenyl)-2-(4-sulfophenyl)-2H-tetrazolium).
+//   Metabolically active cells reduce MTS to formazan
+//   (absorbance 490 nm). Used as reference EC50 benchmark.
+//   Paper reports MTS EC50 = 26.13 nM (Fig. 3D).
+//   Assay incubation: 4 h at 37 C = 240 min.
+//
+//   NOTE: MTS is run on a fresh organoid aliquot from the
+//   same batch (endpoint only), not on the timelapse wells.
+//   `mtsViabilityDetection` abstracts the 490 nm absorbance
+//   readout across all drug concentrations at endpoint.
+//   Only one representative endpoint droplet (vehicle control
+//   matched fresh organoids) is encoded here for the QC gate;
+//   the dose-response curve fitting is an off-device analysis.
+// ------------------------------------------------------------
+
+mtsOrganoids    = dispense 1 units of PDAC_Organoids
+mtsMatrix       = dispense 1 units of MatrigelMatrix
+mtsMedia        = dispense 1 units of CompleteMedia
+
+mtsEmbedded     = mix mtsOrganoids with mtsMatrix for 5s
+heat mtsEmbedded at 37c for 20m
+
+mtsWell         = mix mtsEmbedded with mtsMedia for 2s
+
+// MTS incubation: 4 h at 37 C (= 240 min).
+heat mtsWell at 37c for 240m
+
+mtsSignal       = detect mtsViabilityDetection on mtsWell for 30s
+
+// ============================================================
+// BB23 / BB24: MTS endpoint QC gate
+// Pass (BB23): mtsSignal > 0 -> valid formazan absorbance
+//              detected; dispose MTS well; run morphology.
+// Fail (BB24): mtsSignal <= 0 -> MTS assay failure (reagent
+//              or instrument issue); drain MTS well.
+// Both branches converge at BB25/BB26 (morphology gate).
+// ============================================================
+
+if (mtsSignal > 0) {
+    dispose mtsWell
+} else {
+    drain mtsWell
+}
+
+// ------------------------------------------------------------
+// STEP 12: Single-organoid morphology analysis.
+//   OrganoID computes per-organoid shape metrics from the
+//   timelapse segmentation masks for each treatment condition:
+//     - Circularity: inverse ratio of organoid perimeter to
+//       perimeter of a perfect circle with equal area.
+//       (Higher = rounder; decreases with gemcitabine dose.)
+//     - Solidity: ratio of organoid area to its convex hull.
+//       (Higher = more compact; decreases with drug dose.)
+//     - Eccentricity: elliptical deviation from a circle.
+//       (Increases with drug dose; reflects disorganised shape.)
+//   Sigmoidal dose-response EC50 (paper Fig. S7):
+//     Circularity EC50  = 28.47 nM
+//     Solidity EC50     = 27.05 nM
+//     Eccentricity EC50 = 18.08 nM
+//   Cohen's d effect sizes computed across concentration pairs
+//   (paper Fig. 3E). Moderate-to-large effects at EC50 crossing.
+//
+//   `morphologyAnalysis` module abstracts the scikit-image
+//   regionprops computation on OrganoID-labeled organoid masks,
+//   plus Cohen's d statistic calculation across conditions.
+//
+//   NOTE: Morphology QC uses a fresh brightfield image of the
+//   vehicle-control well at endpoint as a reference sample
+//   to verify the segmentation pipeline is still operational.
+// ------------------------------------------------------------
+
+morphMedia      = dispense 1 units of CompleteMedia
+morphOrganoids  = dispense 1 units of PDAC_Organoids
+morphMatrix     = dispense 1 units of MatrigelMatrix
+
+morphEmbedded   = mix morphOrganoids with morphMatrix for 5s
+heat morphEmbedded at 37c for 20m
+
+morphWell       = mix morphEmbedded with morphMedia for 2s
+
+morphologySignal = detect morphologyAnalysis on morphWell for 60s
+
+// ============================================================
+// BB25 / BB26: Morphology QC gate
+// Pass (BB25): morphologySignal > 0 -> circularity, solidity,
+//              and eccentricity metrics successfully computed
+//              by OrganoID; dispose morphology reference well.
+// Fail (BB26): morphologySignal <= 0 -> morphology pipeline
+//              failure (segmentation returned no organoids in
+//              reference image); drain morphology well.
+// Both branches converge at BB27 (finalCleanup).
+// ============================================================
+
+if (morphologySignal > 0) {
+    dispose morphWell
+} else {
+    drain morphWell
+}
+
+// ============================================================
+// BB27: finalCleanup (terminal)
+// Dispose all remaining QC signal droplets.
+// Experiment ends. Off-device analysis:
+//   - EC50 curve fitting (organoid area, PI fluorescence,
+//     area-normalised PI, MTS) using 4-parameter logistic.
+//   - Cohen's d effect size heatmaps (Fig. 3E).
+//   - Tracking accuracy assessment vs manual ground truth.
+// ============================================================
+
+dispose mtsSignal
+dispose morphologySignal
+
+// [terminal -- no further instructions; exit node for CFG]

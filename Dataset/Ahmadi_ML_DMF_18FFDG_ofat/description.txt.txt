@@ -1,0 +1,254 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Integrating Machine Learning and Digital Microfluidics for Screening Experimental Conditions
+Source Link  : https://rscj.silverchair-cdn.com/rscj/content_public/journal/lc/23/1/10.1039_d2lc00764a/2/d2lc00764a.pdf
+Paper DOI    : https://doi.org/10.1039/d2lc00764a
+Journal      : Lab on a Chip, 2023, Vol. 23, pp. 81-91
+Platform     : Digital microfluidics (DMF) on EWOD electrode array
+
+
+OVERVIEW
+--------
+This protocol describes a new method for assay optimization on a digital microfluidic (DMF) device,
+combining one-factor-at-a-time (OFAT) experimental design with machine learning (ML) predictive
+modeling to optimize the synthesis yield of [18F]FDG (fluorodeoxyglucose) radiotracers. The method
+is demonstrated on a seven-parameter radiosynthesis assay and is generalizable to any biological or
+chemical assay on DMF that involves many parameters and levels.
+
+The protocol is divided into four functional phases:
+  1. Base-case [18F]FDG synthesis to establish the reference fluorination efficiency (61.27%)
+  2. OFAT variable experiments: seven synthesis runs each changing exactly one parameter,
+     compared against the base by one-tailed one-sample t-test (P < 0.05 significance cutoff)
+  3. ML modeling: linear regression (Ridge) and neural network (Keras) trained on a 55-experiment
+     database to predict optimal conditions and generate a predictive model for synthesis yield
+  4. On-chip neutral alumina disc purification of the optimized [18F]FDG product (~93% purity)
+
+The OFAT approach reduced the required experiment count from 3^7 = 2187 (full factorial, no
+replicates) to 8 experiments (1 base + 7 variable; 24 with 3 biological replicates). The OFAT
+optimal fluorination efficiency was 70.82 +/- 1.54% (n=6). ML modeling further improved the
+total crude radiochemical yield to 79.13% (vs 66.64% from OFAT alone), with a synthesis time
+of ~19 +/- 2 min.
+
+
+DEVICE ARCHITECTURE
+-------------------
+Substrate    : 2 inch x 3 inch chromium-coated glass slides (standard photolithography,
+               Quintel Q-4000 mask aligner, 25400 dpi photomask from CAD/Art Services Inc.).
+               AZ1500 positive photoresist; CR-4 chromium etchant; AZ-300 T photoresist stripper;
+               MF321 developer.
+Silane       : Silane A-174 (gamma-methacryloxypropyl trimethoxysilane) in DI water + 2-propanol
+               (50:50:1 v/v), 15 min immersion, rinse, bake 80 C.
+Dielectric   : Parylene-C, 7 um thick (SCS Labcoater 2 PDS 2010, Specialty Coating Systems).
+Hydrophobic  : Teflon AF 1600 (The Chemours Company), 150 nm; Laurell spin coater (1500 rpm,
+               60 s, 300 rpm/s acceleration), bake 165 C for 10 min.
+Top plate    : ITO-coated glass (RS = 15-25 ohm, Delta Technologies CG-61IN-S207), cut to
+               1 inch x 3 inch; Teflon AF 1600 spin-coated and baked as above.
+Inter-plate gap : ~140 um (two strips of double-sided tape, 3M).
+
+Reaction site   : 10 central electrodes; TEC/Peltier module (TE Technology) placed directly
+                  below bottom plate; closed-loop temperature control via Arduino Uno,
+                  two half-bridge driver chip, and low-resistance N-channel MOSFET.
+Purification site: 5 electrodes aligned to 6 mm alumina-PDMS disc sandwiched between plates.
+Reagent delivery: Gastight syringe (Hamilton 1002 C) + stepper motor (Arduino Uno) for [18F];
+                  manual pipetting into reservoir edges for all other reagents.
+Pogo-pin holder : 104 pogopins, 3 mm pitch; delivers 104 individual voltage inputs.
+Actuation       : 160 Vrms sine wave at 15 kHz between top and bottom plates.
+Software        : Open-source automation software (https://bitbucket.org/shihmicrolab/f_ahmadi_2022);
+                  optocoupler switch stack applies high-voltage potentials to electrodes.
+DI water        : Resistivity 15 MOhm cm-1.
+
+
+REAGENTS
+--------
+Radiosynthesis (all Sigma-Aldrich, Oakville ON, unless noted):
+  [18F]fluoride       : No-carrier-added; McConnell Brain Imaging Centre cyclotron (IBA Cyclone
+                        18/9, 18 MeV protons on 98% [18O]-enriched H2O). Radioactivity measured
+                        by dose calibrator (CRC 55 TR Capintec).
+  Mannose triflate    : >=98% (TLC); substrate for [18F] nucleophilic fluorination (SN2).
+  Kryptofix K222      : 4,7,13,16,21,24-hexaoxa-1,10-diazabicyclo[8.8.8]hexacosane, 98%.
+  Potassium carbonate : K2CO3, 99.9%.
+  Acetonitrile        : Anhydrous MeCN, 99.8%.
+  Sodium hydroxide    : NaOH, 1N.
+  Kryptofix/MeCN mix  : K222 + K2CO3 in anhydrous MeCN; pre-mixed off-chip; loaded as single
+                        reservoir on DMF device to re-solvate dried [18F] after evaporation.
+  Neutral alumina     : 50-300 um particle size (Waters Corp.); embedded in PDMS for on-chip
+                        purification disc (6 mm diameter).
+  Sep-Pak QMA         : Sep-Pak Accell Plus QMA Plus Light cartridges (Waters Corp.);
+                        used off-chip for [18F] pre-concentration.
+
+Analysis:
+  TLC scanner         : MiniGITA star (Raytest USA Inc.); silica gel HLF 250 um plates
+                        (Analtech Inc., 10x20 cm scored). Fluorination efficiency quantified
+                        by radioactive TLC.
+  Dose calibrator     : CRC 55 TR Capintec Inc.; total radioactivity measurement.
+  Gamma spectrometer  : In-house; identity and purity of [18F]fluoride confirmed.
+
+
+OFAT PARAMETERS AND RESULTS
+----------------------------
+Seven parameters affect [18F]FDG fluorination efficiency on DMF.
+Base case yield: 61.27 +/- 3.88% (n=6); taken from Keng et al. 2012 and Chen et al. 2014 as
+starting point. OFAT significance cutoff: P < 0.05, one-tailed one-sample t-test.
+
+  ID  Parameter                        Base    Variable   p-value  Significant  ML Coeff  Effect
+  P1  Mannose triflate / [18F] ratio   1.0     0.3        0.0297   Yes          +2.43     positive
+  P2  Mannose triflate conc (mM)       30.0    20.0       0.0086   Yes          +3.74     positive
+  P3  Radiolabeling temperature (C)    85      100        0.0282   Yes          +2.92     positive
+  P4  Radiolabeling time (min)         5       7          0.0671   No           +0.04     negligible
+  P5  NaOH concentration (M)          1.0     0.10       0.0001   Yes          +4.50     positive (dominant)
+  P6  Deprotection temperature (C)    25      50         0.2778   No           +2.30     non-sig by OFAT; coeff discrepancy due to limited range (25-50 C) and small N
+  P7  Deprotection time (min)         5       3          0.0041   Yes          -0.89     negative (shorter = better)
+
+Significant parameters: P1, P2, P3, P5, P7 (5 of 7).
+Excluded from final ML model: P4 (radiolabeling time), P6 (deprotection temperature).
+
+
+MACHINE LEARNING MODELING
+--------------------------
+Database     : 55 experiments; initial conditions from literature (Keng 2012, Chen 2014),
+               followed by OFAT-guided and expert-selected conditions.
+Split        : 80% training (44 experiments), 20% test (11 experiments).
+Normalization: Standardization (subtract mean, divide by SD, eqn (1) in paper).
+Oversampling : Rare-condition datapoints (those with at least one infrequent parameter level)
+               replicated in training set to balance distribution and reduce model bias
+               (method: Borderline-SMOTE variant adapted for experimental data).
+Cross-val    : 10-fold cross-validation on training set for all models.
+
+Models:
+  (i)  Single-input linear (7 models, one per parameter):
+       RMSE train range: 13.89 +/- 1.1 to 15.53 +/- 1.3.
+       Does not capture parameter interactions; insufficient for prediction.
+
+  (ii) Multiple-input linear regression (Ridge, scikit-learn):
+       All 7 variables as inputs. RMSE train: 11.47 +/- 1.0; RMSE test: 11.71.
+       Regularization: L2 (Ridge); optimum regularization factor via GridSearchCV.
+       Coefficients (ordered by significance) confirm OFAT significant parameters.
+
+  (iii) Non-linear neural network (Keras):
+        Architecture: input (7 neurons) -> hidden dense layer (4 neurons, ReLU, L2 reg) ->
+        output (1 node; predicted FDG incorporation yield).
+        RMSE train: 11.54 +/- 1.2; RMSE test: 13.26.
+        Similar accuracy to linear model (limited by N=55 database size).
+        Adam optimizer; learning rate 1; regularization factor 0.5; GridSearchCV tuned.
+
+Best model   : Multiple linear regression (lowest test RMSE 11.71; practical and interpretable).
+Final model  : Rebuilt using only the 5 significant parameters and their coefficients (Fig. S4).
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | [18F] Delivery and Activation
+  Reagents    : [18F]fluoride (no-carrier-added)
+  Operation   : Syringe delivery to central reaction electrode; evaporation at 120 C for ~10 min
+  Notes       : [18F] loaded at reaction center on bottom plate before ITO top plate is sealed.
+                TEC heats 10 central electrodes to 120 C. H2[18O] carrier water removed by
+                evaporation, activating [18F] for nucleophilic substitution.
+                After evaporation, ITO top plate placed and secured; reagent reservoirs loaded.
+                Kryptofix K222 + K2CO3 in anhydrous MeCN dispensed immediately after to
+                re-solvate dried [18F] into the reaction droplet (1 min mix).
+
+Step 2 | Mannose Triflate Dispense and Radiolabeling (BASE: P1=1.0, P2=30 mM, P3=85 C, P4=5 min)
+  Reagents    : MannoseTriflate (30 mM in anhydrous MeCN)
+  Operation   : Dispense unit droplet; merge with activated [18F]; heat at 85 C for 5 min
+  Notes       : Base P1=1.0 (equal volume ratio). TEC PID-controls reaction site at 85 C.
+                [18F] incorporates into mannose triflate via SN2 nucleophilic fluorination to
+                yield the acetyl-protected intermediate.
+
+Step 3 | Deprotection (BASE: P5=1.0 M NaOH, P6=25 C, P7=5 min)
+  Reagents    : SodiumHydroxide (1N)
+  Operation   : Dispense unit NaOH droplet; merge with labeled intermediate; heat at 25 C for 5 min
+  Notes       : Base-catalyzed hydrolysis at room temperature (25 C) removes acetyl protecting
+                groups from the fluorinated intermediate to yield deprotected [18F]FDG.
+                TEC set to 25 C (room temperature; no active heating).
+
+Step 4 | Base Case Detection
+  Module      : fluorinationEfficiencyDetection
+  Duration    : 30 s
+  Instrument  : Radioactive TLC scanner (MiniGITA star); silica gel HLF 250 um TLC plates
+  Expected    : 61.27 +/- 3.88% fluorination efficiency (n=6)
+  QC gate     : baseSignal > 0 -> dispose, proceed to OFAT (BB2)
+                baseSignal <= 0 -> drain, halt (BB3)
+
+Step 5 | OFAT Variable Experiments (BB4: 7 experiments, V1-V7)
+  Each experiment re-runs the full synthesis (Steps 1-3) changing exactly one parameter.
+  All other parameters remain at base level.
+  Each product detected by fluorinationEfficiencyDetection (30 s); signal and product
+  both disposed inline within BB4.
+
+  V1 (P2): Mannose triflate conc 30 -> 20 mM; P3=85 C, P4=5 min, P5=1.0 M, P6=25 C, P7=5 min
+           Fluorination efficiency: 46.34% (p=0.0086, significant)
+
+  V2 (P3): Radiolabeling temp 85 -> 100 C; P2=30 mM, P4=5 min, P5=1.0 M, P6=25 C, P7=5 min
+           Fluorination efficiency: 74.92% (p=0.0282, significant)
+           Device note: 110 C (model optimum) causes droplet movement fidelity loss due to
+           evaporation; 100 C is the highest practically achievable radiolabeling temperature.
+
+  V3 (P4): Radiolabeling time 5 -> 7 min; P3=85 C, all others base
+           Fluorination efficiency: 54.56% (p=0.0671, non-significant)
+
+  V4 (P5): NaOH conc 1.0 -> 0.10 M; all others base
+           Fluorination efficiency: 15.62% (p=0.0001, most significant parameter)
+           Device note: 1.4 M NaOH (model optimum) causes poor droplet movement fidelity;
+           1.0 M is the practical upper limit for reliable on-chip actuation.
+
+  V5 (P6): Deprotection temp 25 -> 50 C; all others base
+           Fluorination efficiency: 66.12% (p=0.2778, non-significant by t-test)
+           Note: ML coefficient = 2.30 despite non-significance; discrepancy due to limited
+           range studied (25-50 C) and small dataset (N requires >1000 for accurate non-linear model).
+
+  V6 (P7): Deprotection time 5 -> 3 min; all others base
+           Fluorination efficiency: 42.79% (p=0.0041, significant, negative effect)
+           Note: variable tested at lower level (3 min); negative ML coefficient (-0.89)
+           means shorter deprotection coupled with higher conc and temp increases yield.
+
+  V7 (P1): Volume ratio 1.0 -> 0.3 (less mannose triflate relative to [18F]); all others base
+           Fluorination efficiency: 51.48% (p=0.0297, significant)
+
+Step 6 | OFAT Optimal Synthesis
+  Conditions  : P1=1.0, P2=30 mM, P3=100 C, P4=5 min, P5=1.0 M, P6=50 C, P7=5 min
+  Expected    : 70.82 +/- 1.54% fluorination efficiency (n=6)
+  QC gate     : ofatSignal > 0 -> proceed to purification (BB5)
+                ofatSignal <= 0 -> drain (BB6)
+
+Step 7 | On-Chip Neutral Alumina Disc Purification
+  Reagent     : NeutralAlumina_Disc (6 mm PDMS-embedded disc, pre-placed at purification site)
+  Operation   : Actuate product droplet to disc; move over adjacent electrodes for 40 min at 25 C
+  Removes     : Kryptofix K222, unreacted [18F], F-
+  Purity      : ~93.05 +/- 2.46% (6 mm disc, 40 min incubation)
+  Detection   : radioactivityDetection module, 30 s (dose calibrator + TLC readout)
+  Notes       : Disc fabricated by mixing neutral alumina beads into PDMS pre-curing; placed
+                between top and bottom plates at purification site (5 electrodes). After
+                incubation, product droplet actuated away from disc and manually pipetted for
+                downstream processing (radioactivity measurement, QC, patient dosing).
+  QC gate     : purifSignal > 0 -> dispose purified [18F]FDG (BB8)
+                purifSignal <= 0 -> drain product (BB9)
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : ahmadi_ml_dmf_18FFDG_ofat.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 10 basic blocks (BB1-BB10), 3 if/else gates, 12 CFG edges
+DAG            : ahmadi_ml_dmf_18FFDG_ofat_main_dag.dot
+Duration units : All durations in s or m (BioScript supports s and m only; h not supported)
+                 [18F] evaporation : 10m  (IR: 600.0 SECOND)
+                 Kryptofix mix     :  1m  (IR: 60.0 SECOND)
+                 Radiolabeling     :  5m  (IR: 300.0 SECOND, base and most variants)
+                 Radiolabeling V3  :  7m  (IR: 420.0 SECOND)
+                 Deprotection      :  5m  (IR: 300.0 SECOND, base and most variants)
+                 Deprotection V6   :  3m  (IR: 180.0 SECOND)
+                 Purification      : 40m  (IR: 2400.0 SECOND)
+Modules        : fluorinationEfficiencyDetection, radioactivityDetection
+Manifests      : F18_Fluoride, MannoseTriflate, Kryptofix_Acetonitrile_Mix,
+                 SodiumHydroxide, NeutralAlumina_Disc
+Design notes   : Each OFAT variable product (V1-V7) receives a fluorinationEfficiencyDetection
+                 call followed by inline dispose of both signal and product within BB4.
+                 This ensures the compiler tracks all 7 variable outputs as consumed and
+                 represents the t-test comparison intent from the paper.
+                 Dead manifests (Kryptofix_K222, PotassiumCarbonate, AnhydrousAcetonitrile)
+                 removed; Kryptofix_Acetonitrile_Mix is the single on-chip reservoir abstraction.
+                 NeutralAlumina_Disc dispensed via `dispense` and merged with product droplet
+                 via `mix` to abstract the on-chip purification actuation (no disc-transfer
+                 primitive exists in BioScript).

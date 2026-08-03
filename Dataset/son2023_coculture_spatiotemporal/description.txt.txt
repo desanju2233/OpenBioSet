@@ -1,0 +1,241 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : High-throughput co-culture system for analysis of spatiotemporal cell-cell signaling
+Source Link  : https://www.sciencedirect.com/science/article/abs/pii/S0956566323000313
+Paper DOI    : https://doi.org/10.1016/j.bios.2023.115089
+Journal      : Biosensors and Bioelectronics, 2023, Article 115089
+Authors      : Minjun Son, Andrew G. Wang, Emma Kenna, Savas Tay
+Platform     : Two-layer PDMS microfluidics with pneumatic valve control; 192-chamber high-throughput array
+
+
+OVERVIEW
+--------
+This protocol describes an automated high-throughput microfluidic co-culture system for
+spatiotemporal study of cell-cell signaling. The device enables: (i) chemical stimulation
+of sentinel macrophages to initiate cytokine secretion, (ii) formation of diffusion-mediated
+cytokine gradients over a receiving fibroblast population, (iii) live single-cell NF-kB
+translocation imaging across 192 chambers, (iv) spatially resolved cell retrieval from
+near/mid/far regions of the receiving chamber, and (v) downstream gene expression
+quantification by RT-qPCR or RNA sequencing.
+
+Two experimental arms are encoded in a single .bs file:
+  ARM 1 (main, BB1-BB10): LPS-stimulated RAW264.7 macrophages as cytokine source in
+                           pre-chamber; paracrine signaling to RelA-DsRed NIH3T3 fibroblasts
+                           in receiving chamber.
+  ARM 2 (supplemental, BB10-BB16): Fixed-dose 30 ng/mL TNF-a loaded directly into
+                                    pre-chamber; no macrophages; controlled distance-dependent
+                                    gene expression model. Continues as sequential continuation
+                                    from BB10; compiler assigns BB10-BB16.
+
+The protocol reproduces the key experimental conditions of Sections 3.2-3.5 of the paper,
+covering macrophage-to-fibroblast paracrine signaling, distance-dependent NF-kB dynamics,
+spatially resolved gene expression (Tnfaip3/A20, Casp4, Ccl5/RANTES, GAPDH), and
+spatial distribution of sentinel cell density effects on population-level response.
+
+
+DEVICE ARCHITECTURE
+-------------------
+Fabrication : Two-layer PDMS soft lithography; AutoCAD design; bonded to
+              127.8 x 85.5 x 1 mm glass substrate (Marienfeld); oxygen plasma (Harrick PDC-001).
+
+Layer 1 (fluid) : Thin PDMS ~50 um height; spun at 2300 RPM from ~10 g mixture on
+                  chlorotrimethylsilane-treated fluid mold; contains cell chambers and channels.
+
+Layer 2 (control): Thick PDMS slab; pneumatic valve features; aligned to fluid layer
+                   using custom stereomicroscope with XYZ translation stage.
+
+Array format  : 192 chambers in 8x24 arrangement; 96 independently controllable row-column pairs.
+                Each unit: small pre-chamber (source) + large receiving chamber.
+
+Receiving chamber: Partitioned into 3 regions (near / mid / far) by pneumatic partitioning valves.
+                   Forest of pillars between chamber bottom and sink channel.
+                   Cell retrieval side channels (1 per region) lead to dedicated outlets.
+
+Sink channel  : Flushed by gentle peristaltic pumping; provides shear-free cytokine removal;
+                mimics capillary clearance of secreted cytokines (Kumar et al., 2019).
+
+Valves        : 88 solenoid-controlled inputs (Festo 197334, Tygon tubes Cole-Parmer ND-100-80).
+Control GUI   : Custom Matlab GUI (Gomez-Sjoberg et al., 2010); pre-written scripts for automation.
+Imaging       : Nikon Ti2 epifluorescence microscope; temperature/CO2/humidity-controlled enclosure.
+
+
+CELL LINES
+----------
+- RelA-/- RelA-DsRed NIH3T3 mouse embryonic fibroblasts (3T3s):
+  Receiving chamber cells. NF-kB translocation tracked via nuclear DsRed signal.
+  Media: DMEM high glucose (Gibco) + 10% FBS (Omega Scientific) + 2 mM GlutaMAX (Gibco)
+         + 1% penicillin/streptomycin (Lonza).
+  Loading concentration: 5e5 cells/mL; target ~70% confluency (200-400 cells/chamber).
+
+- RelA-GFP RAW264.7 macrophage-like cells:
+  Pre-chamber sentinel cells. NF-kB tracked via GFP.
+  Stimulated with 50 ng/mL LPS (InvivoGen, tlrl-3pelps) for 10 min in pre-chamber.
+
+- Primary murine adult fibroblasts (RelA-YFP knock-in mouse):
+  Used in cell-patterning experiments (Section 3.5, Fig. 5).
+
+- Bone-marrow-derived macrophages (BMMΦ, RelA-YFP knock-in mouse):
+  Used in cell-patterning experiments (Section 3.5, Fig. 5).
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Device Priming and Chamber Coating (Fibronectin)
+  Reagents    : Fibronectin (Sigma-Aldrich FC010), PBS, DMEM high glucose
+  Operation   : Fibronectin loaded through inlet channels into receiving chambers
+  Temperature : 25 C (room temperature)
+  Duration    : 30 min (1800 s in IR)
+  Wash        : Fresh DMEM flowed through chambers to remove unbound fibronectin
+  Purpose     : Promotes fibroblast attachment to glass substrate
+
+Step 2 | RelA-DsRed 3T3 Fibroblast Loading into Receiving Chambers
+  Cell line       : RelA-/- RelA-DsRed NIH3T3
+  Concentration   : 5e5 cells/mL in complete DMEM
+  Target loading  : ~70% confluency, 200-400 cells per chamber
+  Operation       : Valve-directed flow through cell loading channel (abstracted as mix in BioScript)
+  Adhesion        : 37 C / 5% CO2 for 4-6 h (300 min nominal; 18000 s in IR)
+  Notes           : Cells spread evenly before macrophage loading; adhesion verified visually
+
+Step 3 | Hoechst 33342 Nuclear Staining (Optional)
+  Reagent         : 1 uM Hoechst 33342
+  Incubation      : 10 min at 37 C (600 s in IR)
+  Purpose         : Enables nucleus tracking during live-cell epifluorescence imaging
+  Notes           : Applied selectively; performed before macrophage loading
+
+Step 4 | RelA-GFP RAW264.7 Macrophage Loading into Pre-Chamber
+  Cell line       : RelA-GFP RAW264.7
+  Cell number     : 10-100 per pre-chamber; controlled-density experiments use 60 +/- 15
+  Suspension      : DMEM high glucose
+  Operation       : Flow through source channel; separator valve CLOSED during loading
+  Settling        : 30 min at 37 C (1800 s in IR)
+  Notes           : Pre-chamber and receiving chamber remain separated by closed separator valve
+
+Step 5 | LPS Stimulation of Macrophages and Wash
+  LPS             : 50 ng/mL (InvivoGen tlrl-3pelps)
+  Stimulus duration: 10 min (600 s in IR); separator valve CLOSED
+  Wash            : Fresh DMEM flowed through pre-chamber to remove LPS before separator opens
+  Purpose         : Activates canonical NF-kB via TLR4; triggers TNF-a and cytokine secretion
+  Notes           : LPS washed out to prevent direct fibroblast activation by LPS
+
+Step 6 | Separator Valve Opening and Cytokine Gradient Formation
+  Operation       : Separator valve opened; peristaltic sink pumping initiated simultaneously
+  Tracer (QC)     : Cyanine 5 (Cy5) used to characterise gradient formation kinetics
+  Gradient duration: 400 min (24000 s in IR); near region rises by 30 min; full equilibration ~400 min
+  Sink pumping    : Gentle peristaltic; removes cytokines at far end; maintains gradient
+  Detection       : gradientDetection module; 10 s
+  QC gate (BB1->BB2/BB3): gradientSignal > 0 -> dispose(gradientChamber) [BB2];
+                           gradientSignal <= 0 -> mix waste + drain [BB3]
+
+Step 7 | Live-Cell NF-kB Translocation Imaging
+  Duration        : 200 min (12000 s in IR) post separator opening
+  Temperature     : 37 C / 5% CO2 / humidity controlled
+  Quantification  : Nucleus/cytosol RelA-DsRed ratio per 3T3 (Kudo et al., 2018)
+  Detection       : nfkbTranslocationDetection module; 30 s
+  Notes (BB4)     : sinkFlow and gradientJoin are two distinct FreshMedium dispenses;
+                    mixed to form imagingChamber (FIX4)
+  Findings        : Signaling range correlates with macrophage number; buffered at ~60 macrophages;
+                    near cells: rapid strong NF-kB then rapid decay;
+                    far cells: slower, lower amplitude, more heterogeneous oscillatory response
+  QC gate (BB4->BB5/BB6): nfkbSignal > 0 -> dispose(imagingChamber) [BB5];
+                           nfkbSignal <= 0 -> mix waste + drain [BB6]
+
+Step 8 | Spatially Resolved Cell Retrieval (Near / Mid / Far)
+  TrypLE flow     : ~10 s (Gibco TrypLE)
+  TrypLE incubation: ~60 s (partitioning valves closed before full detachment)
+  Total detachment: 70 s (70 s mix duration in BioScript)
+  Partitioning    : Pneumatic partitioning valves closed to isolate near / mid / far regions
+  PBS retrieval   : Rapidly flowed through cell retrieval side channels to outlet
+  Collection      : ~100 cells per region collected as ~2 uL droplet at outlet
+  Lysis           : Deposited into 10 uL ice-cold lysis buffer (0.1% Triton-X-100 + RNase inhibitor, Takara)
+  Storage         : Biological intent: -80 C long-term cryostorage
+                    IR output (v2): heat @ 4.0CELSIUS @ 57600.0SECOND (FIX1; see compiler notes)
+  Timepoints      : 0, 1, 2, 4, 6, 8 h post separator opening; triplicate at each
+  Detection       : geneExpressionDetection module on nearLysate; 30 s
+  QC gate (BB7->BB8/BB9): geneExprSignal > 0 -> dispose lysates [BB8];
+                           geneExprSignal <= 0 -> mix waste per region + drain [BB9]
+
+Step 9 | Downstream qPCR Gene Expression Quantification
+  Pipeline        : SmartSeq2 reverse transcription + pre-amplification (Picelli et al., 2014)
+  Genes           : Tnfaip3 (A20), Casp4, Ccl5 (RANTES), GAPDH (control)
+  Replicates      : Triplicate per timepoint per region
+  Normalisation   : Each gene level normalised to maximum across all samples
+  Simulation      : NF-kB dynamics input to ODE; degradation rate varied 20-fold (Fig. 4C);
+                    degradation rate explains distance-dependent patterns
+
+
+SUPPLEMENTAL ARM: Fixed-Dose TNF-a Stimulation (Section 3.4, Fig. 4)
+----------------------------------------------------------------------
+CFG blocks      : BB10 (entry/join from main arm) -> BB11/BB12 -> BB13 -> BB14/BB15 -> BB16 (terminal)
+Rationale       : Macrophage variability (Fig. 3C) prevents reproducible NF-kB profiles across
+                  samples; fixed TNF-a eliminates this variability
+TNF-a dose      : 30 ng/mL (R&D Systems, aa80-235); loaded directly into pre-chamber; no macrophages
+Imaging window  : 8 h (480 min; 28800 s in IR)
+Retrieval       : Identical TrypLE / PBS / lysis protocol as main arm; heat at 4c for 960m (FIX1)
+Timepoints      : 0, 1, 2, 4, 6, 8 h post separator opening; triplicate
+Key finding     : Tnfaip3 peaks 60 min (near) vs 120 min (mid/far);
+                  Ccl5 and Casp4 peak 4-6 h with similar magnitude at all positions;
+                  degradation rate determines distance sensitivity of NF-kB target gene expression
+
+
+CELL PATTERNING ARM: Spatial Distribution of Sentinel Cells (Section 3.5, Fig. 5)
+-----------------------------------------------------------------------------------
+Cell lines      : Primary murine adult fibroblasts (RelA-YFP) + BMMΦ (RelA-YFP knock-in mouse)
+LPS dose        : 3 ng/mL; sub-threshold for direct fibroblast activation
+Patterning      : Macrophages loaded at near (0-0.5 mm) or mid (1-1.5 mm) position via side channels
+Finding         : Near-position loading -> strong local fibroblast activation, weak at far;
+                  Mid-position loading -> more uniform population-level response, weaker absolute
+                  activation; spatial distribution of sentinel cells determines population response
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file   : son2023_coculture_spatiotemporal_v2.bs
+Compiler         : lilott8/BioScript (ANTLR4-based)
+IR output        : son2023_coculture_spatiotemporal_v2.ir
+DOT output       : son2023_coculture_spatiotemporal_v2_main_dag.dot
+CFG structure    : 16 basic blocks (BB1-BB16); 4 if/else QC gates
+                   Main arm:         BB1-BB10  (3 gates: gradient, NF-kB, gene expression)
+                   Supplemental arm: BB10-BB16 (1 gate: imagingChamber QC + 1 gate: lysate QC)
+                   Total CFG edges:  20
+Modules          : gradientDetection, nfkbTranslocationDetection, geneExpressionDetection,
+                   viabilityDetection
+Duration units   : BioScript supports s and m only; all durations converted accordingly
+                   30m  -> 1800 s   (fibronectin coating, macrophage settling)
+                   300m -> 18000 s  (fibroblast adhesion)
+                   10m  -> 600 s    (LPS stimulation, Hoechst staining)
+                   400m -> 24000 s  (gradient formation)
+                   200m -> 12000 s  (NF-kB imaging, main arm)
+                   480m -> 28800 s  (imaging window, TNF-a arm)
+                   960m -> 57600 s  (lysate staging; biological intent: -80 C cryostorage)
+
+V1 BUGS AND V2 FIXES (all confirmed from IR inspection):
+
+  FIX1 | Negative temperature sign stripped
+    v1 IR : heat(nearLysate1[0]) @ 80.0CELSIUS @ 57600.0SECOND  [sign dropped]
+    v2 IR : heat(nearLysate1[0]) @ 4.0CELSIUS @ 57600.0SECOND   [correct]
+    fix   : `heat at -80c` replaced with `heat at 4c for 960m`
+            Biological intent (-80 C long-term cryostorage) noted in .bs comment
+
+  FIX2 | False branches emitted dispose() instead of drain()
+    v1 IR : bsbbif_3_f: dispose(gradientChamber1[0])
+    v2 IR : bsbbif_3_f: gradientWaste1[0] = mix(gradientChamber1[0], washBuffer21[0]);
+                         dispose(gradientWaste1[0])
+    fix   : Explicit waste variable in false branch; semantic drain intent preserved in .bs source
+
+  FIX3 | Dead variable lysisBufferStock dispensed but never consumed
+    v1 IR : lysisBufferStock1[0] = dispense(LysisBuffer)  [orphaned, never used in mix]
+    v2 IR : variable removed entirely
+    fix   : Removed standalone dispense; per-region lysis variables (lysisNear, lysisMid,
+            lysisFar) are dispensed inline where consumed
+
+  FIX4 | Self-mix in imagingChamber (same variable both operands)
+    v1 IR : imagingChamber1[0] = mix(freshMediumFlow1[0], freshMediumFlow1[0])
+    v2 IR : imagingChamber1[0] = mix(sinkFlow1[0], gradientJoin1[0])
+    fix   : Two distinct FreshMedium dispenses (sinkFlow, gradientJoin) used as operands
+
+REMAINING LIMITATION:
+  drain() has no dedicated opcode in lilott8/BioScript IR; all drain() calls compile to
+  dispose() on the waste variable. The waste variable pattern (FIX2) preserves semantic
+  intent in .bs source even though the IR output is structurally identical to dispose().

@@ -1,0 +1,320 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : On-chip Integration of Droplet Microfluidics and Nanostructure-Initiator
+               Mass Spectrometry for Enzyme Screening
+Source Link  : https://ipo.lbl.gov/wp-content/uploads/sites/8/2017/05/2016-049_pub.pdf
+Paper DOI    : https://doi.org/10.1039/c6lc01182a
+Journal      : Lab on a Chip, 2016 (Royal Society of Chemistry)
+Authors      : Joshua Heinemann, Kai Deng, Steve C. C. Shih, Jian Gao, Paul D. Adams,
+               Anup K. Singh, Trent R. Northen
+Platform     : uNIMS (digital droplet microfluidics + NIMS array, EWOD-actuated)
+
+
+OVERVIEW
+--------
+This protocol describes the uNIMS platform -- a first-of-its-kind integration of droplet
+microfluidics with nanostructure-initiator mass spectrometry (NIMS) for label-free,
+time-resolved enzyme kinetics screening at the 150 nL droplet scale. The system couples
+a digital microfluidics (DMF) chip (electrowetting-on-dielectric, EWOD) with a patterned
+silicon NIMS array (640 pads, 5x5 cm wafer), enabling programmable droplet deposition
+onto discrete NIMS elements for subsequent mass spectrometry (MS) imaging.
+
+The protocol is divided into two functional parts:
+  PART 1: Dextromethorphan (DXM) standard validation -- confirms droplet actuation
+          onto NIMS pads and analyte sorption at m/z 272.
+  PART 2: CelE-CBM3a enzyme kinetics -- two independent pH conditions:
+    2A: pH 6.0 (phosphate buffer, 50 mM) -- parallel droplet loading, 5 time points
+        (10, 20, 30, 40, 50 min), G4 substrate degraded to G3, G2, G1.
+    2B: pH 5.0 (acetate buffer, 100 mM) -- continuous series loading, 3 time points
+        (10, 20, 40 min), similar product distribution to pH 6 demonstrating CelE
+        robustness to process conditions.
+
+Key advantages over conventional NIMS screening:
+  - 150 nL droplets vs 20 uL dead volume from 384-well acoustic printing (~133x reagent
+    reduction)
+  - Programmable time resolution for kinetics (droplets deposited and removed at defined
+    intervals via EWOD)
+  - Fluorous probe and products remain adsorbed on NIMS surface after droplet removal,
+    enabling off-line MS imaging
+  - Scalable: demonstrated 20 assays per NIMS array; protocol modification enables 620
+    individual assays (1 pad per enzyme); theoretical maximum >100,000 pads per 5 cm2
+    at 50 um grid resolution
+
+
+DEVICE ARCHITECTURE
+-------------------
+The uNIMS stack consists of five layers held together in a 3D-printed chassis:
+
+Layer i   : 3D-printed PLA top cover (Ultimaker 2, 215 C, Blender.org design)
+Layer ii  : PDMS mounting gasket for PEEK tubing interfacing (upper gasket)
+Layer iii : DMF chip -- glass substrate; 128 chrome electrodes (5 cm L x 500 um W x
+            375 um H); 5 um SU-8-5 dielectric; PDMS fluidics channel (500 um W x 225 um H);
+            31 digital arrayers for droplet actuation over NIMS pads;
+            1 T-junction for pressure-driven droplet generation (~150 nL droplets)
+Layer iv  : NIMS array chip -- 5 x 5 cm silicon wafer; 640 patterned NIMS pads
+            (photopatternable PDMS protective gasket, laser-cut wafer, ICP-RIE etching)
+Layer v   : 3D-printed PETG bottom piece with Dropbot PCB adapter (pogo pins)
+
+Seal      : Reversible PDMS compression seal between DMF chip (layer iii) and NIMS array
+            (layer iv) -- allows NIMS array removal and mounting in mass spectrometer
+            after experiment, without disturbing adsorbed analytes.
+
+DMF chip fabrication:
+  - Photolithography on chrome Telic wafers (AZ1500 positive resist, OAI Series 200 aligner,
+    16 mW/cm2, 15 s exposure; MF-321 developer ~1 min)
+  - Chrome etch: CR-4 chromium etchant, 5 min agitation
+  - Post-bake: 120 C, 10 min
+  - Plasma treatment: 20% O2, 20 W RF, 5 min
+  - Dielectric: 5 um SU-8-5 (Microchem protocol)
+  - Channel layer: SU-8-2075 master mold (140 um height); PDMS (20:1, cured 100 C 1 h);
+    sealed against glass slide with 100 uL Picoglide, rinsed with Novec HFE-7500
+
+NIMS array fabrication:
+  - Photopatternable PDMS (10:1 ratio, 3% benzophenone, degassed by centrifugation)
+  - Spin-coat on silicon wafer: 2500 rpm, 30 s
+  - UV exposure: <365 nm, 10 min; photomask ~100 um above substrate
+  - Post-exposure bake: 120 C, 2.5 min (vacuum oven)
+  - Development: toluene, 10 s; rinse IPA and H2O
+  - ICP-RIE etching (PlasmaLab 100, Oxford Instrument):
+      Gas: SF6/O2 at 30/20 ratio; pressure: 6 mTorr; temperature: -80 C (cryogenic)
+      Etching chamber power: 5 W; plasma generator power: 1000 W
+  - Result: silicon nanostructures for NIMS-based laser desorption/ionisation
+
+Dropbot control:
+  - Hold voltage: 20 V (maintains droplet position during flow halt)
+  - Actuation: 90 V, 10 kHz, 250 ms bursts (moves droplets in/out of NIMS pad pockets)
+  - Impedance detection: used to detect actuation failure
+  - Software: Dropbot + microdrop GUI; monitoring and validation visual (limitation noted)
+
+
+REAGENTS
+--------
+
+Carrier oil      : Novec HFE-7500 (3M, US); 100 uL Picoglide (Dolomite Microfluidics, UK)
+                   pumped through channel for 30 min for surface preparation.
+                   Flow rates: 0.05 uL/s reaction cocktail, 0.2 uL/s HFE-7500 oil.
+
+Enzyme           : CelE-CBM3a (CelE); chimeric endoglucanase; GH family 5 (GH5) domain
+                   from Clostridium thermocellum (Cthe_0797) fused to carbohydrate binding
+                   module CBM3a. Deconstructs plant hemicellulose via beta-1,4 glycosidic
+                   bond cleavage. Concentration: 240 ug/mL. (Ref: Deng et al., ACS Chem.
+                   Biol. 2014, 9(7), 1470-1479)
+
+Substrate probe  : 1,4-beta-D-cellotetraose-probe (G4). Fluorous-tagged (perfluorocarbon)
+                   for NIMS surface affinity. MW 1515.48; formula C55H78F17N5O24.
+                   Detected at m/z 1516.43 (H+). Volume: 1 uL per reaction.
+
+Degradation      :
+products           G3 (cellotriose-probe)  -- MW 1353.42; C49H68F17N5O19; m/z 1354.37 (H+)
+                   G2 (cellobiose-probe)   -- MW 1191.37; C43H58F17N5O14; m/z 1192.32 (H+)
+                   G1 (glucose-probe)      -- MW 1029.32; C37H48F17N5O9;  m/z 1030.28 (H+)
+
+Buffers          : pH 6: Phosphate buffer, 50 mM, pH 6.0 (4 uL per 6 uL reaction)
+                   pH 5: Acetate buffer, 100 mM, pH 5.0 (4 uL per 6 uL reaction)
+
+Validation std   : Dextromethorphan (DXM); 1 mg/mL in H2O; detected at m/z 272 (H+);
+                   matrix-free ionisation; no signal on non-NIMS surrounding structures.
+
+MALDI matrix     : Universal MALDI matrix; 20 mg/mL in MeOH; applied to NIMS array after
+                   removal from uNIMS system prior to MS imaging.
+
+General reagents : SU-8-5, SU-8-2075, SU-8 Developer (Microchem, Newton, MA); gold and
+                   chromium-coated glass slides (Telic, Valencia, CA); ITO-coated glass slides
+                   and silicon wafers (Delta Technologies, Stillwater, MN); Aquapel (TCP Global,
+                   San Diego, CA); MF-321 developer (Rohm and Haas); CR-4 chromium etchant
+                   (OM Group); AZ-300 T photoresist stripper (AZ Electronic Materials);
+                   Sylgard 184 PDMS (Dow Corning); benzophenone and mixed xylenes (Sigma);
+                   TPS (Trichloro(1H,1H,2H-perfluorooctyl)silane) for master mold silanisation.
+
+
+PROTOCOL STEPS
+--------------
+
+-- PART 1: DXM STANDARD VALIDATION --
+
+Step 1 | Device Surface Preparation and Oil Phase Loading
+  Reagent  : Novec HFE-7500 (with 100 uL Picoglide surfactant)
+  Operation: Dispense oilPhase; pump through PDMS channel for 30 min
+  Purpose  : Coats channel surfaces; stabilises droplets at T-junction; enables EWOD
+             actuation; primes reversible PDMS seal interface with NIMS array.
+
+Step 2 | Dextromethorphan Standard Preparation
+  Reagent  : DXM, 1 mg/mL in H2O; 5 uL plug prefilled into syringe tubing
+  Operation: Dispense dxmDroplet (1 unit = ~150 nL droplet abstraction)
+  Purpose  : Validates microfluidic droplet actuation and NIMS pad analyte sorption before
+             enzymatic assay. DXM detected at m/z 272 (H+); matrix-free ionisation.
+
+Step 3 | DXM Droplet Generation at T-Junction
+  Inputs   : dxmDroplet + oilPhase
+  Operation: mix for 5 s (abstracts T-junction droplet generation)
+  Flow rate: 0.05 uL/s reaction cocktail; 0.2 uL/s HFE-7500 oil
+  Result   : ~150 nL DXM droplets in HFE-7500 oil train; synchronised with electrode
+             actuation for uniform spacing along central fluidics chamber.
+
+Step 4 | DXM Droplet Loading and Incubation on NIMS Pads
+  Input    : dxmDropletInOil
+  Operation: heat at 25 C for 10 m (600 s; room temperature)
+  Actuation: Flow halted; 20 V electrode hold. 31 arrayers actuate droplets at 90 V,
+             10 kHz, 250 ms bursts into NIMS pad pockets.
+  Incubate : DXM sorbs onto NIMS surface during contact. Fluorous-tagged substrates
+             confirmed to remain adsorbed in microfluidic environment (consistent with
+             traditional NIMzyme execution).
+  Eject    : Droplets ejected from pocket after incubation; evacuated via central chamber.
+
+Step 5 | MALDI Matrix Coating
+  Inputs   : dxmDropletInOil + UniversalMALDI_Matrix
+  Operation: mix for 1 m (60 s; abstracts matrix co-crystallisation)
+  Procedure: NIMS array physically removed from uNIMS system after experiment completion.
+             Universal MALDI matrix (20 mg/mL MeOH) applied to array surface.
+             Array mounted in ABSciex 5800 MALDI-TOF for MS imaging.
+
+Step 6 | MS Imaging QC -- DXM Deposition Detection (Branch Gate 1)
+  Input    : dxmNimsArray
+  Module   : nimsImagingDetection
+  Duration : 30 s
+  MS scan  : ABSciex 5800 MALDI-TOF; positive mode; laser intensity 4150; focus m/z 1200;
+             50 um laser step; m/z 272 ion map; OpenMSI spot set analysis.
+  Branch:
+    Pass (depositionSignal > 0)  --> BB2: dispose(dxmNimsArray); proceed to pH 6 kinetics
+    Fail (depositionSignal <= 0) --> BB3: drain(dxmNimsArray); no sorption (surfactant
+                                         suppression or actuation failure)
+  Join: BB4 (validationJoin) -- dispose(depositionSignal); pH 6 kinetics branch begins.
+
+
+-- PART 2A: CelE KINETICS AT pH 6.0 (PHOSPHATE BUFFER) --
+
+Step 7 | Reaction Cocktail Preparation (pH 6)
+  Buffer   : Phosphate buffer, 50 mM, pH 6.0 (4 uL)
+  Substrate: G4 substrate-probe (1 uL)
+  Enzyme   : CelE-CBM3a, 240 ug/mL (1 uL)
+  Total    : 6 uL; premixed off-chip in 0.5 mL eppendorf tube
+  Operation: 4 buffer units dispensed individually, chained via sequential mix in BioScript
+             (ph6_buf_12, ph6_buf_34, ph6_bufBulk); substrate and enzyme then merged.
+             [Compiler constraint: explicit sequential merging required; no multi-unit
+             dispense; same pattern as b1/b2/b3 in Moazami et al. reference.]
+  Loading  : 5 uL plug drawn into syringe tubing and injected onto uNIMS.
+
+Step 8 | Reaction Droplet Generation at T-Junction (pH 6)
+  Inputs   : ph6_reactionCocktail + HFE7500_Surfactant
+  Operation: mix for 5 s
+  Flow rate: 0.05 uL/s cocktail; 0.2 uL/s HFE-7500
+  Loading  : Parallel mode (Fig. 4A) -- flow halted after chamber fills; all 31 arrayer
+             electrodes actuated simultaneously; droplets loaded in parallel onto all
+             corresponding NIMS pads.
+
+Step 9 | Sequential Incubation on NIMS Pads -- 5 Time Points (pH 6)
+  Input    : ph6_dropletsInOil
+  Operation: 5 sequential heat blocks at 25 C (room temperature)
+  Time pts : 10 min (600 s) -- cumulative: 10 min
+             10 min (600 s) -- cumulative: 20 min
+             10 min (600 s) -- cumulative: 30 min
+             10 min (600 s) -- cumulative: 40 min
+             10 min (600 s) -- cumulative: 50 min
+  Pads     : 6 pads per time point; 31 total pads used
+  Ejection : At each 10 min interval, 6 droplets synchronously ejected from NIMS pocket
+             into central chamber and evacuated. Fresh droplets actuated for next interval.
+  Products : G4 (m/z 1516.43) degraded to G3 (m/z 1354.37), G2 (m/z 1192.32),
+             G1 (m/z 1030.28) over 50 min. Probe and products remain adsorbed on NIMS
+             surface after droplet removal.
+
+Step 10 | MALDI Matrix Coating and MS Imaging (pH 6) (Branch Gate 2)
+  Inputs   : ph6_dropletsInOil + UniversalMALDI_Matrix
+  Mix      : 1 m (60 s); array coated after removal from uNIMS system
+  Detect   : nimsImagingDetection; 30 s; same MS parameters as Step 6
+  Analysis : OpenMSI spot set analysis; fractional conversion:
+             [G1] / ([G4] + [G3] + [G2] + [G1]) for each time point pad.
+  Note     : MS imaging required (not simple spot analysis) because HFE-7500 surfactant
+             adheres to NIMS surface and suppresses ionisation; surfactant causes
+             heterogeneous ions at high concentration, reducing sensitivity.
+             NIMS surface acts as capture substrate for substrates and products.
+  Branch:
+    Pass (ph6Signal > 0)  --> BB5: dispose(ph6_nimsArray); G3/G2/G1 detected; proceed to pH 5
+    Fail (ph6Signal <= 0) --> BB6: drain(ph6_nimsArray); no product signal
+  Join: BB7 (pH6Join) -- dispose(ph6Signal); pH 5 kinetics branch begins.
+
+
+-- PART 2B: CelE KINETICS AT pH 5.0 (ACETATE BUFFER) --
+
+Step 11 | Reaction Cocktail Preparation (pH 5)
+  Buffer   : Acetate buffer, 100 mM, pH 5.0 (4 uL)
+  Substrate: G4 substrate-probe (1 uL)
+  Enzyme   : CelE-CBM3a, 240 ug/mL (1 uL)
+  Total    : 6 uL; premixed off-chip in 0.5 mL eppendorf tube
+  Operation: Identical chaining pattern to pH 6 (ph5_buf_12, ph5_buf_34, ph5_bufBulk);
+             acetate buffer replaces phosphate buffer.
+
+Step 12 | Reaction Droplet Generation at T-Junction (pH 5)
+  Inputs   : ph5_reactionCocktail + HFE7500_Surfactant
+  Operation: mix for 5 s
+  Flow rate: 0.05 uL/s cocktail; 0.2 uL/s HFE-7500
+  Loading  : Continuous series mode (Fig. 4B) -- droplets removed directly from flow without
+             halting; successive pads occupied and cleared continuously.
+
+Step 13 | Sequential Incubation on NIMS Pads -- 3 Time Points (pH 5)
+  Input    : ph5_dropletsInOil
+  Operation: 3 sequential heat blocks at 25 C (room temperature)
+  Time pts : 10 min (600 s)  -- cumulative: 10 min
+             10 min (600 s)  -- cumulative: 20 min
+             20 min (1200 s) -- cumulative: 40 min
+  Note     : Three time points vs five for pH 6; final heat block is 20 m (600 s gap
+             between 20 min and 40 min time points). CelE produces similar product
+             distributions at pH 5 and pH 6, demonstrating enzyme robustness to process
+             conditions (reaction profile consistent with Deng, Front. Bioeng. Biotechnol. 2015).
+
+Step 14 | MALDI Matrix Coating and MS Imaging (pH 5) (Branch Gate 3 + Terminal)
+  Inputs   : ph5_dropletsInOil + UniversalMALDI_Matrix
+  Mix      : 1 m (60 s); NIMS array removed and matrix-coated as before
+  Detect   : nimsImagingDetection; 30 s; same MS parameters
+  Branch:
+    Pass (ph5Signal > 0)  --> BB8: dispose(ph5_nimsArray); kinetics confirmed
+    Fail (ph5Signal <= 0) --> BB9: drain(ph5_nimsArray); no product signal
+  Terminal : BB10 -- dispose(ph5Signal); NOP. Experiment ends.
+             NIMS array placed in ABSciex 5800 MALDI-TOF for final MS imaging session.
+
+
+QUANTIFICATION
+--------------
+Method   : Fractional conversion (internal normalisation)
+Formula  : [Gx] / ([G4] + [G3] + [G2] + [G1]) for each product Gx at each time point
+Rationale: Internal normalisation eliminates sensitivity to droplet volume variation
+           (device maintains +/-10% SD in droplet size; turbulent mixing at t-junction
+           causes initially larger droplets). Less sensitive to concentration measurement
+           errors than direct quantification approaches.
+Software : OpenMSI spot set analysis tools (Rubel et al., Anal. Chem. 2013, 85(21),
+           10354-10361)
+
+
+MASS SPECTROMETRY
+-----------------
+Instrument  : ABSciex 5800 MALDI-TOF
+Mode        : Positive ionisation
+Laser int.  : 4150
+Focus m/z   : 1200
+Laser step  : 50 um
+Matrix      : Universal MALDI matrix, 20 mg/mL in MeOH
+Analysis    : OpenMSI spot set analysis
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : heinemann_uNIMS_enzyme_screening.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 10 basic blocks (BB1-BB10), 3 if/else gates, 12 CFG edges
+DAG            : heinemann_uNIMS_enzyme_screening_main_dag.dot
+Duration units : All durations in minutes (m) or seconds (s); h token not supported.
+                 pH 6 incubation: 5 x heat 10m (IR: 5 x 600.0 SECOND)
+                 pH 5 incubation: 2 x heat 10m + 1 x heat 20m (IR: 600, 600, 1200 SECOND)
+ASCII note     : File uses only ASCII characters. Non-ASCII symbols replaced:
+                 'u' for mu (micro); '+/-' for plus-minus; 'beta' for Greek beta.
+                 Required because ANTLR4 FileStream uses ASCII codec and rejects bytes >127.
+Modules        : dropletDepositionDetection, nimsImagingDetection
+Manifests      : CelE_CBM3a_Enzyme, G4_Substrate_Probe, PhosphateBuffer_pH6,
+                 AcetateBuffer_pH5, HFE7500_Surfactant, DextromethorphanStandard,
+                 UniversalMALDI_Matrix
+Buffer chaining: 4 units of buffer (4:1:1 volume ratio) built via explicit sequential
+                 mix chain (ph6_buf_12 -> ph6_buf_34 -> ph6_bufBulk); same compiler
+                 constraint pattern as Moazami et al. b1/b2/b3 reference.
+Surfactant note: HFE-7500 suppresses NIMS ionisation; MS imaging required over spot
+                 analysis to detect all degradation products. NIMS-compatible surfactants
+                 identified as a key future direction.

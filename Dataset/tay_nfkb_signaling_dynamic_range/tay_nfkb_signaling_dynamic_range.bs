@@ -1,0 +1,671 @@
+module nfkbNuclearLocalizationDetection
+module cellTrackingAnalysis
+module doseResponseDetection
+
+manifest NIH3T3_p65GFP_Cells
+manifest PBS
+manifest CompleteMedia
+manifest PluronicF127
+manifest TNFalpha_Stock
+manifest LPS_Stock
+manifest NuclearMarkerDye
+manifest ImagingBuffer
+manifest FC40_Oil
+
+// ============================================================
+// NF-kappaB Signaling, Dynamic Range and Stochastic Switching
+// under TNF-alpha and LPS Stimulation
+// Tay S, Lee TK, Hughey J, Leyrat A, Covert M, Quake SR
+// Stanford University -- Bioengineering / HHMI
+//
+// Reference: Tay et al., "NF-kappaB signaling dynamic range in
+// response to TNF and LPS" (in preparation at time of abstract)
+// Platform: Gomez-Sjoberg et al. (2007) Anal. Chem. fully
+// automated microfluidic cell culture system.
+//
+// EXPERIMENTAL OVERVIEW:
+//   >3000 NIH-3T3 p65-GFP cells measured simultaneously
+//   under 8 doses of TNF-alpha AND 8 doses of LPS (4 orders of
+//   magnitude each), 6-min temporal resolution over 12 hours.
+//   Nuclear p65-GFP localization tracked by fluorescent
+//   time-lapse microscopy with custom nuclear-marker software.
+//
+// KEY FINDINGS ENCODED:
+//   A. TNF-alpha oscillations at single-cell level are continuous
+//      (not damped), confirmed by 12-hour extended time-lapse.
+//   B. Dose-dependent threshold, dynamic range, and response
+//      time (hundreds of min near threshold; <30 min at
+//      saturating doses). NF-kappaB model (Kearns & Hoffman 2009)
+//      modified to explain dose-response kinetics.
+//   C. Single-cell variability: stereotyped at high dose,
+//      stochastic switching near threshold from small
+//      fluctuations in key protein levels.
+//   D. Analog (TNF-alpha: graded, proportional) vs. Digital
+//      (LPS: all-or-nothing, full nuclear localisation even
+//      at lowest doses) signaling paradigm.
+//
+// NOTE ON DOSE ABSTRACTION:
+//   The paper uses 8 doses per ligand spanning 4 orders of
+//   magnitude. BioScript does not support numeric parametric
+//   looping. Each dose arm is encoded as an independent
+//   serial dilution from stock, using the same chained-
+//   dispense pattern established in moazami_world_to_chip_dmf.bs
+//   (b1/b2/b3 approach) to avoid compiler array-split issues.
+//   Three representative doses are encoded per ligand:
+//     Dose 1 = near-saturating (1:1 dilution from stock)
+//     Dose 2 = intermediate    (1:10 dilution)
+//     Dose 3 = near-threshold  (1:100 dilution)
+//   These three tiers capture the full behavioral repertoire:
+//   stereotyped oscillations, stochastic switching, and
+//   sub-threshold silence.
+//
+// NOTE ON MICROFLUIDIC PLATFORM ABSTRACTION:
+//   The Gomez-Sjoberg (2007) platform uses pressure-driven
+//   flow through PDMS microchannels with on-chip valves,
+//   not DMF electrode actuation. `mix` steps here abstract
+//   channel-based reagent delivery and media exchange events.
+//   `heat` steps model the on-chip incubator (37 C / 5% CO2).
+//   The nuclear marker delivery and imaging readout are
+//   abstracted through nfkbNuclearLocalizationDetection and
+//   cellTrackingAnalysis modules.
+//
+// NOTE ON TIMING:
+//   12-hour time-lapse = 720 min (BioScript: m tokens only).
+//   6-min imaging interval abstracted into detect duration.
+//   Response-time window for near-saturating dose: 30 min.
+//   Response-time window for near-threshold dose: 300 min.
+//
+// CFG STRUCTURE:
+//   BB1  main              -- device priming, cell seeding,
+//                             nuclear staining, TNF-alpha arm
+//   BB2  tnfHighPass       -- tnfHighSignal > 0: oscillatory
+//                             response confirmed; dispose
+//   BB3  tnfHighFail       -- tnfHighSignal <= 0: no response;
+//                             drain
+//   BB4  tnfHighJoin       -- join: intermediate TNF-alpha dose
+//   BB5  tnfMidPass        -- tnfMidSignal > 0: stochastic
+//                             switching detected; dispose
+//   BB6  tnfMidFail        -- tnfMidSignal <= 0: no switching;
+//                             drain
+//   BB7  tnfMidJoin        -- join: near-threshold TNF-alpha dose
+//   BB8  tnfLowPass        -- tnfLowSignal > 0: subthreshold
+//                             stochastic event; dispose
+//   BB9  tnfLowFail        -- tnfLowSignal <= 0: silent; drain
+//   BB10 tnfLowJoin        -- join: LPS arm begins
+//   BB11 lpsHighPass       -- lpsHighSignal > 0: digital ON
+//                             (full nuclear); dispose
+//   BB12 lpsHighFail       -- lpsHighSignal <= 0: no response;
+//                             drain
+//   BB13 lpsHighJoin       -- join: intermediate LPS dose
+//   BB14 lpsMidPass        -- lpsMidSignal > 0: digital ON;
+//                             dispose
+//   BB15 lpsMidFail        -- lpsMidSignal <= 0: no response;
+//                             drain
+//   BB16 lpsMidJoin        -- join: near-threshold LPS dose
+//   BB17 lpsLowPass        -- lpsLowSignal > 0: digital ON
+//                             even at low dose; dispose
+//   BB18 lpsLowFail        -- lpsLowSignal <= 0: silent; drain
+//   BB19 finalCleanup      -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prime microfluidic device with 2% Pluronics F-127
+//         in PBS to passivate PDMS channel walls and prevent
+//         non-specific cell adhesion before cell loading.
+//         The Gomez-Sjoberg platform uses pneumatic valve
+//         control; priming fills all channels at low pressure.
+// ------------------------------------------------------------
+
+primingPBS      = dispense 1 units of PBS
+primingPluronic = dispense 1 units of PluronicF127
+primingMix      = mix primingPBS with primingPluronic for 5m
+
+// ------------------------------------------------------------
+// STEP 2: Seed NIH-3T3 cells stably expressing p65-GFP
+//         (NF-kappaB nuclear localisation reporter) into the
+//         microfluidic cell culture chambers in complete
+//         growth media. Allow to adhere at 37 C for 2 h
+//         (= 120 min) before stimulation.
+//         Cell density: sufficient to resolve >3000 individual
+//         cells across the array in a single experiment.
+//         NOTE: `mix` abstracts pressure-driven cell delivery
+//         through channel network, not DMF electrode mixing.
+// ------------------------------------------------------------
+
+nih3t3Cells     = dispense 1 units of NIH3T3_p65GFP_Cells
+seedingMedia    = dispense 1 units of CompleteMedia
+seededChamber   = mix nih3t3Cells with seedingMedia for 5s
+
+heat seededChamber at 37c for 120m
+
+// ------------------------------------------------------------
+// STEP 3: Deliver nuclear marker dye into imaging buffer for
+//         co-staining. The nuclear marker enables automated
+//         cell segmentation and tracking by the custom image
+//         analysis software (used to extract nuclear GFP
+//         localisation intensity at each 6-min timepoint).
+//         Stain for 30 min at 37 C before imaging begins.
+// ------------------------------------------------------------
+
+nuclearDye      = dispense 1 units of NuclearMarkerDye
+imagingBuf      = dispense 1 units of ImagingBuffer
+stainingMix     = mix seededChamber with nuclearDye for 1m
+
+stainedChamber  = mix stainingMix with imagingBuf for 5s
+heat stainedChamber at 37c for 30m
+
+// ============================================================
+// TNF-alpha STIMULATION ARM
+// Tumor necrosis factor-alpha: cell-cell communication signal.
+// Response mode: ANALOG (graded nuclear localisation
+// intensity proportional to dose; sustained oscillations).
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 4 (TNF-alpha Dose 1 -- near-saturating):
+//         Dilute TNF-alpha stock 1:1 with PBS to represent the
+//         high-dose condition (near-saturating; top of the
+//         8-dose range spanning 4 orders of magnitude).
+//         At this dose:
+//           - All cells respond (response fraction ~1.0)
+//           - Single-cell response is highly stereotyped
+//           - Response time to first NF-kappaB peak: <30 min
+//           - Continuous oscillations confirmed over 12 h
+//         Stimulation delivered by on-chip media exchange
+//         through the automated valve network (abstracted
+//         as mix). Time-lapse: 12 h = 720 min.
+// ------------------------------------------------------------
+
+tnfStock1       = dispense 1 units of TNFalpha_Stock
+pbsDiluteTnf1   = dispense 1 units of PBS
+tnfHighDose     = mix tnfStock1 with pbsDiluteTnf1 for 5s
+
+tnfHighStim     = mix stainedChamber with tnfHighDose for 5s
+
+// 12-hour time-lapse imaging at 37 C; 6-min interval
+// abstracted as continuous incubation at imaging temperature.
+heat tnfHighStim at 37c for 720m
+
+// Nuclear localisation detection: nfkbNuclearLocalizationDetection
+// module abstracts the fluorescence microscopy readout of
+// p65-GFP nuclear-to-cytoplasmic ratio at each 6-min frame.
+// Detection window: 720 min total; cellTrackingAnalysis module
+// abstracts the custom single-cell segmentation and tracking.
+tnfHighSignal   = detect nfkbNuclearLocalizationDetection on tnfHighStim for 720m
+
+// ============================================================
+// BB2 / BB3: TNF-alpha high-dose QC gate
+// Pass (BB2): tnfHighSignal > 0 -> oscillatory NF-kappaB response
+//             detected; stereotyped single-cell dynamics
+//             confirmed; dispose chamber contents.
+// Fail (BB3): tnfHighSignal <= 0 -> no response (below
+//             detection or cell loss); drain.
+// Both branches converge at BB4 (tnfHighJoin).
+// ============================================================
+
+if (tnfHighSignal > 0) {
+    dispose tnfHighStim
+} else {
+    drain tnfHighStim
+}
+
+// ============================================================
+// BB4: tnfHighJoin
+// Dispose high-dose TNF-alpha QC signal. Proceed to intermediate
+// dose arm (BB5/BB6).
+// ============================================================
+
+dispose tnfHighSignal
+
+// ------------------------------------------------------------
+// STEP 5 (TNF-alpha Dose 2 -- intermediate):
+//         Dilute TNF-alpha stock 1:10 with PBS (chained dispense
+//         pattern: 1 unit stock + 9 units PBS).
+//         At this dose:
+//           - Partial cell activation (response fraction
+//             intermediate between threshold and saturation)
+//           - Single-cell responses are heterogeneous:
+//             some cells oscillate, others remain silent
+//           - Stochastic switching behaviour emerges from
+//             small fluctuations in key protein levels
+//             (modelled by modified Kearns & Hoffman 2009
+//             NF-kappaB ODE model with added stochastic noise)
+//           - Response time: intermediate (tens to low
+//             hundreds of minutes)
+// ------------------------------------------------------------
+
+tnfStock2       = dispense 1 units of TNFalpha_Stock
+p1              = dispense 1 units of PBS
+p2              = dispense 1 units of PBS
+p3              = dispense 1 units of PBS
+p4              = dispense 1 units of PBS
+p5              = dispense 1 units of PBS
+p6              = dispense 1 units of PBS
+p7              = dispense 1 units of PBS
+p8              = dispense 1 units of PBS
+p9              = dispense 1 units of PBS
+
+// Accumulate 9 units of PBS by chaining (avoids array-split
+// compiler issues; same pattern as moazami_world_to_chip_dmf.bs).
+pbsMix2         = mix p1 with p2 for 5s
+pbsMix3         = mix pbsMix2 with p3 for 5s
+pbsMix4         = mix pbsMix3 with p4 for 5s
+pbsMix5         = mix pbsMix4 with p5 for 5s
+pbsMix6         = mix pbsMix5 with p6 for 5s
+pbsMix7         = mix pbsMix6 with p7 for 5s
+pbsMix8         = mix pbsMix7 with p8 for 5s
+pbsMix9         = mix pbsMix8 with p9 for 5s
+
+// 1:10 dilution: (1 unit stock) / 10 units total = 0.1x stock.
+tnfMidDose      = mix tnfStock2 with pbsMix9 for 5s
+
+// Fresh stained chamber for this dose arm.
+stainingMix2    = dispense 1 units of NIH3T3_p65GFP_Cells
+media2          = dispense 1 units of CompleteMedia
+nuclearDye2     = dispense 1 units of NuclearMarkerDye
+imagingBuf2     = dispense 1 units of ImagingBuffer
+seeded2         = mix stainingMix2 with media2 for 5s
+heat seeded2 at 37c for 120m
+stained2        = mix seeded2 with nuclearDye2 for 1m
+stainedChamber2 = mix stained2 with imagingBuf2 for 5s
+heat stainedChamber2 at 37c for 30m
+
+tnfMidStim      = mix stainedChamber2 with tnfMidDose for 5s
+heat tnfMidStim at 37c for 720m
+
+tnfMidSignal    = detect nfkbNuclearLocalizationDetection on tnfMidStim for 720m
+
+// ============================================================
+// BB5 / BB6: TNF-alpha intermediate-dose QC gate
+// Pass (BB5): tnfMidSignal > 0 -> stochastic switching and
+//             heterogeneous single-cell dynamics detected;
+//             dispose chamber contents.
+// Fail (BB6): tnfMidSignal <= 0 -> no switching events
+//             observed; drain.
+// Both branches converge at BB7 (tnfMidJoin).
+// ============================================================
+
+if (tnfMidSignal > 0) {
+    dispose tnfMidStim
+} else {
+    drain tnfMidStim
+}
+
+// ============================================================
+// BB7: tnfMidJoin
+// Dispose intermediate TNF-alpha QC signal. Proceed to near-
+// threshold dose arm (BB8/BB9).
+// ============================================================
+
+dispose tnfMidSignal
+
+// ------------------------------------------------------------
+// STEP 6 (TNF-alpha Dose 3 -- near-threshold):
+//         Dilute TNF-alpha stock 1:100 with PBS to represent the
+//         lowest responding dose (near-threshold of the
+//         8-dose range; just above the activation threshold).
+//         At this dose:
+//           - Very few cells activate (response fraction low)
+//           - Stochastic switching events are rare and
+//             irregular: cells turn on/off unpredictably
+//           - Response time: hundreds of minutes (cells that
+//             do respond do so slowly)
+//           - Mathematical modelling (modified NF-kappaB ODE with
+//             stochastic fluctuations in IkappaBalpha or IKK levels)
+//             recapitulates the observed switching statistics
+//         NOTE: 1:100 dilution encoded as 1 unit stock +
+//         chained 99 units PBS. To keep the file compact, the
+//         1:100 is approximated here as a second serial 1:10
+//         dilution of tnfMidDose (1:10 x 1:10 = 1:100). This
+//         is pharmacologically equivalent.
+// ------------------------------------------------------------
+
+tnfMidDoseSerial = dispense 1 units of TNFalpha_Stock
+q1  = dispense 1 units of PBS
+q2  = dispense 1 units of PBS
+q3  = dispense 1 units of PBS
+q4  = dispense 1 units of PBS
+q5  = dispense 1 units of PBS
+q6  = dispense 1 units of PBS
+q7  = dispense 1 units of PBS
+q8  = dispense 1 units of PBS
+q9  = dispense 1 units of PBS
+
+qbsMix2  = mix q1 with q2 for 5s
+qbsMix3  = mix qbsMix2 with q3 for 5s
+qbsMix4  = mix qbsMix3 with q4 for 5s
+qbsMix5  = mix qbsMix4 with q5 for 5s
+qbsMix6  = mix qbsMix5 with q6 for 5s
+qbsMix7  = mix qbsMix6 with q7 for 5s
+qbsMix8  = mix qbsMix7 with q8 for 5s
+qbsMix9  = mix qbsMix8 with q9 for 5s
+
+// First 1:10 dilution (intermediate level).
+tnfSerial1      = mix tnfMidDoseSerial with qbsMix9 for 5s
+
+// Second 1:10 dilution step for 1:100 total.
+r1  = dispense 1 units of PBS
+r2  = dispense 1 units of PBS
+r3  = dispense 1 units of PBS
+r4  = dispense 1 units of PBS
+r5  = dispense 1 units of PBS
+r6  = dispense 1 units of PBS
+r7  = dispense 1 units of PBS
+r8  = dispense 1 units of PBS
+r9  = dispense 1 units of PBS
+
+rbsMix2  = mix r1 with r2 for 5s
+rbsMix3  = mix rbsMix2 with r3 for 5s
+rbsMix4  = mix rbsMix3 with r4 for 5s
+rbsMix5  = mix rbsMix4 with r5 for 5s
+rbsMix6  = mix rbsMix5 with r6 for 5s
+rbsMix7  = mix rbsMix6 with r7 for 5s
+rbsMix8  = mix rbsMix7 with r8 for 5s
+rbsMix9  = mix rbsMix8 with r9 for 5s
+
+tnfLowDose      = mix tnfSerial1 with rbsMix9 for 5s
+
+// Fresh stained chamber for near-threshold dose arm.
+cells3          = dispense 1 units of NIH3T3_p65GFP_Cells
+media3          = dispense 1 units of CompleteMedia
+nuclearDye3     = dispense 1 units of NuclearMarkerDye
+imagingBuf3     = dispense 1 units of ImagingBuffer
+seeded3         = mix cells3 with media3 for 5s
+heat seeded3 at 37c for 120m
+stained3        = mix seeded3 with nuclearDye3 for 1m
+stainedChamber3 = mix stained3 with imagingBuf3 for 5s
+heat stainedChamber3 at 37c for 30m
+
+tnfLowStim      = mix stainedChamber3 with tnfLowDose for 5s
+heat tnfLowStim at 37c for 720m
+
+tnfLowSignal    = detect nfkbNuclearLocalizationDetection on tnfLowStim for 720m
+
+// ============================================================
+// BB8 / BB9: TNF-alpha near-threshold QC gate
+// Pass (BB8): tnfLowSignal > 0 -> rare stochastic switching
+//             events detected above noise floor; dispose.
+// Fail (BB9): tnfLowSignal <= 0 -> fully silent (below
+//             activation threshold); drain.
+// Both branches converge at BB10 (tnfLowJoin).
+// ============================================================
+
+if (tnfLowSignal > 0) {
+    dispose tnfLowStim
+} else {
+    drain tnfLowStim
+}
+
+// ============================================================
+// BB10: tnfLowJoin
+// Dispose near-threshold TNF-alpha QC signal. TNF-alpha arm complete.
+// Control falls into LPS stimulation arm (BB11 onwards).
+// ============================================================
+
+dispose tnfLowSignal
+
+// ============================================================
+// LPS STIMULATION ARM
+// Lipopolysaccharide: bacterial infection signal.
+// Response mode: DIGITAL (all-or-nothing; full nuclear NF-kappaB
+// localisation even at the LOWEST doses tested; cells that
+// respond do so maximally regardless of LPS concentration).
+// This contrasts with the graded analog TNF-alpha response and
+// reflects the biological distinction between cell-cell
+// communication (TNF) and pathogen detection (LPS).
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 7 (LPS Dose 1 -- near-saturating):
+//         Dilute LPS stock 1:1 with PBS.
+//         At this dose:
+//           - Majority of cells activate digitally
+//           - Each responding cell shows FULL nuclear
+//             p65-GFP translocation (not graded)
+//           - Response is indistinguishable from lower doses
+//             in intensity; only response fraction changes
+//           - Digital signaling: when a cell switches on,
+//             all NF-kappaB protein localises to the nucleus
+// ------------------------------------------------------------
+
+lpsStock1       = dispense 1 units of LPS_Stock
+pbsDiluteLps1   = dispense 1 units of PBS
+lpsHighDose     = mix lpsStock1 with pbsDiluteLps1 for 5s
+
+cells4          = dispense 1 units of NIH3T3_p65GFP_Cells
+nuclearDye4     = dispense 1 units of NuclearMarkerDye
+imagingBuf4     = dispense 1 units of ImagingBuffer
+media4          = dispense 1 units of CompleteMedia
+seeded4         = mix cells4 with media4 for 5s
+heat seeded4 at 37c for 120m
+stained4        = mix seeded4 with nuclearDye4 for 1m
+stainedChamber4 = mix stained4 with imagingBuf4 for 5s
+heat stainedChamber4 at 37c for 30m
+
+lpsHighStim     = mix stainedChamber4 with lpsHighDose for 5s
+heat lpsHighStim at 37c for 720m
+
+lpsHighSignal   = detect nfkbNuclearLocalizationDetection on lpsHighStim for 720m
+
+// ============================================================
+// BB11 / BB12: LPS high-dose QC gate
+// Pass (BB11): lpsHighSignal > 0 -> digital ON state
+//              (full nuclear localisation) confirmed; dispose.
+// Fail (BB12): lpsHighSignal <= 0 -> no digital activation;
+//              drain.
+// Both branches converge at BB13 (lpsHighJoin).
+// ============================================================
+
+if (lpsHighSignal > 0) {
+    dispose lpsHighStim
+} else {
+    drain lpsHighStim
+}
+
+// ============================================================
+// BB13: lpsHighJoin
+// Dispose high-dose LPS QC signal. Proceed to intermediate
+// LPS dose arm (BB14/BB15).
+// ============================================================
+
+dispose lpsHighSignal
+
+// ------------------------------------------------------------
+// STEP 8 (LPS Dose 2 -- intermediate):
+//         Dilute LPS stock 1:10 with PBS (chained dispense;
+//         same pattern as TNF-alpha intermediate dose above).
+//         At this dose:
+//           - Digital response still present; responding cells
+//             show full nuclear localisation
+//           - Fewer cells activate than at high dose, but
+//             those that do activate maximally (digital)
+//           - This distinguishes LPS from TNF-alpha: TNF-alpha at
+//             1:10 would show graded, partial localisation;
+//             LPS at 1:10 shows full localisation in a
+//             smaller fraction of cells
+// ------------------------------------------------------------
+
+lpsStock2       = dispense 1 units of LPS_Stock
+s1  = dispense 1 units of PBS
+s2  = dispense 1 units of PBS
+s3  = dispense 1 units of PBS
+s4  = dispense 1 units of PBS
+s5  = dispense 1 units of PBS
+s6  = dispense 1 units of PBS
+s7  = dispense 1 units of PBS
+s8  = dispense 1 units of PBS
+s9  = dispense 1 units of PBS
+
+sbsMix2  = mix s1 with s2 for 5s
+sbsMix3  = mix sbsMix2 with s3 for 5s
+sbsMix4  = mix sbsMix3 with s4 for 5s
+sbsMix5  = mix sbsMix4 with s5 for 5s
+sbsMix6  = mix sbsMix5 with s6 for 5s
+sbsMix7  = mix sbsMix6 with s7 for 5s
+sbsMix8  = mix sbsMix7 with s8 for 5s
+sbsMix9  = mix sbsMix8 with s9 for 5s
+
+lpsMidDose      = mix lpsStock2 with sbsMix9 for 5s
+
+cells5          = dispense 1 units of NIH3T3_p65GFP_Cells
+nuclearDye5     = dispense 1 units of NuclearMarkerDye
+imagingBuf5     = dispense 1 units of ImagingBuffer
+media5          = dispense 1 units of CompleteMedia
+seeded5         = mix cells5 with media5 for 5s
+heat seeded5 at 37c for 120m
+stained5        = mix seeded5 with nuclearDye5 for 1m
+stainedChamber5 = mix stained5 with imagingBuf5 for 5s
+heat stainedChamber5 at 37c for 30m
+
+lpsMidStim      = mix stainedChamber5 with lpsMidDose for 5s
+heat lpsMidStim at 37c for 720m
+
+lpsMidSignal    = detect nfkbNuclearLocalizationDetection on lpsMidStim for 720m
+
+// ============================================================
+// BB14 / BB15: LPS intermediate-dose QC gate
+// Pass (BB14): lpsMidSignal > 0 -> digital ON state detected
+//              in responding cell fraction; dispose.
+// Fail (BB15): lpsMidSignal <= 0 -> no digital response
+//              at intermediate dose; drain.
+// Both branches converge at BB16 (lpsMidJoin).
+// ============================================================
+
+if (lpsMidSignal > 0) {
+    dispose lpsMidStim
+} else {
+    drain lpsMidStim
+}
+
+// ============================================================
+// BB16: lpsMidJoin
+// Dispose intermediate LPS QC signal. Proceed to near-
+// threshold LPS dose arm (BB17/BB18).
+// This is the key result: even at near-threshold LPS doses,
+// responding cells show full (digital) nuclear localisation,
+// in contrast to graded analog TNF-alpha responses at the same
+// relative dose level.
+// ============================================================
+
+dispose lpsMidSignal
+
+// ------------------------------------------------------------
+// STEP 9 (LPS Dose 3 -- near-threshold):
+//         Dilute LPS stock 1:100 via two serial 1:10 steps
+//         (same approach as TNF-alpha near-threshold arm).
+//         At this dose:
+//           - Response fraction is very low (few cells respond)
+//           - BUT: cells that DO respond show COMPLETE nuclear
+//             localisation -- the hallmark of digital signaling
+//           - This is the key digital-vs-analog distinction:
+//             at equivalent sub-threshold doses, TNF-alpha gives
+//             weak graded responses while LPS gives full
+//             all-or-nothing activation in a small fraction
+//           - The modified NF-kappaB model explains this via the
+//             TLR4/MyD88 upstream signaling architecture
+//             producing a switch-like IKK activation profile
+//             in response to LPS, unlike the graded TNFR1
+//             response to TNF-alpha
+// ------------------------------------------------------------
+
+lpsStock3       = dispense 1 units of LPS_Stock
+t1  = dispense 1 units of PBS
+t2  = dispense 1 units of PBS
+t3  = dispense 1 units of PBS
+t4  = dispense 1 units of PBS
+t5  = dispense 1 units of PBS
+t6  = dispense 1 units of PBS
+t7  = dispense 1 units of PBS
+t8  = dispense 1 units of PBS
+t9  = dispense 1 units of PBS
+
+tbsMix2  = mix t1 with t2 for 5s
+tbsMix3  = mix tbsMix2 with t3 for 5s
+tbsMix4  = mix tbsMix3 with t4 for 5s
+tbsMix5  = mix tbsMix4 with t5 for 5s
+tbsMix6  = mix tbsMix5 with t6 for 5s
+tbsMix7  = mix tbsMix6 with t7 for 5s
+tbsMix8  = mix tbsMix7 with t8 for 5s
+tbsMix9  = mix tbsMix8 with t9 for 5s
+
+lpsSerial1      = mix lpsStock3 with tbsMix9 for 5s
+
+// Second serial 1:10 step for 1:100 total.
+u1  = dispense 1 units of PBS
+u2  = dispense 1 units of PBS
+u3  = dispense 1 units of PBS
+u4  = dispense 1 units of PBS
+u5  = dispense 1 units of PBS
+u6  = dispense 1 units of PBS
+u7  = dispense 1 units of PBS
+u8  = dispense 1 units of PBS
+u9  = dispense 1 units of PBS
+
+ubsMix2  = mix u1 with u2 for 5s
+ubsMix3  = mix ubsMix2 with u3 for 5s
+ubsMix4  = mix ubsMix3 with u4 for 5s
+ubsMix5  = mix ubsMix4 with u5 for 5s
+ubsMix6  = mix ubsMix5 with u6 for 5s
+ubsMix7  = mix ubsMix6 with u7 for 5s
+ubsMix8  = mix ubsMix7 with u8 for 5s
+ubsMix9  = mix ubsMix8 with u9 for 5s
+
+lpsLowDose      = mix lpsSerial1 with ubsMix9 for 5s
+
+cells6          = dispense 1 units of NIH3T3_p65GFP_Cells
+nuclearDye6     = dispense 1 units of NuclearMarkerDye
+imagingBuf6     = dispense 1 units of ImagingBuffer
+media6          = dispense 1 units of CompleteMedia
+seeded6         = mix cells6 with media6 for 5s
+heat seeded6 at 37c for 120m
+stained6        = mix seeded6 with nuclearDye6 for 1m
+stainedChamber6 = mix stained6 with imagingBuf6 for 5s
+heat stainedChamber6 at 37c for 30m
+
+lpsLowStim      = mix stainedChamber6 with lpsLowDose for 5s
+heat lpsLowStim at 37c for 720m
+
+lpsLowSignal    = detect nfkbNuclearLocalizationDetection on lpsLowStim for 720m
+
+// ============================================================
+// BB17 / BB18: LPS near-threshold QC gate
+// Pass (BB17): lpsLowSignal > 0 -> DIGITAL ON signal detected
+//              even at near-threshold dose (full nuclear
+//              localisation in responding cells); dispose.
+//              This is the key result distinguishing LPS from
+//              TNF-alpha: full all-or-nothing activation even at
+//              the lowest doses in responding cells.
+// Fail (BB18): lpsLowSignal <= 0 -> no cells activated at
+//              this dose (below threshold even for LPS);
+//              drain.
+// Both branches converge at BB19 (finalCleanup).
+// ============================================================
+
+if (lpsLowSignal > 0) {
+    dispose lpsLowStim
+} else {
+    drain lpsLowStim
+}
+
+// ============================================================
+// BB19: finalCleanup (terminal)
+// Dispose all remaining QC signal droplets.
+// Both stimulation arms complete. Experiment ends.
+// Downstream: custom nuclear localisation intensity data
+// extracted per cell per timepoint for:
+//   - Oscillation period and damping analysis (TNF-alpha)
+//   - Response time vs. dose curve fitting (both ligands)
+//   - Cell-to-cell variability metrics (CV, noise analysis)
+//   - Digital vs. analog signaling classification
+//   - Stochastic model fitting (modified Kearns/Hoffman ODE)
+// ============================================================
+
+dispose lpsLowSignal
+
+// [terminal -- no further instructions; exit node for CFG]

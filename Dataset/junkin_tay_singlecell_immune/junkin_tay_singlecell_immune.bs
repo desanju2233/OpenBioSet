@@ -1,0 +1,291 @@
+module nfkbActivationDetection
+module cytokineSecretionDetection
+module migrationMorphologyDetection
+
+manifest RAW264_7_Macrophage
+manifest LPS_Stimulus
+manifest TNF_Stimulus
+manifest PBS_Buffer
+manifest CultureMedia
+manifest BeadConjugatedAntibody
+manifest FluorescentSandwichReagent
+manifest NuclearStain
+manifest WashBuffer
+
+instructions:
+
+// ============================================================
+// Quantitative Multiparameter Measuring of Dynamic
+// Single-Cell Immune Responses
+// Michael Junkin and Savas Tay
+// Department of Biosystems Science and Engineering, ETH Zurich
+// DOI: 10.1109/EMBC.2014.6944325 (EMBC 2014)
+//
+// This protocol encodes the on-chip single-cell microfluidic
+// assay for simultaneous measurement of:
+//   1. NF-kB nuclear translocation (transcription factor
+//      activation, via GFP fusion protein, fluorescence)
+//   2. Cytokine/protein secretion (bead-based fluorescent
+//      sandwich assay, on-chip, multiplexed)
+//   3. Cell migration and morphology (time-lapse imaging)
+//
+// Cells: RAW264.7 macrophages expressing NF-kB-GFP fusion.
+// Stimuli: LPS and/or TNF with arbitrary temporal profiles
+//          (brief pulses in seconds to prolonged inputs).
+// Platform: Custom PDMS microfluidic device with single-cell
+//           trapping chambers. Bead-based assay conducted
+//           on-chip. All measurements nondestructive.
+//
+// NOTE ON TRAPPING ABSTRACTION: `mix` statements in Steps 2
+// and 3 abstract hydrodynamic single-cell trapping and
+// chamber loading events (channel-flow, not DMF electrode
+// mixing). There is no bulk-reagent mixing occurring; `mix`
+// is used per BioScript convention for flow-through steps.
+//
+// NOTE ON STIMULUS PULSES: The system supplies arbitrary
+// temporal input profiles. Both LPS (brief pulse) and TNF
+// (prolonged) are encoded independently and then presented
+// sequentially in the stimulation loop to model dynamic
+// multiparameter inputs.
+//
+// NOTE ON DURATION TOKENS: BioScript (lilott8/BioScript)
+// accepts only `s` (seconds) and `m` (minutes) as duration
+// units. Hours are converted to minutes (e.g. 4 h = 240m).
+//
+// CFG STRUCTURE:
+//   BB1  main               -- device prime, cell trap, baseline
+//   BB2  stimulusPass       -- nfkbSignal > 0: NF-kB activated;
+//                             proceed to secretion assay
+//   BB3  stimulusFail       -- nfkbSignal <= 0: no activation;
+//                             drain and skip secretion branch
+//   BB4  stimulusJoin       -- join: secretion assay branch
+//   BB5  secretionPass      -- secretionSignal > 0: cytokines
+//                             detected; dispose and record
+//   BB6  secretionFail      -- secretionSignal <= 0: no cytokine
+//                             signal; drain
+//   BB7  finalCleanup       -- terminal: dispose all QC signals
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prime microfluidic device with PBS buffer.
+//         Removes air bubbles and passivates PDMS channel
+//         surfaces to minimise non-specific cell adhesion.
+//         Priming run at low flow rate (~1 nL/s) for 5 min.
+// ------------------------------------------------------------
+
+primingBuffer = dispense 1 units of PBS_Buffer
+chamberWash   = dispense 1 units of PBS_Buffer
+
+primingMix = mix primingBuffer with chamberWash for 5m
+
+// ------------------------------------------------------------
+// STEP 2: Load RAW264.7 macrophages into device.
+//         Cells suspended in culture media at ~1e6 cells/mL.
+//         Hydrodynamic trapping isolates single cells in
+//         distinct chambers (custom trap geometry).
+//         NOTE: `mix` abstracts channel-flow loading event;
+//         no bulk mixing occurs at this step.
+// ------------------------------------------------------------
+
+macrophageCells  = dispense 1 units of RAW264_7_Macrophage
+cellLoadingMedia = dispense 1 units of CultureMedia
+
+trappedCells = mix macrophageCells with cellLoadingMedia for 2s
+
+// ------------------------------------------------------------
+// STEP 3: Wash untrapped cells from channels.
+//         PBS flush removes excess cells; only single cells
+//         retained in trapping chambers proceed. Trapping
+//         efficiency verified by bright-field imaging.
+// ------------------------------------------------------------
+
+washStep = mix trappedCells with primingMix for 30s
+
+// ------------------------------------------------------------
+// STEP 4: Baseline imaging - pre-stimulus.
+//         Time-lapse bright-field images and GFP fluorescence
+//         images acquired before stimulation.
+//         NF-kB-GFP baseline: cytoplasmic (inactive state).
+//         Cell morphology and position recorded as t=0.
+//         Migration baseline: centroid coordinates logged.
+//         Modelled as a `heat` hold at 37 C for 15 min
+//         (standard incubation before stimulation).
+// ------------------------------------------------------------
+
+heat washStep at 37c for 15m
+
+// ------------------------------------------------------------
+// STEP 5: Apply dynamic LPS stimulus (brief pulse).
+//         LPS (lipopolysaccharide, E. coli O55:B5) delivered
+//         as a brief pulse (seconds-range input) via upstream
+//         microfluidic control valve actuation.
+//         Stimulus mimics pathogen-associated molecular pattern
+//         encountered physiologically.
+//         Pulse duration: 60 s (representative short input).
+// ------------------------------------------------------------
+
+lpsStimulus   = dispense 1 units of LPS_Stimulus
+lpsPulse      = mix washStep with lpsStimulus for 60s
+
+// ------------------------------------------------------------
+// STEP 6: Apply prolonged TNF stimulus.
+//         TNF (tumour necrosis factor) delivered as a
+//         sustained input to model cytokine-driven NF-kB
+//         reactivation. Prolonged stimulus = 60 min exposure.
+//         Sequential delivery allows separate characterisation
+//         of LPS-triggered vs TNF-triggered NF-kB dynamics.
+// ------------------------------------------------------------
+
+tnfStimulus   = dispense 1 units of TNF_Stimulus
+tnfExposure   = mix lpsPulse with tnfStimulus for 60m
+
+// ------------------------------------------------------------
+// STEP 7: Dynamic NF-kB fluorescence imaging (activation).
+//         NF-kB-GFP nuclear translocation monitored in real
+//         time by fluorescence microscopy. Nuclear/cytoplasmic
+//         ratio computed per frame per cell.
+//         Images acquired every 3-5 min across the stimulus
+//         window (modelled here as a single 4 h observation
+//         window = 240m). Cell migration and morphology changes
+//         co-analysed from same image series (non-destructive).
+//         nfkbActivationDetection module abstracts:
+//           - fluorescence image acquisition
+//           - nuclear mask segmentation
+//           - N/C ratio computation
+//           - migration vector extraction
+//           - morphology descriptor calculation
+// ------------------------------------------------------------
+
+heat tnfExposure at 37c for 240m
+
+nfkbSignal = detect nfkbActivationDetection on tnfExposure for 300s
+
+// ============================================================
+// BB2 / BB3: NF-kB activation QC gate
+// Pass (BB2): nfkbSignal > 0 -> NF-kB nuclear translocation
+//             detected (activation confirmed); proceed to
+//             on-chip cytokine secretion assay branch.
+// Fail (BB3): nfkbSignal <= 0 -> no nuclear translocation
+//             detected; drain stimulated droplet (no response).
+// Both branches converge at BB4 (stimulusJoin).
+// ============================================================
+
+if (nfkbSignal > 0) {
+    dispose tnfExposure
+} else {
+    drain tnfExposure
+}
+
+// ============================================================
+// BB4: stimulusJoin
+// Dispose NF-kB QC signal. Control falls into on-chip
+// cytokine secretion bead assay branch (BB5/BB6).
+// ============================================================
+
+dispose nfkbSignal
+
+// ------------------------------------------------------------
+// STEP 8: Periodically sample conditioned medium.
+//         Supernatant from single-cell chamber collected at
+//         defined time intervals (every ~30-60 min).
+//         Sampling is non-destructive; fresh media returned
+//         to maintain cell viability throughout assay.
+//         Secreted volume: ~50 nL per sample.
+//         This step captures time-resolved cytokine release.
+// ------------------------------------------------------------
+
+conditionedMedium = dispense 1 units of CultureMedia
+mediumSample      = mix conditionedMedium with washStep for 30s
+
+// ------------------------------------------------------------
+// STEP 9: On-chip fluorescent bead-based sandwich assay.
+//         Antibody-conjugated capture beads mixed with
+//         conditioned medium sample in dedicated assay zone.
+//         Secreted proteins (cytokines, chemokines, etc.)
+//         captured on bead surface.
+//         Incubated for 60 min at room temperature (25 C)
+//         to allow sandwich complex formation.
+//         Multiple cytokines assayed simultaneously (TNF,
+//         IL-6, MCP-1, others) via spectrally distinct beads.
+// ------------------------------------------------------------
+
+captureBeads      = dispense 1 units of BeadConjugatedAntibody
+beadCaptureMix    = mix mediumSample with captureBeads for 5s
+
+heat beadCaptureMix at 25c for 60m
+
+// ------------------------------------------------------------
+// STEP 10: Add fluorescent detection antibody (sandwich).
+//          Secondary fluorescent antibody added to complete
+//          the sandwich immunoassay. Binds captured secreted
+//          proteins on beads. Incubated 30 min at 25 C.
+//          Readout: fluorescence intensity per bead cluster
+//          proportional to secreted protein concentration.
+// ------------------------------------------------------------
+
+detectionAntibody   = dispense 1 units of FluorescentSandwichReagent
+sandwichComplex     = mix beadCaptureMix with detectionAntibody for 5s
+
+heat sandwichComplex at 25c for 30m
+
+// ------------------------------------------------------------
+// STEP 11: Wash unbound detection antibody.
+//          Wash buffer removes excess unbound fluorescent
+//          antibody to reduce background signal.
+//          Critical for quantitative accuracy of secretion
+//          measurement at single-cell secretion levels.
+// ------------------------------------------------------------
+
+washBuf     = dispense 1 units of WashBuffer
+washedBeads = mix sandwichComplex with washBuf for 5m
+
+// ------------------------------------------------------------
+// STEP 12: Fluorescence detection of bead assay (secretion).
+//          On-chip fluorescence imaging of beads in assay zone.
+//          cytokineSecretionDetection module abstracts:
+//            - bead cluster fluorescence image acquisition
+//            - bead segmentation and intensity quantification
+//            - multi-cytokine channel demultiplexing
+//            - concentration calibration (standard curve)
+//          Result: quantitative secreted protein levels per
+//          single cell per time point (pM to nM range).
+// ------------------------------------------------------------
+
+secretionSignal = detect cytokineSecretionDetection on washedBeads for 60s
+
+// ============================================================
+// BB5 / BB6: Secretion assay QC gate
+// Pass (BB5): secretionSignal > 0 -> cytokine signal above
+//             detection threshold; dispose assay droplet and
+//             record quantitative secretion profile.
+// Fail (BB6): secretionSignal <= 0 -> signal below threshold
+//             (below LOD or failed assay); drain all.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (secretionSignal > 0) {
+    dispose washedBeads
+} else {
+    drain washedBeads
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose secretion QC signal. Multiparameter single-cell
+// dataset now contains:
+//   - NF-kB nuclear translocation time series (per cell)
+//   - Cytokine secretion profiles (per cell, per time point)
+//   - Migration vectors (from image analysis)
+//   - Morphology descriptors (from image analysis)
+// Dataset feeds predictive model construction for immune
+// input-output characterisation.
+// Experiment ends.
+// ============================================================
+
+dispose secretionSignal
+
+// [terminal -- no further instructions; exit node for CFG]

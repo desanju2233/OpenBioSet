@@ -1,0 +1,292 @@
+module speExtractionDetection
+module fluorescenceDetection
+module massSpecDetection
+
+manifest ActivationSolvent
+manifest EquilibrationSolvent
+manifest WashSolvent
+manifest ElutionSolvent
+manifest MonomersC12
+manifest FluoresceinSample
+manifest PeptideSample
+manifest AngiotensinII_NaCl
+manifest AngiotensinII_Pluronic
+manifest PluronicF68
+
+// ============================================================
+// A Digital Microfluidic Method for in Situ Formation of
+// Porous Polymer Monoliths with Application to Solid-Phase
+// Extraction.
+// Yang, Mudrik, Jebrail, Wheeler - Anal. Chem. 2011, 83, 3824-3830.
+// DOI: 10.1021/ac2002388
+//
+// Three sequential protocols encoded:
+//
+// PROTOCOL 1+2: PPM disc formation + standard DMF-SPE.
+//   PPM formed by dispensing 1 uL C12 casting solution, driving
+//   to centre electrode, UV-polymerizing (100 W, 365 nm, 5 min;
+//   abstracted as heat at 25c for 5m). Disc: radius ~1 mm,
+//   height 270 um, SSA 3.7 +/- 0.2 m2/g. Four-step SPE:
+//   activation / equilibration / sample load / wash / elution.
+//   Validated efficiency: 93 +/- 14% (n=3). Model analyte:
+//   fluorescamine-labeled angiotensin IV (10 uM, 0.1% FA).
+//
+// PROTOCOL 3a: Preparative DMF-SPE -- desalting.
+//   Sample: Ang II (1 uM) in 100 mM NaCl -> nanoESI-MS.
+//   [M+H]+ at m/z 1047 recovered after SPE (Fig. 4a).
+//
+// PROTOCOL 3b: Preparative DMF-SPE -- surfactant removal.
+//   Sample: Ang II (1 uM) in 0.05% w/v Pluronic F68 -> nanoESI-MS.
+//   [M+H]+ at m/z 1047 recovered after SPE (Fig. 4b).
+//
+// FIX #1 -- heat is void in lilott8/BioScript:
+//   `heat var at Tc for Td` mutates var in place and returns
+//   nothing. Aliasing after heat (e.g. ppmDisc = centredDroplet)
+//   creates an undefined token. Fix: use the heated variable
+//   directly (centredDroplet / disc2 / disc3) without aliasing.
+//
+// FIX #2 -- each protocol consumes its PPM disc:
+//   Protocol 2 drives solvents/sample through centredDroplet
+//   via sequential mix ops, leaving it consumed. Protocols 3a
+//   and 3b each form their own independent PPM disc (disc2,
+//   disc3) via a fresh dispense + mix + heat sequence.
+//
+// NOTE ON mix FOR TRANSLATION: BioScript requires two operands
+//   for mix. The physical droplet translation step (driving the
+//   monomer droplet to the centre electrode) has no second
+//   reagent. A second dispense of the same monomer is used as
+//   the required second operand; no chemical change occurs.
+//
+// NOTE ON heat FOR UV EXPOSURE: No UV primitive exists in
+//   BioScript. 100 W / 365 nm / 5 min UV polymerization is
+//   abstracted as heat at 25c for 5m (isothermal hold).
+//
+// CFG STRUCTURE:
+//   BB1  main           -- disc1 formation + Protocol 2 DMF-SPE
+//   BB2  spePass        -- speSignal > 0: dispose eluate
+//   BB3  speFail        -- speSignal <= 0: drain eluate
+//   BB4  speJoin        -- disc2 formation + Protocol 3a
+//   BB5  desaltPass     -- desaltSignal > 0: dispose eluate
+//   BB6  desaltFail     -- desaltSignal <= 0: drain eluate
+//   BB7  desaltJoin     -- disc3 formation + Protocol 3b
+//   BB8  surfactantPass -- surfactantSignal > 0: dispose eluate
+//   BB9  surfactantFail -- surfactantSignal <= 0: drain eluate
+//   BB10 finalCleanup   -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 1 -- PPM disc 1 formation.
+//   Dispense 1 uL C12 casting solution; translate to centre
+//   electrode via actuation (mix models translation; second
+//   dispense of same monomer satisfies two-operand requirement);
+//   UV-polymerize (heat at 25c for 5m abstracts UV step).
+//   FIX #1: centredDroplet used directly after heat; no alias.
+// ------------------------------------------------------------
+
+monomer1a      = dispense 1 units of MonomersC12
+monomer1b      = dispense 1 units of MonomersC12
+centredDroplet = mix monomer1a with monomer1b for 10s
+heat centredDroplet at 25c for 5m
+
+// ============================================================
+// PROTOCOL 2: Standard four-step DMF-SPE
+// ============================================================
+
+// Step 1a: Activation (0.1% v/v FA in ACN; 5 uL; 5x pass; 1 min)
+activationSolvent1    = dispense 1 units of ActivationSolvent
+activatedDisc1        = mix centredDroplet with activationSolvent1 for 1m
+dispose activationSolvent1
+
+// Step 1b: Equilibration (0.5% v/v FA in H2O; 5 uL; 5x pass; 1 min)
+equilibrationSolvent1 = dispense 1 units of EquilibrationSolvent
+equilibratedDisc1     = mix activatedDisc1 with equilibrationSolvent1 for 1m
+dispose equilibrationSolvent1
+
+// Step 2: Sample loading (1 uL; 5x pass; 2 min incubation).
+//   2 min optimized (Fig. 3a: >80% bound; p=0.30 vs 4 min).
+peptideSample1 = dispense 1 units of PeptideSample
+loadedDisc1    = mix equilibratedDisc1 with peptideSample1 for 2m
+dispose peptideSample1
+
+// Step 3: Washing (2 x 5 uL; 0.5% v/v FA in H2O)
+washSolvent1a  = dispense 1 units of WashSolvent
+washedDisc1a   = mix loadedDisc1 with washSolvent1a for 30s
+dispose washSolvent1a
+
+washSolvent1b  = dispense 1 units of WashSolvent
+washedDisc1b   = mix washedDisc1a with washSolvent1b for 30s
+dispose washSolvent1b
+
+// Step 4: Elution (2 x 5 uL; 0.1% v/v FA in ACN).
+//   2 droplets optimized (Fig. 3b: >90% extracted; p=0.25 vs 3).
+elutionSolvent1a = dispense 1 units of ElutionSolvent
+eluate1a         = mix washedDisc1b with elutionSolvent1a for 30s
+
+elutionSolvent1b = dispense 1 units of ElutionSolvent
+eluate1b         = mix eluate1a with elutionSolvent1b for 30s
+
+speSignal = detect speExtractionDetection on eluate1b for 30s
+
+// ============================================================
+// BB2 / BB3: Standard DMF-SPE QC gate
+// Pass (BB2): speSignal > 0 -> valid extraction; dispose.
+// Fail (BB3): speSignal <= 0 -> extraction failed; drain.
+// Both branches converge at BB4 (speJoin).
+// ============================================================
+
+if (speSignal > 0) {
+    dispose eluate1b
+} else {
+    drain eluate1b
+}
+
+// ============================================================
+// BB4: speJoin
+// Dispose SPE QC signal. Form disc 2 for Protocol 3a.
+// FIX #2: disc 2 is fresh; centredDroplet was consumed above.
+// ============================================================
+
+dispose speSignal
+
+// ============================================================
+// PROTOCOL 3a: Preparative DMF-SPE -- Desalting
+// Sample: Ang II (1 uM) in 100 mM NaCl. [M+H]+ m/z 1047
+// absent without SPE (ion suppression); recovered after SPE.
+// nanoESI-MS: LTQ Finnigan, 1.7-2.0 kV, 0.5 uL/min, 200 C.
+// ============================================================
+
+// Form PPM disc 2 (FIX #2: independent of disc 1)
+monomer2a = dispense 1 units of MonomersC12
+monomer2b = dispense 1 units of MonomersC12
+disc2     = mix monomer2a with monomer2b for 10s
+heat disc2 at 25c for 5m
+
+// Step 1a: Activation
+activationSolvent2    = dispense 1 units of ActivationSolvent
+activatedDisc2        = mix disc2 with activationSolvent2 for 1m
+dispose activationSolvent2
+
+// Step 1b: Equilibration
+equilibrationSolvent2 = dispense 1 units of EquilibrationSolvent
+equilibratedDisc2     = mix activatedDisc2 with equilibrationSolvent2 for 1m
+dispose equilibrationSolvent2
+
+// Step 2: Sample loading (Ang II + 100 mM NaCl; 2 min)
+angII_NaCl_Sample = dispense 1 units of AngiotensinII_NaCl
+loadedDisc2       = mix equilibratedDisc2 with angII_NaCl_Sample for 2m
+dispose angII_NaCl_Sample
+
+// Step 3: Washing
+washSolvent2a = dispense 1 units of WashSolvent
+washedDisc2a  = mix loadedDisc2 with washSolvent2a for 30s
+dispose washSolvent2a
+
+washSolvent2b = dispense 1 units of WashSolvent
+washedDisc2b  = mix washedDisc2a with washSolvent2b for 30s
+dispose washSolvent2b
+
+// Step 4: Elution (2 x; pooled -> nanoESI-MS)
+desaltElution1 = dispense 1 units of ElutionSolvent
+desaltEluate1  = mix washedDisc2b with desaltElution1 for 30s
+
+desaltElution2 = dispense 1 units of ElutionSolvent
+desaltEluate2  = mix desaltEluate1 with desaltElution2 for 30s
+
+desaltSignal = detect massSpecDetection on desaltEluate2 for 30s
+
+// ============================================================
+// BB5 / BB6: Desalting QC gate
+// Pass (BB5): desaltSignal > 0 -> m/z 1047 detected; dispose.
+// Fail (BB6): desaltSignal <= 0 -> suppression persists; drain.
+// Both branches converge at BB7 (desaltJoin).
+// ============================================================
+
+if (desaltSignal > 0) {
+    dispose desaltEluate2
+} else {
+    drain desaltEluate2
+}
+
+// ============================================================
+// BB7: desaltJoin
+// Dispose desalting QC signal. Form disc 3 for Protocol 3b.
+// FIX #2: disc 3 is fresh; disc 2 was consumed above.
+// ============================================================
+
+dispose desaltSignal
+
+// ============================================================
+// PROTOCOL 3b: Preparative DMF-SPE -- Surfactant Removal
+// Sample: Ang II (1 uM) in 0.05% w/v Pluronic F68.
+// Pluronics: strong nanoESI suppressors (paper refs 47-48).
+// [M+H]+ at m/z 1047 recovered after DMF-SPE (Fig. 4b).
+// ============================================================
+
+// Form PPM disc 3 (FIX #2: independent of disc 2)
+monomer3a = dispense 1 units of MonomersC12
+monomer3b = dispense 1 units of MonomersC12
+disc3     = mix monomer3a with monomer3b for 10s
+heat disc3 at 25c for 5m
+
+// Step 1a: Activation
+activationSolvent3    = dispense 1 units of ActivationSolvent
+activatedDisc3        = mix disc3 with activationSolvent3 for 1m
+dispose activationSolvent3
+
+// Step 1b: Equilibration
+equilibrationSolvent3 = dispense 1 units of EquilibrationSolvent
+equilibratedDisc3     = mix activatedDisc3 with equilibrationSolvent3 for 1m
+dispose equilibrationSolvent3
+
+// Step 2: Sample loading (Ang II + 0.05% Pluronic F68; 2 min)
+angII_Pluronic_Sample = dispense 1 units of AngiotensinII_Pluronic
+loadedDisc3           = mix equilibratedDisc3 with angII_Pluronic_Sample for 2m
+dispose angII_Pluronic_Sample
+
+// Step 3: Washing
+washSolvent3a = dispense 1 units of WashSolvent
+washedDisc3a  = mix loadedDisc3 with washSolvent3a for 30s
+dispose washSolvent3a
+
+washSolvent3b = dispense 1 units of WashSolvent
+washedDisc3b  = mix washedDisc3a with washSolvent3b for 30s
+dispose washSolvent3b
+
+// Step 4: Elution (2 x; pooled -> nanoESI-MS)
+surfActElution1 = dispense 1 units of ElutionSolvent
+surfActEluate1  = mix washedDisc3b with surfActElution1 for 30s
+
+surfActElution2 = dispense 1 units of ElutionSolvent
+surfActEluate2  = mix surfActEluate1 with surfActElution2 for 30s
+
+surfactantSignal = detect massSpecDetection on surfActEluate2 for 30s
+
+// ============================================================
+// BB8 / BB9: Surfactant removal QC gate
+// Pass (BB8): surfactantSignal > 0 -> m/z 1047 detected;
+//             Pluronic F68 removed; dispose eluate.
+// Fail (BB9): surfactantSignal <= 0 -> suppression persists;
+//             drain eluate.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (surfactantSignal > 0) {
+    dispose surfActEluate2
+} else {
+    drain surfActEluate2
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose all remaining QC signal droplets. Experiment ends.
+// ============================================================
+
+dispose surfactantSignal
+
+// [terminal -- no further instructions; exit node for CFG]

@@ -1,0 +1,339 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Macrophage memory emerges from coordinated transcription factor and chromatin dynamics
+Source Link  : https://www.cell.com/cell-systems/pdfExtended/S2405-4712(25)00004-3
+Paper DOI    : https://doi.org/10.1016/j.cels.2025.101171
+Journal      : Cell Systems, 2025, Vol. 16, Article 101171
+Platform     : Automated microfluidic live-cell imaging (PDMS multilayer, 64-chamber device) +
+               off-chip ATAC-seq (Illumina NovaSeq SP) + off-chip RNA-seq (Illumina NextSeq550)
+
+
+OVERVIEW
+--------
+This protocol describes a multi-modal experimental pipeline for profiling innate immune memory
+in primary bone-marrow-derived macrophages (BMDMs) from RelA(mVenus/mVenus) (RelA^V/V) transgenic
+mice. RelA is the canonical NF-kB transcription factor (TF); its endogenous mVenus tag enables
+single-cell live imaging of nuclear translocation dynamics as a direct readout of inflammatory
+signalling state.
+
+The protocol is divided into five functional phases:
+  1. BMDM differentiation and microfluidic device preparation
+  2. Systematic sequential inflammatory ligand stimulation screen (80 conditions;
+     two representative arms encoded: polyI:C -> TNF-a and CpG -> TNF-a)
+  3. Live-cell NF-kB dynamics imaging and QC gating
+  4. ATAC-seq chromatin accessibility profiling (single and sequential stimulus conditions)
+  5. RNA-seq transcriptomic profiling and synergy/antagonism classification
+
+A deep-learning multilayer perceptron (MLP) model integrating NF-kB dynamics features (48)
+and chromatin accessibility + TF motif features (133) achieves 72.8% accuracy in predicting
+memory-conditioned gene expression across four expression classes -- an improvement of >30%
+over random assignment (38.7%). The work demonstrates that inflammatory memory is encoded at
+two levels: reprogramming of the NF-kB signalling network (network memory) and remodelling of
+the chromatin accessibility landscape (chromatin memory), and that both are required for full
+predictive power.
+
+
+MOUSE MODEL
+-----------
+Strain     : RelA(mVenus/mVenus) C57BL/6J (RelA^V/V); endogenous mVenus-RelA knock-in
+Age        : 6-12 weeks (BMDMs); 6-8 weeks (peritoneal macrophage / endotoxemia experiments)
+Sex        : Male and female
+Housing    : Specific pathogen-free (University of Chicago; UCLA)
+Ethics     : NIH Guide for Care and Use of Laboratory Animals; IACUC approval (U Chicago / UCLA)
+Reference  : Adelaja et al., Immunity 2021 (original RelA^V/V line description)
+
+
+DEVICE ARCHITECTURE
+-------------------
+Type       : PDMS multilayer microfluidic device; 64 independent cell-culture chambers; 14 inputs
+Control    : Electronically actuated pneumatic solenoid valves; custom MATLAB graphical interface
+             or pre-written automation scripts
+Tubing     : PEEK (VICI); input pressure 4 psi to minimise cell shearing during feeding
+Microscope : Nikon Ti2 epifluorescence; 20x magnification
+Camera     : Hamamatsu ORCA-Flash4.0 V2
+Channels   : mVenus-RelA (508 nm excitation, 1 s exposure); Hoechst (395 nm, 50 ms exposure)
+Interval   : 6-min imaging frames; total window 8-16 h per experiment
+Environment: Life Imaging Services apparatus; 37 C / 5% CO2 / 98% humidity
+Coating    : 0.2-0.4 mg/mL human fibronectin (R&D Systems 1918-FN) in PBS; overnight coat;
+             flushed with complete media before cell loading
+Master mold: Silicon wafer; previously published design (Son et al., Sci Signal 2021)
+
+In vivo model (peritoneal macrophages):
+  LPS dose : 12.5 mg/kg i.p. in PBS (sublethal endotoxemia)
+  Timepoint: 4 h post-injection; peritoneal lavage (ice-cold PBS + 1% FBS + 2 mM EDTA)
+  Isolation: Negative selection via Macrophage Isolation Kit (Miltenyi Biotec 130-110-434),
+             MACS MS system
+  Result   : TNF-a response significantly attenuated; LPS response completely abolished
+             vs sham PBS-injected littermates (3 independent pairs)
+
+
+CULTURE CONDITIONS
+------------------
+Complete macrophage culture media (RPMI-based):
+  RPMI-1640 base
+  10% heat-inactivated FBS (Omega)
+  1% penicillin/streptomycin (Lonza/Corning)
+  1% NEAA (Corning)
+  1% HEPES (Gibco/Corning)
+  1% sodium pyruvate (Corning)
+  1% L-glutamine (Fisher/Corning)
+  0.1% beta-mercaptoethanol (Gibco)
+  Supplement: 20 ng/mL recombinant murine m-CSF (Peprotech 315-02-10UG)
+
+Live-cell imaging media: phenol-red-free RPMI (Gibco) to minimise background fluorescence.
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | BMDM Differentiation (Days 0-7)
+  Source     : Femurs and tibias of 6-12 week old RelA^V/V mice
+  Protocol   : Bone marrow cells cultured in complete media + 20 ng/mL m-CSF for 7-9 days
+  Feed days  : Day 2, Day 4, Day 6 (fresh complete media + m-CSF added)
+  Day 7 lift : Wash with PBS; lift adherent BMDMs with 10 mM EDTA (Fisher) in PBS (Gibco)
+  Resuspension: 10^7 cells/mL in phenol-red-free RPMI for device loading
+  BioScript  : Three sequential culture_D2/D4/D6 mix operations (2880m each = 48 h each);
+               lift modelled as mix with PBS (1440m)
+
+Step 2 | Microfluidic Device Preparation
+  Coating    : 0.2-0.4 mg/mL fibronectin in PBS; fill chambers; overnight (480m in BioScript)
+  Flush      : Complete media; 10 min (10m in BioScript)
+  Mount      : Nikon Ti2; set to 37 C / 5% CO2 / 98% humidity before cell loading
+
+Step 3 | Hoechst Staining and Cell Loading
+  Stain      : 1 uM Hoechst 33342 in complete media; 5 min (5m); wash with complete media
+  Load       : Cells loaded into device; adhere ~30 min before imaging starts
+  Tracking   : >99% cell tracking accuracy over 8-h intervals (Video S3, paper supplemental)
+  BioScript  : deviceWithCells_arm1 (Arm 1: polyI:C -> TNFa chambers)
+               deviceWithCells_arm2 (Arm 2: CpG -> TNFa chambers; separate chamber set)
+               NOTE: These are split variables (FIX #3) to prevent double-consumption in IR.
+
+Step 4 | Sequential Ligand Stimulation Screen (80 conditions; 2 arms encoded)
+  Design     : Ligand A (identity x dose x duration) -> Ligand B (TNF-a or LPS)
+               6 ligands A x 3-4 doses x 2 durations (4h, 8h) x 2 Ligand B = 80 conditions
+  Delivery   : Ligands diluted in complete media + m-CSF immediately before use;
+               stored on ice; delivered via PEEK tubing at 4 psi
+  Controls   : Positive: media -> 10 ng/mL TNFa; media -> 1 ng/mL LPS
+               Negative: complete media only
+  Replicates : > 300 individual cells per condition; >= 2 independent preparations
+
+  Arm 1 (PRIMING): polyI:C -> TNF-a
+    Ligand A : polyI:C (HMW, Invivogen tlrl-pic); 300 ng/mL in complete media + m-CSF
+               Duration: 4 h (240 min) via channel perfusion
+               Pathway : TLR3/TRIF -> NF-kB activation
+               Effect  : Priming; normalised AUC > 1 (> naive Ligand B response)
+    Ligand B : TNF-a (R&D Systems 410-MT-010/CF); 10 ng/mL; 4 h (240 min)
+               NF-kB Nuc/Cyto ratio tracked at 6-min intervals throughout
+
+  Arm 2 (TOLERANCE): CpG -> TNF-a
+    Ligand A : CpG (ODN 1668, Invivogen tlrl-1668); 100 nM in complete media + m-CSF
+               Duration: 4 h (240 min) via channel perfusion
+               Pathway : TLR9/MyD88 -> NF-kB activation
+               Effect  : Tolerance; normalised AUC < 1 (< naive Ligand B response)
+    Ligand B : TNF-a; 10 ng/mL; 4 h (240 min)
+
+  Other ligands in full screen (not encoded in .bs; same structural pattern):
+    LPS (Invivogen tlrl-3pelps): 0.1, 0.3, 1, 3 ng/mL; tolerising
+    TNF-a (R&D 410-MT-010/CF) : 1, 3, 10, 30 ng/mL; tolerising (TNF self-tolerance only)
+    PAM2CSK4 (Invivogen)       : 30, 100, 300 pg/mL; tolerising
+    IL-1b (R&D 401-ML-010/CF)  : 3, 10, 30 ng/mL; largely indistinguishable from naive
+
+Step 5 | NF-kB Dynamics Imaging and Analysis (Protocol 3)
+  Module     : nfkbDynamicsDetection (BioScript); 240m (4h) detect window
+  Readout    : RelA-mVenus nuclear/cytoplasmic (Nuc/Cyto) ratio per cell per frame
+  Processing : MATLAB 2021a; custom code (GitHub: taylab/macrophage_memory)
+               Flat field + dark frame correction
+               Hoechst-based nuclear segmentation and multi-frame cell tracking
+               Background subtraction from cell-free image regions
+               Trace filtering: remove dead, divided, or artefact cells
+  Metrics    :
+    AUC          : Trapezoidal approximation over 240 min Ligand B window
+    Early AUC    : First 120 min (20 frames)
+    Late AUC     : Last 120 min (20 frames)
+    Max amplitude: Index of max from loess-smoothed trace (3-frame window, min prominence 0.1);
+                   Nuc/Cyto ratio at that index from unsmoothed trace
+    Peak timing  : First frame at half-maximal amplitude
+    Normalisation: AUC' (memory-conditioned) / AUC_0 (mean naive Ligand B AUC)
+  Memory classification:
+    Normalised AUC > 1 -> priming
+    Normalised AUC < 1 -> tolerance
+  Mutual information:
+    Method : Jetka et al. 2019, PLOS Comp Biol (software package MIToolbox)
+    Input  : Dynamic vector of 20 evenly-spaced timepoints over 4 h stimulus interval
+    Range  : 0 bits (indistinguishable) to 1 bit (fully distinguishable)
+    Finding: Up to 0.9 bits MI between polyI:C-primed vs naive TNF-a responses;
+             dynamic trace MI >> single-feature (max amplitude) MI across all conditions
+
+  QC gate (BB2/BB3):
+    Pass (BB2): nfkbPrimingSignal > 0 -> dispose(stimulatedArmB)
+    Fail (BB3): nfkbPrimingSignal <= 0 -> drain(stimulatedArmB)
+
+Step 6 | ATAC-seq Chromatin Accessibility Profiling (Protocol 4)
+  Replating  : 7.5e5 BMDMs/well in 6-well plate; overnight rest in complete media + m-CSF
+  Stimulation: Single stimulus (polyI:C 1 ug/mL, CpG 100 nM, LPS 1 ng/mL, TNF-a 10 ng/mL);
+               4 h each. Sequential conditions (polyI:C/CpG -> TNF-a/LPS; 4h + 4h).
+               Representative encoded in .bs: polyI:C single stimulus (1 ug/mL, 240m)
+  Cell lift  : Accutase (ThermoFisher) + gentle scraping; 5e4 cells per reaction
+  Nuclei isolation:
+    Lysis buffer: 10 mM Tris-HCl pH 7.5 / 3 mM MgCl2 / 10 mM NaCl / 0.1% IGEPAL CA-630
+    Temperature : 4 C (cold lysis, on ice)
+    Centrifugation: 10 min at 500 x g (BioScript: heat at 4c for 10m)
+  Transposase reaction:
+    Mix: 25 uL 2X TD Buffer + 2.5 uL TD Enzyme 1 (Illumina) + 22.5 uL nuclease-free water
+    Conditions: 37 C, 30 min, 800 rpm shaking (BioScript: heat at 37c for 30m)
+    Purification: MinElute PCR purification kit (Qiagen)
+  PCR amplification:
+    Primers  : Illumina Nextera sequencing primers
+    Extension: 72 C initial (5 min); cycles: 98C/30s -> 63C/30s -> 72C/1min (~12 cycles)
+    BioScript: heat at 72c for 30m (simplified PCR hold abstraction)
+    Pool and sequence on Illumina NovaSeq SP, 50 bp paired-end
+  Bioinformatics:
+    Alignment        : bowtie2 v2.2.5 (mm10); MAPQ > 30; --very-sensitive --non-deterministic
+    Deduplication    : Picard MarkDuplicates v2.18.29
+    Peak calling     : MACS3 v3.0.0b1; FDR 0.01; -f BAMPE; -g mm; --nomodel
+    Peak merging     : Iterative overlap peak merging (Corces et al. 2018, Science)
+    Quantification   : featureCounts (R/Bioconductor)
+    Differential acc.: edgeR + limma; vs media control
+    Motif enrichment : monaLisa (R/Bioconductor) with JASPAR2022 database
+    Peak annotation  : ChIPseeker (R/Bioconductor)
+    Track visualisation: Rtracklayer (R/Bioconductor)
+  Data deposited: GEO GSE261647
+
+  Key chromatin findings:
+    - polyI:C and CpG produce distinct chromatin accessibility patterns (Fig 5B)
+    - Shared motifs: kB (RelA, NFKB1/2) and AP-1 (Fos, Jun) in all upregulated groups
+    - polyI:C-specific: ISRE (Irf3, Irf8, Irf9) motifs co-occur with RelA peaks
+    - CpG-specific: c/EBP (beta, gamma) motifs co-occur with RelA peaks
+    - Sequential stimuli: chromatin landscape primarily encodes FIRST stimulus identity
+      (Spearman r ~0.79 with first-stimulus-only vs ~0.37-0.44 with second-stimulus-only)
+
+  QC gate (BB5/BB6):
+    Pass (BB5): atacSignal > 0 -> dispose(atacLibrary)
+    Fail (BB6): atacSignal <= 0 -> drain(atacLibrary)
+
+Step 7 | RNA-seq Transcriptomic Profiling (Protocol 5)
+  Replating  : 1.5e5 BMDMs/well in 24-well plate; overnight rest in complete media + m-CSF
+  Conditions : polyI:C -> TNF-a; CpG -> TNF-a; polyI:C -> LPS; CpG -> LPS
+               (4h Ligand A -> aspirate -> 4h Ligand B -> aspirate -> RLT lysis)
+               Representative encoded in .bs: polyI:C -> TNF-a
+  Replicates : Triplicate (n=3 per condition)
+  Lysis      : RLT buffer (Qiagen) + 1% beta-mercaptoethanol
+  RNA extraction: Dynabeads (Invitrogen)
+  RT         : Maxima HMinus RT (Thermo Fisher); poly-dT oligo + TSO
+               (5'-AAGCAGTGGTATCAACGCAGAGTGAATRGGG-3'); 55 C, 60 min
+               BioScript: heat at 55c for 60m
+  2nd strand : KAPA HiFi (Roche); primer: 5'-AAGCAGTGGTATCAACGCAGAGT-3'; 1 cycle
+  Purification: Ampure XP beads (Beckman Coulter)
+  Library prep: Nextera XT (Illumina FC-131-1024); mean fragment size 400-600 bp
+  Sequencing : NextSeq550 (Illumina), NextSeq 500/550 high output kit v2 (cat. 20024906)
+  Bioinformatics:
+    Alignment        : STAR (GRCm38/mm10 reference); default parameters
+    Quantification   : featureCounts (R/Bioconductor)
+    Differential exp.: edgeR + limma; FDR < 0.01; fold change > 1 vs naive
+    Pathway viz.     : Pathview (R/Bioconductor; KEGG mmu04064)
+    Overrepresentation: gProfiler (GO:BP and KEGG databases)
+    TF enrichment    : ChEA3 (ENCODE ChIP-seq library)
+  Data deposited: GEO GSE260996
+
+  Synergy/antagonism classification:
+    Formula  : DAB_memory = [AB - (B + dAB + dB)] / (B + dAB + dB)
+               AB  = expression under sequential A+B stimulation
+               B   = naive media-treated expression
+               dAB = change from A-only (A followed by media)
+               dB  = change from B-only
+    Threshold: synergy if DAB_memory > 0.25; antagonism if DAB_memory < -0.25
+  Key findings:
+    polyI:C->TNFa: 572 synergistic / 394 antagonistic transcripts
+    CpG->TNFa    : 214 synergistic / 366 antagonistic transcripts
+    polyI:C->LPS : 800 synergistic / 478 antagonistic transcripts
+    CpG->LPS     : 777 synergistic / 630 antagonistic transcripts
+    Synergistic genes enriched for NF-kB and TNF signalling (priming) / immune response (all)
+    Antagonistic genes enriched for cell adhesion, signal transduction, NF-kB (tolerance)
+
+  QC gate (BB8/BB9):
+    Pass (BB8): rnaSignal > 0 -> dispose(rnaLibrary)
+    Fail (BB9): rnaSignal <= 0 -> drain(rnaLibrary)
+
+
+DEEP LEARNING MODEL
+-------------------
+Architecture : Multilayer perceptron (MLP); TensorFlow framework (Abadi et al. 2016, arXiv)
+Input        : 181 features per gene per condition
+               133 chromatin features: peak accessibility (CPM) and binding motif counts for
+               18 TFs across 3 most proximal ATAC peaks in proximal promoter
+               (-1500 to +500 bp from TSS) and distal promoter (-3000 to -1500 / +500 to +3000
+               bp from TSS); includes chromatin regulators without motifs (EZH2, HDAC, NELFE)
+               48 NF-kB features: peak height, AUC, and activation time per stimulus condition
+Output       : 4-class gene expression classification
+               Class 1: downregulated (< 0.66x naive)
+               Class 2: unchanged (0.87-1.5x naive)
+               Class 3: upregulated (3-10x naive)
+               Class 4: highly upregulated (>= 20x naive)
+Layers       : 2-3 hidden layers; layer 1 = n_input nodes; subsequent = half/quarter prior
+Regularisation: 10% dropout after each layer
+Activation   : ReLU
+Optimiser    : Adam
+Validation   : 5-fold cross-validation; 8894 total samples (genes x conditions)
+Accuracy     : Combined (chromatin + NF-kB): 72.8%
+               Random baseline              : 38.7%
+               NF-kB features only          : 61.8%
+               Chromatin features only      : 64.7%
+               Best 4-motif subset          : 51.2%
+Top motifs   : RelA (present in all top-10 motif combinations) > Fos (AP-1) > Stat1/Stat2 >
+               c/EBPD > Irf3 > Irf7 > Irf8
+Code         : GitHub: taylab/macrophage_memory; DOI: 10.5281/zenodo.14337874
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : wang2025_macrophage_memory.bs
+Compiler       : lilott8/BioScript (ANTLR4-based; github.com/lilott8/BioScript)
+IR output      : wang2025_macrophage_memory.ir
+DAG output     : wang2025_macrophage_memory_main_dag.dot
+Basic blocks   : 10 (BB1-BB10)
+CFG edges      : 12
+if/else gates  : 3 (NF-kB QC gate / ATAC QC gate / RNA-seq QC gate)
+Modules (3)    : nfkbDynamicsDetection, atacSeqDetection, rnaSeqDetection
+Manifests (17) : BoneMarrowCells, PBS, CompleteMCM, MCSF, Fibronectin, HoechstStain,
+                 LPS, TNFa, PolyIC, CpG, PAM2CSK4, IL1b, Accutase,
+                 TransposaseReactionMix, ATACLibraryPrimers, NexteraXTKit, RLT_Buffer
+
+Duration unit conversions (BioScript supports s and m only; h not supported):
+  2880m = 48 h  (BMDM feed intervals D2/D4/D6)         IR: 172800.0 SECOND
+  1440m = 24 h  (Day 7 rest post-lift)                  IR: 86400.0 SECOND
+  480m  = 8 h   (overnight device coating / RNA plate rest) IR: 28800.0 SECOND
+  240m  = 4 h   (ligand stimulation / NF-kB detection)  IR: 14400.0 SECOND
+  60m   = 1 h   (reverse transcription)                 IR: 3600.0 SECOND
+  30m   = 30 min (transposase / PCR heat steps)         IR: 1800.0 SECOND
+  10m   = 10 min (nuclei lysis centrifugation at 4 C)   IR: 600.0 SECOND
+  5m    = 5 min  (Hoechst stain / RLT lysis mix)        IR: 300.0 SECOND
+  30s   = 30 s   (all three detect calls)               IR: 30.0 SECOND
+  5s    = 5 s    (reagent mixing / preparation steps)   IR: 5.0 SECOND
+  2s    = 2 s    (cell loading step)                    IR: 2.0 SECOND
+
+Fixes applied (v2 -- confirmed clean in post-compile IR/DOT review):
+  FIX #1 : Removed module viabilityDetection (declared but never referenced in any detect call;
+            dead code; risk of module-resolution warning in strict compiler mode)
+  FIX #2 : Removed manifest TrizolReagent (declared but never referenced in any dispense call;
+            RNA extraction uses Dynabeads + RLT_Buffer, both correctly manifested)
+  FIX #3 : Split deviceWithCells into deviceWithCells_arm1 and deviceWithCells_arm2.
+            Original code caused both stimulatedArmA (polyI:C arm) and stimulatedCpgA (CpG arm)
+            to consume deviceWithCells1[0] in the IR -- a double-consumption that would fail
+            under stricter compiler modes. Each arm now consumes a distinct IR slot, reflecting
+            the separate physical chamber sets on the 64-chamber device.
+
+Biological scope note:
+  The 80-condition ligand screen (Figures 1-3) is represented by two arms:
+  polyI:C -> TNFa (priming) and CpG -> TNFa (tolerance). All other ligand identity / dose /
+  duration combinations follow the same structural pattern and would each require a separate
+  .bs file or a parameterised extension of this one.
+  The ATAC-seq (Protocol 4) and RNA-seq (Protocol 5) protocols each encode one representative
+  condition (polyI:C single-stimulus for ATAC; polyI:C -> TNFa for RNA-seq). All other
+  conditions in the paper follow the same dispense -> mix -> heat -> detect block structure.
+
+Data availability:
+  RNA-seq  : GEO GSE260996
+  ATAC-seq : GEO GSE261647
+  NF-kB trace data: Zenodo DOI 10.5281/zenodo.14337874
+  Code     : GitHub taylab/macrophage_memory; Zenodo DOI 10.5281/zenodo.14337874

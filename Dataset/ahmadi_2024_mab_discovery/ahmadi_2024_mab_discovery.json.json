@@ -1,0 +1,364 @@
+{
+  "protocol": {
+    "title": "An Automated Single-Cell Droplet-Digital Microfluidic Platform for Monoclonal Antibody Discovery",
+    "source": "Small 2024, 20, 2308950",
+    "doi": "10.1002/smll.202308950",
+    "platform": "Droplet-Digital (D2) microfluidics (digital microfluidics + droplet-in-channel microfluidics)",
+    "cell_lines": [
+      "Hybridoma cells (antigen-specific mAb producer, NRC Canada, confidential line)",
+      "Target cells (membrane-bound antigen-expressing, NRC Canada, confidential line)"
+    ],
+    "objective": "Deterministic single-cell co-encapsulation of hybridoma and target cells, on-demand droplet disruption and media exchange, antigen-specific mAb screening by fluorescence, and recovery of positive hybridoma cells for downstream antibody characterisation",
+
+    "device": {
+      "layers": [
+        "Chromium electrodes on glass (layer i)",
+        "SU-8 dielectric layer, 7 um thick (layer ii)",
+        "PDMS-based microchannel devices x3 (layer iii)"
+      ],
+      "device_count": 3,
+      "sections": [
+        "Device 1 -- Trapping array (100 traps, 50 per serpentine side)",
+        "Device 2 -- Flow-focusing droplet generator (target cells, ~30 pL, ~3 kHz)",
+        "Device 3 -- Co-planar binary electrode sorter (single target-cell selection)"
+      ],
+      "traps": {
+        "total": 100,
+        "per_side": 50,
+        "channel_height_um": 20,
+        "channel_width_um": "50-75",
+        "constriction_width_um": 7,
+        "electrodes_per_trap": 2,
+        "ground_per_trap": 1,
+        "bussed_trap_group_size": 5
+      },
+      "electrodes": {
+        "material": "Chromium (non-transparent)",
+        "dielectric": "SU-8, 7 um",
+        "actuation_frequency_kHz": 15,
+        "actuation_voltage_encapsulation_Vrms": 32,
+        "actuation_voltage_disruption_Vrms": 64,
+        "electric_field_intensity_V_m": "2e5-4e5"
+      },
+      "inlets": {
+        "inlet_1": "HFE7500 oil (main channel oil flow)",
+        "inlet_2": "PBS / Alexa Fluor 647 secondary Ab solution / target-cell droplets (re-injection)",
+        "inlet_3": "Cell suspension (hybridoma cells in IMDM)"
+      },
+      "outlets": {
+        "outlet_1": "Sample recovery (positive hybridoma droplets via reverse oil flow)"
+      }
+    },
+
+    "reagents": {
+      "carrier_oil": "HFE7500 + 2% Ran Fluoro-surfactant (2% w/v PEG fluoro-surfactant in HFE7500)",
+      "recovery_oil": "Fluorinert FC-40 (~1 mL for PTFE membrane wash)",
+      "priming_agent": "Pluronics F-127 2% in PBS (Ca2+/Mg2+ free)",
+      "cell_media": {
+        "hybridoma": "IMDM + 10% heat-inactivated FBS + mouse IL-6 (1 ng/mL) + pen/strep; 37 C, 5% CO2",
+        "target_cells": "DMEM + 10% heat-inactivated FBS + G418 (0.4 mg/mL); 37 C, 5% CO2"
+      },
+      "cell_concentrations_cells_mL": {
+        "hybridoma_loading": "1e6",
+        "target_loading": "1e6"
+      },
+      "cell_stains": {
+        "hybridoma": {
+          "reagent": "CellTrace Calcein Red-Orange AM",
+          "ex_nm": 577,
+          "em_nm": 590,
+          "incubation_min": 20,
+          "incubation_temp_C": 37
+        },
+        "target": {
+          "reagent": "CellTrace CFSE",
+          "ex_nm": 470,
+          "em_nm": 520,
+          "incubation_min": 20,
+          "incubation_temp_C": 37
+        }
+      },
+      "secondary_antibody": {
+        "reagent": "Alexa Fluor 647-conjugated goat anti-mouse IgG (H+L)",
+        "supplier": "Jackson Immuno Research Labs",
+        "ex_nm": 627,
+        "em_nm": 665,
+        "exposure_ms": 300,
+        "purpose": "Labels membrane-bound antigen-specific mAbs on target cell surface post-wash"
+      },
+      "wash_solution": "PBS (Ca2+/Mg2+ free) containing Alexa Fluor 647 secondary antibody",
+      "recovery_membrane": "Hydrophobic PTFE membrane (Thomas Scientific)",
+      "recovery_holder": "Custom 3D-printed holder",
+      "capillary": "Glass capillary pre-filled with HFE7500 2% Ran Fluoro-surfactant"
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Device priming",
+        "bb": "BB1",
+        "inputs": ["PBS", "PluronicF127"],
+        "operation": "mix",
+        "duration_s": 300,
+        "flow_rate_nL_s": 50,
+        "inlet": "inlet_3",
+        "notes": "2% Pluronics F-127 in PBS flowed at 50 nL/s for 5 min (outlet 1 closed). Flow rate then reduced to 1 nL/s and outlet 1 opened. Reduces non-specific cell adhesion to PDMS channel walls."
+      },
+      {
+        "id": "S2",
+        "name": "Target cell staining and encapsulation (Device 2)",
+        "bb": "BB1",
+        "cell_line": "Target cells",
+        "stain": "CellTrace CFSE (5 uM, 1e6 cells/mL in PBS)",
+        "stain_incubation_min": 20,
+        "stain_incubation_temp_C": 37,
+        "post_stain_wash": "PBS (Ca2+/Mg2+ free)",
+        "resuspension": "IMDM (10% FBS + IL-6, no antibiotic, 1e6 cells/mL)",
+        "operation": "flow-focusing encapsulation (Poisson distribution)",
+        "oil": "HFE7500 + 2% Ran Fluoro-surfactant",
+        "droplet_volume_pL": "~30",
+        "throughput_kHz": 3,
+        "notes": "Device 2 generates monodisperse ~30 pL droplets at ~3 kHz. Target cells stained with CFSE before loading to enable fluorescence-based sorting in Device 3."
+      },
+      {
+        "id": "S3",
+        "name": "Single target-cell droplet sorting (Device 3)",
+        "bb": "BB1",
+        "operation": "co-planar binary electrode sorting by fluorescence",
+        "detection_channel": "CFSE (ex 470 nm / em 520 nm)",
+        "detection_module": "singleCellTrapDetection",
+        "detection_duration_s": 10,
+        "sorting_threshold": "Fluorescence above single-cell threshold and below two-cell threshold",
+        "collection": "Gas-tight glass syringe filled with HFE7500 oil",
+        "branch": {
+          "pass": { "condition": "sortSignal > 0", "action": "mix oil spacer, hold for re-injection", "bb": "BB2" },
+          "fail": { "condition": "sortSignal <= 0", "action": "drain targetCellDroplets", "bb": "BB3" }
+        },
+        "notes": "PMT-based photon counting triggers electrode actuation. Only droplets containing exactly 1 target cell are collected. Multi-cell and empty droplets sent to waste."
+      },
+      {
+        "id": "S4",
+        "name": "Hybridoma cell staining and trapping (Device 1)",
+        "bb": "BB4",
+        "cell_line": "Hybridoma cells",
+        "stain": "CellTrace Calcein Red-Orange AM (1e6 cells/mL in IMDM)",
+        "stain_incubation_min": 20,
+        "stain_incubation_temp_C": 37,
+        "post_stain_wash": "PBS (Ca2+/Mg2+ free)",
+        "resuspension": "IMDM (10% FBS + IL-6, no antibiotic, 1e6 cells/mL)",
+        "operation": "hydrodynamic single-cell trapping (abstracted as mix in BioScript)",
+        "flow_rate_nL_s": "1-5",
+        "optimal_flow_rate_nL_s": 1,
+        "trapping_efficiency_pct": { "mean": 98, "sd": 3.92, "n_repeats": 5, "n_replicates": 10 },
+        "trap_design": "7 um constriction; fluidic resistance blocks outlet when cell occupies trap",
+        "trap_count": 100,
+        "detection_module": "singleCellTrapDetection",
+        "detection_duration_s": 10,
+        "branch": {
+          "pass": { "condition": "trapOccupancySignal > 0", "action": "dispense fresh IMDM, proceed to encapsulation", "bb": "BB5" },
+          "fail": { "condition": "trapOccupancySignal <= 0", "action": "dispose trappingMix", "bb": "BB6" }
+        },
+        "notes": "Hydrodynamic confinement by fluidic resistance. Open trap Rtrap < Rbypass; when occupied Rtrap increases, next cell flows to next open trap. Device primed with Pluronics F-127 to reduce cell adhesion. Cell concentration kept at 1e6/mL in IMDM."
+      },
+      {
+        "id": "S5",
+        "name": "In situ droplet generation around trapped hybridoma (Device 1)",
+        "bb": "BB7",
+        "operation": "phase change + electrode actuation",
+        "oil": "HFE7500 + 2% Ran Fluoro-surfactant",
+        "oil_flow_rate_nL_s": 1,
+        "electrode_frequency_kHz": 15,
+        "electrode_voltage_Vrms": 32,
+        "droplet_volume_pL": "40-150",
+        "droplet_success_rate_pct": ">95 at 1 nL/s",
+        "notes": "IMDM medium replaced by oil flowing at 1 nL/s. Electrodes actuated at 32 Vrms / 15 kHz to shear aqueous phase and generate in situ droplet around trapped single hybridoma cell. Deterministic -- no Poisson statistics."
+      },
+      {
+        "id": "S6",
+        "name": "Deterministic co-encapsulation (droplet merge, Device 1)",
+        "bb": "BB7",
+        "operation": "on-demand electrode-actuated droplet merge",
+        "re_injection_flow_rate_nL_s": 5,
+        "oil_spacer_flow_rate_nL_s": 1,
+        "electrode_frequency_kHz": 15,
+        "electrode_voltage_Vrms": 32,
+        "co_encapsulation_efficiency_pct": { "mean": 95, "sd": 3.2, "flow_rate_nL_s": 5 },
+        "time_for_100_doublets_min": 60,
+        "notes": "Sorted single-target-cell droplets re-injected from inlet 2 at 5 nL/s, interleaved with oil spacer at 1 nL/s from a separate inlet. When target-cell droplet arrives at a trap, electrode beneath is actuated (32 Vrms / 15 kHz) to merge it with in situ hybridoma droplet. 95 +/- 3.2% efficiency at 5 nL/s -- highest reported co-encapsulation efficiency without preliminary sorting of both cell types or microvalve systems."
+      },
+      {
+        "id": "S7",
+        "name": "On-chip co-incubation",
+        "bb": "BB7",
+        "operation": "heat (room temperature incubation)",
+        "temperature_C": 25,
+        "duration_min": 30,
+        "duration_s": 1800,
+        "notes": "Two-cell droplets incubated on-chip for 30 min at room temperature. Hybridoma secretes mAbs into confined droplet. Antigen-specific mAbs diffuse and bind to membrane-bound antigens on co-encapsulated target cell. Non-specific mAbs remain free in droplet volume."
+      },
+      {
+        "id": "S8",
+        "name": "Droplet disruption and PBS/Alexa Fluor 647 wash (Device 1)",
+        "bb": "BB7",
+        "operation": "electrode-actuated droplet disruption + media exchange",
+        "wash_solution": "PBS + Alexa Fluor 647-conjugated goat anti-mouse IgG (H+L)",
+        "wash_flow_rate_nL_s": "1-5",
+        "electrode_frequency_kHz": 15,
+        "electrode_voltage_Vrms": 64,
+        "electric_field_intensity_V_m": "2e5-4e5",
+        "wash_duration_min": 5,
+        "wash_efficiency_pct": 96.8,
+        "wash_steps": 1,
+        "cell_retention_pct": { "mean": 96, "sd": 9.6, "flow_rate_nL_s": "1-5" },
+        "droplet_reformation_flow_rate_nL_s": 0.1,
+        "oil_reformation_flow_rate_nL_s": 5,
+        "notes": "PBS/Alexa647 solution flowed at 1-5 nL/s. Electrode beneath traps actuated at 64 Vrms / 15 kHz to disrupt droplet interface via electrostatic force. Non-specific mAbs washed out through constriction. Antigen-specific mAbs retained on target cell membrane. After wash, PBS flow reduced to 0.1 nL/s and oil flow increased to 5 nL/s to re-form droplet in situ around both cells. 96.8% fluorescence reduction after 1 wash step (~5 min for 50 traps)."
+      },
+      {
+        "id": "S9",
+        "name": "Fluorescence detection and antibody binding screening",
+        "bb": "BB7",
+        "operation": "fluorescence imaging",
+        "detection_channel": "Alexa Fluor 647 (ex 627 nm / em 665 nm, 300 ms exposure)",
+        "camera": "Hamamatsu ORCA-Flash 4.0",
+        "detection_module": "antibodyBindingDetection",
+        "detection_duration_s": 10,
+        "signal_definition": "Mean fluorescence intensity of target cell membrane > mean fluorescence of surrounding droplet",
+        "snr_improvement_post_wash": "Significant (P < 0.05 between binding and non-binding hybridomas)",
+        "selection_rates_pct": {
+          "100_0_ratio": { "mean": 94.00, "sd": 1.41 },
+          "50_50_ratio": 54.40,
+          "10_90_ratio": 7.60,
+          "2_98_ratio": 1.60
+        },
+        "branch": {
+          "pass": { "condition": "antibodySignal > 0", "action": "recover positive hybridoma droplet", "bb": "BB8" },
+          "fail": { "condition": "antibodySignal <= 0", "action": "dispose reforumDroplet (non-specific producer)", "bb": "BB9" }
+        },
+        "notes": "Antigen-specific mAbs bound to target cell membrane are labelled by Alexa Fluor 647 secondary antibody, generating localised red fluorescence around target cell. Non-specific mAbs washed away in S8. SNR significantly higher post-wash for antigen-specific hybridomas. PMT photon-counting head triggers on-demand reverse-flow release of positive droplets."
+      },
+      {
+        "id": "S10",
+        "name": "Positive hybridoma recovery",
+        "bb": "BB8",
+        "condition": "antibodySignal > 0 only",
+        "recovery_steps": [
+          "Positive droplet released by reverse oil flow at 4 nL/s from outlet 1 (inlet 3 briefly opened to clear channel)",
+          "Droplet collected into glass capillary pre-filled with HFE7500 2% Ran Fluoro-surfactant",
+          "Glass capillary contents expelled onto 10-20 uL IMDM complete medium on hydrophobic PTFE membrane secured in 3D-printed holder",
+          "~1 mL FC-40 oil added to disrupt surfactant-stabilised emulsion; PTFE membrane absorbs HFE7500 and surfactant",
+          "Aqueous cell droplet released into IMDM complete medium",
+          "Merged droplet transferred to well-plate (e.g. 96-well) using pipette for downstream expansion or antibody characterisation assays"
+        ],
+        "recovery_oil": "Fluorinert FC-40 (~1 mL)",
+        "recovery_media": "IMDM complete medium (10-20 uL)",
+        "downstream": "Antibody characterisation (ELISA, sequencing, binding kinetics, etc.)"
+      }
+    ],
+
+    "droplet_operations": {
+      "in_situ_generation": {
+        "method": "Phase change (single-phase aqueous to two-phase water-in-oil)",
+        "oil": "HFE7500 + 2% Ran Fluoro-surfactant",
+        "oil_flow_rate_nL_s": 1,
+        "electrode_frequency_kHz": 15,
+        "electrode_voltage_Vrms": 32,
+        "droplet_volume_pL": "40-150",
+        "success_rate_pct": ">95 at 1 nL/s",
+        "notes": "Flow rate must be >1 nL/s to provide hydraulic pressure for phase exchange; not so high as to squeeze cell through constriction."
+      },
+      "merge": {
+        "type": "on-demand electrode-actuated",
+        "optimal_reinjection_flow_rate_nL_s": 5,
+        "oil_spacer_flow_rate_nL_s": 1,
+        "electrode_frequency_kHz": 15,
+        "electrode_voltage_Vrms": 32,
+        "co_encapsulation_efficiency_pct": 95,
+        "notes": "Two separate inlets used -- one for re-injected target droplets, one for oil spacer. No stream synchronisation required."
+      },
+      "disruption": {
+        "method": "Electrostatic force (electrode actuation without emulsion destabiliser)",
+        "electrode_frequency_kHz": 15,
+        "electrode_voltage_Vrms": 64,
+        "optimal_flow_rate_nL_s": 1,
+        "disruption_efficiency_pct": "~100 at 32 Vrms / 1 nL/s",
+        "washing_efficiency_pct": 96.8,
+        "cell_retention_pct": 96,
+        "notes": "Individual droplet disruption by electrostatic forces; avoids chemical demulsifiers that compromise cell viability. Droplets disrupted individually per trap -- no coalescence. Surfactant concentration in oil phase: 0.001% wt (no chemical emulsion destabiliser added)."
+      },
+      "release": {
+        "direction": "reverse oil flow",
+        "release_flow_rate_nL_s": 4,
+        "electrode_actuation": "none required (hydrodynamic release after wash droplet re-formation)",
+        "notes": "Reverse flow of 2% Ran-HFE oil from outlet 1 at 4 nL/s. Inlet 3 briefly opened to clear previously accumulated droplets in that channel before collection."
+      }
+    },
+
+    "performance": {
+      "single_cell_trapping_efficiency_pct": { "mean": 98, "sd": 3.92, "optimal_flow_rate_nL_s": 1 },
+      "co_encapsulation_efficiency_pct": { "mean": 95, "sd": 3.2, "optimal_flow_rate_nL_s": 5 },
+      "droplet_disruption_efficiency_pct": "~100 at 32 Vrms / 1 nL/s",
+      "washing_efficiency_pct": 96.8,
+      "cell_retention_post_wash_pct": { "mean": 96, "sd": 9.6 },
+      "time_for_100_doublets_min": 60,
+      "wash_duration_50_traps_min": 5,
+      "throughput_cells_per_hour": 100,
+      "throughput_cells_per_day": "~1000",
+      "comparison_to_poisson_pct": 16,
+      "notes": "Co-encapsulation efficiency of 95% is the highest reported without requiring preliminary sorting of both cell types or microvalve-based capture systems."
+    },
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1",  "label": "main",        "type": "entry",        "content": "Device priming; target cell stain + encapsulation (Device 2); hybridoma stain; trapping (Device 1); sortSignal detect" },
+        { "id": "BB2",  "label": "bsbbif_2_t",  "type": "branch_true",  "condition": "sortSignal > 0",           "action": "mix oil spacer, hold sortedTargetDroplets" },
+        { "id": "BB3",  "label": "bsbbif_3_f",  "type": "branch_false", "condition": "sortSignal <= 0",          "action": "drain targetCellDroplets" },
+        { "id": "BB4",  "label": "bsbbif_4_j",  "type": "join",         "content": "PHI merge; dispose sortSignal; stain hybridoma; trap; trapOccupancySignal detect" },
+        { "id": "BB5",  "label": "bsbbif_5_t",  "type": "branch_true",  "condition": "trapOccupancySignal > 0",  "action": "dispense imdmForHybridoma2, mix trappingMix -> trappedHybridoma" },
+        { "id": "BB6",  "label": "bsbbif_6_f",  "type": "branch_false", "condition": "trapOccupancySignal <= 0", "action": "dispose trappingMix" },
+        { "id": "BB7",  "label": "bsbbif_7_j",  "type": "join",         "content": "PHI merge; dispose trapOccupancySignal; in situ droplet generation; merge; incubate 30 min; wash; re-form droplet; antibodySignal detect" },
+        { "id": "BB8",  "label": "bsbbif_8_t",  "type": "branch_true",  "condition": "antibodySignal > 0",       "action": "dispense IMDM recovery medium; mix reforumDroplet -> recoveredCells; dispose recoveredCells" },
+        { "id": "BB9",  "label": "bsbbif_9_f",  "type": "branch_false", "condition": "antibodySignal <= 0",      "action": "dispose reforumDroplet" },
+        { "id": "BB10", "label": "bsbbif_10_j", "type": "terminal",     "content": "dispose antibodySignal; NOP" }
+      ],
+      "edges": [
+        ["BB1","BB2"], ["BB1","BB3"],
+        ["BB2","BB4"], ["BB3","BB4"],
+        ["BB4","BB5"], ["BB4","BB6"],
+        ["BB5","BB7"], ["BB6","BB7"],
+        ["BB7","BB8"], ["BB7","BB9"],
+        ["BB8","BB10"],["BB9","BB10"]
+      ]
+    },
+
+    "bioscript_notes": {
+      "bs_file": "ahmadi_2024_mab_discovery.bs",
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "ir_output": "10 basic blocks (BB1-BB10), 3 if/else gates, 12 CFG edges",
+      "dag_file": "ahmadi_2024_mab_discovery_main_dag.dot",
+      "duration_units": "All durations in seconds (s) or minutes (m); h token not supported by compiler",
+      "duration_conversions": {
+        "device_priming_5min": "300s",
+        "cell_staining_20min": "1200s",
+        "on_chip_incubation_30min": "1800s",
+        "wash_5min": "300s",
+        "recovery_mix_1min": "60s"
+      },
+      "modules": [
+        "singleCellTrapDetection (used for both sort gate and trap occupancy gate)",
+        "antibodyBindingDetection (Alexa Fluor 647 channel, post-wash SNR gate)"
+      ],
+      "manifests": [
+        "HybridomaCells", "TargetCells", "IMDM_Medium", "PBS",
+        "PluronicF127", "HFE7500_Surfactant", "AlexaFluor647_SecondaryAb",
+        "CellTrace_CFSE", "CalceinAM_RedOrange"
+      ],
+      "fixes_applied": [
+        "Removed dead module declaration: targetCellSortDetection (declared but never called; singleCellTrapDetection covers both sort and trap occupancy gates)",
+        "Fixed imdmForHybridoma double-consumption: added imdmForHybridoma2 = dispense 1 units of IMDM_Medium inside BB5 (trap-pass branch) so each mix has its own fresh dispense unit; SSA compiler emits PHI imdmForHybridoma22 in BB7 join"
+      ],
+      "ascii_compliance": "All non-ASCII characters (em-dashes U+2014, arrow U+2192) replaced with ASCII equivalents (-- and ->) for ANTLR4 FileStream compatibility",
+      "biological_scope": "This .bs file encodes the full mAb discovery screening workflow. Downstream antibody characterisation (sequencing, ELISA, binding kinetics) is off-chip and not encoded."
+    }
+  }
+}

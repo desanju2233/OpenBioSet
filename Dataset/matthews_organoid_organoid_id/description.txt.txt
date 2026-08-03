@@ -1,0 +1,257 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : OrganoID: A Versatile Deep Learning Platform for Tracking and Analysis of Single-Organoid Dynamics
+Source Link  : https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1010584
+Paper DOI    : https://doi.org/10.1371/journal.pcbi.1010584
+Journal      : PLoS Computational Biology, 2022, Vol. 18, Issue 11, Article e1010584
+Platform     : Organoid culture (Matrigel dome, 24-well plate) + brightfield / PI fluorescence
+               timelapse microscopy + OrganoID deep learning image analysis pipeline
+
+
+OVERVIEW
+--------
+This protocol describes a gemcitabine dose-response experiment on human PDAC (pancreatic ductal
+adenocarcinoma) patient-derived organoids, designed to demonstrate OrganoID -- a robust, open-source
+deep learning platform for automated pixel-by-pixel organoid detection, identification, and
+longitudinal single-organoid tracking in brightfield and phase-contrast microscopy images.
+
+The protocol is divided into four functional phases:
+  1. Organoid embedding in Matrigel and pre-treatment equilibration (24 h)
+  2. Gemcitabine dose-response treatment (7 conditions: 0, 3, 10, 30, 100, 300, 1000 nM)
+     with concurrent PI fluorescence labelling and 72 h brightfield timelapse imaging
+  3. OrganoID automated analysis: U-Net inference, Canny edge + watershed identification,
+     Munkres Hungarian tracking, per-organoid PI normalisation, and morphological feature
+     extraction (circularity, solidity, eccentricity)
+  4. MTS endpoint viability assay (gold standard EC50 benchmark) and morphology QC
+
+OrganoID achieves >95% organoid count agreement and >97% area agreement with manual
+segmentation, maintains >89% single-organoid tracking accuracy over 92 h, and resolves
+dose-response EC50 values (via area-normalised PI fluorescence: 24.45 nM) that closely
+approach the MTS gold standard (26.13 nM), without fluorescent cell labelling.
+
+
+DEVICE / PLATFORM ARCHITECTURE
+--------------------------------
+Culture format    : 24-well plate; 40 uL Matrigel domes per well; 500 uL media overlay.
+Matrix            : Matrigel (Corning, growth factor reduced); ice-cold resuspension;
+                    polymerisation at 37 C for 20 min before media overlay.
+Complete media    : Advanced DMEM/F12 + 10% FBS + EGF + Noggin + R-spondin1 + Wnt3a.
+Microscope        : Inverted brightfield / fluorescence microscope.
+Imaging channels  : Brightfield (organoid morphology); PI fluorescence (ex 488 nm / em 617 nm).
+Imaging interval  : Every 4 h over 72 h (18 frames per well per condition).
+Image resolution  : 512x512 pixels (auto-resized by OrganoID pre-processing).
+
+
+ORGANOID SOURCE
+---------------
+Cell type    : Human PDAC patient-derived organoids (two patients).
+Passage      : 3-8.
+Density      : ~500 organoids/mL in ice-cold Matrigel.
+Pre-culture  : 24 h equilibration at 37 C / 5% CO2 in complete media before drug addition.
+
+
+REAGENTS
+--------
+Drug           : Gemcitabine (dFdC); FDA-approved nucleoside analogue; inhibits
+                 ribonucleotide reductase and DNA/RNA synthesis; 10 mM DMSO stock.
+Concentrations : 0 (DMSO vehicle), 3, 10, 30, 100, 300, 1000 nM; n=6 replicates/condition.
+Vehicle        : DMSO at 0.1% v/v final (matched across all conditions).
+Viability stain: Propidium iodide (PI); 1 ug/mL; added at time of drug treatment;
+                 labels dead/necrotic cells; continuous labelling throughout imaging.
+                 Excitation 488 nm / emission 617 nm.
+MTS reagent    : (3-(4,5-dimethylthiazol-2-yl)-5-(3-carboxymethoxyphenyl)-2-(4-sulfophenyl)-
+                 2H-tetrazolium); readout at 490 nm; run on fresh organoid aliquot at endpoint;
+                 4 h incubation at 37 C.
+
+
+ORGANOID ID PIPELINE
+--------------------
+Language           : Python.
+Neural network     : Keras (TensorFlow backend); modified U-Net architecture.
+Filters (layer 1)  : 8 (vs 64 in original U-Net; 98% parameter reduction).
+Trainable params   : <500,000.
+Activation (hidden): ELU (exponential linear unit; avoids vanishing gradient problems).
+Activation (output): Sigmoid (normalised organoid probability per pixel).
+Preprocessing      : Auto-contrast and resize to 512x512 pixels.
+
+Training:
+  Dataset        : 66 manually labelled brightfield / phase-contrast images (PDAC, 2 patients).
+  Split          : 52 training pairs / 14 validation pairs.
+  Augmentation   : Augmentor package (rotation, zoom, elastic distortion, shear); 2000 images.
+  Optimizer      : Adam (learning rate 0.001).
+  Loss           : Unweighted binary cross-entropy.
+  Weight init    : He method.
+  Dropout        : 12.5% neuron weights zeroed after each batch.
+  Batch size     : 8 augmented images per backpropagation round.
+  Early stopping : Halt once 10 epochs pass with no improvement in validation loss.
+  Convergence    : 37 epochs; validation cross-entropy loss minimum 0.088 at 8 filters.
+
+Identification pipeline (single-organoid resolution):
+  Step 1: Threshold detection image at 0.5; morphological opening to remove noise.
+  Step 2: Canny edge detection on raw network prediction image
+          (Sobel filter; Gaussian sigma=2; Thi=0.05, Tlo=0.005).
+  Step 3: Remove Canny edges from thresholded image to mark organoid centres.
+  Step 4: Watershed transform (centres as basin initialisers; prediction image as
+          inverted heightmap). Libraries: scipy, scikit-image.
+  Step 5: Discard detections with total area < 200 pixels.
+
+Tracking module:
+  Algorithm     : Munkres variant of the Hungarian algorithm.
+  Cost function : Inverse of shared pixel count between consecutive detections.
+  Pseudo-assign : Extra matrix rows/columns for missing or newly appearing organoids.
+  Accuracy      : >89% (fraction of organoids correctly matched at each frame) over 92 h.
+  Robustness    : Accuracy unaffected when frames discarded to simulate 12 h interval.
+
+Performance (test dataset):
+  PDAC IOU (mean +/- SD)         : 0.74 +/- 0.081 (benchmark >= 0.5)
+  ACC  IOU                       : 0.78 +/- 0.09
+  Colon IOU                      : 0.72 +/- 0.08
+  Lung  IOU                      : 0.87 +/- 0.04
+  Mouse small intestine IOU      : 0.70 +/- 0.15
+  Organoid count CCC             : 0.95 (95% CI 0.89-0.98)
+  Organoid area CCC              : 0.97 (95% CI 0.96-0.97)
+  False positive rate (bubbles)  : 4.2%
+  Segmentation speed             : ~300 ms per image (Intel i7-9750H 2.6GHz, <200 MB RAM)
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Organoid Embedding in Matrigel
+  Reagents    : PDAC organoids (~500/mL), Matrigel (ice-cold, growth factor reduced)
+  Operation   : Resuspend organoids in ice-cold Matrigel; seed 40 uL domes per well
+  Gelation    : 37 C for 20 min (heat at 37 C for 20 min in BioScript)
+  Purpose     : Creates 3D extracellular environment recapitulating in situ tumour matrix.
+                mix abstracts the resuspension and dome-seeding step (no DMF mixing).
+
+Step 2 | Media Overlay and Pre-Treatment Equilibration
+  Reagents    : Complete media (500 uL per well)
+  Operation   : Overlay after Matrigel gelation; equilibrate at 37 C / 5% CO2 for 24 h
+  Duration    : 24 h = 1440 min (heat at 37 C for 1440 min in BioScript)
+  Purpose     : Allows organoids to adapt to culture conditions before drug challenge.
+
+Step 3 | Vehicle Control Treatment (0 nM Gemcitabine)
+  Reagents    : CompleteMedia, DMSO vehicle (0.1% v/v final), PropidiumIodide (1 ug/mL)
+  Operation   : Mix drug/vehicle into media; add PI; image at 37 C every 4 h for 72 h
+  Duration    : 72 h = 4320 min (heat at 37 C for 4320 min in BioScript)
+  Detection   : organoidDetection module; 30 s
+  QC branch   : controlSignal > 0 → dispose (organoids detected, growing normally; experiment valid)
+                controlSignal <= 0 → drain (no organoids in control; experiment setup failure)
+  Notes       : heat + organoidDetection together abstract the full 18-frame timelapse run
+                with concurrent OrganoID U-Net inference and tracking.
+
+Step 4 | 3 nM Gemcitabine Treatment
+  Reagents    : CompleteMedia, Gemcitabine_3nM, PropidiumIodide
+  Duration    : 72 h = 4320 min
+  QC branch   : signal3nM > 0 → dispose; signal3nM <= 0 → drain
+  Notes       : Lowest dose; minimal effect on area or count (Fig 3B).
+
+Step 5 | 10 nM Gemcitabine Treatment
+  Reagents    : CompleteMedia, Gemcitabine_10nM, PropidiumIodide
+  Duration    : 72 h = 4320 min
+  QC branch   : signal10nM > 0 → dispose; signal10nM <= 0 → drain
+  Notes       : Organoid count begins to fall sharply above 10 nM (Fig 3B bottom).
+
+Step 6 | 30 nM Gemcitabine Treatment
+  Reagents    : CompleteMedia, Gemcitabine_30nM, PropidiumIodide
+  Duration    : 72 h = 4320 min
+  QC branch   : signal30nM > 0 → dispose; signal30nM <= 0 → drain
+  Notes       : Clearest representative dose in paper (Fig 3A): organoid area initially
+                rises (early growth) then falls; count drops; PI fluorescence rises
+                proportionally to concentration.
+
+Step 7 | 100 nM Gemcitabine Treatment
+  Reagents    : CompleteMedia, Gemcitabine_100nM, PropidiumIodide
+  Duration    : 72 h = 4320 min
+  QC branch   : signal100nM > 0 → dispose; signal100nM <= 0 → drain
+  Notes       : Without area normalisation, total PI at 100 nM paradoxically exceeds
+                1000 nM signal (Fig 3C top). OrganoID per-organoid area normalisation
+                corrects this discrepancy (Fig 3C bottom), aligning responses correctly.
+
+Step 8 | 300 nM Gemcitabine Treatment
+  Reagents    : CompleteMedia, Gemcitabine_300nM, PropidiumIodide
+  Duration    : 72 h = 4320 min
+  QC branch   : signal300nM > 0 → dispose; signal300nM <= 0 → drain
+
+Step 9 | 1000 nM Gemcitabine Treatment
+  Reagents    : CompleteMedia, Gemcitabine_1000nM, PropidiumIodide
+  Duration    : 72 h = 4320 min
+  QC branch   : signal1000nM > 0 → dispose; signal1000nM <= 0 → drain
+  Notes       : Highest dose. Essentially all organoids killed by 48 h. Circularity and
+                solidity decrease markedly; eccentricity increases, reflecting disrupted
+                organoid architecture (moderate-to-large Cohen d effect sizes; Fig 3E).
+                Gemcitabine interference with RNA/DNA synthesis (ref 40) likely disrupts
+                cell turnover and structural protein production.
+
+Step 10 | MTS Endpoint Viability Assay (Gold Standard)
+  Reagents    : Fresh PDAC organoids, MatrigelMatrix, CompleteMedia, MTS reagent
+  Operation   : Re-embed fresh organoid aliquot; overlay media; incubate MTS 4 h at 37 C
+  Duration    : Gelation 20 min + MTS incubation 4 h = 240 min (heat at 37 C for 240 min)
+  Detection   : mtsViabilityDetection module (490 nm absorbance); 30 s
+  QC branch   : mtsSignal > 0 → dispose (valid formazan signal; proceed to morphology)
+                mtsSignal <= 0 → drain (MTS failure; reagent or instrument issue)
+  Result      : MTS EC50 = 26.13 nM (Fig 3D; gold-standard reference)
+  Notes       : Run on fresh organoid aliquot, not timelapse wells. Off-device 4-parameter
+                logistic dose-response curve fitting determines EC50 per readout type.
+
+Step 11 | Single-Organoid Morphology Analysis
+  Reagents    : Fresh PDAC organoids, MatrigelMatrix, CompleteMedia
+  Operation   : Re-embed; overlay media; detect morphological features on reference well
+  Detection   : morphologyAnalysis module; 60 s
+  QC branch   : morphologySignal > 0 → dispose (metrics computed; pipeline operational)
+                morphologySignal <= 0 → drain (segmentation returned no organoids; pipeline failure)
+  Metrics computed (scikit-image regionprops on OrganoID labeled masks):
+    Circularity  : Inverse ratio of organoid perimeter to perimeter of perfect circle
+                   with equal area. Decreases with gemcitabine dose. EC50 = 28.47 nM.
+    Solidity     : Ratio of organoid area to convex hull area.
+                   Decreases with gemcitabine dose. EC50 = 27.05 nM.
+    Eccentricity : Elliptical deviation from a perfect circle.
+                   Increases with gemcitabine dose. EC50 = 18.08 nM.
+    Effect size  : Cohen's d statistic (difference in means / pooled SD) computed across
+                   all pairwise concentration combinations (Fig 3E heatmap).
+  Normalisation: Tracking-based per-organoid normalisation (each organoid normalised to
+                 its own first-detection value) significantly reduces CV vs batch
+                 normalisation: fluorescence (p=2e-30), area (p=2e-29),
+                 perimeter (p=2e-63) -- Welch t-test (Fig S6).
+
+
+DOSE-RESPONSE SUMMARY
+---------------------
+  Readout                        EC50 (nM)   Notes
+  ----------------------------------------------------------------------
+  MTS viability (gold standard)  26.13       Off-chip endpoint assay; reference
+  Organoid area (OrganoID)       12.67       Underestimates; no death-size correction
+  Total PI fluorescence          16.95       Underestimates; not normalised to organoid size
+  Area-normalised PI (OrganoID)  24.45       Closest to MTS; per-organoid tracking normalisation
+  Circularity (OrganoID)         28.47       Morphological; sigmoidal dose-response (Fig S7)
+  Solidity (OrganoID)            27.05       Morphological; sigmoidal dose-response (Fig S7)
+  Eccentricity (OrganoID)        18.08       Morphological; sigmoidal dose-response (Fig S7)
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : matthews_organoid_organoid_id.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 28 basic blocks (BB1-BB28), 11 if/else gates, 36 CFG edges
+DAG            : matthews_organoid_organoid_id_main_dag.dot
+Duration units : All durations converted to minutes (m) for compiler compatibility
+                 (BioScript supports s and m only; h token not supported)
+                 72 h  -> 4320 m  (timelapse imaging; IR: 259200.0 SECOND)
+                 24 h  -> 1440 m  (equilibration; IR: 86400.0 SECOND)
+                 20 min -> 20 m   (Matrigel gelation; IR: 1200.0 SECOND)
+                  4 h  -> 240 m   (MTS incubation; IR: 14400.0 SECOND)
+Modules        : organoidDetection, propidiumIodideDetection,
+                 mtsViabilityDetection, morphologyAnalysis
+Biological scope note:
+  cultureDomes is the shared embedded organoid droplet used across all 7 treatment
+  condition arms. Each treatment arm re-uses cultureDomes as the mix input, reflecting
+  the single-batch organoid preparation described in the paper. MTS and morphology
+  QC steps use independently dispensed fresh organoid aliquots (mtsOrganoids,
+  morphOrganoids) to avoid contaminating the timelapse wells.
+Timelapse abstraction note:
+  BioScript does not support loop constructs. The 72 h timelapse (18 frames at 4 h
+  intervals) is abstracted as a single heat at 37 C for 4320 m per condition arm.
+  The organoidDetection module abstracts the full OrganoID pipeline run post-incubation:
+  U-Net inference on all frames, Canny + watershed single-organoid identification,
+  and Munkres Hungarian tracking across frames.

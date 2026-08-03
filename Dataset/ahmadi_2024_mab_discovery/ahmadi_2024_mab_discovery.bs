@@ -1,0 +1,397 @@
+module singleCellTrapDetection
+module antibodyBindingDetection
+
+manifest HybridomaCells
+manifest TargetCells
+manifest IMDM_Medium
+manifest PBS
+manifest PluronicF127
+manifest HFE7500_Surfactant
+manifest AlexaFluor647_SecondaryAb
+manifest CellTrace_CFSE
+manifest CalceinAM_RedOrange
+
+// ============================================================
+// An Automated Single-Cell Droplet-Digital Microfluidic
+// Platform for Monoclonal Antibody Discovery.
+// Ahmadi, Tran, Letourneau, Little, Fortin, Moraitis, Shih
+// Small 2024, 20, 2308950
+// DOI: 10.1002/smll.202308950
+//
+// Platform: Droplet-Digital (D2) microfluidics -- a three-layer
+// hybrid device combining a digital microfluidic (DMF) electrode
+// layer (Cr on glass, 7 um SU-8 dielectric), and three stacked
+// PDMS-based microchannel devices:
+//   Device 1 -- Trapping array (100 traps, 50 per side, 20 um
+//               channel height, 50-75 um width, 7 um constriction;
+//               each trap has 2 actuation electrodes + 1 ground).
+//   Device 2 -- Flow-focusing droplet generator (target cells,
+//               ~30 pL droplets, ~3 kHz throughput, Poisson
+//               encapsulation).
+//   Device 3 -- Co-planar binary electrode sorter (selects
+//               single-target-cell droplets by CellTrace CFSE
+//               fluorescence at 470 nm ex / 520 nm em).
+//
+// CELL LINES (provided by NRC Canada):
+//   Hybridoma cells -- cultured in IMDM + 10% heat-inactivated
+//     FBS + mouse IL-6 (1 ng/mL) + pen/strep; 37 C / 5% CO2;
+//     passaged every 3 days at 8e6 cells/mL; loaded at 1e6/mL.
+//   Target cells -- express membrane-bound antigen; cultured in
+//     DMEM + 10% FBS + G418 (0.4 mg/mL); loaded at 1e6/mL.
+//
+// WORKFLOW SUMMARY (8 steps, Figure 2):
+//   A. Target cells encapsulated in ~30 pL droplets (Device 2).
+//   B. Single target-cell droplets sorted (Device 3).
+//   C. Hybridoma cells loaded and trapped (Device 1).
+//   D. In situ droplet generation around trapped hybridomas
+//      (phase change: oil at 1 nL/s, electrodes at 32 Vrms /
+//      15 kHz; droplet size 40-150 pL).
+//   E. Target-cell droplets re-injected and merged with
+//      hybridoma droplets in traps (32 Vrms / 15 kHz; highest
+//      co-encapsulation efficiency: 95 +/- 3.2% at 5 nL/s).
+//   F. Co-incubation on-chip for 30 min at room temperature.
+//      Hybridoma secretes mAbs; antigen-specific mAbs bind
+//      to target cell membrane-bound antigen.
+//   G. Droplet disruption + PBS/Alexa Fluor 647 wash
+//      (64 Vrms / 15 kHz; 96.8% fluorescence reduction in
+//      one wash step; flow rate 1-5 nL/s).
+//   H. Fluorescence detection: antigen-specific mAb droplets
+//      are Alexa Fluor 647 positive (lex=627 nm, lem=665 nm).
+//      Positive droplets collected by reverse-flow oil release
+//      (4 nL/s) into a glass capillary filled with HFE7500.
+//
+// PERFORMANCE METRICS:
+//   Single-cell trapping efficiency: 98 +/- 3.92% at 1 nL/s.
+//   Co-encapsulation efficiency:     95 +/- 3.2% at 5 nL/s.
+//   Droplet disruption efficiency:   ~100% at 32 Vrms / 1 nL/s.
+//   Washing efficiency:              96.8% fluorescence reduction.
+//   Cell retention post-wash:        96 +/- 9.6% (1-5 nL/s).
+//   Selection rate (100:0 ratio):    94.00 +/- 1.41%.
+//   Selection rate (1:50 ratio):     1.60% (rare-cell detection).
+//
+// NOTE ON DEVICE ABSTRACTION:
+//   BioScript `dispense` abstracts reagent loading from
+//   gas-tight Hamilton syringes driven by neMESYS pumps.
+//   `mix` abstracts both channel-flow hydrodynamic trapping
+//   events (Steps C, D) and electrode-actuated droplet
+//   merging/washing events (Steps E, G). Duration values
+//   reflect the dominant process time at each step.
+//   `heat` abstracts the on-chip incubation at ambient
+//   temperature (room temperature = 25 C, 30 min).
+//   `detect` abstracts fluorescence imaging with the
+//   Hamamatsu ORCA-Flash 4.0 camera and photon-counting head
+//   (300 ms exposure; lex=627 nm, lem=665 nm for Alexa647).
+//   Syringe pump flow-rate values and electrode voltages are
+//   annotated in comments; they are not encoded as BioScript
+//   primitives (not supported by lilott8/BioScript compiler).
+//
+// CFG STRUCTURE:
+//   BB1  main                 -- Device priming; target-cell
+//                                encapsulation (Device 2);
+//                                single-cell sorting (Device 3);
+//                                hybridoma trapping (Device 1);
+//                                in situ droplet generation;
+//                                droplet merge (co-encapsulation);
+//                                incubation; wash; detection.
+//   BB2  antibodyPass         -- antibodySignal > 0: antigen-
+//                                specific mAb detected (Alexa
+//                                Fluor 647 positive); collect
+//                                droplet and dispose.
+//   BB3  antibodyFail         -- antibodySignal <= 0: no specific
+//                                mAb; non-binding hybridoma;
+//                                drain droplet.
+//   BB4  finalCleanup         -- terminal: dispose QC signal;
+//                                experiment ends.
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prime Device 1 (trapping array) with 2% Pluronics
+//         F-127 in PBS to reduce non-specific cell adhesion
+//         to PDMS channel walls.
+//         Protocol: flow PBS from inlet 3 at 50 nL/s for 5 min
+//         (outlet 1 closed); reduce to 1 nL/s, open outlet 1.
+//         NOTE: `mix` here abstracts a channel priming flow,
+//         not a DMF electrode mixing step.
+// ------------------------------------------------------------
+
+primingPBS      = dispense 1 units of PBS
+primingPluronic = dispense 1 units of PluronicF127
+primedDevice    = mix primingPBS with primingPluronic for 5m
+
+// ------------------------------------------------------------
+// STEP 2: Prepare stained target cells for encapsulation.
+//         Target cells resuspended in PBS + CellTrace CFSE
+//         (5 uM, 1e6 cells/mL); stained 20 min at 37 C,
+//         washed with PBS; resuspended in IMDM (10% FBS +
+//         IL-6, no antibiotic, 1e6 cells/mL) for Device 2
+//         loading.
+//         NOTE: `heat` models the 20 min staining incubation.
+// ------------------------------------------------------------
+
+targetCells_raw  = dispense 1 units of TargetCells
+cfseStain        = dispense 1 units of CellTrace_CFSE
+stainedTarget    = mix targetCells_raw with cfseStain for 5s
+heat stainedTarget at 37c for 20m
+
+// Wash stained cells with PBS to remove excess dye.
+washPBS          = dispense 1 units of PBS
+washedTarget     = mix stainedTarget with washPBS for 2s
+
+// Resuspend in IMDM for chip loading.
+imdmForTarget    = dispense 1 units of IMDM_Medium
+targetCells      = mix washedTarget with imdmForTarget for 5s
+
+// ------------------------------------------------------------
+// STEP 3 (Device 2): Encapsulate stained target cells in
+//         ~30 pL droplets using flow-focusing droplet
+//         generator. Throughput: ~3 kHz; Poisson distribution.
+//         Oil: HFE7500 + 2% Ran Fluoro-surfactant.
+//         NOTE: `mix` abstracts the flow-focusing encapsulation
+//         of target cells in the PDMS microchannel device.
+// ------------------------------------------------------------
+
+oilPhase1           = dispense 1 units of HFE7500_Surfactant
+targetCellDroplets  = mix targetCells with oilPhase1 for 2s
+
+// ------------------------------------------------------------
+// STEP 4 (Device 3): Sort single target-cell droplets using
+//         co-planar binary electrode sorter. Fluorescence
+//         at 470 nm ex / 520 nm em (CellTrace CFSE) used to
+//         distinguish droplets with exactly 1 cell from
+//         empty or multi-cell droplets. Sorted droplets
+//         collected in a gas-tight glass syringe with HFE oil.
+//         NOTE: `detect` abstracts the PMT-based fluorescence
+//         counting used to trigger electrode actuation.
+//         `singleCellTrapDetection` gates on droplets above
+//         the single-cell threshold and below the two-cell
+//         threshold (set in the in-house control software).
+// ------------------------------------------------------------
+
+sortSignal          = detect singleCellTrapDetection on targetCellDroplets for 10s
+
+// Sort gate: only droplets containing exactly one target cell
+// are collected; others are sent to waste.
+if (sortSignal > 0) {
+    // Single-target-cell droplet selected; hold for re-injection.
+    // `targetSortDetection` pass -> droplet transferred to Device 1
+    // via 0.014" OD / 0.006" ID tubing bridging Device 2 to Device 3.
+    sortedTargetDroplets = mix targetCellDroplets with oilPhase1 for 1s
+} else {
+    drain targetCellDroplets
+}
+
+dispose sortSignal
+
+// ------------------------------------------------------------
+// STEP 5 (Device 1): Prime trapping array with IMDM cell
+//         culture media containing hybridoma cells to reduce
+//         cell adhesion. Hybridoma cells resuspended in IMDM
+//         (10% FBS + IL-6, no antibiotic, 1e6 cells/mL).
+//         Stained with CellTrace calcein red-orange AM prior
+//         to loading.
+// ------------------------------------------------------------
+
+hybridoamCells_raw   = dispense 1 units of HybridomaCells
+calceinStain         = dispense 1 units of CalceinAM_RedOrange
+stainedHybridoma     = mix hybridoamCells_raw with calceinStain for 5s
+heat stainedHybridoma at 37c for 20m
+
+washPBS2             = dispense 1 units of PBS
+washedHybridoma      = mix stainedHybridoma with washPBS2 for 2s
+
+imdmForHybridoma     = dispense 1 units of IMDM_Medium
+hybridoma_in_imdm    = mix washedHybridoma with imdmForHybridoma for 5s
+
+// ------------------------------------------------------------
+// STEP 6 (Device 1 -- Trapping): Load hybridoma cells into
+//         the trapping array at 1-5 nL/s. Single cells are
+//         hydrodynamically confined in 7 um constriction traps
+//         via fluidic resistance (open trap resistance < bypass
+//         channel; occupied trap blocks flow to next open trap).
+//         Single-cell trapping efficiency: 98 +/- 3.92% at
+//         1 nL/s (N=5 repeats, n=10 replicates per flow rate).
+//         Device accommodates 100 traps (50 per serpentine side).
+//         NOTE: `mix` abstracts the channel-flow hydrodynamic
+//         trapping event. Duration (2s) models cell settling
+//         at the 7 um constriction.
+// ------------------------------------------------------------
+
+trappingMix          = mix primedDevice with hybridoma_in_imdm for 2s
+
+// Verify single-cell occupancy by fluorescence (calcein red-orange:
+// lex=577 nm, lem=590 nm). `singleCellTrapDetection` confirms
+// single occupancy before proceeding to in situ encapsulation.
+trapOccupancySignal  = detect singleCellTrapDetection on trappingMix for 10s
+
+if (trapOccupancySignal > 0) {
+    imdmForHybridoma2 = dispense 1 units of IMDM_Medium
+    trappedHybridoma = mix trappingMix with imdmForHybridoma2 for 1s
+} else {
+    drain trappingMix
+}
+
+dispose trapOccupancySignal
+
+// ------------------------------------------------------------
+// STEP 7 (Device 1 -- In situ droplet generation):
+//         Phase change: IMDM cell culture medium replaced by
+//         HFE7500 + 2% Ran Fluoro-surfactant oil flowing at
+//         1 nL/s through the main channel. Electrodes beneath
+//         each trap actuated at 32 Vrms / 15 kHz to shear off
+//         aqueous phase and generate in situ droplets
+//         (40-150 pL) encapsulating single trapped hybridoma
+//         cells. Over 95% of droplets successfully generated
+//         at 1 nL/s oil flow rate.
+//         NOTE: `mix` abstracts the oil-phase flow + electrode
+//         actuation that shears off the aqueous droplet.
+//         Duration (4s) models the phase-change dwell time.
+// ------------------------------------------------------------
+
+oilPhase2            = dispense 1 units of HFE7500_Surfactant
+hybridoamDroplet     = mix trappedHybridoma with oilPhase2 for 4s
+
+// ------------------------------------------------------------
+// STEP 8 (Device 1 -- Co-encapsulation / Merge):
+//         Sorted single-target-cell droplets (from Step 4) are
+//         re-injected into Device 1 from inlet 2 at 5 nL/s,
+//         interleaved with oil spacer from a second inlet at
+//         1 nL/s. When a target-cell droplet arrives at a
+//         trap, the electrode beneath is actuated (32 Vrms /
+//         15 kHz) to merge it with the in situ hybridoma
+//         droplet. Co-encapsulation efficiency: 95 +/- 3.2%
+//         at 5 nL/s re-injection flow rate (highest reported
+//         without preliminary sorting of both cell types).
+//         NOTE: `mix` abstracts the electrode-actuated droplet
+//         merge event. Duration (1s) models the merge dwell time.
+// ------------------------------------------------------------
+
+oilSpacer            = dispense 1 units of HFE7500_Surfactant
+spacedTargetDroplets = mix sortedTargetDroplets with oilSpacer for 1s
+coEncapsulatedDroplet = mix hybridoamDroplet with spacedTargetDroplets for 1s
+
+// ------------------------------------------------------------
+// STEP 9 (On-chip incubation):
+//         Merged two-cell droplets incubated on-chip for 30 min
+//         at room temperature (25 C). During incubation:
+//           - Hybridoma cells secrete monoclonal antibodies
+//             into the confined droplet volume.
+//           - Antigen-specific mAbs diffuse and bind to
+//             membrane-bound antigens on co-encapsulated
+//             target cells.
+//           - Non-specific mAbs remain free in the droplet.
+//         NOTE: `heat at 25c` models on-chip room-temperature
+//         incubation. No external heating element used.
+// ------------------------------------------------------------
+
+heat coEncapsulatedDroplet at 25c for 30m
+
+// ------------------------------------------------------------
+// STEP 10 (Droplet disruption + washing):
+//         PBS containing Alexa Fluor 647-conjugated goat
+//         anti-mouse IgG (H+L) secondary antibody is flowed
+//         into Device 1 main channel from inlet 2 at 1-5 nL/s.
+//         Electrodes beneath traps actuated at 64 Vrms /
+//         15 kHz to disrupt the droplet interface via
+//         electrostatic force (field intensity 2-4 x 10^5 V/m).
+//         Droplet contents (non-specific secreted mAbs) are
+//         washed out through the constriction opening.
+//         Hybridoma and target cells (held by antigen-antibody
+//         bond) are retained in the trap.
+//         Washing efficiency: 96.8% fluorescence reduction
+//         after 1 wash step (~5 min total for 50 traps).
+//         PBS/Alexa647 flow rate: 1-5 nL/s during wash;
+//         reduced to 0.1 nL/s for droplet re-formation.
+//         NOTE: `mix` abstracts the phase-exchange wash cycle.
+//         `AlexaFluor647_SecondaryAb` manifest encodes the
+//         PBS + Alexa Fluor 647 secondary antibody solution
+//         (loaded from inlet 2 at the given flow rate).
+// ------------------------------------------------------------
+
+alexaFluorWash       = dispense 1 units of AlexaFluor647_SecondaryAb
+washPBS3             = dispense 1 units of PBS
+pbsAlexaSolution     = mix alexaFluorWash with washPBS3 for 2s
+
+// Droplet disruption and wash: electrode actuation bursts
+// the IMDM droplet interface; PBS/Alexa647 flows through
+// the trap removing non-specific antibodies.
+washedDroplet        = mix coEncapsulatedDroplet with pbsAlexaSolution for 5m
+
+// Re-form oil droplet around the two cells after washing:
+// reduce PBS/Alexa647 flow to 0.1 nL/s; increase HFE7500
+// Ran-HFE oil flow back to 5 nL/s to generate a new PBS
+// droplet encapsulating the two cells in situ.
+oilPhase3            = dispense 1 units of HFE7500_Surfactant
+reforumDroplet       = mix washedDroplet with oilPhase3 for 1s
+
+// ------------------------------------------------------------
+// STEP 11 (Fluorescence detection):
+//         Trapping array imaged with Hamamatsu ORCA-Flash 4.0
+//         (lex=627 nm / lem=665 nm, 300 ms exposure) using
+//         Alexa Fluor 647 channel. Antigen-specific mAbs that
+//         bound to target cell membrane are labelled by the
+//         secondary antibody, generating a localised red
+//         fluorescent signal around the target cell.
+//         Non-specific mAbs were removed by washing and do not
+//         generate signal. SNR significantly higher post-wash
+//         for antigen-specific (binding) vs. non-specific
+//         (non-binding) hybridoma droplets (P < 0.05).
+//         The photon-counting head (PMT) is used to trigger
+//         on-demand release of positive droplets.
+//         `antibodyBindingDetection` module gates on
+//         fluorescence signal intensity above background
+//         (mean fluorescence of the cell > mean fluorescence
+//         of the surrounding droplet).
+// ------------------------------------------------------------
+
+antibodySignal       = detect antibodyBindingDetection on reforumDroplet for 10s
+
+// ============================================================
+// BB2 / BB3: Antibody binding detection gate
+// Pass (BB2): antibodySignal > 0 -> Alexa Fluor 647 signal
+//             detected at target cell membrane; hybridoma
+//             is producing antigen-specific mAb.
+//             Droplet released via reverse oil flow (4 nL/s)
+//             from outlet 1 into glass capillary (HFE7500)
+//             for downstream characterisation/sequencing.
+// Fail (BB3): antibodySignal <= 0 -> no specific binding;
+//             non-specific mAb producer; droplet drained.
+// Both branches converge at BB4 (finalCleanup).
+// ============================================================
+
+if (antibodySignal > 0) {
+    // ------------------------------------------------------------
+    // Recovery (pass path):
+    // Positive droplet released by reverse oil flow (4 nL/s)
+    // from outlet 1 (inlet 3 briefly opened to clear channel).
+    // Droplet collected into glass capillary filled with HFE7500.
+    // FC-40 (1 mL) added to PTFE membrane to disrupt surfactant-
+    // stabilised emulsion; aqueous cell droplet absorbed by
+    // membrane, then merged with 10-20 uL IMDM complete medium
+    // and transferred to a well-plate for downstream expansion
+    // and antibody characterisation assays.
+    // NOTE: `mix` abstracts the capillary recovery and FC-40
+    // wash; `dispose` marks handoff to downstream workflow.
+    // ------------------------------------------------------------
+    imdmRecovery   = dispense 1 units of IMDM_Medium
+    recoveredCells = mix reforumDroplet with imdmRecovery for 1m
+    dispose recoveredCells
+} else {
+    drain reforumDroplet
+}
+
+// ============================================================
+// BB4: finalCleanup (terminal)
+// Dispose the antibody detection QC signal droplet.
+// Experiment ends; recovered cells proceed to off-chip
+// antibody characterisation (sequencing, ELISA, etc.).
+// ============================================================
+
+dispose antibodySignal
+
+// [terminal -- no further instructions; exit node for CFG]

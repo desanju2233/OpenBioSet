@@ -1,0 +1,354 @@
+{
+  "protocol": {
+    "title": "Automated Microfluidic Platform for Dynamic and Combinatorial Drug Screening of Tumor Organoids",
+    "source": "Nature Communications (2020) 11:5271",
+    "source_link": "https://www.nature.com/articles/s41467-020-19058-4",
+    "doi": "https://doi.org/10.1038/s41467-020-19058-4",
+    "platform": "Two-part PDMS microfluidic device: 200-well 3D culture chamber array + solenoid-valve multiplexer control device",
+    "cell_lines": [
+      "PDAC Patient 1 (pancreatic ductal adenocarcinoma, patient-derived organoids)",
+      "PDAC Patient 2 (pancreatic ductal adenocarcinoma, patient-derived organoids)",
+      "PDAC Patient 3 (pancreatic ductal adenocarcinoma, patient-derived organoids)"
+    ],
+    "objective": "High-throughput culture, combinatorial drug screening, and temporal/sequential drug delivery to patient-derived PDAC organoids in Matrigel; real-time apoptosis and cell death quantification; multi-patient parallel comparison",
+
+    "device": {
+      "layers": [
+        "Chamber layer: PDMS 200-well array, 610 um average well height, glass slide base",
+        "Channel layer: PDMS fluidic channels, 455 um height, reversibly clamped onto chamber layer"
+      ],
+      "well_array": {
+        "total_wells": 200,
+        "subsets": 20,
+        "wells_per_subset": 10,
+        "max_patient_samples": 10,
+        "max_independent_conditions": 20
+      },
+      "multiplexer": {
+        "type": "Valve-based reusable multiplexer control device",
+        "max_inputs": 30,
+        "max_outlets": 30,
+        "valve_type": "Solenoid valves",
+        "actuation": "Automated via custom MATLAB GUI (tab-delimited text / CSV input)",
+        "supply_pressure_psi": 5,
+        "valve_closing_pressure_psi": "35-40"
+      },
+      "microscope": {
+        "model": "Nikon Eclipse Ti (inverted, automated translational stage)",
+        "camera": "ORCA-Flash 4.0 CMOS (Hamamatsu)",
+        "objective": "10x",
+        "imaging_interval_h": "2-4",
+        "software": "NIS-Elements (Japan)",
+        "enclosure": "Life Imaging Service GmbH environmental chamber",
+        "conditions": "37 C / 5% CO2 / 100% RH"
+      }
+    },
+
+    "reagents": {
+      "extracellular_matrix": "Growth-factor-reduced (GFR) Matrigel (Corning 356231), 70% v/v",
+      "complete_organoid_media": {
+        "base": "Intesticult (Stemcell Technologies 6005)",
+        "supplements": [
+          "A83-01 0.5 uM (Sigma SML0788)",
+          "FGF10 100 ng/mL (Gibco PHG024)",
+          "Gastrin I 10 nM (Sigma 17105-041)",
+          "N-acetyl-L-cysteine 10 mM (Sigma A9165)",
+          "Nicotinamide 10 mM (Sigma N0636)",
+          "B27 supplement 1x (Gibco 17504-044)",
+          "Primocin 1 mg/mL (InvivoGen ant-pm-1)",
+          "Y-27632 10.5 uM (Tocris 1254)"
+        ]
+      },
+      "single_agent_drugs": {
+        "Gemcitabine_100nM":      { "catalog": "G6423, Sigma",          "concentration": "100 nM" },
+        "Paclitaxel_10nM":        { "catalog": "T7191, Sigma",          "concentration": "10 nM"  },
+        "FluorouracilLow_100nM":  { "catalog": "F6627, Sigma",          "concentration": "100 nM" },
+        "FluorouracilHigh_1uM":   { "catalog": "F6627, Sigma",          "concentration": "1 uM"   },
+        "Docetaxel_10nM":         { "catalog": "01885, Sigma",          "concentration": "10 nM"  },
+        "CPT11_100nM":            { "catalog": "I1406, Sigma",          "concentration": "100 nM" },
+        "Oxaliplatin_100nM":      { "catalog": "AG-CR1-3592, AdipoGen", "concentration": "100 nM" },
+        "Cisplatin_100nM":        { "catalog": "232120, Sigma",         "concentration": "100 nM" }
+      },
+      "viability_markers": {
+        "Caspase37_Reagent": {
+          "product": "Essen Bioscience 4400",
+          "working_concentration_uM": 5,
+          "signal": "Apoptosis (green, live-cell compatible)",
+          "analysis": "MATLAB trapezoid integration of fluorescence intensity over 72 h"
+        },
+        "PropidiumIodide": {
+          "product": "Thermo Fisher P3566",
+          "working_concentration_uM": 1.5,
+          "ex_nm": 488,
+          "em_nm": 617,
+          "signal": "Cell death (red, membrane-impermeant)"
+        }
+      },
+      "positive_control": "Staurosporine 10 mM (NC0748115, Fisher Scientific)"
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Organoid culture establishment",
+        "bb": "BB1",
+        "section": 1,
+        "inputs": ["PDAC_P1_Cells", "PDAC_P2_Cells", "PDAC_P3_Cells", "GFR_Matrigel", "CompleteOrganoidMedia"],
+        "operation": "dispense + mix (abstracted manual pipetting into 610-um wells)",
+        "matrigel_fraction": "70%",
+        "media_fraction": "30%",
+        "cell_prep": "Mechanically dissociated to single cells via TrypLE Express (Fisher Scientific 12605-010) before loading",
+        "arms": 14,
+        "notes": "Each treatment arm receives its own independently dispensed culture in separate wells. Channel layer clamped and pressurised at 5 psi after loading."
+      },
+      {
+        "id": "S2",
+        "name": "14-day growth phase",
+        "bb": "BB1",
+        "section": 2,
+        "operation": "heat (in-place incubation, void/no assignment in BioScript)",
+        "temperature_C": 37,
+        "co2_pct": 5,
+        "humidity_pct": 100,
+        "duration_days": 14,
+        "duration_min": 20160,
+        "duration_s_ir": 1209600.0,
+        "media_exchange_interval_h": 38,
+        "imaging": "Continuous time-lapse, 10x, every 2-4 h; automated MATLAB segmentation tracks cross-sectional area",
+        "endpoint": "Organoids mature to ~500 um diameter 3D glandular structures"
+      },
+      {
+        "id": "S3",
+        "name": "Single-agent drug screen (Patient 1, 72-h arm)",
+        "bb": "BB1",
+        "section": 3,
+        "drugs": [
+          "Gemcitabine 100 nM",
+          "Paclitaxel 10 nM",
+          "5-FU 100 nM",
+          "Docetaxel 10 nM",
+          "CPT-11 100 nM",
+          "Oxaliplatin 100 nM",
+          "Cisplatin 100 nM"
+        ],
+        "viability_markers": ["Caspase 3/7 5 uM", "Propidium iodide 1.5 uM"],
+        "phase_1_duration_min": 2880,
+        "phase_1_label": "Drug exposure 0-48 h",
+        "replenishment_at_h": 48,
+        "replenishment": "Fresh complete media + drug dispensed and mixed at 48-h mark",
+        "phase_2_duration_min": 1440,
+        "phase_2_label": "Continued drug exposure 48-72 h",
+        "total_duration_min": 4320,
+        "total_duration_h": 72,
+        "qc_arm": "Gemcitabine (apoptosisQC detect gate)",
+        "fix_applied": "FIX A: Split into phase1 (2880m) + replenishment + phase2 (1440m) to correctly place 48-h media exchange"
+      },
+      {
+        "id": "S4",
+        "name": "Temporal FOLFIRINOX (Patient 1)",
+        "bb": "BB1",
+        "section": 4,
+        "clinical_reference": "Standard FOLFIRINOX IV regimen for PDAC",
+        "sequence": [
+          { "drug": "CPT11_100nM",          "duration_min": 120,  "label": "CPT-11 2 h"              },
+          { "drug": "Oxaliplatin_100nM",     "duration_min": 120,  "label": "Oxaliplatin 2 h"         },
+          { "drug": "FluorouracilHigh_1uM",  "duration_min": 30,   "label": "High-dose 5-FU 30 min"   },
+          { "drug": "FluorouracilLow_100nM", "duration_min": 4050, "label": "Low-dose 5-FU until 72 h"}
+        ],
+        "total_duration_min": 4320,
+        "total_duration_h": 72,
+        "fix_applied": "FIX B: Final low-dose 5-FU extended to 4050m (not 2760m/46h from clinical text); paper states 'until the end of the 72-h experiment'. 120+120+30+4050=4320m."
+      },
+      {
+        "id": "S5",
+        "name": "Temporal FOLFIRI (Patient 1)",
+        "bb": "BB1",
+        "section": 5,
+        "sequence": [
+          { "drug": "CPT11_100nM",          "duration_min": 240,  "label": "CPT-11 4 h"              },
+          { "drug": "FluorouracilHigh_1uM",  "duration_min": 30,   "label": "High-dose 5-FU 30 min"   },
+          { "drug": "FluorouracilLow_100nM", "duration_min": 4050, "label": "Low-dose 5-FU until 72 h"}
+        ],
+        "total_duration_min": 4320,
+        "total_duration_h": 72,
+        "fix_applied": "FIX B: 240+30+4050=4320m."
+      },
+      {
+        "id": "S6",
+        "name": "Temporal FOLFOX (Patient 1)",
+        "bb": "BB1",
+        "section": 6,
+        "sequence": [
+          { "drug": "Oxaliplatin_100nM",     "duration_min": 240,  "label": "Oxaliplatin 4 h"         },
+          { "drug": "FluorouracilHigh_1uM",  "duration_min": 30,   "label": "High-dose 5-FU 30 min"   },
+          { "drug": "FluorouracilLow_100nM", "duration_min": 4050, "label": "Low-dose 5-FU until 72 h"}
+        ],
+        "total_duration_min": 4320,
+        "total_duration_h": 72,
+        "fix_applied": "FIX B: 240+30+4050=4320m."
+      },
+      {
+        "id": "S7",
+        "name": "Temporal Gemcitabine + 5-FU (Patient 1)",
+        "bb": "BB1",
+        "section": 7,
+        "cycles": 2,
+        "unrolled": true,
+        "sequence": [
+          { "drug": "Gemcitabine_100nM",     "duration_min": 240,  "cycle": 1, "label": "Gem 4 h"          },
+          { "drug": "FluorouracilLow_100nM", "duration_min": 2880, "cycle": 1, "label": "5-FU 48 h"        },
+          { "drug": "Gemcitabine_100nM",     "duration_min": 240,  "cycle": 2, "label": "Gem 4 h"          },
+          { "drug": "FluorouracilLow_100nM", "duration_min": 960,  "cycle": 2, "label": "5-FU 16 h (truncated at 72-h boundary)"}
+        ],
+        "total_duration_min": 4320,
+        "total_duration_h": 72,
+        "fix_applied": "FIX C: Cycle 2 final 5-FU truncated from 2880m to 960m per Fig 4f visual truncation. 240+2880+240+960=4320m."
+      },
+      {
+        "id": "S8",
+        "name": "Temporal Gemcitabine + Paclitaxel (Patient 1)",
+        "bb": "BB1",
+        "section": 8,
+        "cycles": 2,
+        "unrolled": true,
+        "sequence": [
+          { "drug": "Gemcitabine_100nM",      "duration_min": 240,  "cycle": 1, "label": "Gem 4 h"         },
+          { "drug": "Paclitaxel_10nM",        "duration_min": 240,  "cycle": 1, "label": "Pac 4 h"         },
+          { "drug": "CompleteOrganoidMedia",   "duration_min": 1440, "cycle": 1, "label": "Media 24 h"      },
+          { "drug": "Gemcitabine_100nM",      "duration_min": 240,  "cycle": 2, "label": "Gem 4 h"         },
+          { "drug": "Paclitaxel_10nM",        "duration_min": 240,  "cycle": 2, "label": "Pac 4 h"         },
+          { "drug": "CompleteOrganoidMedia",   "duration_min": 1920, "cycle": 2, "label": "Media 32 h (padded to 72-h boundary)"}
+        ],
+        "total_duration_min": 4320,
+        "total_duration_h": 72,
+        "clinical_significance": "Most effective regimen for Patient 1 (Fig 4g); retrospectively matched to clinical outcome (Table 2)",
+        "fix_applied": "FIX C: Final media step padded from 1440m to 1920m per Table 1 schedule. 240+240+1440+240+240+1920=4320m.",
+        "internal_inconsistency_note": "Table 1 schedule (encoded here) differs from Fig 4g schedule. Fig 4g shows: Cycle1 2h Gem + 2h Pac + 44h Media; Cycle2 2h Gem + 4h Pac + 18h Media. Table 1 schedule selected as primary encoding per reviewer guidance."
+      },
+      {
+        "id": "S9",
+        "name": "Multi-patient parallel Gem+5FU temporal (P1/P2/P3)",
+        "bb": "BB1",
+        "section": 9,
+        "patients": ["Patient 2", "Patient 3"],
+        "note": "Patient 1 Gem+5FU arm already encoded in Section 7. P2 and P3 encoded identically.",
+        "sequence": [
+          { "drug": "Gemcitabine_100nM",     "duration_min": 240,  "cycle": 1 },
+          { "drug": "FluorouracilLow_100nM", "duration_min": 2880, "cycle": 1 },
+          { "drug": "Gemcitabine_100nM",     "duration_min": 240,  "cycle": 2 },
+          { "drug": "FluorouracilLow_100nM", "duration_min": 960,  "cycle": 2, "label": "truncated at 72-h boundary"}
+        ],
+        "total_duration_min": 4320,
+        "total_duration_h": 72,
+        "qc_arm": "Patient 2 (p=7E-07 vs control, Fig 5b; most sensitive to Gem+5FU temporal)",
+        "mirrors": "Fig. 5 high-throughput simultaneous multi-patient experiment",
+        "fix_applied": "FIX C: Same 960m truncation applied to p2Finished and p3Finished. 240+2880+240+960=4320m."
+      }
+    ],
+
+    "qc_detection": {
+      "primary_gate": {
+        "variable": "apoptosisQC",
+        "source_fluid": "gemFinished",
+        "module": "apoptosisDetection",
+        "duration_s": 30,
+        "pass_condition": "apoptosisQC > 0",
+        "pass_action": "dispose all P1 single-agent and temporal arm droplets (BB2)",
+        "fail_action": "drain all P1 single-agent and temporal arm droplets (BB3)",
+        "join_bb": "BB4"
+      },
+      "secondary_gate": {
+        "variable": "multiPatQC",
+        "source_fluid": "p2Finished",
+        "module": "apoptosisDetection",
+        "duration_s": 30,
+        "pass_condition": "multiPatQC > 0",
+        "pass_action": "dispose p2Finished and p3Finished (BB5)",
+        "fail_action": "drain p2Finished and p3Finished (BB6)",
+        "join_bb": "BB7 (terminal)"
+      }
+    },
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1", "label": "main",          "type": "entry",        "content": "Culture establishment, 14-day growth, all 9 drug treatment sections, both QC detects" },
+        { "id": "BB2", "label": "bsbbif_2_t",    "type": "branch_true",  "condition": "apoptosisQC > 0",  "action": "dispose 12 P1 arm droplets" },
+        { "id": "BB3", "label": "bsbbif_3_f",    "type": "branch_false", "condition": "apoptosisQC <= 0", "action": "drain 12 P1 arm droplets"  },
+        { "id": "BB4", "label": "bsbbif_4_j",    "type": "join",         "content": "dispose apoptosisQC; fall through to multi-patient gate"     },
+        { "id": "BB5", "label": "bsbbif_5_t",    "type": "branch_true",  "condition": "multiPatQC > 0",   "action": "dispose p2Finished, p3Finished" },
+        { "id": "BB6", "label": "bsbbif_6_f",    "type": "branch_false", "condition": "multiPatQC <= 0",  "action": "drain p2Finished, p3Finished"   },
+        { "id": "BB7", "label": "bsbbif_7_j",    "type": "terminal",     "content": "dispose multiPatQC; experiment ends; device disassembled for organoid harvest" }
+      ],
+      "edges": [
+        ["BB1","BB2"], ["BB1","BB3"],
+        ["BB2","BB4"], ["BB3","BB4"],
+        ["BB4","BB5"], ["BB4","BB6"],
+        ["BB5","BB7"], ["BB6","BB7"]
+      ],
+      "compiler_output": {
+        "ir_file": "schuster_organoid_drug_screening.ir",
+        "dot_file": "schuster_organoid_drug_screening_main_dag.dot",
+        "compiler": "lilott8/BioScript (ANTLR4-based)"
+      }
+    },
+
+    "bioscript_compiler_notes": {
+      "bs_file": "schuster_organoid_drug_screening.bs",
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "duration_units": "s and m only (h token not supported)",
+      "duration_conversions": {
+        "30 min":   "30m   (IR: 1800.0 SECOND)",
+        "2 h":      "120m  (IR: 7200.0 SECOND)",
+        "4 h":      "240m  (IR: 14400.0 SECOND)",
+        "16 h":     "960m  (IR: 57600.0 SECOND)",
+        "24 h":     "1440m (IR: 86400.0 SECOND)",
+        "32 h":     "1920m (IR: 115200.0 SECOND)",
+        "48 h":     "2880m (IR: 172800.0 SECOND)",
+        "67.5 h":   "4050m (IR: 243000.0 SECOND)",
+        "72 h":     "4320m (IR: 259200.0 SECOND)",
+        "14 days":  "20160m (IR: 1209600.0 SECOND)"
+      },
+      "modules": ["apoptosisDetection", "cellDeathDetection"],
+      "manifests": [
+        "PDAC_P1_Cells", "PDAC_P2_Cells", "PDAC_P3_Cells",
+        "GFR_Matrigel", "CompleteOrganoidMedia",
+        "Gemcitabine_100nM", "Paclitaxel_10nM",
+        "FluorouracilLow_100nM", "FluorouracilHigh_1uM",
+        "Docetaxel_10nM", "CPT11_100nM", "Oxaliplatin_100nM",
+        "Cisplatin_100nM", "Caspase37_Reagent", "PropidiumIodide"
+      ],
+      "no_loops": "All multi-cycle regimens fully unrolled (Gem+5FU x2, Gem+Pac x2)",
+      "heat_void": "All heat instructions are void/in-place; no LHS assignment",
+      "detect_single_use": "Each detect result (apoptosisQC, multiPatQC) assigned exactly once",
+      "fluid_single_use": "Each arm has independently dispensed cultures, markers, and drugs; no fluid variable used as mix/detect source more than once per linear chain",
+      "encoding_scope": "Patient 1 full arm (7 single-agent + 5 temporal); Patient 2 and 3 encoded for Gem+5FU temporal parallel comparison only",
+      "ascii_only": "File is strict ASCII; all Unicode symbols removed (checkmarks, arrows) to prevent ANTLR4 FileStream UnicodeDecodeError"
+    },
+
+    "fixes_applied": [
+      {
+        "id": "FIX_A",
+        "section": 3,
+        "issue": "48-hour replenishment bug: original 4320m single mix meant replenishment occurred at 72h+10s not at 48h",
+        "fix": "Split each single-agent arm into phase1 (2880m) + dispense fresh media+drug + phase2 (1440m). Total = 4320m."
+      },
+      {
+        "id": "FIX_B",
+        "sections": [4, 5, 6],
+        "issue": "Duration deficit: FOLFIRINOX/FOLFIRI/FOLFOX total was 50.5h or less; platform would idle 21.5h before QC gate",
+        "fix": "Extended final low-dose 5-FU step to 4050m in all three regimens so total = 4320m per 'until end of 72-h experiment' paper text."
+      },
+      {
+        "id": "FIX_C",
+        "sections": [7, 8, 9],
+        "issue": "Gem+5FU overshot 72h (104h total); Gem+Pac fell short of 72h (64h total)",
+        "fix": "Gem+5FU cycle 2 final 5-FU truncated to 960m (240+2880+240+960=4320m); Gem+Pac final media padded to 1920m (240+240+1440+240+240+1920=4320m). Same 960m truncation applied to P2 and P3 arms in Section 9."
+      },
+      {
+        "id": "FIX_UNICODE",
+        "issue": "ANTLR4 FileStream opened in ASCII mode; UTF-8 checkmark (U+2713) and arrow (U+2190) in comments caused UnicodeDecodeError at position 14172",
+        "fix": "All non-ASCII characters replaced with ASCII equivalents (OK, <--); file re-encoded as strict ASCII."
+      }
+    ]
+  }
+}

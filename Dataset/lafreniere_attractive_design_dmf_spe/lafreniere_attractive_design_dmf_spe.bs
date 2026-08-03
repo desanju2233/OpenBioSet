@@ -1,0 +1,579 @@
+module massSpecDetection
+module fluorescenceDetection
+module doeElutionModel
+
+manifest C18_MagneticBeads
+manifest Acetonitrile
+manifest Methanol
+manifest Water
+manifest TFA_Solution
+manifest Fluorescein_Sample
+manifest Sitamaquine_Sample
+manifest AngiotensinI_Sample
+manifest Sitamaquine_AngiotensinI_Mix
+manifest DBS_Extract
+manifest InternalStandard
+
+// ============================================================
+// Attractive Design: An Elution Solvent Optimization Platform
+// for Magnetic-Bead-based Fractionation Using Digital
+// Microfluidics and Design of Experiments.
+// Lafreniere et al., Anal. Chem. 2015, 87, 3902-3910.
+// DOI: 10.1021/ac504697r
+//
+// This BioScript file encodes the full protocol including:
+//   (1) DMF magnetic bead SPE (six-step method)
+//   (2) Loading capacity characterisation with fluorescein
+//   (3) DOE-guided elution solvent optimisation for
+//       sitamaquine (small molecule) and angiotensin I (peptide)
+//   (4) Two-fraction sample fractionation
+//   (5) Dried blood spot (DBS) extraction and cleanup
+//
+// DEVICE: Bottom plate: 15x4 array of 2x2 mm driving electrodes
+//   + 8 reservoir electrodes (16x6 mm). Top plate: ITO/Teflon AF.
+//   Gap: 270 um (3 layers double-sided tape). Actuation: 100-120
+//   V_rms, 10 kHz. Magnetic lens: motorised vertical step-motor
+//   for reversible bead immobilisation.
+//
+// SIX-STEP SPE METHOD (each step = three sub-operations):
+//   (i)  Engulf: dispense droplet, drive to bead bed
+//   (ii) Mix:    suspend beads, mix under DMF actuation
+//  (iii) Remove: engage magnet, drive supernatant away
+//   Steps:
+//     1 - Dispense bead bed (10 uL, ~9e7 beads, 5 mg/mL)
+//     2 - Activate C18 with acetonitrile (10 uL)
+//     3 - Wash with water (10 uL)
+//     4 - Load sample and incubate (10 uL, 5 min)
+//     5 - Wash twice with water (2 x 10 uL)
+//     6 - Elute with optimised solvent (10 uL)
+//   Total run time: ~12 min. Throughput: 15 samples/h (3 parallel).
+//
+// NOTE ON `mix` ABSTRACTION: All `mix` calls model the full
+//   engage-magnet / engulf / mix / disengage / remove-supernatant
+//   sequence for a given SPE step. The magnetic lens toggling is
+//   intrinsic to the DMF instrument and is not separately encoded.
+//
+// NOTE ON PLURONICS: Pluronic F-127 (common DMF antifouling
+//   additive) was found to be INCOMPATIBLE with this protocol
+//   (micellar encapsulation of hydrophobic analytes and/or
+//   coating of C18 bead surfaces). Pluronics are NOT used
+//   anywhere in this file. See paper Section "DMF-Magnetic
+//   Bead-SPE", first paragraph.
+//
+// NOTE ON SOLVENT MIXING: On-chip solvent composition uses
+//   unit droplets (2.5 uL, one electrode). Mixtures are formed
+//   by dispensing and combining unit droplets from reservoir
+//   electrodes containing neat Water, Acetonitrile, Methanol.
+//   `mix` steps below represent this automated on-chip blending.
+//
+// DOE DESIGN: Simplex-centroid design; 7 solvent combinations:
+//   neat ACN, neat MeOH, neat H2O, 1:1 ACN:MeOH,
+//   1:1 ACN:H2O, 1:1 MeOH:H2O, 1:1:1 ACN:MeOH:H2O.
+//   Data fit to three-component special cubic model (eq 2).
+//   Optimal solvent: 100% MeOH for sitamaquine;
+//                    1:1 ACN:H2O for angiotensin I.
+//
+// CFG STRUCTURE:
+//   BB1  main                  -- bead dispensing, C18 activation,
+//                                 loading capacity QC
+//   BB2  loadingPass           -- loadingSignal > 0: acceptable
+//                                 loading (<10% unbound); proceed
+//   BB3  loadingFail           -- loadingSignal <= 0: beads saturated
+//                                 (>80% unbound at >=10 mg/mL); drain
+//   BB4  loadingJoin           -- join: DOE solvent optimisation begins
+//   BB5  doeOptPass            -- doeSignal > 0: model converged,
+//                                 optimal solvent identified; proceed
+//   BB6  doeOptFail            -- doeSignal <= 0: DOE inconclusive; drain
+//   BB7  doeJoin               -- join: sample fractionation begins
+//   BB8  fractionationPass     -- fractionSignal > 0: fractionation
+//                                 successful (<10% coelution); proceed
+//   BB9  fractionationFail     -- fractionSignal <= 0: excessive
+//                                 coelution (>10%); drain
+//   BB10 fractionationJoin     -- join: DBS extraction and cleanup
+//   BB11 dbsCleanupPass        -- dbsSignal > 0: cleanup improved
+//                                 sitamaquine signal; dispose
+//   BB12 dbsCleanupFail        -- dbsSignal <= 0: no signal improvement;
+//                                 drain
+//   BB13 finalCleanup          -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Dispense C18 magnetic bead bed.
+//   10 uL of bead suspension (5 mg/mL, ~9e7 beads in ~9e-5 cm3).
+//   Beads pipetted onto device; magnetic lens engaged to form
+//   the bead bed on the DMF device surface.
+//   Sorbent bed size is tunable on-the-fly (paper Fig. 2B):
+//   6 uL -> ~5.4e7 beads; 12 uL -> ~1.08e8 beads.
+//   This protocol uses the standard 10 uL (9e7 beads) bed.
+// ------------------------------------------------------------
+
+beadBed = dispense 1 units of C18_MagneticBeads
+
+// ------------------------------------------------------------
+// STEP 2: Activate C18 stationary phase with acetonitrile.
+//   10 uL acetonitrile droplet dispensed, driven to bead bed.
+//   Beads mixed (magnet off, DMF actuation) then supernatant
+//   removed (magnet on). Activation time: ~30 s.
+//   Activates collapsed C18 chains into extended conformation
+//   for reversed-phase interaction (paper Fig. 1B).
+// ------------------------------------------------------------
+
+activationSolvent  = dispense 1 units of Acetonitrile
+activatedBeads     = mix beadBed with activationSolvent for 30s
+
+// ------------------------------------------------------------
+// STEP 3: Wash beads with water to equilibrate to aqueous phase.
+//   10 uL water droplet. Beads mixed then supernatant removed.
+//   Wash time: ~30 s.
+// ------------------------------------------------------------
+
+washSolvent1   = dispense 1 units of Water
+washedBeads    = mix activatedBeads with washSolvent1 for 30s
+
+// ------------------------------------------------------------
+// LOADING CAPACITY CHARACTERISATION:
+//   Model analyte: fluorescein in 0.1% TFA (aqueous).
+//   10 uL droplet loaded onto C18 bead bed, incubated 5 min
+//   with DMF actuation mixing. Supernatant recovered off-chip
+//   and fluorescence measured (PheraStar, ex 480 nm, em 520 nm).
+//   Result (paper Fig. 2A): ~10% unbound for 1-1000 ug/mL;
+//   saturation onset at 10 mg/mL (>80% unbound).
+//   This characterisation uses the washed bead bed from STEP 3.
+// ------------------------------------------------------------
+
+// STEP 4a (loading capacity): Load fluorescein sample.
+fluoresceingSample   = dispense 1 units of Fluorescein_Sample
+loadedBeads_QC       = mix washedBeads with fluoresceingSample for 5m
+
+// STEP 5a (loading capacity): Wash unbound analyte.
+washSolvent_QC1      = dispense 1 units of Water
+washSolvent_QC2      = dispense 1 units of Water
+washed_QC1           = mix loadedBeads_QC with washSolvent_QC1 for 30s
+washed_QC2           = mix washed_QC1 with washSolvent_QC2 for 30s
+
+// STEP 6a (loading capacity QC detection):
+//   fluorescenceDetection module abstracts off-chip plate reader
+//   measurement of unbound fluorescein in supernatant.
+//   loadingSignal > 0: <80% unbound (beads not saturated).
+//   loadingSignal <= 0: >=80% unbound (saturation detected).
+loadingSignal = detect fluorescenceDetection on washed_QC2 for 10s
+
+// ============================================================
+// BB2 / BB3: Loading capacity QC gate
+// Pass (BB2): loadingSignal > 0 -> acceptable loading (<80%
+//             unbound); proceed to DOE optimisation.
+// Fail (BB3): loadingSignal <= 0 -> beads saturated; dispense
+//             a larger bead bed off-chip and drain.
+//             (Resolution: increase bead suspension volume,
+//              e.g., from 10 uL to 12 uL, per paper Fig. 2B)
+// Both branches converge at BB4 (loadingJoin).
+// ============================================================
+
+if (loadingSignal > 0) {
+    dispose washed_QC2
+} else {
+    drain washed_QC2
+}
+
+// ============================================================
+// BB4: loadingJoin
+// Dispose loading QC signal. Begin DOE solvent optimisation.
+// ============================================================
+
+dispose loadingSignal
+
+// ============================================================
+// PROTOCOL 2: DOE Elution Solvent Optimisation
+// Simplex-centroid design. Seven solvent combinations screened
+// for sitamaquine (1 ug/mL) and angiotensin I (50 ug/mL).
+// On-chip solvent blending uses unit droplets (2.5 uL each).
+// Solvents dispensed from reservoir electrodes (neat stocks).
+//
+// NOTE ON COMPILER CONSTRAINT: Seven full independent SPE
+// runs (one per DOE point) would require re-dispensing fresh
+// bead beds for each condition. To remain compiler-compatible
+// with lilott8/BioScript (no loop/array-index semantics for
+// multi-run DOE), the three most analytically distinct solvent
+// conditions are encoded explicitly as representative DOE
+// points covering the extremes and optimum of the ternary
+// mixture space:
+//   DOE Point 1: 100% MeOH       (optimal for sitamaquine)
+//   DOE Point 2: 1:1 ACN:H2O     (optimal for angiotensin I)
+//   DOE Point 3: 1:1:1 ACN:MeOH:H2O (ternary centroid point)
+// The doeElutionModel detection module abstracts the special
+// cubic model fitting and response surface generation over all
+// seven points (paper eq 2, Fig. 4A/B).
+// ============================================================
+
+// ------------------------------------------------------------
+// DOE POINT 1: 100% Methanol
+//   Optimal elution solvent for sitamaquine.
+//   1 unit = 1 x 2.5 uL unit droplet of neat methanol.
+//   Sitamaquine log K ~6 (high affinity for C18); methanol
+//   best solubiliser per Abraham solvation model
+//   (MeOH > ACN > H2O for sitamaquine).
+//   Expected recovery: ~45-55% (Fig. 4A, darkest region).
+// ------------------------------------------------------------
+
+// Fresh bead bed for DOE Point 1.
+beadBed_DOE1       = dispense 1 units of C18_MagneticBeads
+activSolvent_DOE1  = dispense 1 units of Acetonitrile
+activBeads_DOE1    = mix beadBed_DOE1 with activSolvent_DOE1 for 30s
+wash1_DOE1         = dispense 1 units of Water
+washed_DOE1        = mix activBeads_DOE1 with wash1_DOE1 for 30s
+
+// Load sitamaquine sample (1 ug/mL, aqueous).
+sitamaquine_DOE1   = dispense 1 units of Sitamaquine_Sample
+loaded_DOE1        = mix washed_DOE1 with sitamaquine_DOE1 for 5m
+
+// Wash (2x water).
+wash2_DOE1         = dispense 1 units of Water
+wash3_DOE1         = dispense 1 units of Water
+washed2_DOE1       = mix loaded_DOE1 with wash2_DOE1 for 30s
+washed3_DOE1       = mix washed2_DOE1 with wash3_DOE1 for 30s
+
+// Elute: 100% MeOH (1 unit = 2.5 uL, 4 units = 10 uL total).
+// Four unit droplets combined on-chip to reach 10 uL elution volume.
+meoH_u1      = dispense 1 units of Methanol
+meoH_u2      = dispense 1 units of Methanol
+meoH_u3      = dispense 1 units of Methanol
+meoH_u4      = dispense 1 units of Methanol
+meoh_mix_a   = mix meoH_u1 with meoH_u2 for 5s
+meoh_mix_b   = mix meoH_u3 with meoH_u4 for 5s
+eluent_DOE1  = mix meoh_mix_a with meoh_mix_b for 5s
+
+eluate_DOE1  = mix washed3_DOE1 with eluent_DOE1 for 5m
+
+// Quantify by ESI-MS/MS (SRM 344->271, sitamaquine; 354->271, IS).
+IS_DOE1          = dispense 1 units of InternalStandard
+sita_signal_DOE1 = detect massSpecDetection on eluate_DOE1 for 30s
+
+// ------------------------------------------------------------
+// DOE POINT 2: 1:1 Acetonitrile:Water
+//   Optimal elution solvent for angiotensin I (peptide).
+//   On-chip mixing: 2 unit droplets ACN + 2 unit droplets H2O
+//   -> 5 uL ACN + 5 uL H2O = 10 uL total.
+//   Expected recovery: ~45-50% (Fig. 4B, darkest region).
+//   Consistent with common reversed-phase HPLC peptide practice.
+// ------------------------------------------------------------
+
+beadBed_DOE2       = dispense 1 units of C18_MagneticBeads
+activSolvent_DOE2  = dispense 1 units of Acetonitrile
+activBeads_DOE2    = mix beadBed_DOE2 with activSolvent_DOE2 for 30s
+wash1_DOE2         = dispense 1 units of Water
+washed_DOE2        = mix activBeads_DOE2 with wash1_DOE2 for 30s
+
+// Load angiotensin I sample (50 ug/mL, aqueous).
+angiotensin_DOE2   = dispense 1 units of AngiotensinI_Sample
+loaded_DOE2        = mix washed_DOE2 with angiotensin_DOE2 for 5m
+
+wash2_DOE2         = dispense 1 units of Water
+wash3_DOE2         = dispense 1 units of Water
+washed2_DOE2       = mix loaded_DOE2 with wash2_DOE2 for 30s
+washed3_DOE2       = mix washed2_DOE2 with wash3_DOE2 for 30s
+
+// Elute: 1:1 ACN:H2O. 2 units ACN + 2 units H2O = 10 uL total.
+acn_u1       = dispense 1 units of Acetonitrile
+acn_u2       = dispense 1 units of Acetonitrile
+h2o_u1       = dispense 1 units of Water
+h2o_u2       = dispense 1 units of Water
+acn_mix      = mix acn_u1 with acn_u2 for 5s
+h2o_mix      = mix h2o_u1 with h2o_u2 for 5s
+eluent_DOE2  = mix acn_mix with h2o_mix for 5s
+
+eluate_DOE2  = mix washed3_DOE2 with eluent_DOE2 for 5m
+
+// Quantify by ESI-MS ([M+3H]3+ at 433 m/z for angiotensin I;
+// bradykinin IS at 354 m/z).
+IS_DOE2          = dispense 1 units of InternalStandard
+angio_signal_DOE2 = detect massSpecDetection on eluate_DOE2 for 30s
+
+// ------------------------------------------------------------
+// DOE POINT 3: 1:1:1 ACN:MeOH:H2O (ternary centroid)
+//   Simplex-centroid ternary mixture point.
+//   On-chip: 2 unit droplets each of ACN, MeOH, H2O ->
+//   ~3.33 uL ACN + 3.33 uL MeOH + 3.33 uL H2O = 10 uL total.
+//   NOTE: Compiler-compatible approximation: dispense 1 unit
+//   each (2.5 uL each = 7.5 uL), then mix. The doeElutionModel
+//   module accounts for this approximation in the cubic fit.
+//   Used for both sitamaquine and angiotensin I QC.
+// ------------------------------------------------------------
+
+beadBed_DOE3       = dispense 1 units of C18_MagneticBeads
+activSolvent_DOE3  = dispense 1 units of Acetonitrile
+activBeads_DOE3    = mix beadBed_DOE3 with activSolvent_DOE3 for 30s
+wash1_DOE3         = dispense 1 units of Water
+washed_DOE3        = mix activBeads_DOE3 with wash1_DOE3 for 30s
+
+// Load sitamaquine/angiotensin I mixture for ternary point.
+// Paper uses separate SPE runs per analyte; this point encodes
+// a combined load as a compiler-efficient approximation for the
+// ternary centroid (both analytes screened under same solvent).
+mixture_DOE3   = dispense 1 units of Sitamaquine_AngiotensinI_Mix
+loaded_DOE3    = mix washed_DOE3 with mixture_DOE3 for 5m
+
+wash2_DOE3     = dispense 1 units of Water
+wash3_DOE3     = dispense 1 units of Water
+washed2_DOE3   = mix loaded_DOE3 with wash2_DOE3 for 30s
+washed3_DOE3   = mix washed2_DOE3 with wash3_DOE3 for 30s
+
+// Elute: 1:1:1 ACN:MeOH:H2O. 1 unit each solvent.
+acn_ternary    = dispense 1 units of Acetonitrile
+meoh_ternary   = dispense 1 units of Methanol
+h2o_ternary    = dispense 1 units of Water
+ternary_ab     = mix acn_ternary with meoh_ternary for 5s
+eluent_DOE3    = mix ternary_ab with h2o_ternary for 5s
+
+eluate_DOE3    = mix washed3_DOE3 with eluent_DOE3 for 5m
+
+// DOE model detection: abstracts special cubic model fitting
+// (eq 2) over all 7 simplex-centroid points and generates
+// response surface plots (Fig. 4A/B). Signal > 0 indicates
+// the model converged and optimal conditions were identified.
+doeSignal = detect doeElutionModel on eluate_DOE3 for 30s
+
+// ============================================================
+// BB5 / BB6: DOE optimisation QC gate
+// Pass (BB5): doeSignal > 0 -> response surface converged;
+//             optimal solvents identified; dispose eluates.
+// Fail (BB6): doeSignal <= 0 -> model inconclusive (e.g.,
+//             flat response surface or instrument error); drain.
+// Both branches converge at BB7 (doeJoin).
+// ============================================================
+
+if (doeSignal > 0) {
+    dispose eluate_DOE1
+    dispose eluate_DOE2
+    dispose eluate_DOE3
+    dispose sita_signal_DOE1
+    dispose angio_signal_DOE2
+    dispose IS_DOE1
+    dispose IS_DOE2
+} else {
+    drain eluate_DOE1
+    drain eluate_DOE2
+    drain eluate_DOE3
+}
+
+// ============================================================
+// BB7: doeJoin
+// Dispose DOE model signal. Begin sample fractionation.
+// ============================================================
+
+dispose doeSignal
+
+// ============================================================
+// PROTOCOL 3: Two-Fraction Sample Fractionation
+// Analyte mixture: sitamaquine (1 ug/mL) + angiotensin I (50 ug/mL).
+// Elution 1: 100% MeOH -> fraction enriched in sitamaquine.
+//   (MeOH elutes ~90-95% sitamaquine, only 5-10% angiotensin I)
+// Elution 2: 1:1 ACN:H2O -> fraction enriched in angiotensin I.
+//   (ACN:H2O elutes ~85-90% angiotensin I, only 10-15% sitamaquine)
+// Coelution: <10% for both fractions (paper Fig. 6B).
+// ============================================================
+
+// Fresh bead bed for fractionation.
+beadBed_FRAC       = dispense 1 units of C18_MagneticBeads
+activSolvent_FRAC  = dispense 1 units of Acetonitrile
+activBeads_FRAC    = mix beadBed_FRAC with activSolvent_FRAC for 30s
+wash1_FRAC         = dispense 1 units of Water
+washed_FRAC        = mix activBeads_FRAC with wash1_FRAC for 30s
+
+// Load mixture (sitamaquine 1 ug/mL + angiotensin I 50 ug/mL).
+mixtureFRAC    = dispense 1 units of Sitamaquine_AngiotensinI_Mix
+loaded_FRAC    = mix washed_FRAC with mixtureFRAC for 5m
+
+// Wash 2x with water (steps 5 of SPE method).
+wash2_FRAC     = dispense 1 units of Water
+wash3_FRAC     = dispense 1 units of Water
+washed2_FRAC   = mix loaded_FRAC with wash2_FRAC for 30s
+washed3_FRAC   = mix washed2_FRAC with wash3_FRAC for 30s
+
+// ------------------------------------------------------------
+// ELUTION 1: 100% MeOH (sitamaquine-enriched fraction).
+//   4 unit droplets MeOH = 10 uL. Mixed with bead bed for 5 min.
+//   Supernatant = Fraction 1 (sitamaquine-enriched).
+// ------------------------------------------------------------
+
+mf1        = dispense 1 units of Methanol
+mf2        = dispense 1 units of Methanol
+mf3        = dispense 1 units of Methanol
+mf4        = dispense 1 units of Methanol
+meoh_frac_ab  = mix mf1 with mf2 for 5s
+meoh_frac_cd  = mix mf3 with mf4 for 5s
+eluentF1   = mix meoh_frac_ab with meoh_frac_cd for 5s
+
+fraction1  = mix washed3_FRAC with eluentF1 for 5m
+
+// Detect sitamaquine in Fraction 1 by ESI-MS/MS (344->271 SRM).
+// Spiked with IS (2H10-sitamaquine 500 ng/mL + bradykinin 10 ug/mL)
+// and diluted off-chip to 100 uL in 1:1 ACN:H2O, 0.1% formic acid.
+IS_FRAC1       = dispense 1 units of InternalStandard
+fractionSignal = detect massSpecDetection on fraction1 for 30s
+
+// ============================================================
+// BB8 / BB9: Fractionation QC gate (based on Fraction 1 purity)
+// Pass (BB8): fractionSignal > 0 -> sitamaquine signal detected
+//             with <10% angiotensin I coelution; proceed.
+// Fail (BB9): fractionSignal <= 0 -> excessive coelution or
+//             no signal; drain.
+// Both branches converge at BB10 (fractionationJoin).
+// ============================================================
+
+if (fractionSignal > 0) {
+    // ------------------------------------------------------------
+    // ELUTION 2: 1:1 ACN:H2O (angiotensin I-enriched fraction).
+    //   2 units ACN + 2 units H2O = 10 uL. Performed on the same
+    //   bead bed after Fraction 1 supernatant removed.
+    //   Supernatant = Fraction 2 (angiotensin I-enriched).
+    // ------------------------------------------------------------
+
+    af1        = dispense 1 units of Acetonitrile
+    af2        = dispense 1 units of Acetonitrile
+    wf1        = dispense 1 units of Water
+    wf2        = dispense 1 units of Water
+    acn_f2     = mix af1 with af2 for 5s
+    h2o_f2     = mix wf1 with wf2 for 5s
+    eluentF2   = mix acn_f2 with h2o_f2 for 5s
+
+    fraction2  = mix fraction1 with eluentF2 for 5m
+
+    // Detect angiotensin I in Fraction 2 by ESI-MS (433 m/z,
+    // [M+3H]3+). IS: bradykinin doubly protonated peak (531 m/z).
+    IS_FRAC2   = dispense 1 units of InternalStandard
+    angio_FRAC = detect massSpecDetection on fraction2 for 30s
+
+    dispose fraction1
+    dispose fraction2
+    dispose IS_FRAC1
+    dispose IS_FRAC2
+    dispose angio_FRAC
+} else {
+    drain fraction1
+}
+
+// ============================================================
+// BB10: fractionationJoin
+// Dispose fractionation QC signal. Begin DBS extraction.
+// ============================================================
+
+dispose fractionSignal
+
+// ============================================================
+// PROTOCOL 4: Dried Blood Spot (DBS) Extraction and Cleanup
+// DBS: 15 uL human whole blood spiked with sitamaquine (5 ug/mL)
+//   spotted on PerkinElmer 226 cards. 2 mm biopsy punch cut.
+// Off-chip extraction: punch extracted into methanol (30 uL, 5 min).
+// On-chip: 2.5 uL unit droplet of extract split off, combined with
+//   22.5 uL water (diluted on-chip to aqueous matrix compatible
+//   with C18 SPE). Total load: 25 uL at ~0.5 ug/mL sitamaquine.
+// C18 cleanup removes matrix interferents (lipids, haem, proteins)
+//   that suppress sitamaquine ESI-MS/MS ionisation.
+// Elution: neat methanol (10 uL, as per DOE optimum).
+// Detection: ESI-MS/MS, API 4000 Triple Quad, 344->271 m/z,
+//   direct infusion 2 uL/min, positive ion mode, spray voltage 5 kV.
+// Result: sitamaquine signal at 271 m/z strongly enhanced
+//   post-cleanup vs. raw extract (paper Fig. 7).
+// ============================================================
+
+// ------------------------------------------------------------
+// DBS STEP 1: Dispense and dilute DBS extract.
+//   2.5 uL DBS methanol extract (1 unit) + 22.5 uL water (9 units).
+//   Nine water unit droplets combined to accumulate 22.5 uL.
+//   NOTE: compiler-compatible accumulation via sequential mixing.
+// ------------------------------------------------------------
+
+dbsExtract     = dispense 1 units of DBS_Extract
+
+// Nine water unit droplets (9 x 2.5 uL = 22.5 uL).
+dw1   = dispense 1 units of Water
+dw2   = dispense 1 units of Water
+dw3   = dispense 1 units of Water
+dw4   = dispense 1 units of Water
+dw5   = dispense 1 units of Water
+dw6   = dispense 1 units of Water
+dw7   = dispense 1 units of Water
+dw8   = dispense 1 units of Water
+dw9   = dispense 1 units of Water
+
+dw_12    = mix dw1 with dw2 for 5s
+dw_34    = mix dw3 with dw4 for 5s
+dw_56    = mix dw5 with dw6 for 5s
+dw_78    = mix dw7 with dw8 for 5s
+dw_1234  = mix dw_12 with dw_34 for 5s
+dw_5678  = mix dw_56 with dw_78 for 5s
+dw_12345678 = mix dw_1234 with dw_5678 for 5s
+diluentWater    = mix dw_12345678 with dw9 for 5s
+
+dilutedExtract = mix dbsExtract with diluentWater for 5s
+
+// ------------------------------------------------------------
+// DBS STEP 2: C18 bead SPE cleanup of diluted DBS extract.
+//   Fresh bead bed. Activate (ACN), wash (H2O), load extract
+//   (5 min incubation), wash 2x (H2O), elute (neat MeOH).
+// ------------------------------------------------------------
+
+beadBed_DBS       = dispense 1 units of C18_MagneticBeads
+activSolvent_DBS  = dispense 1 units of Acetonitrile
+activBeads_DBS    = mix beadBed_DBS with activSolvent_DBS for 30s
+wash1_DBS         = dispense 1 units of Water
+washed_DBS        = mix activBeads_DBS with wash1_DBS for 30s
+
+loaded_DBS        = mix washed_DBS with dilutedExtract for 5m
+
+wash2_DBS         = dispense 1 units of Water
+wash3_DBS         = dispense 1 units of Water
+washed2_DBS       = mix loaded_DBS with wash2_DBS for 30s
+washed3_DBS       = mix washed2_DBS with wash3_DBS for 30s
+
+// Elute with neat methanol (4 units = 10 uL).
+dm1        = dispense 1 units of Methanol
+dm2        = dispense 1 units of Methanol
+dm3        = dispense 1 units of Methanol
+dm4        = dispense 1 units of Methanol
+meoh_dbs_ab   = mix dm1 with dm2 for 5s
+meoh_dbs_cd   = mix dm3 with dm4 for 5s
+eluent_DBS    = mix meoh_dbs_ab with meoh_dbs_cd for 5s
+
+dbsEluate  = mix washed3_DBS with eluent_DBS for 5m
+
+// ------------------------------------------------------------
+// DBS STEP 3: Detect sitamaquine in cleaned-up DBS eluate.
+//   Off-chip: 10 uL eluate diluted to 100 uL in 1:1 ACN:H2O
+//   + 0.5% formic acid. Direct infusion ESI-MS/MS, 2 uL/min.
+//   SRM transition: 344->271 (sitamaquine), averages of 12 scans.
+//   dbsSignal > 0: cleanup enhanced 271 m/z sitamaquine signal
+//   relative to raw DBS extract (matrix suppression reduced).
+// ------------------------------------------------------------
+
+dbsSignal = detect massSpecDetection on dbsEluate for 30s
+
+// ============================================================
+// BB11 / BB12: DBS cleanup QC gate
+// Pass (BB11): dbsSignal > 0 -> sitamaquine signal enhanced
+//              post-cleanup; dispose.
+// Fail (BB12): dbsSignal <= 0 -> no signal improvement
+//              (insufficient cleanup or instrument error); drain.
+// Both branches converge at BB13 (finalCleanup).
+// ============================================================
+
+if (dbsSignal > 0) {
+    dispose dbsEluate
+} else {
+    drain dbsEluate
+}
+
+// ============================================================
+// BB13: finalCleanup (terminal)
+// Dispose all remaining QC signal droplets. Experiment ends.
+// ============================================================
+
+dispose dbsSignal
+
+// [terminal -- no further instructions; exit node for CFG]

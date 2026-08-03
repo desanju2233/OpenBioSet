@@ -1,0 +1,119 @@
+bsbbif_2_t:
+	dispose(ddpcrLoaded1[0])
+bsbbif_3_f:
+	dispose(ddpcrLoaded1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(proteinSignal1[0])
+	rnaseOut11[0] = dispense(RNaseOUT)
+	protectedRNA1[0] = mix(plaProducts1[0], rnaseOut11[0]) @ 1.0SECOND
+	rtSupermix1[0] = dispense(RTddPCR_Supermix)
+	revTranscrip1[0] = dispense(ReversTranscriptase)
+	dttSolution1[0] = dispense(DTT)
+	univPCR21[0] = dispense(UniversalPCRAssay)
+	tnfr1Probe1[0] = dispense(TaqMan_TNFR1_Probe)
+	dropletOil21[0] = dispense(DropletGenerationOil)
+	duplexRxn11[0] = mix(protectedRNA1[0], rtSupermix1[0]) @ 5.0SECOND
+	duplexRxn21[0] = mix(duplexRxn11[0], revTranscrip1[0]) @ 5.0SECOND
+	duplexRxn31[0] = mix(duplexRxn21[0], dttSolution1[0]) @ 5.0SECOND
+	duplexRxn41[0] = mix(duplexRxn31[0], univPCR21[0]) @ 5.0SECOND
+	duplexRxn51[0] = mix(duplexRxn41[0], tnfr1Probe1[0]) @ 5.0SECOND
+	duplexLoaded1[0] = mix(duplexRxn51[0], dropletOil21[0]) @ 5.0SECOND
+	heat(duplexLoaded1[0]) @ 42.0CELSIUS @ 3600.0SECOND
+	heat(duplexLoaded1[0]) @ 95.0CELSIUS @ 600.0SECOND
+	heat(duplexLoaded1[0]) @ 95.0CELSIUS @ 3600.0SECOND
+	heat(duplexLoaded1[0]) @ 98.0CELSIUS @ 600.0SECOND
+	mrnaSignal1[0] = detect(rtDdPCRmRNADetection, duplexLoaded1[0]) @ 30.0SECOND
+	if mrnaSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	bsaBlock1[0] = dispense(BSA_BlockingBuffer)
+	pbsWash01[0] = dispense(PBS)
+	chipSurface1[0] = mix(bsaBlock1[0], pbsWash01[0]) @ 3600.0SECOND
+	waterWash01[0] = dispense(MilliQWater)
+	blockedChip1[0] = mix(chipSurface1[0], waterWash01[0]) @ 300.0SECOND
+	proteinStd1[0] = dispense(PurifiedProteinStandard)
+	probeWash11[0] = dispense(PBS)
+	stdInChamber1[0] = mix(proteinStd1[0], probeWash11[0]) @ 120.0SECOND
+	plaProbeStd1[0] = dispense(PLAProbes)
+	stdProbeIncub1[0] = mix(stdInChamber1[0], plaProbeStd1[0]) @ 3600.0SECOND
+	ligMixStd1[0] = dispense(LigationMix)
+	stdLigMix1[0] = mix(stdProbeIncub1[0], ligMixStd1[0]) @ 1800.0SECOND
+	heat(stdLigMix1[0]) @ 37.0CELSIUS @ 600.0SECOND
+	heat(stdLigMix1[0]) @ 65.0CELSIUS @ 300.0SECOND
+	waterFlush11[0] = dispense(MilliQWater)
+	stdProducts1[0] = mix(stdLigMix1[0], waterFlush11[0]) @ 120.0SECOND
+	singleCell1[0] = dispense(SingleCell)
+	pbsTrap1[0] = dispense(PBS)
+	trappedCell1[0] = mix(singleCell1[0], pbsTrap1[0]) @ 2.0SECOND
+	lysisBuffer1[0] = dispense(LysisBuffer)
+	cellLysate1[0] = mix(trappedCell1[0], lysisBuffer1[0]) @ 600.0SECOND
+	heat(cellLysate1[0]) @ 0.0CELSIUS @ 600.0SECOND
+	plaProbeCell1[0] = dispense(PLAProbes)
+	probeIncub1[0] = mix(cellLysate1[0], plaProbeCell1[0]) @ 3600.0SECOND
+	heat(probeIncub1[0]) @ 37.0CELSIUS @ 3600.0SECOND
+	ligMixCell1[0] = dispense(LigationMix)
+	ligOnIce1[0] = mix(probeIncub1[0], ligMixCell1[0]) @ 1800.0SECOND
+	heat(ligOnIce1[0]) @ 0.0CELSIUS @ 1800.0SECOND
+	heat(ligOnIce1[0]) @ 37.0CELSIUS @ 600.0SECOND
+	heat(ligOnIce1[0]) @ 65.0CELSIUS @ 300.0SECOND
+	waterFlush21[0] = dispense(MilliQWater)
+	plaProducts1[0] = mix(ligOnIce1[0], waterFlush21[0]) @ 120.0SECOND
+	ddpcrMix1[0] = dispense(ddPCR_Supermix)
+	universalPCR1[0] = dispense(UniversalPCRAssay)
+	dropletOil1[0] = dispense(DropletGenerationOil)
+	ddpcrRxn11[0] = mix(plaProducts1[0], ddpcrMix1[0]) @ 5.0SECOND
+	ddpcrRxn21[0] = mix(ddpcrRxn11[0], universalPCR1[0]) @ 5.0SECOND
+	ddpcrLoaded1[0] = mix(ddpcrRxn21[0], dropletOil1[0]) @ 5.0SECOND
+	heat(ddpcrLoaded1[0]) @ 95.0CELSIUS @ 600.0SECOND
+	heat(ddpcrLoaded1[0]) @ 94.0CELSIUS @ 3600.0SECOND
+	heat(ddpcrLoaded1[0]) @ 98.0CELSIUS @ 600.0SECOND
+	proteinSignal1[0] = detect(ddPCRProteinDetection, ddpcrLoaded1[0]) @ 30.0SECOND
+	if proteinSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(duplexLoaded1[0])
+bsbbif_6_f:
+	dispose(duplexLoaded1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(mrnaSignal1[0])
+	infectedCell1[0] = dispense(HSV1_InfectedCell)
+	ctrlCell1[0] = dispense(ControlCell)
+	pbsTrap21[0] = dispense(PBS)
+	pbsTrap31[0] = dispense(PBS)
+	trappedInfected1[0] = mix(infectedCell1[0], pbsTrap21[0]) @ 2.0SECOND
+	trappedControl1[0] = mix(ctrlCell1[0], pbsTrap31[0]) @ 2.0SECOND
+	infectionSignal1[0] = detect(liveCellImagingDetection, trappedInfected1[0]) @ 600.0SECOND
+	lysisBuffer21[0] = dispense(LysisBuffer)
+	viralLysate1[0] = mix(trappedInfected1[0], lysisBuffer21[0]) @ 600.0SECOND
+	heat(viralLysate1[0]) @ 0.0CELSIUS @ 600.0SECOND
+	plaProbeHSV1[0] = dispense(PLAProbes)
+	viralProbeIncub1[0] = mix(viralLysate1[0], plaProbeHSV1[0]) @ 3600.0SECOND
+	heat(viralProbeIncub1[0]) @ 37.0CELSIUS @ 3600.0SECOND
+	ligMixViral1[0] = dispense(LigationMix)
+	viralLigMix1[0] = mix(viralProbeIncub1[0], ligMixViral1[0]) @ 1800.0SECOND
+	heat(viralLigMix1[0]) @ 0.0CELSIUS @ 1800.0SECOND
+	heat(viralLigMix1[0]) @ 37.0CELSIUS @ 600.0SECOND
+	heat(viralLigMix1[0]) @ 65.0CELSIUS @ 300.0SECOND
+	waterFlush41[0] = dispense(MilliQWater)
+	viralProducts1[0] = mix(viralLigMix1[0], waterFlush41[0]) @ 120.0SECOND
+	ddpcrMix21[0] = dispense(ddPCR_Supermix)
+	universalPCR21[0] = dispense(UniversalPCRAssay)
+	dropletOil31[0] = dispense(DropletGenerationOil)
+	viralRxn11[0] = mix(viralProducts1[0], ddpcrMix21[0]) @ 5.0SECOND
+	viralRxn21[0] = mix(viralRxn11[0], universalPCR21[0]) @ 5.0SECOND
+	viralLoaded1[0] = mix(viralRxn21[0], dropletOil31[0]) @ 5.0SECOND
+	heat(viralLoaded1[0]) @ 95.0CELSIUS @ 600.0SECOND
+	heat(viralLoaded1[0]) @ 94.0CELSIUS @ 3600.0SECOND
+	heat(viralLoaded1[0]) @ 98.0CELSIUS @ 600.0SECOND
+	viralProteinReadout1[0] = detect(viralProteinDetection, viralLoaded1[0]) @ 30.0SECOND
+	if infectionSignal1[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(viralLoaded1[0])
+bsbbif_9_f:
+	dispose(viralLoaded1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(infectionSignal1[0])
+	dispose(viralProteinReadout1[0])
+	dispose(stdProducts1[0])
+	NOP

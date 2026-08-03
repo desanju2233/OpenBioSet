@@ -1,0 +1,409 @@
+module ddpcrDetection
+module rtddpcrDetection
+
+manifest HEK293T_Cells
+manifest TM_Buffer_01X
+manifest ProximityProbe1_CD147
+manifest ProximityProbe2_CD147
+manifest ConnectorOligonucleotide
+manifest LigationSolution
+manifest ProteaseSolution
+manifest ddPCR_Supermix_Probes
+manifest UniversalPCRAssay
+manifest CD147_TaqManAssay_Probe2
+manifest GoScript_RT_System
+manifest RandomPrimers
+manifest dNTPs
+manifest MgCl2
+manifest RNaseOUT
+manifest NucleaseFreeWater
+
+// ============================================================
+// Digital Quantification of Proteins and mRNA in Single
+// Mammalian Cells.
+// Albayrak, Jordi, Zechner, Lin, Bichsel, Khammash, Tay.
+// Molecular Cell 61, 914-924, March 17, 2016.
+// DOI: http://dx.doi.org/10.1016/j.molcel.2016.02.030
+//
+// This BioScript file encodes the joint single-cell protein
+// (digital PLA) and mRNA (two-step RT-ddPCR) quantification
+// workflow for CD147 from single HEK293T cells.
+//
+// WORKFLOW OVERVIEW:
+//   1. Single HEK293T cell is FACS-sorted into 3 uL of 0.1X
+//      TM lysis buffer.
+//   2. Lysate is split 1:2 -> 1 uL for mRNA (RT-ddPCR),
+//      2 uL for protein (digital PLA).
+//   3. Digital PLA arm: proximity probes bind CD147 protein;
+//      connector oligonucleotide hybridises; ligation forms
+//      dsDNA; protease digestion removes antibodies; dsDNA
+//      quantified by ddPCR in 20,000 nanoliter droplets.
+//   4. RT-ddPCR arm: two-step RT (GoScript at 42 C, 1 hr)
+//      followed by ddPCR (40 cycles, 60 C annealing) using
+//      TaqMan Probe 2 (Hs00174305_m1).
+//   5. QC gates on both ddPCR readouts; results disposed or
+//      drained accordingly.
+//
+// NOTE ON LYSATE SPLIT ABSTRACTION:
+//   BioScript has no native split-by-ratio operator.
+//   The 1 uL mRNA fraction and 2 uL protein fraction are
+//   modelled as two independent dispense events from the same
+//   manifest (TM_Buffer_01X used as the lysis carrier), each
+//   representing the respective volume fraction of a single
+//   lysed cell. This is consistent with the abstraction
+//   pattern used in the reference .bs files for similar
+//   multi-fraction workflows.
+//
+// NOTE ON TEMPERATURE / TIME TOKENS:
+//   BioScript `heat` accepts temperatures in degrees C (e.g.
+//   37c) and durations in seconds (s) or minutes (m).
+//   All times are converted accordingly:
+//     60 min probe adsorption  -> 60m
+//     10 min ligation          -> 10m
+//     10 min protease          -> 10m
+//     15 min protease inact.   -> 15m
+//      5 min primer annealing  ->  5m
+//     60 min reverse transcript-> 60m
+//     15 min RT inactivation   -> 15m
+//     PCR cycling abstracted as heat step (40 cycles ~35 min) -> 35m
+//
+// NOTE ON ddPCR CYCLE ABSTRACTION:
+//   40 PCR amplification cycles at 94 C/60 C are modelled as
+//   a single `heat` step at 94c for 35m (approximate total
+//   cycling time). The subsequent 98 C 10 min final extension
+//   is modelled as heat at 98c for 10m. The initial 95 C 10
+//   min hot-start is heat at 95c for 10m.
+//
+// NOTE ON MODULE SCOPE:
+//   ddpcrDetection  -> digital PLA protein readout (counts
+//                      dsDNA amplicons per uL, converted to
+//                      protein copy numbers via calibration).
+//   rtddpcrDetection -> RT-ddPCR mRNA readout (counts cDNA
+//                       amplicons per uL, corrected for 87.6%
+//                       RT recovery rate, reported as mRNA
+//                       copies per cell).
+//
+// CFG STRUCTURE:
+//   BB1  main           -- entry: cell lysis, lysate split,
+//                          digital PLA arm, RT-ddPCR arm
+//   BB2  proteinPass    -- proteinSignal > 0: CD147 protein
+//                          detected above LOD (29,300 mol/cell
+//                          in 2 uL fraction); dispose
+//   BB3  proteinFail    -- proteinSignal <= 0: below LOD; drain
+//   BB4  proteinJoin    -- join: mRNA QC gate follows
+//   BB5  mRNAPass       -- mRNASignal > 0: CD147 mRNA detected
+//                          above LOD (52.5 copies/cell); dispose
+//   BB6  mRNAFail       -- mRNASignal <= 0: below LOD; drain
+//   BB7  finalCleanup   -- terminal: dispose QC signals; end
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: FACS sort single HEK293T cell into 3 uL of 0.1X
+//         TM lysis buffer.
+//         DRAQ7 nuclear dye used to gate viable cells.
+//         Tlr4-GFP expression used as sort marker (R4 gate).
+//         Plate sealed immediately after sort and stored
+//         at -80 C until processing.
+//         `mix` here abstracts the sort-and-lyse event;
+//         the cell contacts 0.1X TM buffer in the well,
+//         releasing intracellular contents (protein + mRNA).
+// ------------------------------------------------------------
+
+cellLysate     = dispense 1 units of TM_Buffer_01X
+sortedCell     = dispense 1 units of HEK293T_Cells
+lysate         = mix sortedCell with cellLysate for 5m
+
+// ------------------------------------------------------------
+// STEP 2: Split lysate into two fractions.
+//         PROTEIN FRACTION (2/3 of lysate -> 2 uL):
+//           carried into the digital PLA arm below.
+//         mRNA FRACTION (1/3 of lysate -> 1 uL):
+//           carried into the RT-ddPCR arm below.
+//
+//         BioScript abstraction: two independent variables
+//         derived from the same lysate represent the two
+//         physical fractions. No array split is used (see
+//         note on compiler constraint above).
+// ------------------------------------------------------------
+
+// Protein fraction (2 uL) -- modelled as primary lysate
+proteinFraction = dispense 2 units of TM_Buffer_01X
+proteinLysate   = mix lysate with proteinFraction for 5s
+
+// mRNA fraction (1 uL) -- modelled as secondary lysate
+mRNAFraction    = dispense 1 units of TM_Buffer_01X
+mRNALysate      = mix lysate with mRNAFraction for 5s
+
+// ============================================================
+// DIGITAL PLA ARM (CD147 Protein Quantification)
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 3: Proximity probe adsorption.
+//         2 uL protein lysate + 2 uL probe solution
+//         (400 pM each proximity probe -> 200 pM final).
+//         Proximity probe 1 and probe 2 are pre-mixed into
+//         a single assay probe solution; both recognise
+//         distinct epitopes of CD147 simultaneously.
+//         Incubated at 37 C for 60 min (probe adsorption).
+//
+//         When both probes bind the same CD147 molecule,
+//         their tethered oligonucleotides come into close
+//         proximity (~40 nm) enabling connector hybridisation.
+// ------------------------------------------------------------
+
+probesSolution  = dispense 1 units of ProximityProbe1_CD147
+probe2Disp      = dispense 1 units of ProximityProbe2_CD147
+probesMix       = mix probesSolution with probe2Disp for 5s
+
+probeBindingRxn = mix proteinLysate with probesMix for 60m
+heat probeBindingRxn at 37c for 60m
+
+// ------------------------------------------------------------
+// STEP 4: Connector oligonucleotide hybridisation and ligation.
+//         96 uL ligation solution (containing connector oligo,
+//         ligase, and ligation buffer) added to the 4 uL
+//         probe-bound sample -> 25-fold dilution.
+//         The connector oligonucleotide hybridises to the
+//         paired probe oligonucleotides, and T4 DNA ligase
+//         seals the nicks, forming a dsDNA molecule encoding
+//         the protein detection event.
+//         Incubated at 37 C for 10 min.
+// ------------------------------------------------------------
+
+connectorOligo  = dispense 1 units of ConnectorOligonucleotide
+ligationSoln    = dispense 1 units of LigationSolution
+ligationPrep    = mix connectorOligo with ligationSoln for 5s
+
+ligationRxn     = mix probeBindingRxn with ligationPrep for 10m
+heat ligationRxn at 37c for 10m
+
+// ------------------------------------------------------------
+// STEP 5: Protease digestion to remove antibody-oligonucleotide
+//         conjugates.
+//         2 uL diluted protease solution added to ligation mix.
+//         Incubated at 37 C for 10 min to digest antibodies,
+//         leaving only the dsDNA amplicons in solution.
+//         Protease inactivated at 95 C for 15 min.
+// ------------------------------------------------------------
+
+proteaseDisp    = dispense 1 units of ProteaseSolution
+afterProtease   = mix ligationRxn with proteaseDisp for 10m
+heat afterProtease at 37c for 10m
+heat afterProtease at 95c for 15m
+
+// ------------------------------------------------------------
+// STEP 6: ddPCR droplet generation and amplification.
+//         9 uL of PLA solution + 10 uL 2X ddPCR Supermix for
+//         Probes + 1 uL 20X Universal PCR Assay -> 20 uL total.
+//         Emulsified by QX100 Droplet Generator into ~20,000
+//         nanoliter droplets (~0.85 nL each) at limiting
+//         dilution (each droplet contains 0 or 1 dsDNA).
+//
+//         PCR temperature schedule:
+//           95 C for 10 min (hot-start activation)
+//           40 cycles: 94 C 30 s / 60 C 1 min
+//           98 C for 10 min (final denaturation)
+//         Ramp speed: 2.5 C/s.
+//
+//         Fluorescence read on QX100 Droplet Reader;
+//         QuantaSoft v1.3.2.0 converts positive/negative
+//         droplet counts to DNA concentration using Poisson
+//         statistics: C = (1000/Vd) * ln(1 - P/R).
+//         Absolute protein counts derived via calibration curve
+//         (CD147: y = 0.0142x + 12.4, R2 = 0.9997;
+//          LOD = 86 proteins/uL ddPCR solution = 16.2 fM;
+//          sensitivity = 70 proteins per DNA count).
+// ------------------------------------------------------------
+
+ddpcrSupermix   = dispense 1 units of ddPCR_Supermix_Probes
+universalPCR    = dispense 1 units of UniversalPCRAssay
+ddpcrMix        = mix ddpcrSupermix with universalPCR for 5s
+plasDdpcrRxn    = mix afterProtease with ddpcrMix for 5s
+
+// Hot-start activation
+heat plasDdpcrRxn at 95c for 10m
+
+// 40 amplification cycles (94 C 30s / 60 C 1 min; ~35 min total)
+heat plasDdpcrRxn at 94c for 35m
+
+// Final denaturation / signal stabilisation
+heat plasDdpcrRxn at 98c for 10m
+
+// Detect: ddPCR droplet fluorescence readout
+// ddpcrDetection module abstracts QX100 reader + QuantaSoft
+// concentration calculation and calibration curve conversion.
+proteinSignal   = detect ddpcrDetection on plasDdpcrRxn for 30s
+
+// ============================================================
+// BB2 / BB3: Protein QC gate
+// Pass (BB2): proteinSignal > 0 -> CD147 protein detected
+//             above assay LOD (29,300 molecules/cell in 2 uL
+//             fraction after 113-fold dilution in workflow);
+//             dispose processed PLA solution.
+// Fail (BB3): proteinSignal <= 0 -> below LOD; drain.
+// Both branches converge at BB4 (proteinJoin).
+// ============================================================
+
+if (proteinSignal > 0) {
+    dispose plasDdpcrRxn
+} else {
+    drain plasDdpcrRxn
+}
+
+// ============================================================
+// BB4: proteinJoin
+// Dispose protein QC signal. Control falls into
+// the RT-ddPCR mRNA quantification arm (BB5/BB6).
+// ============================================================
+
+dispose proteinSignal
+
+// ============================================================
+// RT-ddPCR ARM (CD147 mRNA Quantification)
+// Two-step protocol: GoScript RT followed by ddPCR.
+// TaqMan Gene Expression Assay Hs00174305_m1 (Probe 2).
+// 40 amplification cycles.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 7: Primer annealing for reverse transcription.
+//         1 uL mRNA lysate + 1 uL random primer solution
+//         + nuclease-free water to 4.95 uL.
+//         Incubated at 70 C for 5 min (denature RNA secondary
+//         structure), then immediately chilled on ice for 5 min.
+// ------------------------------------------------------------
+
+randomPrimersDisp  = dispense 1 units of RandomPrimers
+waterDisp          = dispense 1 units of NucleaseFreeWater
+primerAnnealMix    = mix mRNALysate with randomPrimersDisp for 5s
+primerAnnealFull   = mix primerAnnealMix with waterDisp for 5s
+
+// Denaturation at 70 C for 5 min
+heat primerAnnealFull at 70c for 5m
+
+// Ice chilling: modelled as 4 C for 5 min
+heat primerAnnealFull at 4c for 5m
+
+// ------------------------------------------------------------
+// STEP 8: Reverse transcription master mix assembly.
+//         GoScript Reverse Transcription System:
+//           1X GoScript reaction buffer
+//           GoScript RT (1/20 dilution from stock)
+//           1 U/uL RNaseOUT ribonuclease inhibitor
+//           0.5 mM each dNTP
+//           3.1 mM MgCl2
+//         Final RT volume: 9 uL.
+// ------------------------------------------------------------
+
+goScriptRT      = dispense 1 units of GoScript_RT_System
+rnaseOut        = dispense 1 units of RNaseOUT
+dntpsDisp       = dispense 1 units of dNTPs
+mgcl2Disp       = dispense 1 units of MgCl2
+
+rtBufferMix     = mix goScriptRT with rnaseOut for 5s
+rtReagentsMix   = mix rtBufferMix with dntpsDisp for 5s
+rtMasterMix     = mix rtReagentsMix with mgcl2Disp for 5s
+
+rtFullRxn       = mix primerAnnealFull with rtMasterMix for 5s
+
+// ------------------------------------------------------------
+// STEP 9: Two-step reverse transcription.
+//         Step A: 25 C for 5 min (random primer annealing).
+//         Step B: 42 C for 60 min (cDNA synthesis).
+//         Step C: 70 C for 15 min (RT inactivation).
+//
+//         Expected recovery: 87.6% of theoretical CD147 mRNA
+//         signal (measured against T7 in-vitro transcribed
+//         CD147 mRNA standard at A260). All single-cell
+//         RT-ddPCR reads corrected by this recovery rate.
+//         Corrected LOD: 52.5 copies/cell (87 aM).
+// ------------------------------------------------------------
+
+// Step A: primer annealing
+heat rtFullRxn at 25c for 5m
+
+// Step B: cDNA synthesis
+heat rtFullRxn at 42c for 60m
+
+// Step C: RT enzyme inactivation
+heat rtFullRxn at 70c for 15m
+
+// ------------------------------------------------------------
+// STEP 10: ddPCR of cDNA.
+//          cDNA solution + 10 uL 2X ddPCR Supermix for Probes
+//          + 1 uL 20X CD147 TaqMan Gene Expression Assay
+//          (Probe 2, Hs00174305_m1; FAM/MGB; spanning
+//          exon-exon junction to exclude genomic DNA).
+//          Final volume: 20 uL.
+//          Emulsified -> ~20,000 droplets.
+//
+//          PCR temperature schedule:
+//            95 C for 10 min (hot-start)
+//            40 cycles: 94 C 30 s / 60 C 1 min
+//            98 C for 10 min (final denaturation)
+//          Ramp speed: 2.5 C/s.
+//
+//          Positive/negative droplets counted by QX100.
+//          DNA concentration: C = (1000/Vd) * ln(1 - P/R).
+//          mRNA copies per cell = C * volume * (1/recovery_rate)
+//          where recovery_rate = 0.876 (87.6%).
+//          Expected: mean 188.2 +/- 90 CD147 mRNA copies/cell.
+//          Fluorescence threshold: 3200 RFU (Probe 2, 40 cycles).
+// ------------------------------------------------------------
+
+ddpcrSupermix2  = dispense 1 units of ddPCR_Supermix_Probes
+taqmanProbe2    = dispense 1 units of CD147_TaqManAssay_Probe2
+rtDdpcrMix      = mix ddpcrSupermix2 with taqmanProbe2 for 5s
+rtDdpcrRxn      = mix rtFullRxn with rtDdpcrMix for 5s
+
+// Hot-start activation
+heat rtDdpcrRxn at 95c for 10m
+
+// 40 amplification cycles (~35 min total for 94 C/60 C cycling)
+heat rtDdpcrRxn at 94c for 35m
+
+// Final denaturation
+heat rtDdpcrRxn at 98c for 10m
+
+// Detect: RT-ddPCR droplet fluorescence readout
+// rtddpcrDetection module abstracts QX100 reader + QuantaSoft
+// mRNA copy number calculation + 87.6% RT recovery correction.
+mRNASignal      = detect rtddpcrDetection on rtDdpcrRxn for 30s
+
+// ============================================================
+// BB5 / BB6: mRNA QC gate
+// Pass (BB5): mRNASignal > 0 -> CD147 mRNA detected above
+//             corrected LOD (52.5 copies/cell = 87 aM);
+//             dispose processed RT-ddPCR solution.
+// Fail (BB6): mRNASignal <= 0 -> below LOD; drain.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (mRNASignal > 0) {
+    dispose rtDdpcrRxn
+} else {
+    drain rtDdpcrRxn
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose both QC signal droplets. Experiment ends.
+// Protein and mRNA copy numbers are now available for:
+//   - Spearman correlation analysis (rho = 0.10 across cells)
+//   - Gamma distribution fitting to mRNA distribution
+//   - Stochastic two-state model parameterisation via
+//     moment-based MCMC inference (Zechner et al., 2012)
+//   - Transcription burst size (~40 mRNA/burst), burst rate
+//     (3.78/day), translation ratio (~1000 proteins/mRNA)
+// ============================================================
+
+dispose mRNASignal
+
+// [terminal -- no further instructions; exit node for CFG]

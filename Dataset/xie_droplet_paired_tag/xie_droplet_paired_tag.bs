@@ -1,0 +1,547 @@
+module libraryQCDetection
+
+manifest PBS
+manifest ATAC_RSB_Buffer
+manifest Digitonin_2pct
+manifest IGEPAL_CA630_10pct
+manifest Tween20_10pct
+manifest SUPERaseIN
+manifest RNaseOUT
+manifest PI_50X
+manifest HEPES_1M
+manifest NaCl_5M
+manifest Spermidine_1M
+manifest BSA_10pct
+manifest EDTA_500mM
+manifest MgCl2_250mM
+manifest StopSolution_2X
+manifest NucleiBuffer_20X
+manifest DTT_100mM
+manifest ATACBufferB
+manifest BarcodingReagentMix
+manifest TemplateSwitchOligo
+manifest ReducingAgentB
+manifest BarcodingEnzymeMix
+manifest QuenchingAgent
+manifest SPRIBeads
+manifest DynaBeads
+manifest PCRMasterMix
+manifest AntiHistoneAntibody
+manifest ProteinATn5_Assembled
+manifest TargetCells
+
+instructions:
+
+// ============================================================
+// Droplet-based Single-cell Joint Profiling of Histone
+// Modification and Transcriptome (Droplet Paired-Tag)
+// Xie Y., Zhu C., Wang Z., Tastemel M., Chang L., Li Y.E.,
+// Ren B. -- Research Square preprint (2023)
+// DOI: https://doi.org/10.21203/rs.3.pex-2310/v1
+//
+// Platform: 10x Chromium Next GEM Single Cell Multiome
+// (ATAC + Gene Expression). pA-Tn5 tagmentation of histone
+// modification epitopes (e.g. H3K27ac) combined with
+// simultaneous RNA capture in droplets.
+//
+// PROTOCOL SCOPE: Three-day wet-lab workflow encoded as one
+// representative cycle. Days are separated by comment headers.
+// BioScript has no loop construct; one cycle is encoded by
+// convention. Overnight incubation (Day 1 -> Day 2) is
+// modelled as heat at 4c for 720m (12 h conservative minimum).
+//
+// DURATION CONVENTION: BioScript supports only `s` and `m`
+// duration tokens (no `h`). All hour/overnight values are
+// converted to minutes. Overnight ~ 720m (12 h).
+//
+// BUFFER CONSTRUCTION NOTE: OMNI lysis buffer and MED1/MED2
+// high-salt buffers are freshly prepared from their component
+// manifests at the start of each day. Each buffer is built
+// via sequential mix steps from manifest-only dispenses.
+// Where the same buffer is needed multiple times later in the
+// protocol (e.g. MED1 for conjugation, MED1 for nuclei
+// resuspension; MED2 for three wash/resuspend steps), each
+// use-site builds a fresh instance from manifests directly --
+// BioScript `dispense` is restricted to declared manifests
+// and cannot draw from a computed mix variable.
+//
+// CFG STRUCTURE:
+//   BB1  main             -- Day 1: buffer prep, pA-Tn5
+//                            conjugation, nuclei lysis,
+//                            overnight epitope targeting
+//   BB2  main (cont.)     -- Day 2: tagmentation, droplet
+//                            generation, RT + barcoding,
+//                            product cleanup
+//   BB3  main (cont.)     -- Day 3: pre-amplification,
+//                            DNA/RNA library preparation
+//   BB4  libraryPass      -- libraryQCSignal > 0: fragment
+//                            size within spec; dispose
+//   BB5  libraryFail      -- libraryQCSignal <= 0: library
+//                            OOSpec; drain
+//   BB6  finalCleanup     -- terminal: dispose QC signal
+// ============================================================
+
+// ============================================================
+// DAY 1 -- PART A: Prepare OMNI Nuclei Lysis Buffer (instance 1)
+// Used immediately for cell lysis in STEP A-3.
+// Components (per 750 uL working volume):
+//   693.75 uL ATAC-RSB buffer
+//   7.5 uL Digitonin (2%)
+//   7.5 uL IGEPAL-CA630 (10%)
+//   7.5 uL Tween-20 (10%)
+//   15 uL SUPERaseIN
+//   7.5 uL RNaseOUT
+//   15 uL 50X PI
+// Mixed fresh before use; kept on ice.
+// ============================================================
+
+omni_base        = dispense 1 units of ATAC_RSB_Buffer
+omni_digitonin   = dispense 1 units of Digitonin_2pct
+omni_igepal      = dispense 1 units of IGEPAL_CA630_10pct
+omni_tween       = dispense 1 units of Tween20_10pct
+omni_supIn       = dispense 1 units of SUPERaseIN
+omni_rnaseOut    = dispense 1 units of RNaseOUT
+omni_pi          = dispense 1 units of PI_50X
+
+omni_mix1        = mix omni_base with omni_digitonin for 5s
+omni_mix2        = mix omni_mix1 with omni_igepal for 5s
+omni_mix3        = mix omni_mix2 with omni_tween for 5s
+omni_mix4        = mix omni_mix3 with omni_supIn for 5s
+omni_mix5        = mix omni_mix4 with omni_rnaseOut for 5s
+omniBuffer       = mix omni_mix5 with omni_pi for 5s
+
+// ============================================================
+// DAY 1 -- PART A: Prepare MED Buffer #1 (MED1) -- instance 1
+// Used for antibody-pA-Tn5 conjugation reaction (STEP A-2).
+// High-salt buffer; components (per 1 mL):
+//   20 uL HEPES (1 M, pH 7.5), 54.2 uL NaCl (5 M),
+//   0.5 uL Spermidine (1 M), 20 uL 50X PI,
+//   50 uL SUPERaseIN, 25 uL RNaseOUT,
+//   1 uL IGEPAL-CA630 (10%), 5 uL Digitonin (2%),
+//   4 uL EDTA (500 mM), 200 uL 10% BSA,
+//   620.3 uL H2O (modelled as ATAC_RSB_Buffer diluent)
+// NOTE: RNase inhibitor concentration doubled vs standard
+// (per paper note; suitable for mouse embryos). For cultured
+// cells or brain tissue, 50% of this concentration is tested
+// to have no impact on RNA quality.
+// ============================================================
+
+m1a_hepes        = dispense 1 units of HEPES_1M
+m1a_nacl         = dispense 1 units of NaCl_5M
+m1a_spermidine   = dispense 1 units of Spermidine_1M
+m1a_pi           = dispense 1 units of PI_50X
+m1a_supIn        = dispense 1 units of SUPERaseIN
+m1a_rnaseOut     = dispense 1 units of RNaseOUT
+m1a_igepal       = dispense 1 units of IGEPAL_CA630_10pct
+m1a_digitonin    = dispense 1 units of Digitonin_2pct
+m1a_edta         = dispense 1 units of EDTA_500mM
+m1a_bsa          = dispense 1 units of BSA_10pct
+m1a_diluent      = dispense 1 units of ATAC_RSB_Buffer
+
+m1a_mix1         = mix m1a_hepes with m1a_nacl for 5s
+m1a_mix2         = mix m1a_mix1 with m1a_spermidine for 5s
+m1a_mix3         = mix m1a_mix2 with m1a_pi for 5s
+m1a_mix4         = mix m1a_mix3 with m1a_supIn for 5s
+m1a_mix5         = mix m1a_mix4 with m1a_rnaseOut for 5s
+m1a_mix6         = mix m1a_mix5 with m1a_igepal for 5s
+m1a_mix7         = mix m1a_mix6 with m1a_digitonin for 5s
+m1a_mix8         = mix m1a_mix7 with m1a_edta for 5s
+m1a_mix9         = mix m1a_mix8 with m1a_bsa for 5s
+med1BufferConj   = mix m1a_mix9 with m1a_diluent for 5s
+
+// ============================================================
+// DAY 1 -- STEP A-2: Antibody + pA-Tn5 Conjugation
+// 1 ug rabbit polyclonal anti-histone antibody mixed with
+// 1 uL assembled pA-Tn5 (0.4 mg/mL) in 50 uL MED1 buffer.
+// Rotate 60 min at room temperature (25 C) to form the
+// antibody-pA-Tn5 conjugate.
+// ============================================================
+
+antibody         = dispense 1 units of AntiHistoneAntibody
+paTn5            = dispense 1 units of ProteinATn5_Assembled
+
+abTn5PreMix      = mix antibody with paTn5 for 5s
+abTn5Conjugate   = mix abTn5PreMix with med1BufferConj for 60m
+
+// ============================================================
+// DAY 1 -- STEP A-3: Nuclei Preparation (Cultured Cells)
+// 0.25-1 million cells pelleted at 300 RCF / 5 min.
+// Washed once with PBS; resuspended in OMNI buffer on ice
+// for 5 min (lysis). Pelleted at 1,000 RCF / 10 min at 4 C;
+// resuspended in 100 uL MED1 (fresh instance: med1BufferNuclei).
+// `heat at 4c` models the 4 C centrifugation environment.
+// ============================================================
+
+cells            = dispense 1 units of TargetCells
+pbs_wash1        = dispense 1 units of PBS
+
+cellPellet       = mix cells with pbs_wash1 for 5s
+
+// 300 RCF wash spin (5 min at 4 C)
+heat cellPellet at 4c for 5m
+
+// Lyse in OMNI buffer on ice for 5 min
+nucleiLysate     = mix cellPellet with omniBuffer for 5m
+
+// 1,000 RCF pellet (10 min at 4 C)
+heat nucleiLysate at 4c for 10m
+
+// Resuspend nuclei in MED1 (instance 2: fresh build from manifests)
+m1b_hepes        = dispense 1 units of HEPES_1M
+m1b_nacl         = dispense 1 units of NaCl_5M
+m1b_spermidine   = dispense 1 units of Spermidine_1M
+m1b_pi           = dispense 1 units of PI_50X
+m1b_supIn        = dispense 1 units of SUPERaseIN
+m1b_rnaseOut     = dispense 1 units of RNaseOUT
+m1b_igepal       = dispense 1 units of IGEPAL_CA630_10pct
+m1b_digitonin    = dispense 1 units of Digitonin_2pct
+m1b_edta         = dispense 1 units of EDTA_500mM
+m1b_bsa          = dispense 1 units of BSA_10pct
+m1b_diluent      = dispense 1 units of ATAC_RSB_Buffer
+
+m1b_mix1         = mix m1b_hepes with m1b_nacl for 5s
+m1b_mix2         = mix m1b_mix1 with m1b_spermidine for 5s
+m1b_mix3         = mix m1b_mix2 with m1b_pi for 5s
+m1b_mix4         = mix m1b_mix3 with m1b_supIn for 5s
+m1b_mix5         = mix m1b_mix4 with m1b_rnaseOut for 5s
+m1b_mix6         = mix m1b_mix5 with m1b_igepal for 5s
+m1b_mix7         = mix m1b_mix6 with m1b_digitonin for 5s
+m1b_mix8         = mix m1b_mix7 with m1b_edta for 5s
+m1b_mix9         = mix m1b_mix8 with m1b_bsa for 5s
+med1BufferNuclei = mix m1b_mix9 with m1b_diluent for 5s
+
+nucleiInMed1     = mix nucleiLysate with med1BufferNuclei for 5s
+
+// ============================================================
+// DAY 1 -- STEP A-4: Epitope Targeting (Overnight)
+// 0.25-0.5 million nuclei pelleted at 1,000 RCF / 10 min
+// at 4 C. Resuspended in 25 uL MED1 (instance 3).
+// Conjugated antibody-pA-Tn5 added; incubated overnight at
+// 4 C with rotation. Modelled as heat at 4c for 720m (12 h).
+// ============================================================
+
+// 1,000 RCF pellet (10 min at 4 C) before antibody incubation
+heat nucleiInMed1 at 4c for 10m
+
+// MED1 instance 3: resuspension before overnight incubation
+m1c_hepes        = dispense 1 units of HEPES_1M
+m1c_nacl         = dispense 1 units of NaCl_5M
+m1c_spermidine   = dispense 1 units of Spermidine_1M
+m1c_pi           = dispense 1 units of PI_50X
+m1c_supIn        = dispense 1 units of SUPERaseIN
+m1c_rnaseOut     = dispense 1 units of RNaseOUT
+m1c_igepal       = dispense 1 units of IGEPAL_CA630_10pct
+m1c_digitonin    = dispense 1 units of Digitonin_2pct
+m1c_edta         = dispense 1 units of EDTA_500mM
+m1c_bsa          = dispense 1 units of BSA_10pct
+m1c_diluent      = dispense 1 units of ATAC_RSB_Buffer
+
+m1c_mix1         = mix m1c_hepes with m1c_nacl for 5s
+m1c_mix2         = mix m1c_mix1 with m1c_spermidine for 5s
+m1c_mix3         = mix m1c_mix2 with m1c_pi for 5s
+m1c_mix4         = mix m1c_mix3 with m1c_supIn for 5s
+m1c_mix5         = mix m1c_mix4 with m1c_rnaseOut for 5s
+m1c_mix6         = mix m1c_mix5 with m1c_igepal for 5s
+m1c_mix7         = mix m1c_mix6 with m1c_digitonin for 5s
+m1c_mix8         = mix m1c_mix7 with m1c_edta for 5s
+m1c_mix9         = mix m1c_mix8 with m1c_bsa for 5s
+med1BufferEpi    = mix m1c_mix9 with m1c_diluent for 5s
+
+nucleiEpitopePrep = mix nucleiInMed1 with med1BufferEpi for 5s
+
+// Add conjugated antibody-pA-Tn5; incubate overnight at 4 C
+nucleiWithAbTn5  = mix nucleiEpitopePrep with abTn5Conjugate for 5s
+heat nucleiWithAbTn5 at 4c for 720m
+
+// ============================================================
+// DAY 2 -- PART B-1: Prepare MED Buffer #2 (MED2) -- instance 1
+// Used for first wash in STEP B-2.
+// Identical to MED1 but without EDTA (Mg2+ must be free for
+// tagmentation). Components (per 1 mL):
+//   20 uL HEPES (1 M, pH 7.5), 54.2 uL NaCl (5 M),
+//   0.5 uL Spermidine (1 M), 20 uL 50X PI,
+//   50 uL SUPERaseIN, 25 uL RNaseOUT,
+//   1 uL IGEPAL-CA630 (10%), 5 uL Digitonin (2%),
+//   200 uL 10% BSA, 699.3 uL H2O (ATAC_RSB_Buffer diluent)
+// ============================================================
+
+m2a_hepes        = dispense 1 units of HEPES_1M
+m2a_nacl         = dispense 1 units of NaCl_5M
+m2a_spermidine   = dispense 1 units of Spermidine_1M
+m2a_pi           = dispense 1 units of PI_50X
+m2a_supIn        = dispense 1 units of SUPERaseIN
+m2a_rnaseOut     = dispense 1 units of RNaseOUT
+m2a_igepal       = dispense 1 units of IGEPAL_CA630_10pct
+m2a_digitonin    = dispense 1 units of Digitonin_2pct
+m2a_bsa          = dispense 1 units of BSA_10pct
+m2a_diluent      = dispense 1 units of ATAC_RSB_Buffer
+
+m2a_mix1         = mix m2a_hepes with m2a_nacl for 5s
+m2a_mix2         = mix m2a_mix1 with m2a_spermidine for 5s
+m2a_mix3         = mix m2a_mix2 with m2a_pi for 5s
+m2a_mix4         = mix m2a_mix3 with m2a_supIn for 5s
+m2a_mix5         = mix m2a_mix4 with m2a_rnaseOut for 5s
+m2a_mix6         = mix m2a_mix5 with m2a_igepal for 5s
+m2a_mix7         = mix m2a_mix6 with m2a_digitonin for 5s
+m2a_mix8         = mix m2a_mix7 with m2a_bsa for 5s
+med2BufferWash1  = mix m2a_mix8 with m2a_diluent for 5s
+
+// ============================================================
+// DAY 2 -- PART B-1: MED2 instance 2 (second wash)
+// ============================================================
+
+m2b_hepes        = dispense 1 units of HEPES_1M
+m2b_nacl         = dispense 1 units of NaCl_5M
+m2b_spermidine   = dispense 1 units of Spermidine_1M
+m2b_pi           = dispense 1 units of PI_50X
+m2b_supIn        = dispense 1 units of SUPERaseIN
+m2b_rnaseOut     = dispense 1 units of RNaseOUT
+m2b_igepal       = dispense 1 units of IGEPAL_CA630_10pct
+m2b_digitonin    = dispense 1 units of Digitonin_2pct
+m2b_bsa          = dispense 1 units of BSA_10pct
+m2b_diluent      = dispense 1 units of ATAC_RSB_Buffer
+
+m2b_mix1         = mix m2b_hepes with m2b_nacl for 5s
+m2b_mix2         = mix m2b_mix1 with m2b_spermidine for 5s
+m2b_mix3         = mix m2b_mix2 with m2b_pi for 5s
+m2b_mix4         = mix m2b_mix3 with m2b_supIn for 5s
+m2b_mix5         = mix m2b_mix4 with m2b_rnaseOut for 5s
+m2b_mix6         = mix m2b_mix5 with m2b_igepal for 5s
+m2b_mix7         = mix m2b_mix6 with m2b_digitonin for 5s
+m2b_mix8         = mix m2b_mix7 with m2b_bsa for 5s
+med2BufferWash2  = mix m2b_mix8 with m2b_diluent for 5s
+
+// ============================================================
+// DAY 2 -- PART B-1: MED2 instance 3 (tagmentation resuspend)
+// ============================================================
+
+m2c_hepes        = dispense 1 units of HEPES_1M
+m2c_nacl         = dispense 1 units of NaCl_5M
+m2c_spermidine   = dispense 1 units of Spermidine_1M
+m2c_pi           = dispense 1 units of PI_50X
+m2c_supIn        = dispense 1 units of SUPERaseIN
+m2c_rnaseOut     = dispense 1 units of RNaseOUT
+m2c_igepal       = dispense 1 units of IGEPAL_CA630_10pct
+m2c_digitonin    = dispense 1 units of Digitonin_2pct
+m2c_bsa          = dispense 1 units of BSA_10pct
+m2c_diluent      = dispense 1 units of ATAC_RSB_Buffer
+
+m2c_mix1         = mix m2c_hepes with m2c_nacl for 5s
+m2c_mix2         = mix m2c_mix1 with m2c_spermidine for 5s
+m2c_mix3         = mix m2c_mix2 with m2c_pi for 5s
+m2c_mix4         = mix m2c_mix3 with m2c_supIn for 5s
+m2c_mix5         = mix m2c_mix4 with m2c_rnaseOut for 5s
+m2c_mix6         = mix m2c_mix5 with m2c_igepal for 5s
+m2c_mix7         = mix m2c_mix6 with m2c_digitonin for 5s
+m2c_mix8         = mix m2c_mix7 with m2c_bsa for 5s
+med2BufferTag    = mix m2c_mix8 with m2c_diluent for 5s
+
+// ============================================================
+// DAY 2 -- PART B-1: Prepare PBS + RNase Inhibitor Wash Buffer
+// Used for post-tagmentation nuclei wash in STEP B-2.
+// Components (per 1 mL):
+//   20 uL 50X PI, 25 uL SUPERaseIN,
+//   12.5 uL RNaseOUT, 942.5 uL 1X PBS
+// ============================================================
+
+pbsRI_pi         = dispense 1 units of PI_50X
+pbsRI_supIn      = dispense 1 units of SUPERaseIN
+pbsRI_rnaseOut   = dispense 1 units of RNaseOUT
+pbsRI_pbs        = dispense 1 units of PBS
+
+pbsRI_mix1       = mix pbsRI_pi with pbsRI_supIn for 5s
+pbsRI_mix2       = mix pbsRI_mix1 with pbsRI_rnaseOut for 5s
+pbsRIBuffer      = mix pbsRI_mix2 with pbsRI_pbs for 5s
+
+// ============================================================
+// DAY 2 -- PART B-1: Prepare 1X Nuclei Buffer
+// Final nuclei resuspension buffer before Chromium loading.
+// Components (per 100 uL):
+//   5 uL 20X Nuclei Buffer (10X Genomics PN-2000207),
+//   1 uL DTT (100 mM), 5 uL SUPERaseIN,
+//   2.5 uL RNaseOUT, 86.5 uL H2O (ATAC_RSB_Buffer diluent)
+// ============================================================
+
+nb_20x           = dispense 1 units of NucleiBuffer_20X
+nb_dtt           = dispense 1 units of DTT_100mM
+nb_supIn         = dispense 1 units of SUPERaseIN
+nb_rnaseOut      = dispense 1 units of RNaseOUT
+nb_diluent       = dispense 1 units of ATAC_RSB_Buffer
+
+nb_mix1          = mix nb_20x with nb_dtt for 5s
+nb_mix2          = mix nb_mix1 with nb_supIn for 5s
+nb_mix3          = mix nb_mix2 with nb_rnaseOut for 5s
+nucleiBuffer1X   = mix nb_mix3 with nb_diluent for 5s
+
+// ============================================================
+// DAY 2 -- STEP B-2: Nuclei Washing (x2) and Tagmentation
+// Nuclei pelleted at 300 RCF / 10 min at 4 C; washed twice
+// with 50 uL MED2. Resuspended in 50 uL MED2.
+// 2 uL MgCl2 (250 mM) added to activate Tn5 transposase.
+// Tagmentation at 37 C / 60 min with 550 rpm agitation.
+// ============================================================
+
+// First MED2 wash (300 RCF / 10 min at 4 C)
+nucleiWash1      = mix nucleiWithAbTn5 with med2BufferWash1 for 5s
+heat nucleiWash1 at 4c for 10m
+
+// Second MED2 wash (300 RCF / 10 min at 4 C)
+nucleiWash2      = mix nucleiWash1 with med2BufferWash2 for 5s
+heat nucleiWash2 at 4c for 10m
+
+// Resuspend in 50 uL MED2; add MgCl2 to activate Tn5
+mgcl2            = dispense 1 units of MgCl2_250mM
+nucleiInMed2     = mix nucleiWash2 with med2BufferTag for 5s
+tagmentationMix  = mix nucleiInMed2 with mgcl2 for 5s
+
+// Tagmentation at 37 C for 60 min (550 rpm ThermoMixer)
+heat tagmentationMix at 37c for 60m
+
+// ============================================================
+// DAY 2 -- STEP B-2: Stop Tagmentation and Post-Tag Wash
+// 2X Stop Solution added 1:1; terminate Tn5 activity.
+// Pelleted at 500 RCF / 6 min at 4 C; washed once with
+// PBS + RNase inhibitor buffer.
+// ============================================================
+
+stopSolution     = dispense 1 units of StopSolution_2X
+stoppedNuclei    = mix tagmentationMix with stopSolution for 5s
+heat stoppedNuclei at 4c for 6m
+
+nucleiPostTag    = mix stoppedNuclei with pbsRIBuffer for 5s
+heat nucleiPostTag at 4c for 6m
+
+// ============================================================
+// DAY 2 -- STEP B-2: Resuspend Nuclei in 1X Nuclei Buffer
+// Final resuspension in 20 uL 1X Nuclei Buffer for counting.
+// 10,000-16,000 nuclei aliquoted in 8 uL.
+// 7 uL ATAC Buffer B (10X Genomics PN-2000193) added
+// immediately before loading onto Chromium chip.
+// ============================================================
+
+atac_bufB        = dispense 1 units of ATACBufferB
+nucleiForLoading = mix nucleiPostTag with nucleiBuffer1X for 5s
+nucleiChipReady  = mix nucleiForLoading with atac_bufB for 5s
+
+// ============================================================
+// DAY 2 -- STEP B-3: Droplet Generation and RT Master Mix
+// Reverse transcription + cell barcoding master mix:
+//   49.5 uL Barcoding Reagent Mix (PN-2000267)
+//   1.1 uL Template Switch Oligo (PN-3000228)
+//   1.9 uL Reducing Agent B (PN-2000087)
+//   7.5 uL Barcoding Enzyme Mix (PN-2000266)
+// 60 uL master mix + 15 uL nuclei mixture loaded onto
+// Chromium Next GEM Chip J; droplets generated in ChromiumX.
+// NOTE: `mix` abstracts the microfluidic GEM droplet
+// generation event, not a DMF electrode mixing step.
+// ============================================================
+
+bcReagentMix     = dispense 1 units of BarcodingReagentMix
+tso              = dispense 1 units of TemplateSwitchOligo
+reducingAgent    = dispense 1 units of ReducingAgentB
+bcEnzymeMix      = dispense 1 units of BarcodingEnzymeMix
+
+rtMix1           = mix bcReagentMix with tso for 5s
+rtMix2           = mix rtMix1 with reducingAgent for 5s
+rtMasterMix      = mix rtMix2 with bcEnzymeMix for 5s
+
+// Load nuclei + RT master mix onto Chip J; generate GEM droplets
+gemEmulsion      = mix nucleiChipReady with rtMasterMix for 5s
+
+// ============================================================
+// DAY 2 -- STEP B-3: Reverse Transcription + Cell Barcoding
+// in Droplet (10x GEM incubation program):
+//   37 C for 45 min  -- cDNA synthesis (reverse transcription)
+//   25 C for 30 min  -- template switching / barcoding
+// Lid temperature set to 50 C to prevent condensation.
+// Two sequential heat steps model the two-stage PCR program.
+// ============================================================
+
+heat gemEmulsion at 37c for 45m
+heat gemEmulsion at 25c for 30m
+
+// ============================================================
+// DAY 2 -- STEP B-3: Quench Reaction
+// 5 uL Quenching Agent (PN-2000269) added to stop RT.
+// ============================================================
+
+quenchingAgent   = dispense 1 units of QuenchingAgent
+quenchedEmulsion = mix gemEmulsion with quenchingAgent for 5s
+
+// ============================================================
+// DAY 2 -- STEP B-4: Products Cleanup
+// Dynabeads + SPRI bead cleanup per 10X Multiome user guide
+// (CG000338). Bead-based purification of barcoded cDNA and
+// tagmented DNA fragments from the GEM emulsion.
+// ============================================================
+
+dynabeads        = dispense 1 units of DynaBeads
+spriBeads        = dispense 1 units of SPRIBeads
+
+dynaClean        = mix quenchedEmulsion with dynabeads for 5m
+spriClean        = mix dynaClean with spriBeads for 5m
+
+// ============================================================
+// DAY 3 -- STEP C: Pre-amplification
+// Follows 10X Multiome user guide (CG000338) with one
+// modification: SPRI elution in 80 uL instead of 160 uL
+// to concentrate tagmented fragments and maximise DNA library
+// complexity (scCUT&Tag library complexity is lower than ATAC).
+// DNA library input: 40 uL; RNA library input: 17.5 uL + H2O.
+// PCR cycle guidance: 13 cycles for H3K27ac, 12 for H3K27me3.
+// Pre-amplified product stable at -20 C for up to 6 months.
+// ============================================================
+
+pcrMix           = dispense 1 units of PCRMasterMix
+preamplified     = mix spriClean with pcrMix for 5s
+heat preamplified at 72c for 5m
+
+// ============================================================
+// DAY 3 -- STEP C: DNA and RNA Library Preparation
+// DNA and RNA library preps run independently per CG000338.
+// Encoded as a single representative SPRI cleanup producing
+// the final indexed sequencing library. In practice:
+//   40 uL -> DNA library (histone modification CUT&Tag)
+//   17.5 uL + 17.5 uL H2O -> RNA library (gene expression)
+// ============================================================
+
+spriLib          = dispense 1 units of SPRIBeads
+finalLibrary     = mix preamplified with spriLib for 5m
+
+// ============================================================
+// DAY 3 -- STEP D: Library QC and Sequencing
+// Fragment size QC by TapeStation or Fragment Analyzer.
+//   DNA library expected: 200-1,000 bp (nucleosome ladder).
+//   RNA (cDNA) library expected: 400-500 bp peak (narrow).
+// Illumina NextSeq 2000 sequencing:
+//   DNA: 200-cycle kit; 100+8+24+100 cycles.
+//   RNA: 100-cycle kit; 28+10+10+72 cycles.
+// libraryQCDetection abstracts TapeStation fragment size gate.
+// ============================================================
+
+libraryQCSignal  = detect libraryQCDetection on finalLibrary for 30s
+
+// ============================================================
+// BB4 / BB5: Library QC Gate
+// Pass (BB4): libraryQCSignal > 0 -> fragment size within
+//             spec (DNA: 200-1000 bp; cDNA: 400-500 bp peak);
+//             dispose final library.
+// Fail (BB5): libraryQCSignal <= 0 -> library out of spec;
+//             drain and re-evaluate PCR cycles or nuclei input.
+// Both branches converge at BB6 (finalCleanup).
+// ============================================================
+
+if (libraryQCSignal > 0) {
+    dispose finalLibrary
+} else {
+    drain finalLibrary
+}
+
+// ============================================================
+// BB6: finalCleanup (terminal)
+// Dispose library QC signal; experiment ends.
+// ============================================================
+
+dispose libraryQCSignal
+
+// [terminal -- no further instructions; exit node for CFG]

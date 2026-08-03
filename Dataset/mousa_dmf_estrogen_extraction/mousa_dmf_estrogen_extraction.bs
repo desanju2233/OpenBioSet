@@ -1,0 +1,313 @@
+module estradiolExtractionQC
+module estradiolMSDetection
+
+manifest BloodSample
+manifest DCM_Acetone_8020
+manifest Methanol
+manifest Isooctane
+manifest EstradiolStandard
+manifest EstrogenFreeSerum
+
+// ============================================================
+// Droplet-Scale Estrogen Assays in Breast Tissue, Blood, and Serum
+// Mousa, Jebrail, Yang, Abdelgawad, Metalnikov, Chen,
+// Wheeler, Casper -- Sci. Transl. Med. 1, 1ra2 (2009).
+// DOI: 10.1126/scitranslmed.3000105
+//
+// Wheeler Lab (University of Toronto) / Casper Lab (Mount Sinai)
+//
+// PROTOCOL SUMMARY (Method 1 -- used in most experiments):
+//   A 1-uL aliquot of whole blood, serum, or breast tissue
+//   homogenate is loaded into a DMF device.  The sample is
+//   allowed to dry on the electrode surface.  A series of
+//   DCM/acetone (80:20 v/v) lysing-solvent droplets is then
+//   driven over the dried sample to lyse cells and dissolve
+//   steroids.  Methanol (polar extraction solvent) is dispensed
+//   over the dried lysate to dissolve the steroids into solution.
+//   The dissolved droplet is driven into an isooctane (non-polar
+//   extracting solvent) reservoir and circulated for ~20 s to
+//   partition away interfering compounds.  The polar phase is
+//   driven to the collection reservoir.  This lysis-extraction
+//   cycle is repeated (9 x 1.1-uL or 5 x 2.2-uL reservoir
+//   volumes of methanol) until the sample reservoir is exhausted.
+//   All collected droplets are pooled, dried, and reconstituted
+//   for downstream analysis (ELISA or LC-MS/MS).
+//
+// PLATFORM:  Digital microfluidics (EWOD) with individually
+//   addressable ITO electrodes (1.5-mm pitch) on a glass
+//   substrate coated with Teflon-AF (dielectric).  Open-top
+//   (single-plate) configuration.  A photoresist "wall" defines
+//   the liquid-liquid extraction zone separating the isooctane
+//   pool from the collection reservoir.
+//
+// SAMPLE VOLUME:  1 uL (1000-4000x smaller than conventional
+//   biopsy methods).  Processing time ~10-20 min by DMF vs
+//   5-6 h by conventional pipetting/centrifugation.
+//
+// DETECTION:
+//   (i)  ELISA (ALPCO Diagnostics estradiol kit, abs 450 nm) --
+//        used for recovery (86-119%, CV 7-10%) and precision.
+//   (ii) LC-MS/MS with SRM (m/z 271/145) using a QTRAP system;
+//        estradiol retention time ~3.2 min (isocratic MeOH/H2O
+//        80:20, 2.1-mm x 50-mm Thermo Gold C18 column).
+//   (iii) Direct MS (LTQ, negative mode, 250 C, 0.5 uL/min):
+//        estradiol fragment m/z 183 confirmed absent in whole
+//        samples but dominant in DMF-extracted samples.
+//
+// RECOVERY:  DMF-based recoveries 86-119% (ELISA). Breast
+//   tissue: 522 pg estradiol / mg tissue (CV 1%, replicate 1-uL
+//   samples from postmenopausal breast cancer patient).
+//
+// NOTE ON LYSIS ABSTRACTION:
+//   Paper M&M: "a series of reservoir volumes (9 x 1.1 uL or
+//   5 x 2.2 uL) of DCM/acetone was dispensed and driven dropwise
+//   to the sample, each allowed to incubate until dry (~1 min)."
+//   BioScript has no loop primitive, so each lysis sub-droplet
+//   is modelled as a separate dispense + mix step.  A 3-cycle
+//   representative encoding is used (covering the first lysis
+//   wave); all cycles are chemically identical.  `mix` here
+//   abstracts the electrode-driven translation, merging, and
+//   incubation-to-dryness event, not a conventional mixing step.
+//
+// NOTE ON METHANOL EXTRACTION ABSTRACTION:
+//   Paper M&M: "step three was repeated with successive reservoir
+//   volumes of methanol (total 9 x 1.1 uL or 5 x 2.2 uL)."
+//   Three methanol extraction cycles are encoded; each cycle
+//   produces one extract droplet that is circulated in isooctane
+//   (~20 s) before being driven to the collection reservoir.
+//   The `heat` at 25c for 20s in each extraction cycle models
+//   the ~20 s circulation event in the isooctane pool (room temp).
+//
+// NOTE ON FLUID OWNERSHIP:
+//   Each dispensed fluid variable is consumed exactly once.
+//   `heat` is void/in-place; the variable remains valid and is
+//   subsequently consumed by `mix` or `dispose`/`drain`.
+//   After the if-else QC gate, `drain` is used in the else
+//   branch; `dispose` is used in the if branch (established
+//   compiler pattern for QC gates per dataset conventions).
+//
+// NOTE ON h DURATION TOKEN:
+//   The BioScript compiler (lilott8/BioScript) does not support
+//   the `h` duration token.  All durations use `s` or `m`.
+//   Reconstitution and analysis steps encoded in minutes.
+//
+// NOTE ON NON-ASCII CHARACTERS:
+//   All comments and identifiers use ASCII only to avoid ANTLR4
+//   UnicodeDecodeError at compile time.
+//
+// CFG STRUCTURE:
+//   BB1  main            -- entry: lysis, methanol extraction,
+//                           liquid-liquid partitioning in
+//                           isooctane, pooling of extracts
+//   BB2  extractPass     -- extractionSignal > 0: valid estradiol
+//                           signal detected by ELISA proxy;
+//                           dispose pooled extract
+//   BB3  extractFail     -- extractionSignal <= 0: no signal
+//                           (extraction failed); drain
+//   BB4  extractJoin     -- join: MS confirmation branch begins
+//   BB5  msPass          -- msSignal > 0: estradiol fragment
+//                           m/z 183 / 271-145 confirmed; dispose
+//   BB6  msFail          -- msSignal <= 0: analyte not confirmed;
+//                           drain
+//   BB7  finalCleanup    -- terminal: dispose QC signal droplets
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Load sample.
+//   An aliquot of whole blood (1 uL) is positioned in the
+//   sample reservoir of the DMF device.  Blood and tissue
+//   samples are allowed to dry on the electrode surface before
+//   the top plate is affixed and solvents are loaded.
+//   Standard estradiol solutions are used immediately without
+//   pre-drying.  Here the blood sample is dispensed and modelled
+//   as the starting material variable throughout the protocol.
+//   Drying time: ~1 min per reservoir volume at room temperature.
+// ------------------------------------------------------------
+
+bloodSample     = dispense 1 units of BloodSample
+
+// Drying at room temperature (25 C) for 60 s models the
+// ~1 min incubation-to-dryness step for the sample droplet
+// before lysis solvent is applied.  `heat` is void/in-place;
+// bloodSample remains valid and is consumed at STEP 2.
+heat bloodSample at 25c for 60s
+
+// ------------------------------------------------------------
+// STEP 2: Lysis -- DCM/acetone wave, cycle 1 of 3.
+//   DCM/acetone (80:20 v/v) dispensed from reservoir and
+//   driven dropwise over the dried sample.  Incubation until
+//   dry lyses cells and dissolves lipids / protein matrix
+//   to free the steroid analytes.  `mix` abstracts electrode-
+//   driven translation and merge + incubation-to-dryness.
+//   Paper: 9 x 1.1 uL or 5 x 2.2 uL DCM/acetone per sample.
+//   Three cycles encoded here as representative.
+// ------------------------------------------------------------
+
+lysisSolvent1   = dispense 1 units of DCM_Acetone_8020
+lysate1         = mix bloodSample with lysisSolvent1 for 60s
+
+// ------------------------------------------------------------
+// STEP 3: Lysis -- DCM/acetone wave, cycle 2 of 3.
+// ------------------------------------------------------------
+
+lysisSolvent2   = dispense 1 units of DCM_Acetone_8020
+lysate2         = mix lysate1 with lysisSolvent2 for 60s
+
+// ------------------------------------------------------------
+// STEP 4: Lysis -- DCM/acetone wave, cycle 3 of 3.
+//   After three cycles the dried lysate contains the
+//   free steroids (estradiol) ready for methanol dissolution.
+// ------------------------------------------------------------
+
+lysisSolvent3   = dispense 1 units of DCM_Acetone_8020
+driedLysate     = mix lysate2 with lysisSolvent3 for 60s
+
+// ------------------------------------------------------------
+// STEP 5: Methanol extraction -- dissolution cycle 1 of 3.
+//   A reservoir volume of methanol (polar extraction solvent)
+//   is dispensed and driven by DMF to the dried lysate to
+//   dissolve the steroids into the polar phase.
+//   Paper M&M: "a reservoir volume of methanol (1.1 or 2.2 uL)
+//   was dispensed and driven by DMF to the dried lysate to
+//   dissolve the steroids."
+// ------------------------------------------------------------
+
+methanol1       = dispense 1 units of Methanol
+dissolvedSample1 = mix driedLysate with methanol1 for 10s
+
+// Liquid-liquid extraction in isooctane (cycle 1):
+//   A unit droplet of the dissolved sample (200-400 nL) is
+//   driven to the isooctane reservoir and circulated within
+//   the pool for ~20 s (modelled as heat at 25c for 20s)
+//   before being driven to the collection reservoir.
+//   Isooctane partitions away lipid-soluble interferents
+//   (e.g. porphyrin m/z 715, DNA helicase m/z 677).
+isooctane1      = dispense 1 units of Isooctane
+extractDrop1    = mix dissolvedSample1 with isooctane1 for 10s
+heat extractDrop1 at 25c for 20s
+
+// ------------------------------------------------------------
+// STEP 6: Methanol extraction -- dissolution cycle 2 of 3.
+//   Paper M&M: "step three was repeated with successive reservoir
+//   volumes of methanol to extract all free estradiol."
+// ------------------------------------------------------------
+
+methanol2       = dispense 1 units of Methanol
+dissolvedSample2 = mix extractDrop1 with methanol2 for 10s
+
+isooctane2      = dispense 1 units of Isooctane
+extractDrop2    = mix dissolvedSample2 with isooctane2 for 10s
+heat extractDrop2 at 25c for 20s
+
+// ------------------------------------------------------------
+// STEP 7: Methanol extraction -- dissolution cycle 3 of 3.
+//   Final methanol pass exhausts the sample reservoir.
+//   All extract droplets (cycles 1-3) are pooled in the
+//   collection reservoir and allowed to dry at -20 C for storage.
+//   `mix` here pools the running extract with the final cycle.
+// ------------------------------------------------------------
+
+methanol3       = dispense 1 units of Methanol
+dissolvedSample3 = mix extractDrop2 with methanol3 for 10s
+
+isooctane3      = dispense 1 units of Isooctane
+extractDrop3    = mix dissolvedSample3 with isooctane3 for 10s
+heat extractDrop3 at 25c for 20s
+
+// Pool all extract droplets into the collection reservoir.
+// Paper: "all extract droplets were pooled in the output
+// reservoir and allowed to dry."  The final collected pool
+// is modelled as the merge of the three extract cycles.
+estrogenFreeSerumDiluent = dispense 1 units of EstrogenFreeSerum
+pooledExtract   = mix extractDrop3 with estrogenFreeSerumDiluent for 5s
+
+// Reconstitution: pooled extract is dried then reconstituted
+// in 30 uL methanol/DCM (2:1 v/v) before analysis.
+// Modelled as a room-temperature incubation (drying step).
+heat pooledExtract at 25c for 5m
+
+// ------------------------------------------------------------
+// STEP 8: ELISA extraction QC.
+//   Paper M&M: "estradiol-specific ELISA (ALPCO Diagnostics)
+//   used to evaluate recovery and precision of the DMF method."
+//   estradiolExtractionQC module abstracts the plate reader
+//   readout (abs 450 nm, mQuant spectrophotometer).
+//   Final concentrations evaluated: 40, 1200, 3000, 6000 pg/mL.
+//   Recovery 86-119%; CV 7-10% (Fig. 4, paper).
+//   Breast tissue (independent patient): 522 pg/mg, CV 1%.
+//   QC gate: if ELISA signal > 0, extraction is valid.
+// ------------------------------------------------------------
+
+extractionSignal = detect estradiolExtractionQC on pooledExtract for 30s
+
+// ============================================================
+// BB2 / BB3: Extraction QC gate
+// Pass (BB2): extractionSignal > 0 -> estradiol signal detected;
+//             dispose pooled extract and proceed to MS branch.
+// Fail (BB3): extractionSignal <= 0 -> no signal (extraction
+//             failure, reagent issue); drain and stop.
+// Both branches converge at BB4 (extractJoin).
+// ============================================================
+
+if (extractionSignal > 0) {
+    dispose pooledExtract
+} else {
+    drain pooledExtract
+}
+
+// ============================================================
+// BB4: extractJoin
+// Dispose ELISA QC signal. Control falls into MS confirmation
+// branch (BB5/BB6).
+// ============================================================
+
+dispose extractionSignal
+
+// ------------------------------------------------------------
+// STEP 9: MS confirmation.
+//   Paper: LTQ mass spectrometer (negative mode, 250 C,
+//   0.5 uL/min nanoelectrospray).  Estradiol fragment m/z 183
+//   detected as highest-magnitude peak in DMF-extracted samples
+//   but absent in non-extracted whole blood/serum (Fig. 2).
+//   LC-MS/MS SRM (m/z 271/145) at retention time ~3.2 min
+//   used for quantification from standard solutions, breast
+//   tissue homogenate, and whole blood (Fig. 3, paper).
+//   estradiolMSDetection module abstracts both the direct MS
+//   and LC-MS/MS SRM readout steps.
+//   A fresh standard solution is dispensed as the MS reference
+//   analyte alongside the reconstituted extract.
+// ------------------------------------------------------------
+
+estradiolStd    = dispense 1 units of EstradiolStandard
+msSignal        = detect estradiolMSDetection on estradiolStd for 192s
+
+// ============================================================
+// BB5 / BB6: MS confirmation gate
+// Pass (BB5): msSignal > 0 -> estradiol fragment m/z 183 /
+//             SRM 271-145 confirmed at ~3.2 min retention;
+//             dispose standard and signal.
+// Fail (BB6): msSignal <= 0 -> analyte not confirmed (ion
+//             suppression or extraction failure); drain.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (msSignal > 0) {
+    dispose estradiolStd
+} else {
+    drain estradiolStd
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose MS QC signal droplet. Experiment ends.
+// ============================================================
+
+dispose msSignal
+
+// [terminal -- no further instructions; exit node for CFG]

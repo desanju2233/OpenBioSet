@@ -1,0 +1,298 @@
+module immunoassayDetection
+
+manifest AntiHumanIgG_Capture
+manifest HumanIgG_Sample
+manifest FITC_AntiHumanIgG_Detection
+manifest PluronicF127_RinseBuffer
+manifest BovineSerum_Spiked
+
+// ============================================================
+// A Digital Microfluidic Approach to Heterogeneous Immunoassays
+// Miller, Ng, Uddayasankar, Wheeler - Anal. Bioanal. Chem. (2011)
+// DOI: 10.1007/s00216-010-4368-2
+//
+// Protocol: Heterogeneous sandwich immunoassay for Human IgG
+// on a DMF device. Capture antibody (Fc-specific anti-human IgG)
+// is pre-spotted (physisorbed) on the Cytop/ITO top plate.
+// All washing and incubation steps are performed via DMF
+// actuation at 75 V_rms, 18 kHz.
+//
+// DEVICE CONFIGURATION:
+//   Bottom plate: patterned Cr electrodes, 1x1 mm actuation
+//     electrodes + 2.5x2.5 mm reservoir electrodes.
+//     Coated with 2 um parylene C + 130 nm Cytop.
+//   Top plate: unpatterned ITO/glass, 130 nm Cytop.
+//     Pre-spotted with capture antibody (0.22-2.2 mg/mL,
+//     250-500 nL per spot, air-dried, rinsed with 0.1% w/v
+//     Pluronic F-127 in DI water, dried before use).
+//   Gap spacer: ~150 um (two pieces double-sided tape).
+//   Droplet volume: 1 uL unit droplets.
+//   Driving potential: 75 V_rms, 18 kHz function generator.
+//   Surroundings: air (no carrier oil; Pluronic prevents NSB).
+//   Detection: PheraStar plate reader, lambda_ex=485 nm,
+//     lambda_em=520 nm, focal height=12.1 mm.
+//
+// REAGENT NOTES:
+//   All solutions contain 0.00625% (w/v) Pluronic F-127
+//   (except diluted serum: 0.0113% Pluronic F-127) to
+//   prevent non-specific protein adsorption to device surfaces
+//   and to facilitate DMF droplet movement. This eliminates
+//   the need for BSA blocking steps used in well-plate methods.
+//   All solutions buffered in 10 mM phosphate buffer pH 7.4.
+//   Pluronic F-127 is included in the rinse buffer manifest.
+//
+// ASSAY SUMMARY (sandwich format):
+//   1. Sample droplet (antigen) cycled 10x over capture spot
+//   2. Rinse buffer droplet (2 passes) removes non-specific IgG
+//   3. Detection antibody droplet cycled 10x over spot
+//   4. Final rinse buffer droplet (2 passes)
+//   5. Fluorescence readout on plate reader
+//
+// TIMING:
+//   Conventional 96-well plate: up to 2 days (12 h antibody
+//     immobilization + 2-12 h BSA blocking + 1-2 h per
+//     binding step).
+//   DMF assay: 2.5 h total from spot printing to completion.
+//   Diffusion distances ~100x smaller + active droplet transport
+//   eliminates diffusion-limited kinetics.
+//
+// THROUGHPUT:
+//   Multiplexed devices: 6-10 platforms wired in series,
+//   electrodes bussed together for simultaneous parallel
+//   control of replicate assays. This .bs file encodes a
+//   single-platform assay; replicate platforms share identical
+//   protocol steps driven simultaneously.
+//
+// WASTE REDUCTION:
+//   Well plate: ~3.5 mL per well.
+//   DMF: ~4 uL per assay spot (reduction of ~3 orders of
+//   magnitude).
+//
+// VALIDATION:
+//   Analyte: Human IgG (0-5 ng total mass on device).
+//   Matrix tested: bovine serum diluted 100x, spiked with
+//     human IgG (0-10 ug/mL). Bovine IgG at ~100 ug/mL
+//     (100-fold excess over highest human IgG doped). No
+//     significant cross-reactivity observed.
+//   Dynamic range: ~1 order of magnitude (R^2=0.9964 on DMF).
+//   Reproducibility: %RSD < 25% per data point (3-5 replicates).
+//
+// FIX (v2): captureSpot is never disposed -- it models the
+//   physical antibody spot immobilized on the ITO top plate,
+//   which persists throughout all assay steps. In v1,
+//   antigenBound was disposed after STEP 3 but then reused
+//   in STEP 4 (rinse) and STEP 6 (detection antibody), causing
+//   a use-after-dispose in BioScript's data-flow model.
+//   Fix: all downstream mix steps reference captureSpot
+//   directly. Only liquid droplets (antigenBound,
+//   rinseStep1, sandwichComplex, rinseStep2) are disposed.
+//
+// CFG STRUCTURE:
+//   BB1  main              -- sample incubation, rinse 1,
+//                             detection antibody incubation,
+//                             rinse 2, fluorescence detection
+//   BB2  assayPass         -- assaySignal > 0: valid FITC signal
+//                             detected; dispose final droplet
+//   BB3  assayFail         -- assaySignal <= 0: no signal;
+//                             drain final droplet (failed assay)
+//   BB4  finalCleanup      -- terminal: dispose QC signal;
+//                             experiment ends
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// PRE-CONDITION: Capture antibody spot already immobilized on
+//   Cytop/ITO top plate before device assembly.
+//   Fc-specific anti-human IgG spotted at 0.22-2.2 mg/mL,
+//   250-500 nL. Air-dried, rinsed with 0.1% Pluronic F-127,
+//   dried. Top plate assembled onto bottom plate with spacer.
+//   Reservoirs loaded with 1-uL aliquots of antigen sample
+//   and rinse buffer before assembly.
+//
+// NOTE ON CYTOP vs TEFLON-AF:
+//   Teflon-AF (50 nm, standard DMF coating) was found to be
+//   too fragile for surface-based assays -- antibody printing
+//   caused tears that prevented actuation. Cytop (130 nm)
+//   was used instead for its greater mechanical ruggedness,
+//   allowing spot drying and rinsing without delamination.
+// ------------------------------------------------------------
+
+// ------------------------------------------------------------
+// STEP 1: Dispense antigen sample droplet.
+//   Human IgG in 10 mM phosphate buffer pH 7.4 with 0.00625%
+//   Pluronic F-127. Concentrations tested: 0-1 ug/mL (on-chip
+//   volume 1 uL = 0-1 ng per assay; standard curve range
+//   0-5 ng total IgG per spot as reported in Fig. 4).
+//   For serum experiments: bovine serum diluted 100x, spiked
+//   with human IgG 0-10 ug/mL (serum uses 0.0113% Pluronic).
+// ------------------------------------------------------------
+
+sampleDroplet = dispense 1 units of HumanIgG_Sample
+
+// ------------------------------------------------------------
+// STEP 2: Dispense capture spot (surface-bound antibody).
+//   captureSpot models the pre-immobilized Fc-specific
+//   anti-human IgG spot on the Cytop/ITO top plate.
+//   This variable is NEVER disposed -- it represents a
+//   physical surface feature that persists for all assay
+//   steps, not a liquid droplet consumed by actuation.
+// ------------------------------------------------------------
+
+captureSpot = dispense 1 units of AntiHumanIgG_Capture
+
+// ------------------------------------------------------------
+// STEP 3: Sample incubation - antigen binding to capture spot.
+//   DMF actuation (75 V_rms, 18 kHz) translates the 1-uL
+//   sample droplet across the capture antibody spot and cycles
+//   it back and forth 10 times (Fig. 2a/b).
+//   Active transport eliminates diffusion-limited kinetics:
+//   diffusion distances are ~100x smaller than in well plates,
+//   and droplet motion continually replenishes antigen at the
+//   surface. This reduces binding time dramatically relative
+//   to static well-plate incubation (1-2 h per step).
+//   NOTE: `mix` abstracts 10-pass cyclic actuation across
+//   the capture antibody spot on the ITO top plate.
+// ------------------------------------------------------------
+
+antigenBound = mix sampleDroplet with captureSpot for 10m
+
+// ------------------------------------------------------------
+// STEP 4: Sample removal.
+//   Sample droplet withdrawn to reservoir via DMF actuation.
+//   Waste droplet (containing unbound IgG and matrix proteins)
+//   manually removed from chip with a laboratory tissue (Fig. 2b).
+// ------------------------------------------------------------
+
+dispose antigenBound
+
+// ------------------------------------------------------------
+// STEP 5: First rinse - remove non-specifically bound IgG.
+//   1-uL rinse buffer droplet (10 mM phosphate buffer pH 7.4,
+//   0.00625% Pluronic F-127) is actuated across the spot in
+//   2 passes to wash away non-specifically adsorbed proteins.
+//   Two passes shown in Fig. 3 (inset) to be sufficient for
+//   removing NSB while retaining specific binding.
+//   Rinse droplet removed to waste reservoir after completion.
+//   NOTE: `mix` abstracts 2-pass rinse actuation.
+//   References captureSpot (persistent surface), not the
+//   disposed antigenBound droplet variable.
+// ------------------------------------------------------------
+
+rinseBuffer1 = dispense 1 units of PluronicF127_RinseBuffer
+rinseStep1   = mix rinseBuffer1 with captureSpot for 2m
+
+dispose rinseStep1
+
+// ------------------------------------------------------------
+// STEP 6: Device reload for detection antibody.
+//   After removing sample waste and rinse waste, the device
+//   top plate (Cytop/ITO with capture spot) is replaced and
+//   the bottom plate reservoirs are reloaded with 1-uL
+//   aliquots of FITC-anti-human IgG (Fab-specific, raised
+//   in goat) and rinse buffer (Fig. 2c).
+//   The detection antibody solution contains 0.00625% Pluronic.
+//
+// NOTE ON DETECTION ANTIBODY BINDING (from Fig. 3):
+//   Binding curve shows saturation after only 2 passes of the
+//   detection antibody droplet across the antigen spot.
+//   10 passes are used in the optimized protocol to eliminate
+//   variance from fluid movement timing. Pluronic in the droplet
+//   does not strip previously bound antibody during subsequent
+//   passes, confirming binding stability.
+//   Reynolds number ~210 (laminar flow); spot captures antibody
+//   from the layer in direct contact with the surface per pass.
+// ------------------------------------------------------------
+
+detectionAntibody = dispense 1 units of FITC_AntiHumanIgG_Detection
+
+// ------------------------------------------------------------
+// STEP 7: Detection antibody incubation.
+//   DMF delivers the FITC-labeled detection antibody (Fab-
+//   specific anti-human IgG) to the assay spot and cycles it
+//   back and forth 10 times (Fig. 2c/d).
+//   The detection antibody binds the antigen (human IgG)
+//   already captured on the spot, completing the sandwich.
+//   FITC label: excitation 485 nm, emission 520 nm.
+//   NOTE: `mix` abstracts 10-pass cyclic actuation across
+//   the assay spot for detection antibody binding.
+//   References captureSpot (persistent surface).
+// ------------------------------------------------------------
+
+sandwichComplex = mix detectionAntibody with captureSpot for 10m
+
+// ------------------------------------------------------------
+// STEP 8: Detection antibody removal.
+//   Detection antibody droplet removed to waste reservoir.
+//   Manually cleared with laboratory tissue (Fig. 2d).
+// ------------------------------------------------------------
+
+dispose sandwichComplex
+
+// ------------------------------------------------------------
+// STEP 9: Final rinse - remove unbound detection antibody.
+//   1-uL rinse buffer droplet cycled across the spot in
+//   2 passes to remove any remaining unbound FITC-anti-IgG
+//   (Fig. 2e). Rinse droplet removed to waste reservoir
+//   (Fig. 2f). This final rinse is critical: residual
+//   detection antibody in the droplet would generate high
+//   background fluorescence in the plate reader step.
+//   NOTE: `mix` abstracts 2-pass final rinse actuation.
+//   References captureSpot (persistent surface).
+// ------------------------------------------------------------
+
+rinseBuffer2 = dispense 1 units of PluronicF127_RinseBuffer
+rinseStep2   = mix rinseBuffer2 with captureSpot for 2m
+
+dispose rinseStep2
+
+// ------------------------------------------------------------
+// STEP 10: Fluorescence detection.
+//   Device (still positioned on the multiwell plate) is
+//   inserted into the PheraStar multiwell plate reader
+//   (BMG Labtech). The plate reader reads fluorescence
+//   from the FITC-labeled sandwich complex bound to the
+//   capture antibody spot on the ITO top plate.
+//   Settings: lambda_ex = 485 nm, lambda_em = 520 nm,
+//   focal height = 12.1 mm.
+//   immunoassayDetection module abstracts the plate reader
+//   fluorescence measurement step.
+//   After detection, the Cytop/ITO cover plate is discarded;
+//   the patterned bottom plate is re-used for subsequent assays.
+//   NOTE: detect runs on rinseStep2 as the last active droplet
+//   on the device at the time of plate reader insertion.
+// ------------------------------------------------------------
+
+assaySignal = detect immunoassayDetection on rinseStep2 for 30s
+
+// ============================================================
+// BB2 / BB3: Assay QC gate
+// Pass (BB2): assaySignal > 0 -> FITC fluorescence detected
+//             above background; analyte present in sample.
+//             Dispose final droplet; assay valid.
+// Fail (BB3): assaySignal <= 0 -> no fluorescence above
+//             background; analyte absent or assay failed.
+//             Drain final droplet.
+// Both branches converge at BB4 (finalCleanup).
+// ============================================================
+
+if (assaySignal > 0) {
+    dispose rinseStep2
+} else {
+    drain rinseStep2
+}
+
+// ============================================================
+// BB4: finalCleanup (terminal)
+// Dispose the assay QC signal. Experiment ends.
+// Top plate (Cytop/ITO with capture spot) is discarded.
+// Bottom plate is retained for re-use in subsequent assays.
+// ============================================================
+
+dispose assaySignal
+
+// [terminal -- no further instructions; exit node for CFG]

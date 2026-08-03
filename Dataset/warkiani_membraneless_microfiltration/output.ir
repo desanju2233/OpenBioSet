@@ -1,0 +1,90 @@
+bsbbif_2_t:
+	freshMedia1[0] = dispense(CompleteDMEM)
+	recycledCells1[0] = mix(choFiltered1[0], freshMedia1[0]) @ 60.0SECOND
+	heat(recycledCells1[0]) @ 37.0CELSIUS @ 86400.0SECOND
+	dispose(recycledCells1[0])
+bsbbif_3_f:
+	dispose(choFiltered1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(choSignal1[0])
+	hybridoma1[0] = dispense(Hybridoma_Cells)
+	piStain1[0] = dispense(PropidiumIodide)
+	fdaStain1[0] = dispense(FDAStain)
+	trypan1[0] = dispense(TrypanBlue)
+	trypanMix1[0] = mix(hybridoma1[0], trypan1[0]) @ 120.0SECOND
+	piMix1[0] = mix(trypanMix1[0], piStain1[0]) @ 300.0SECOND
+	viabilitySample1[0] = mix(piMix1[0], fdaStain1[0]) @ 600.0SECOND
+	viabilitySignal1[0] = detect(cellViabilityDetection, viabilitySample1[0]) @ 30.0SECOND
+	if viabilitySignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	primingBuffer1[0] = dispense(BSA_EDTA_Buffer)
+	primingPBS1[0] = dispense(PBS)
+	primingMix1[0] = mix(primingBuffer1[0], primingPBS1[0]) @ 20.0SECOND
+	choCells1[0] = dispense(CHO_Cells)
+	bsaBuffer11[0] = dispense(BSA_EDTA_Buffer)
+	choSuspension1[0] = mix(choCells1[0], bsaBuffer11[0]) @ 10.0SECOND
+	choFiltered1[0] = mix(choSuspension1[0], primingMix1[0]) @ 5.0SECOND
+	choSignal1[0] = detect(separationEfficiencyDetection, choFiltered1[0]) @ 30.0SECOND
+	if choSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(viabilitySample1[0])
+bsbbif_6_f:
+	dispose(viabilitySample1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(viabilitySignal1[0])
+	mediaSample1[0] = dispense(ConditionedMedia)
+	elisaReagent1[0] = dispense(IgG_ELISA_Reagent)
+	elisaMix1[0] = mix(mediaSample1[0], elisaReagent1[0]) @ 1800.0SECOND
+	heat(elisaMix1[0]) @ 37.0CELSIUS @ 1800.0SECOND
+	titerSignal1[0] = detect(antibodyTiterDetection, elisaMix1[0]) @ 30.0SECOND
+	if titerSignal1[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(elisaMix1[0])
+bsbbif_9_f:
+	dispose(elisaMix1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(titerSignal1[0])
+	yeastCells1[0] = dispense(Yeast_S_cerevisiae)
+	bsaBuffer21[0] = dispense(BSA_EDTA_Buffer)
+	yeastSuspension1[0] = mix(yeastCells1[0], bsaBuffer21[0]) @ 10.0SECOND
+	yeastPriming1[0] = dispense(PBS)
+	yeastFiltered1[0] = mix(yeastSuspension1[0], yeastPriming1[0]) @ 5.0SECOND
+	yeastSignal1[0] = detect(separationEfficiencyDetection, yeastFiltered1[0]) @ 30.0SECOND
+	if yeastSignal1[0] > 0	|	true: jump bsbbif_11_t	|	false: jump bsbbif_12_f
+bsbbif_11_t:
+	dispose(yeastFiltered1[0])
+bsbbif_12_f:
+	dispose(yeastFiltered1[0])
+	jump: bsbbif_13_j
+bsbbif_13_j:
+	dispose(yeastSignal1[0])
+	choSyncCells1[0] = dispense(CHO_Cells)
+	trypsin1[0] = dispense(TrypsinEDTA)
+	detachedCells1[0] = mix(choSyncCells1[0], trypsin1[0]) @ 180.0SECOND
+	quenchMedia1[0] = dispense(CompleteDMEM)
+	bsaBuffer31[0] = dispense(BSA_EDTA_Buffer)
+	quenchedCells1[0] = mix(detachedCells1[0], quenchMedia1[0]) @ 120.0SECOND
+	syncSuspension1[0] = mix(quenchedCells1[0], bsaBuffer31[0]) @ 5.0SECOND
+	syncPriming1[0] = dispense(PBS)
+	fractionatedCells1[0] = mix(syncSuspension1[0], syncPriming1[0]) @ 8.0SECOND
+	hoechstStain1[0] = dispense(HoechstStain)
+	bsaBuffer41[0] = dispense(BSA_EDTA_Buffer)
+	heat(fractionatedCells1[0]) @ 4.0CELSIUS @ 900.0SECOND
+	stainBuffer1[0] = mix(fractionatedCells1[0], bsaBuffer41[0]) @ 5.0SECOND
+	stainedSync1[0] = mix(stainBuffer1[0], hoechstStain1[0]) @ 1800.0SECOND
+	syncSignal1[0] = detect(cellCycleDetection, stainedSync1[0]) @ 30.0SECOND
+	if syncSignal1[0] > 0	|	true: jump bsbbif_14_t	|	false: jump bsbbif_15_f
+bsbbif_14_t:
+	conditionedMedia22[0] = dispense(ConditionedMedia)
+	synchronisedCells2[0] = mix(stainedSync1[0], conditionedMedia22[0]) @ 60.0SECOND
+	heat(synchronisedCells2[0]) @ 37.0CELSIUS @ 3600.0SECOND
+	dispose(synchronisedCells2[0])
+bsbbif_15_f:
+	dispose(stainedSync1[0])
+	jump: bsbbif_16_j
+bsbbif_16_j:
+	dispose(syncSignal1[0])
+	NOP

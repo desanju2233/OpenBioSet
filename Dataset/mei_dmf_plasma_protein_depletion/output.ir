@@ -1,0 +1,44 @@
+bsbbif_2_t:
+	dispose(depletedSample1[0])
+bsbbif_3_f:
+	dispose(depletedSample1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(depletionSignal1[0])
+	fitcIgG1[0] = dispense(FITC_IgG)
+	kineticsBeads1[0] = dispense(ProteinAG_Beads)
+	kineticsMix1[0] = mix(fitcIgG1[0], kineticsBeads1[0]) @ 5.0SECOND
+	heat(kineticsMix1[0]) @ 25.0CELSIUS @ 30.0SECOND
+	heat(kineticsMix1[0]) @ 25.0CELSIUS @ 30.0SECOND
+	pbsKinetics1[0] = dispense(PBS_Buffer)
+	kineticsSupern1[0] = mix(kineticsMix1[0], pbsKinetics1[0]) @ 5.0SECOND
+	fluorescenceSignal1[0] = detect(fluorescenceDetection, kineticsSupern1[0]) @ 30.0SECOND
+	if fluorescenceSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	agBeads1[0] = dispense(ProteinAG_Beads)
+	antiHsaBeads1[0] = dispense(AntiHSA_Beads)
+	mixedBeads1[0] = mix(agBeads1[0], antiHsaBeads1[0]) @ 5.0SECOND
+	proteinSample1[0] = dispense(PlasmaProteinSample)
+	pbsBuffer1[0] = dispense(PBS_Buffer)
+	pluronic1[0] = dispense(PluronicF68)
+	samplePlusMix1[0] = mix(proteinSample1[0], pluronic1[0]) @ 5.0SECOND
+	beadDroplet1[0] = mix(mixedBeads1[0], pbsBuffer1[0]) @ 5.0SECOND
+	heat(beadDroplet1[0]) @ 25.0CELSIUS @ 30.0SECOND
+	washBuffer11[0] = dispense(PBS_Buffer)
+	beadWash11[0] = mix(beadDroplet1[0], washBuffer11[0]) @ 5.0SECOND
+	heat(beadWash11[0]) @ 25.0CELSIUS @ 30.0SECOND
+	beadProteinMix1[0] = mix(beadWash11[0], samplePlusMix1[0]) @ 10.0SECOND
+	heat(beadProteinMix1[0]) @ 37.0CELSIUS @ 600.0SECOND
+	heat(beadProteinMix1[0]) @ 25.0CELSIUS @ 30.0SECOND
+	washBuffer21[0] = dispense(PBS_Buffer)
+	depletedSample1[0] = mix(beadProteinMix1[0], washBuffer21[0]) @ 5.0SECOND
+	depletionSignal1[0] = detect(depletionQC, depletedSample1[0]) @ 30.0SECOND
+	if depletionSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(kineticsSupern1[0])
+bsbbif_6_f:
+	dispose(kineticsSupern1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(fluorescenceSignal1[0])
+	NOP

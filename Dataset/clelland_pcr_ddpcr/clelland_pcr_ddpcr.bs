@@ -1,0 +1,446 @@
+module gelElectrophoresisDetection
+module dropletReadoutDetection
+
+manifest Cells
+manifest PBS
+manifest QuickExtract
+manifest BioMixRed
+manifest DMSO
+manifest ForwardPrimer_10uM
+manifest ReversePrimer_10uM
+manifest RNaseDNaseFreeH2O
+manifest AgaroseGel_1pct5to2pct
+manifest SYBR_Safe_Stain
+manifest TAE_Buffer_1X
+manifest DNALadder
+manifest ForwardPrimer_100uM
+manifest ReversePrimer_100uM
+manifest TargetProbe_FAM
+manifest ReferencePrimersProbe_HEX
+manifest ddPCR_Supermix_NoUTP
+manifest GenerationOil
+manifest FoilSealSheet
+
+// ============================================================
+// Polymerase Chain Reaction (PCR) and Droplet Digital PCR
+// (ddPCR) Protocol
+// Lam, Arogundade, Clelland
+// Weill Institute for Neurosciences / Dept. of Neurology,
+// University of California, San Francisco
+// Contact: claire.clelland@ucsf.edu
+//
+// This file encodes two sequential protocols:
+//
+// PROTOCOL 1: Standard PCR (20 uL reaction) with gel
+//   electrophoresis QC readout.
+//   DNA extraction via QuickExtract from 96-well plate cells.
+//   Master Mix: 10 uL BioMix Red, 0.6 uL DMSO, 1 uL each
+//   primer (10 uM), 6.4 uL H2O. Total = 19 uL + 1 uL DNA.
+//   Thermocycler: 94 C enzyme activation (3 min), then
+//   34 x [94 C 30s / 50-65 C 30s / 72 C extension] +
+//   72 C final extension (5 min), hold 4 C.
+//   Gel: 1.5-2% agarose, 1X TAE, SYBR Safe stain;
+//   run at 100-140 V; image on LI-COR Odyssey M.
+//
+// PROTOCOL 2: Droplet Digital PCR (ddPCR, 22 uL reaction)
+//   using Bio-Rad QX200 Droplet Generator system.
+//   Master Mix: 11 uL 2X ddPCR Supermix (No dUTP),
+//   1.1 uL 20X target primers/probe (FAM),
+//   1.1 uL 20X reference primers/probe (HEX/VIC - RPP30),
+//   balance H2O + up to 350 ng DNA template.
+//   Droplet generation: DG8 cartridge + 70 uL generation oil;
+//   transfer 40 uL droplets to 96-well plate; heat-seal at 180 C.
+//   ddPCR cycle: 94 C 10 min activation, 39 x [94 C 30s /
+//   50-65 C 1 min], 98 C 10 min deactivation, hold 4 C.
+//   Readout: QX200 Droplet Reader + QuantaSoft software;
+//   2-channel (FAM/HEX) droplet counting with manual threshold.
+//
+// BIOSCRIPT ABSTRACTIONS:
+//   - DNA extraction incubation steps are modelled with `heat`
+//     at the stated temperatures (65 C and 98 C).
+//   - Thermocycler PCR/ddPCR cycles are abstracted as `heat`
+//     at the representative cycling temperature (72 C for PCR,
+//     60 C for ddPCR combined annealing/extension step), with
+//     duration = total cycling time for one representative cycle.
+//     BioScript has no loop construct; one cycle is encoded
+//     by convention.
+//   - Droplet generation, transfer, and plate sealing are
+//     abstracted as `mix` operations with oil/seal reagents.
+//   - All incubation durations use `s` (seconds) or `m`
+//     (minutes) tokens only; no `h` token is used.
+//   - `drain` normalises to `dispose` in IR output per
+//     compiler behaviour; both are used contextually here.
+//
+// CFG STRUCTURE:
+//   BB1  main             -- DNA extraction; PCR master mix
+//                           prep; thermocycler run; gel QC
+//   BB2  gelPass          -- gelSignal > 0: band detected,
+//                           correct size; dispose gel products
+//   BB3  gelFail          -- gelSignal <= 0: no band / wrong
+//                           size; drain gel products
+//   BB4  gelJoin          -- join: ddPCR branch begins
+//   BB5  ddpcrPass        -- ddpcrSignal > 0: valid droplet
+//                           partitioning detected; dispose
+//   BB6  ddpcrFail        -- ddpcrSignal <= 0: no signal /
+//                           poor droplet generation; drain
+//   BB7  finalCleanup     -- terminal: dispose QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 1: DNA extraction by QuickExtract.
+//   Cells in 96-well plate washed with 100 uL PBS and
+//   aspirated. 30 uL QuickExtract added; cells scraped
+//   and transferred to PCR tubes. Vortex 15 s, incubate
+//   at 65 C for 6 min, vortex 15 s, incubate at 98 C
+//   for 2 min. Store at -20 C.
+//   NOTE: `mix` abstracts the cell scraping + vortex step;
+//   two sequential `heat` steps model the 65 C and 98 C
+//   incubations. Vortex intervals (15 s each) are folded
+//   into the mix durations.
+// ------------------------------------------------------------
+
+cellSample       = dispense 1 units of Cells
+pbsWash          = dispense 1 units of PBS
+quickExtractSoln = dispense 1 units of QuickExtract
+
+// Wash cells: 100 uL PBS aspirate (wash + aspirate abstracted
+// as a brief mix then the PBS is disposed).
+washedCells      = mix cellSample with pbsWash for 15s
+dispose pbsWash
+
+// Add QuickExtract and scrape/vortex (first vortex 15 s).
+scrapedCells     = mix washedCells with quickExtractSoln for 15s
+
+// Incubate at 65 C for 6 min (= 6m).
+heat scrapedCells at 65c for 6m
+
+// Second vortex 15 s, modelled as a brief self-mix duration
+// (BioScript has no standalone vortex op; heat at ambient
+// temperature for 15 s is the closest approximation).
+heat scrapedCells at 25c for 15s
+
+// Incubate at 98 C for 2 min (= 2m).
+heat scrapedCells at 98c for 2m
+
+// scrapedCells now contains PCR-ready DNA template.
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 2: Prepare PCR Master Mix (20 uL rxn).
+//   For one 20 uL reaction:
+//     BioMix Red        10.0 uL
+//     DMSO               0.6 uL
+//     Forward primer     1.0 uL  (10 uM)
+//     Reverse primer     1.0 uL  (10 uM)
+//     RNase/DNase H2O    6.4 uL
+//   Total Master Mix  = 19.0 uL + 1 uL DNA template = 20 uL.
+//   NOTE: Each reagent is dispensed as 1 unit. The compiler
+//   treats units abstractly; volume ratios are captured in
+//   comments and the JSON metadata file.
+// ------------------------------------------------------------
+
+biomixRed      = dispense 1 units of BioMixRed
+dmso           = dispense 1 units of DMSO
+fwdPrimer      = dispense 1 units of ForwardPrimer_10uM
+revPrimer      = dispense 1 units of ReversePrimer_10uM
+h2o_pcr        = dispense 1 units of RNaseDNaseFreeH2O
+
+// Assemble Master Mix: BioMix + DMSO + fwd primer.
+mmStep1        = mix biomixRed with dmso for 5s
+mmStep2        = mix mmStep1 with fwdPrimer for 5s
+
+// Add reverse primer.
+mmStep3        = mix mmStep2 with revPrimer for 5s
+
+// Add water to complete Master Mix (19 uL total).
+masterMix      = mix mmStep3 with h2o_pcr for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 3: Add DNA template to Master Mix.
+//   1 uL DNA sample (scrapedCells) + 19 uL Master Mix
+//   = 20 uL total reaction volume per tube.
+// ------------------------------------------------------------
+
+pcrReaction    = mix masterMix with scrapedCells for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 4: PCR thermocycling (Bio-Rad Thermal
+//   Cycler). One representative cycle encoded (no loop in
+//   BioScript). Full program runs 34 amplification cycles
+//   on the instrument.
+//
+//   Step 1: Enzyme Activation  94 C  3 min  (= 3m)
+//   Step 2: Denaturation       94 C  30 s
+//   Step 3: Annealing       50-65 C  30 s
+//   Step 4: Primary Extension  72 C  1 min/kb
+//   Step 5: Repeat steps 2-4 x34 (instrument-controlled)
+//   Step 6: Secondary Ext.     72 C  5 min  (= 5m)
+//   Step 7: Hold               4 C   inf
+//
+//   BioScript encoding:
+//     - Enzyme activation at 94 C for 3 min.
+//     - One representative cycle: denature 94 C 30s,
+//       anneal 57 C 30s (midpoint of 50-65 C range),
+//       extend 72 C 60s (1 min/kb for a ~1 kb target).
+//     - Final extension at 72 C for 5 min.
+//     - Hold at 4 C for 1s (terminal, instrument holds
+//       indefinitely; 1s is the minimum BioScript token).
+// ------------------------------------------------------------
+
+// Enzyme activation.
+heat pcrReaction at 94c for 3m
+
+// One representative amplification cycle.
+heat pcrReaction at 94c for 30s
+heat pcrReaction at 57c for 30s
+heat pcrReaction at 72c for 60s
+
+// Final/secondary extension.
+heat pcrReaction at 72c for 5m
+
+// Hold (instrument holds at 4 C; BioScript minimum = 1s).
+heat pcrReaction at 4c for 1s
+
+// ------------------------------------------------------------
+// PROTOCOL 1 - STEP 5: Gel electrophoresis QC.
+//   Prepare 1.5-2% agarose gel in 1X TAE buffer with SYBR
+//   Safe DNA Gel Stain (15 uL per 150 mL gel).
+//   Load ~12 uL DNA ladder + PCR product into wells.
+//   Run at 100-140 V until bands are resolved.
+//   Image on LI-COR Odyssey M Imager (488 nm / SYBR Safe).
+//
+//   NOTE: Gel preparation and casting are off-chip benchtop
+//   steps abstracted as dispense + mix of gel matrix and
+//   stain components. Loading and running are modelled as
+//   a heat step (voltage application at ambient temp). The
+//   gelElectrophoresisDetection module abstracts the LI-COR
+//   imaging readout.
+// ------------------------------------------------------------
+
+gelMatrix      = dispense 1 units of AgaroseGel_1pct5to2pct
+taeBuffer      = dispense 1 units of TAE_Buffer_1X
+sybrStain      = dispense 1 units of SYBR_Safe_Stain
+dnaLadder      = dispense 1 units of DNALadder
+
+// Prepare gel: dissolve agarose in TAE buffer (microwave),
+// then add SYBR Safe stain. Modelled as sequential mixes.
+gelInBuffer    = mix gelMatrix with taeBuffer for 5m
+gelWithStain   = mix gelInBuffer with sybrStain for 30s
+
+// Load ladder and PCR product into gel wells.
+gelLoaded      = mix gelWithStain with dnaLadder for 15s
+gelRunReady    = mix gelLoaded with pcrReaction for 15s
+
+// Electrophoresis: 100-140 V at ambient temperature until
+// bands resolve (~30-45 min typical). Modelled at 25 C for
+// 40 min (= 40m) to represent a standard run duration.
+heat gelRunReady at 25c for 40m
+
+// LI-COR Odyssey M imaging: 488 nm channel, SYBR Safe,
+// focus offset 2.00 mm. Modelled as a 5 min detection step.
+gelSignal      = detect gelElectrophoresisDetection on gelRunReady for 5m
+
+// ============================================================
+// BB2 / BB3: Gel QC gate
+// Pass (BB2): gelSignal > 0 -> band detected at expected size;
+//             PCR successful; dispose gel products.
+// Fail (BB3): gelSignal <= 0 -> no band or wrong-size band;
+//             PCR failed; drain gel products for repeat.
+// Both branches converge at BB4 (gelJoin).
+// ============================================================
+
+if (gelSignal > 0) {
+    dispose gelRunReady
+} else {
+    drain gelRunReady
+}
+
+// ============================================================
+// BB4: gelJoin
+// Dispose gel QC signal. Control falls into ddPCR branch.
+// ============================================================
+
+dispose gelSignal
+
+// ============================================================
+// PROTOCOL 2: Droplet Digital PCR (ddPCR)
+// ============================================================
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 1: Prepare 20X target primers/probe mix.
+//   For 100 uL of 20X stock:
+//     Forward primer (100 uM)   18 uL
+//     Reverse primer (100 uM)   18 uL
+//     Target probe FAM           5 uL  (*light sensitive)
+//     RNase/DNase H2O           59 uL
+//   Store at -20 C, protect from light.
+//   NOTE: Each component dispensed as 1 unit; ratios in
+//   comments and metadata. Vortex at full speed 15 s
+//   between each mixing step per protocol requirement.
+// ------------------------------------------------------------
+
+fwdPrimer100   = dispense 1 units of ForwardPrimer_100uM
+revPrimer100   = dispense 1 units of ReversePrimer_100uM
+targetProbeFAM = dispense 1 units of TargetProbe_FAM
+h2o_probe      = dispense 1 units of RNaseDNaseFreeH2O
+
+// Assemble 20X target primers/probe (vortex 15 s each merge).
+probeStep1     = mix fwdPrimer100 with revPrimer100 for 15s
+probeStep2     = mix probeStep1 with targetProbeFAM for 15s
+targetPrimersProbe = mix probeStep2 with h2o_probe for 15s
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 2: Prepare ddPCR Master Mix (22 uL rxn).
+//   For one 22 uL reaction:
+//     2X ddPCR Supermix (No dUTP)              11.0 uL
+//     20X target primers/probe (FAM)             1.1 uL
+//     20X reference primers/probe (HEX) RPP30   1.1 uL
+//     RNase/DNase H2O + DNA template        to 22.0 uL
+//   DNA sample: up to 350 ng total input.
+//   Thaw all components to room temperature before use.
+//   Vortex at full speed 15 s when mixing.
+// ------------------------------------------------------------
+
+ddpcrSupermix  = dispense 1 units of ddPCR_Supermix_NoUTP
+refPrimersHEX  = dispense 1 units of ReferencePrimersProbe_HEX
+h2o_ddpcr      = dispense 1 units of RNaseDNaseFreeH2O
+
+// Fresh DNA template from the same QuickExtract prep.
+// (A new dispense models the aliquot taken for ddPCR.)
+dnaSample      = dispense 1 units of Cells
+extractSoln2   = dispense 1 units of QuickExtract
+pbsWash2       = dispense 1 units of PBS
+washedCells2   = mix dnaSample with pbsWash2 for 15s
+dispose pbsWash2
+rawDNA         = mix washedCells2 with extractSoln2 for 15s
+heat rawDNA at 65c for 6m
+heat rawDNA at 25c for 15s
+heat rawDNA at 98c for 2m
+
+// Assemble ddPCR Master Mix.
+ddmmStep1      = mix ddpcrSupermix with targetPrimersProbe for 15s
+ddmmStep2      = mix ddmmStep1 with refPrimersHEX for 15s
+ddmmStep3      = mix ddmmStep2 with h2o_ddpcr for 15s
+
+// Add DNA template (up to 350 ng); total = 22 uL.
+ddpcrReaction  = mix ddmmStep3 with rawDNA for 15s
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 3: Droplet generation (QX200 system).
+//   Insert DG8 cartridge into holder.
+//   Load >20 uL sample into sample wells (all 8 wells must
+//   be loaded; empty wells get 50:50 Supermix:H2O).
+//   Load 70 uL generation oil into oil wells.
+//   Apply DG8 Gasket; load into QX200 Droplet Generator.
+//   Run (~1 min). Generation oil is single-use.
+//   NOTE: `mix` with GenerationOil abstracts the microfluidic
+//   droplet partitioning step (water-in-oil emulsion, ~20,000
+//   droplets per well at ~0.85 nL each).
+// ------------------------------------------------------------
+
+genOil         = dispense 1 units of GenerationOil
+
+// Load sample + generation oil into DG8 cartridge and run
+// QX200 droplet generator.
+dropletEmulsion = mix ddpcrReaction with genOil for 1m
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 4: Transfer droplets to 96-well plate
+//   and heat-seal. Transfer must occur within 5 min of
+//   droplet generation. Transfer 40 uL droplets SLOWLY
+//   (>7 sec aspiration/dispensing). Cover with foil seal
+//   sheet (red line facing up); seal at 180 C for 5 s in
+//   PX1 PCR Plate Sealer.
+//   NOTE: plate sealing modelled as a heat step at 180 C
+//   for 5 s with the foil seal reagent mixed in.
+// ------------------------------------------------------------
+
+foilSeal       = dispense 1 units of FoilSealSheet
+sealedPlate    = mix dropletEmulsion with foilSeal for 30s
+
+// Heat-seal: 180 C for 5 s.
+heat sealedPlate at 180c for 5s
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 5: ddPCR thermocycling.
+//   Bio-Rad C1000 Touch with 96-Deep Well block.
+//   Plate must be run within 40 min of sealing.
+//   Ramp rate: 2 C/sec throughout.
+//
+//   Step 1: Enzyme Activation  94 C  10 min  (= 10m)
+//   Step 2: Denaturation       94 C  30 s
+//   Step 3: Anneal/Extension 50-65 C  1 min
+//   Step 4: Repeat steps 2-3 x39 (instrument-controlled)
+//   Step 5: Enzyme Deactivation 98 C 10 min  (= 10m)
+//   Step 6: Hold               4 C   inf
+//
+//   BioScript encoding:
+//     - Enzyme activation at 94 C for 10 min.
+//     - One representative cycle: denature 94 C 30s,
+//       anneal/extend 57 C 60s (midpoint of 50-65 C range).
+//     - Enzyme deactivation at 98 C for 10 min.
+//     - Hold at 4 C for 1s (instrument holds indefinitely).
+// ------------------------------------------------------------
+
+// Enzyme activation.
+heat sealedPlate at 94c for 10m
+
+// One representative amplification cycle.
+heat sealedPlate at 94c for 30s
+heat sealedPlate at 57c for 60s
+
+// Enzyme deactivation.
+heat sealedPlate at 98c for 10m
+
+// Hold.
+heat sealedPlate at 4c for 1s
+
+// ------------------------------------------------------------
+// PROTOCOL 2 - STEP 6: Read plate on QX200 Droplet Reader.
+//   Let plate equilibrate at room temperature 1-2 min
+//   (plate storable at 4 C for up to 3 days before reading).
+//   Open QuantaSoft; configure wells:
+//     Experiment: CNV2
+//     Supermix: ddPCR Supermix for Probes (no dUTP)
+//     Target 1 (FAM): Ch 1 Unknown
+//     Target 2 (HEX/VIC): Ch 2 Reference (RPP30)
+//   Set threshold manually (pink line); separate positive
+//   droplets (blue/green) from negative (grey).
+//   NOTE: dropletReadoutDetection module abstracts the
+//   two-channel (FAM + HEX) droplet fluorescence counting
+//   by the QX200 reader and QuantaSoft analysis.
+// ------------------------------------------------------------
+
+// Brief equilibration at room temperature (2 min = 2m).
+heat sealedPlate at 25c for 2m
+
+ddpcrSignal    = detect dropletReadoutDetection on sealedPlate for 30m
+
+// ============================================================
+// BB5 / BB6: ddPCR QC gate
+// Pass (BB5): ddpcrSignal > 0 -> valid droplet partitioning
+//             and fluorescence signal detected; dispose.
+// Fail (BB6): ddpcrSignal <= 0 -> insufficient droplets or
+//             no signal (reagent / sealing failure); drain.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (ddpcrSignal > 0) {
+    dispose sealedPlate
+} else {
+    drain sealedPlate
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose ddPCR QC signal droplet. Experiment ends.
+// ============================================================
+
+dispose ddpcrSignal
+
+// [terminal -- no further instructions; exit node for CFG]

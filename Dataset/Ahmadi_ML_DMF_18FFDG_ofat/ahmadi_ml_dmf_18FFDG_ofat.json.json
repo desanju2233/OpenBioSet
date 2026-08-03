@@ -1,0 +1,299 @@
+{
+  "protocol": {
+    "title": "Integrating Machine Learning and Digital Microfluidics for Screening Experimental Conditions",
+    "source": "Lab on a Chip, 2023, 23, 81-91",
+    "doi": "10.1039/d2lc00764a",
+    "platform": "Digital microfluidics (DMF) on EWOD electrode array",
+    "assay": "[18F]FDG radiosynthesis via nucleophilic fluorination and on-chip purification",
+    "objective": "OFAT-guided optimization of seven [18F]FDG synthesis parameters on DMF; ML predictive modeling (linear regression + neural network); on-chip neutral alumina purification",
+
+    "device": {
+      "substrate": "2 inch x 3 inch chromium-coated glass slides",
+      "dielectric": "Parylene-C, 7 um thick (SCS Labcoater 2 PDS 2010)",
+      "hydrophobic_layer": "Teflon AF 1600, 150 nm (Laurell spin coater, 1500 rpm, 60 s, 300 rpm/s, baked 165 C 10 min)",
+      "top_plate": "ITO-coated glass (RS = 15-25 ohm, Delta Technologies) with Teflon AF 1600",
+      "interplate_gap_um": 140,
+      "gap_spacer": "Two strips of double-sided tape (3M)",
+      "actuation": {
+        "waveform": "sine wave",
+        "voltage_Vrms": 160,
+        "frequency_kHz": 15
+      },
+      "pogo_pin_holder": {
+        "pin_count": 104,
+        "pin_spacing_mm": 3,
+        "function": "104 individual voltage inputs to contact pads"
+      },
+      "reaction_site": {
+        "electrode_count": 10,
+        "heating_device": "TEC/Peltier module (TE Technology)",
+        "control": "Arduino Uno + two half-bridge driver chip + N-channel MOSFET",
+        "placement": "directly below bottom plate at reaction site"
+      },
+      "purification_site": {
+        "disc_material": "Neutral alumina (50-300 um, Waters Corp.) embedded in PDMS",
+        "disc_diameter_mm": 6,
+        "placement": "sandwiched between top and bottom plates at purification site",
+        "electrode_count": 5
+      },
+      "reagent_delivery": {
+        "f18_delivery": "Gastight syringe (Hamilton 1002 C) + stepper motor (Arduino Uno controlled)",
+        "reservoir_loading": "Manual pipetting at reservoir edge under applied voltage"
+      }
+    },
+
+    "reagents": {
+      "radiosynthesis": {
+        "f18_fluoride": {
+          "source": "McConnell Brain Imaging Centre Cyclotron (IBA Cyclone 18/9, 18 MeV proton beam)",
+          "target": "98% [18O]-enriched H2O",
+          "type": "no-carrier-added [18F]fluoride ion"
+        },
+        "mannose_triflate": ">=98% purity (TLC), Sigma-Aldrich; substrate for fluorination",
+        "kryptofix_k222": "4,7,13,16,21,24-hexaoxa-1,10-diazabicyclo[8.8.8]hexacosane, 98%, Sigma-Aldrich",
+        "potassium_carbonate": "K2CO3, 99.9%, Sigma-Aldrich",
+        "acetonitrile": "Anhydrous MeCN, 99.8%, Sigma-Aldrich",
+        "sodium_hydroxide": "NaOH, 1N, Sigma-Aldrich",
+        "kryptofix_acetonitrile_mix": "K222 + K2CO3 in anhydrous MeCN; pre-mixed off-chip; used to re-solvate dried [18F]"
+      },
+      "purification": {
+        "neutral_alumina": "50-300 um particle size, Waters Corp.; embedded in PDMS disc (6 mm diameter)",
+        "qma_cartridge": "Sep-Pak Accell Plus QMA Plus Light, Waters Corp. (off-chip pre-concentration)"
+      },
+      "microfabrication": {
+        "photomask": "25400 dpi transparent (CAD/Art Services Inc.)",
+        "photoresist": "AZ1500 positive photoresist coated glass (Telic)",
+        "chromium_etchant": "CR-4 (OM Group)",
+        "photoresist_stripper": "AZ-300 T (Integrated Micro Materials)",
+        "developer": "MF321 (Kayaku Advanced Materials)",
+        "silane": "gamma-methacryloxypropyl trimethoxysilane (Silane A-174)",
+        "parylene": "Parylene C pellets (Specialty Coating Systems Inc.)",
+        "teflon": "Teflon AF 1600 (The Chemours Company)",
+        "pdms": "Polydimethylsiloxane (Krayden Inc.)",
+        "pla": "Polylactic acid for 3D printing (Shop3D)"
+      }
+    },
+
+    "ofat_parameters": [
+      { "id": "P1", "name": "Mannose triflate / [18F] volume ratio", "base": 1.0,  "variable": 0.3,  "t_value": 0.0297, "significant": true,  "ml_coefficient": 2.43,  "effect": "positive" },
+      { "id": "P2", "name": "Mannose triflate concentration (mM)",   "base": 30.0, "variable": 20.0, "t_value": 0.0086, "significant": true,  "ml_coefficient": 3.74,  "effect": "positive" },
+      { "id": "P3", "name": "Radiolabeling temperature (C)",         "base": 85,   "variable": 100,  "t_value": 0.0282, "significant": true,  "ml_coefficient": 2.92,  "effect": "positive" },
+      { "id": "P4", "name": "Radiolabeling time (min)",              "base": 5,    "variable": 7,    "t_value": 0.0671, "significant": false, "ml_coefficient": 0.04,  "effect": "negligible" },
+      { "id": "P5", "name": "NaOH concentration (M)",               "base": 1.0,  "variable": 0.10, "t_value": 0.0001, "significant": true,  "ml_coefficient": 4.50,  "effect": "positive; most significant parameter" },
+      { "id": "P6", "name": "Deprotection temperature (C)",          "base": 25,   "variable": 50,   "t_value": 0.2778, "significant": false, "ml_coefficient": 2.30,  "effect": "discrepancy: non-sig by OFAT but higher coeff in MLR; limited range 25-50 C" },
+      { "id": "P7", "name": "Deprotection time (min)",               "base": 5,    "variable": 3,    "t_value": 0.0041, "significant": true,  "ml_coefficient": -0.89, "effect": "negative; shorter deprotection increases yield" }
+    ],
+
+    "ml_modeling": {
+      "database_size": 55,
+      "train_split_pct": 80,
+      "test_split_pct": 20,
+      "cross_validation": "10-fold",
+      "oversampling": "replication of rare-condition datapoints to balance training set",
+      "normalization": "standardization (subtract mean, scale to unit SD)",
+      "models": {
+        "single_input_linear": {
+          "description": "7 individual linear models, one parameter each",
+          "rmse_train_range": "13.89 +/- 1.1 to 15.53 +/- 1.3",
+          "limitation": "does not capture parameter interactions"
+        },
+        "multiple_input_linear": {
+          "description": "Ridge regression (L2 regularization, scikit-learn); all 7 variables",
+          "rmse_train": "11.47 +/- 1.0",
+          "rmse_test": 11.71,
+          "regularization": "L2 (Ridge); optimum factor via GridSearchCV"
+        },
+        "non_linear": {
+          "description": "Multi-layer feed-forward neural network (Keras); 7 input neurons, 1 hidden dense layer (4 neurons, ReLU), 1 output node",
+          "rmse_train": "11.54 +/- 1.2",
+          "rmse_test": 13.26,
+          "regularization": "L2 on hidden layer weights",
+          "optimizer": "Adam; learning rate 1; regularization factor 0.5"
+        }
+      },
+      "significant_parameters_final_model": ["P5 NaOH", "P7 Deprotection time", "P2 Mannose triflate conc", "P3 Radiolabeling temp", "P1 Volume ratio"],
+      "excluded_parameters": ["P4 Radiolabeling time", "P6 Deprotection temp"]
+    },
+
+    "results": {
+      "base_fluorination_efficiency_pct": { "mean": 61.27, "sd": 3.88, "n": 6 },
+      "ofat_optimal_fluorination_efficiency_pct": { "mean": 70.82, "sd": 1.54, "n": 6 },
+      "ml_model_85pct_target_fluorination_efficiency_pct": 84.1,
+      "ofat_optimal_conditions": {
+        "P1_volume_ratio": 1.0,
+        "P2_mannose_triflate_mM": 30,
+        "P3_radiolabeling_temp_C": 100,
+        "P4_radiolabeling_time_min": 5,
+        "P5_NaOH_M": 1.0,
+        "P6_deprotection_temp_C": 50,
+        "P7_deprotection_time_min": 5
+      },
+      "ml_model_100pct_target_conditions": {
+        "P1_volume_ratio": 1.0,
+        "P2_mannose_triflate_mM": 90,
+        "P3_radiolabeling_temp_C": 110,
+        "P4_radiolabeling_time_min": 5,
+        "P5_NaOH_M": 1.4,
+        "P6_deprotection_temp_C": 50,
+        "P7_deprotection_time_min": 10,
+        "note": "not practically achievable on chip; evaporation and movement fidelity issues"
+      },
+      "ml_model_85pct_target_conditions": {
+        "P1_volume_ratio": 1.0,
+        "P2_mannose_triflate_mM": 80,
+        "P3_radiolabeling_temp_C": 100,
+        "P4_radiolabeling_time_min": 5,
+        "P5_NaOH_M": 1.0,
+        "P6_deprotection_temp_C": 50,
+        "P7_deprotection_time_min": 5.5
+      },
+      "total_crude_radiochemical_yield": {
+        "ofat_pct": 66.64,
+        "ml_model_pct": 79.13,
+        "radioactivity_recovery_pct": 94.1,
+        "calculation": "fluorination_efficiency x radioactivity_recovery"
+      },
+      "synthesis_time_min": { "mean": 19, "sd": 2, "n": 6 },
+      "purification": {
+        "disc_diameter_mm": 6,
+        "incubation_min": 40,
+        "purity_pct": { "mean": 93.05, "sd": 2.46 },
+        "removes": ["Kryptofix K222", "unreacted [18F]", "F-"]
+      }
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "[18F] delivery and activation",
+        "bb": "BB1",
+        "inputs": ["F18_Fluoride"],
+        "operation": "dispense + heat",
+        "temperature_C": 120,
+        "duration_min": 10,
+        "notes": "Syringe delivers [18F] to central reaction electrode before top plate sealing. Evaporation at 120 C removes H2[18O] carrier water and activates [18F] for nucleophilic substitution. K2CO3/Kryptofix K222 in anhydrous MeCN dispensed afterward to re-solvate dried [18F]."
+      },
+      {
+        "id": "S2",
+        "name": "Base case radiolabeling",
+        "bb": "BB1",
+        "inputs": ["Kryptofix_Acetonitrile_Mix", "MannoseTriflate"],
+        "operation": "dispense + mix + heat",
+        "base_conditions": {
+          "P1_volume_ratio": 1.0,
+          "P2_mannose_triflate_mM": 30,
+          "P3_radiolabeling_temp_C": 85,
+          "P4_radiolabeling_time_min": 5
+        },
+        "notes": "Kryptofix mix dispensed and merged with dried [18F]. Mannose triflate then dispensed and merged. Radiolabeling at 85 C for 5 min under TEC PID control."
+      },
+      {
+        "id": "S3",
+        "name": "Base case deprotection",
+        "bb": "BB1",
+        "inputs": ["SodiumHydroxide"],
+        "operation": "dispense + mix + heat",
+        "base_conditions": {
+          "P5_NaOH_M": 1.0,
+          "P6_deprotection_temp_C": 25,
+          "P7_deprotection_time_min": 5
+        },
+        "notes": "NaOH droplet merged with labeled intermediate. Hydrolysis at room temperature removes protecting groups to yield [18F]FDG. Expected base fluorination efficiency: 61.27 +/- 3.88% (n=6)."
+      },
+      {
+        "id": "S4",
+        "name": "Base case fluorination efficiency detection",
+        "bb": "BB1",
+        "operation": "detect",
+        "module": "fluorinationEfficiencyDetection",
+        "detection_duration_s": 30,
+        "instrument": "Radioactive TLC scanner (MiniGITA star, Raytest USA); silica gel HLF 250 um TLC plates (Analtech)",
+        "radioactivity_measurement": "Dose calibrator (CRC 55 TR Capintec)",
+        "branch": {
+          "pass": { "condition": "baseSignal > 0", "action": "dispose", "bb": "BB2" },
+          "fail": { "condition": "baseSignal <= 0", "action": "drain",   "bb": "BB3" }
+        }
+      },
+      {
+        "id": "S5",
+        "name": "OFAT variable experiments (P1-P7)",
+        "bb": "BB4",
+        "operation": "7x (dispense + heat + mix + heat + mix + heat + detect + dispose)",
+        "notes": "Each variable experiment changes exactly one parameter from base level while all others remain fixed. Each product is detected with fluorinationEfficiencyDetection and disposed inline. t-test (one-tailed, one-sample, P < 0.05 cutoff) determines significance vs base.",
+        "variable_experiments": [
+          { "id": "V1", "parameter": "P2", "change": "mannose triflate conc 30 -> 20 mM", "p_value": 0.0086, "significant": true  },
+          { "id": "V2", "parameter": "P3", "change": "radiolabeling temp 85 -> 100 C",     "p_value": 0.0282, "significant": true  },
+          { "id": "V3", "parameter": "P4", "change": "radiolabeling time 5 -> 7 min",       "p_value": 0.0671, "significant": false },
+          { "id": "V4", "parameter": "P5", "change": "NaOH conc 1.0 -> 0.10 M",            "p_value": 0.0001, "significant": true  },
+          { "id": "V5", "parameter": "P6", "change": "deprotection temp 25 -> 50 C",        "p_value": 0.2778, "significant": false },
+          { "id": "V6", "parameter": "P7", "change": "deprotection time 5 -> 3 min",        "p_value": 0.0041, "significant": true  },
+          { "id": "V7", "parameter": "P1", "change": "volume ratio 1.0 -> 0.3",             "p_value": 0.0297, "significant": true  }
+        ]
+      },
+      {
+        "id": "S6",
+        "name": "OFAT optimal synthesis",
+        "bb": "BB4",
+        "inputs": ["F18_Fluoride", "Kryptofix_Acetonitrile_Mix", "MannoseTriflate", "SodiumHydroxide"],
+        "operation": "dispense + heat + mix + heat + mix + heat",
+        "optimal_conditions": {
+          "P1_volume_ratio": 1.0,
+          "P2_mannose_triflate_mM": 30,
+          "P3_radiolabeling_temp_C": 100,
+          "P4_radiolabeling_time_min": 5,
+          "P5_NaOH_M": 1.0,
+          "P6_deprotection_temp_C": 50,
+          "P7_deprotection_time_min": 5
+        },
+        "expected_fluorination_efficiency_pct": { "mean": 70.82, "sd": 1.54, "n": 6 },
+        "branch": {
+          "pass": { "condition": "ofatSignal > 0", "action": "proceed to purification", "bb": "BB5" },
+          "fail": { "condition": "ofatSignal <= 0", "action": "drain", "bb": "BB6" }
+        }
+      },
+      {
+        "id": "S7",
+        "name": "On-chip neutral alumina disc purification",
+        "bb": "BB5",
+        "inputs": ["NeutralAlumina_Disc"],
+        "operation": "mix + heat (room temp) + detect",
+        "disc_diameter_mm": 6,
+        "incubation_min": 40,
+        "temperature_C": 25,
+        "detection_module": "radioactivityDetection",
+        "detection_duration_s": 30,
+        "removes": ["Kryptofix K222", "unreacted [18F]", "F-"],
+        "purity_pct": { "mean": 93.05, "sd": 2.46 },
+        "notes": "Alumina beads pre-mixed into PDMS pre-curing; disc placed at purification site between plates. Product droplet actuated over disc electrodes and moved around adjacent electrodes to enhance purification. After incubation, droplet actuated away and manually pipetted for downstream use.",
+        "branch": {
+          "pass": { "condition": "purifSignal > 0", "action": "dispose", "bb": "BB8" },
+          "fail": { "condition": "purifSignal <= 0", "action": "drain",   "bb": "BB9" }
+        }
+      }
+    ],
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1",  "label": "main",         "type": "entry",        "contents": "[18F] delivery, activation, base synthesis, base detection" },
+        { "id": "BB2",  "label": "bsbbif_2_t",   "type": "branch_true",  "condition": "baseSignal > 0",   "action": "dispose(fdg_base)" },
+        { "id": "BB3",  "label": "bsbbif_3_f",   "type": "branch_false", "condition": "baseSignal <= 0",  "action": "drain(fdg_base)" },
+        { "id": "BB4",  "label": "bsbbif_4_j",   "type": "join",         "contents": "dispose(baseSignal); 7 OFAT variable experiments (V1-V7) each with detect+dispose; OFAT optimal synthesis + ofatSignal detect" },
+        { "id": "BB5",  "label": "bsbbif_5_t",   "type": "branch_true",  "condition": "ofatSignal > 0",   "action": "alumina purification + purifSignal detect" },
+        { "id": "BB6",  "label": "bsbbif_6_f",   "type": "branch_false", "condition": "ofatSignal <= 0",  "action": "drain(fdg_ofat)" },
+        { "id": "BB7",  "label": "bsbbif_7_j",   "type": "terminal",     "contents": "dispose(ofatSignal); NOP" },
+        { "id": "BB8",  "label": "bsbbif_8_t",   "type": "branch_true",  "condition": "purifSignal > 0",  "action": "dispose(purifiedFDG)" },
+        { "id": "BB9",  "label": "bsbbif_9_f",   "type": "branch_false", "condition": "purifSignal <= 0", "action": "drain(purifiedFDG)" },
+        { "id": "BB10", "label": "bsbbif_10_j",  "type": "join",         "contents": "dispose(purifSignal); jump bsbbif_7_j" }
+      ],
+      "edges": [
+        ["BB1","BB2"], ["BB1","BB3"],
+        ["BB2","BB4"], ["BB3","BB4"],
+        ["BB4","BB5"], ["BB4","BB6"],
+        ["BB5","BB8"], ["BB5","BB9"],
+        ["BB6","BB7"],
+        ["BB8","BB10"],["BB9","BB10"],
+        ["BB10","BB7"]
+      ]
+    }
+  }
+}

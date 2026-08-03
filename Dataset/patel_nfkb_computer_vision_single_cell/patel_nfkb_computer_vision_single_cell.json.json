@@ -1,0 +1,321 @@
+{
+  "protocol": {
+    "title": "Computer Vision Reveals Hidden Variables Underlying NF-kB Activation in Single Cells",
+    "source": "Science Advances 2021, 7, eabg4135",
+    "doi": "10.1126/sciadv.abg4135",
+    "platform": "High-throughput microfluidic live-cell imaging (PDMS chip) + image-based SVM machine learning",
+    "cell_lines": ["NIH 3T3 mouse fibroblasts (p65(-/-) knockout, re-engineered with p65-dsRed / H2B-GFP)"],
+    "objective": "Microfluidic live-cell imaging of NF-kB (p65) nuclear translocation in single cells under TNF-alpha stimulation; SVM-based prediction of activation from prestimulation images; fixed-cell immunofluorescence validation of IkB/NF-kB ratio as primary determinant of heterogeneous activation probability",
+
+    "device": {
+      "material": "Polydimethylsiloxane (PDMS)",
+      "surface_coating": "Fibronectin (FC010-10MG), overnight at room temperature",
+      "cell_seeding_density_cells_cm2": 20000,
+      "culture_conditions": "37 C, 5% CO2",
+      "microscope": "Nikon Eclipse Ti2",
+      "camera": "Hamamatsu ORCA-Flash4.0 V3 Digital CMOS (C13440)",
+      "magnification": "20x",
+      "imaging_interval_min": 5,
+      "stimulus_delivery": "Pressurized vials at 5 psi; PEEK microbore tubing (VICI) connected to chip",
+      "image_analysis": "Custom MATLAB scripts; background correction, smooth + z-score normalization, peak detection"
+    },
+
+    "cell_line_details": {
+      "parental": "NIH 3T3 mouse fibroblasts, p65(-/-) knockout",
+      "reporters": {
+        "p65_dsRed": {
+          "construct": "p65-dsRed under native p65 promotor",
+          "tracks": "NF-kB (p65) nuclear translocation",
+          "selection": "Minimum fluorescence clone for endogenous expression levels"
+        },
+        "H2B_GFP": {
+          "construct": "Ubiquitin promotor-driven H2B-GFP cassette",
+          "tracks": "Nuclear marker for image segmentation"
+        }
+      },
+      "notes": "Dual-reporter system allows simultaneous tracking of NF-kB dynamics (red) and nuclear morphology (green) in real time"
+    },
+
+    "reagents": {
+      "surface_coating": "Fibronectin (FC010-10MG)",
+      "culture_medium_base": "FluoroBrite DMEM (A1896701)",
+      "supplements": [
+        "2x GlutaMAX (35050061)",
+        "Penicillin/streptomycin (15140-122)",
+        "Fetal bovine serum (16140071)"
+      ],
+      "trypsinization": "0.25% Trypsin-EDTA (25200-056), 5 min before loading",
+      "stimulus": {
+        "reagent": "TNF-alpha (PMC3014_3671982503)",
+        "diluent": "FluoroBrite DMEM + 2x GlutaMAX + penicillin/streptomycin + FBS",
+        "concentration_main_ng_mL": 0.1,
+        "concentration_multidose_ng_mL": [0.005, 0.05, 0.5, 5],
+        "delivery_pressure_psi": 5,
+        "tubing": "PEEK microbore (VICI)"
+      },
+      "immunofluorescence": {
+        "fixative": "4% paraformaldehyde in PBS, 10 min at room temperature",
+        "blocking_permeabilization": "10% BSA + 0.5% Triton X-100 in PBS, 1 h at room temperature",
+        "primary_antibody": {
+          "target": "IkB-alpha",
+          "clone": "rabbit polyclonal",
+          "catalog": "ab7217",
+          "dilution_buffer": "2% BSA + 0.1% Triton X-100 in PBS",
+          "incubation": "1 h at 37 C"
+        },
+        "secondary_antibody": {
+          "host": "goat polyclonal",
+          "target": "rabbit IgG H&L",
+          "fluorophore": "Alexa Fluor 647",
+          "catalog": "G378361",
+          "excitation_nm": 650,
+          "emission_nm": 668,
+          "dilution_buffer": "2% BSA + 0.1% Triton X-100 in PBS",
+          "incubation": "1 h at 37 C"
+        }
+      }
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Fibronectin chamber coating",
+        "bb": "BB1",
+        "inputs": ["FibronectinCoating"],
+        "operation": "incubation",
+        "duration_m": 720,
+        "temperature_C": 25,
+        "notes": "PDMS microfluidic chambers coated overnight with fibronectin (FC010-10MG) to promote cell adhesion"
+      },
+      {
+        "id": "S2",
+        "name": "PBS wash of coated chamber",
+        "bb": "BB1",
+        "inputs": ["PBS"],
+        "operation": "wash",
+        "duration_s": 60,
+        "notes": "1-min PBS rinse to remove unbound fibronectin before cell seeding"
+      },
+      {
+        "id": "S3",
+        "name": "Cell seeding and pre-stimulation culture",
+        "bb": "BB1",
+        "inputs": ["NIH3T3_p65dsRed_H2BGFP_Cells"],
+        "operation": "seed + culture",
+        "seeding_density_cells_cm2": 20000,
+        "confluence_at_loading_pct": 100,
+        "trypsinization": "0.25% Trypsin-EDTA (25200-056), 5 min",
+        "culture_duration_m": 300,
+        "culture_temperature_C": 37,
+        "co2_pct": 5,
+        "notes": "Cells cultured for 5 h before stimulation to equilibrate to endogenous p65-dsRed / H2B-GFP expression levels"
+      },
+      {
+        "id": "S4",
+        "name": "Prestimulation live-cell imaging",
+        "bb": "BB1",
+        "inputs": ["PBS"],
+        "operation": "fluorescence imaging",
+        "duration_m": 90,
+        "imaging_interval_min": 5,
+        "channels": ["p65-dsRed (red)", "H2B-GFP (green)", "phase"],
+        "features_extracted": 236,
+        "top_features": [
+          "Mean nuclear p65-dsRed fluorescence (r=0.62 with activation probability)",
+          "SD of nuclear p65-dsRed",
+          "Nuclear phase entropy",
+          "Nuclear pixel correlation",
+          "Information measure of correlation",
+          "Otsu dimension",
+          "SFTA (Segmentation-based Fractal Texture Analysis)",
+          "Major axis length"
+        ],
+        "notes": "Unperturbed imaging window; provides the feature set for the SVM activation classifier. No reagent mixing occurs at this step; mix abstracts the repeated field-of-view acquisition loop."
+      },
+      {
+        "id": "S5",
+        "name": "TNF-alpha stimulation",
+        "bb": "BB1",
+        "inputs": ["FluoroBriteDMEM_TNFalpha"],
+        "operation": "stimulus delivery",
+        "tnf_concentration_ng_mL": 0.1,
+        "delivery_pressure_psi": 5,
+        "tubing": "PEEK microbore (VICI)",
+        "t_zero": "Stimulation marks t=0 for all single-cell trace analyses",
+        "notes": "TNF-alpha pre-diluted in FluoroBrite DMEM + 2x GlutaMAX + penicillin/streptomycin + FBS; loaded in pressurized vial and delivered via microbore tubing to chip"
+      },
+      {
+        "id": "S6",
+        "name": "Post-stimulation live-cell imaging",
+        "bb": "BB1",
+        "operation": "fluorescence imaging",
+        "duration_m": 360,
+        "temperature_C": 37,
+        "co2_pct": 5,
+        "imaging_interval_min": 5,
+        "readout": "Nuclear NF-kB (p65-dsRed) translocation per cell tracked over 6 h",
+        "activation_kinetics": "Digital (switch-like) cytoplasm-to-nucleus translocation within ~40 min in responding cells",
+        "activation_label": {
+          "method": "Binary threshold",
+          "metric": "nuclear_p65_peak - nuclear_p65_(t=0)",
+          "threshold": 500,
+          "positive": "activated (NF-kB responding)",
+          "negative": "non-responding"
+        },
+        "dataset_sizes": {
+          "main_single_dose_0_1_ng_mL": 2113,
+          "multi_dose_combined": 3456
+        },
+        "notes": "Custom MATLAB: background correction, smooth + z-score normalization, peak detection. Cells show either complete p65 translocation or no translocation (bimodal / digital response)."
+      },
+      {
+        "id": "S7",
+        "name": "NF-kB activation QC detection",
+        "bb": "BB1",
+        "detection_module": "nfkbActivationDetection",
+        "detection_duration_s": 30,
+        "branch": {
+          "pass": { "condition": "activationSignal > 0", "action": "proceed to fixed-cell IF staining", "bb": "BB2" },
+          "fail": { "condition": "activationSignal <= 0", "action": "drain non-responding cell", "bb": "BB3" }
+        },
+        "notes": "Module abstracts MATLAB image analysis pipeline: nuclear segmentation, mean nuclear fluorescence extraction, peak height computation, binary label assignment"
+      },
+      {
+        "id": "S8",
+        "name": "PBS rinse before fixation",
+        "bb": "BB2",
+        "condition": "activationSignal > 0 only",
+        "inputs": ["PBS"],
+        "operation": "wash",
+        "duration_s": 60,
+        "notes": "1-min PBS rinse to remove culture medium before paraformaldehyde fixation"
+      },
+      {
+        "id": "S9",
+        "name": "Paraformaldehyde fixation",
+        "bb": "BB2",
+        "condition": "activationSignal > 0 only",
+        "inputs": ["ParaformaldehydeFixative"],
+        "fixative": "4% PFA in PBS",
+        "duration_m": 10,
+        "temperature_C": 25,
+        "imaging_note": "Cell images taken at t=-5 min (immediately before fixation) used for UMAP alignment with live imaging data",
+        "notes": "Cells fixed for 10 min at room temperature; captures molecular state for IkB-alpha immunofluorescence"
+      },
+      {
+        "id": "S10",
+        "name": "Blocking and permeabilization",
+        "bb": "BB2",
+        "condition": "activationSignal > 0 only",
+        "inputs": ["BlockingPermeabilizationBuffer"],
+        "buffer": "10% BSA + 0.5% Triton X-100 in PBS",
+        "duration_m": 60,
+        "temperature_C": 25,
+        "notes": "Blocks non-specific antibody binding; Triton X-100 permeabilizes membranes for intracellular IkB-alpha access"
+      },
+      {
+        "id": "S11",
+        "name": "Primary antibody incubation (IkB-alpha)",
+        "bb": "BB2",
+        "condition": "activationSignal > 0 only",
+        "inputs": ["IkBa_PrimaryAntibody"],
+        "antibody": "Rabbit polyclonal anti-IkB-alpha (ab7217)",
+        "dilution_buffer": "2% BSA + 0.1% Triton X-100 in PBS",
+        "duration_m": 60,
+        "temperature_C": 37,
+        "target": "IkB-alpha (main inhibitor of NF-kB; sequesters p65 in cytoplasm of unstimulated cells)",
+        "biological_significance": "IkB/NF-kB ratio is the primary molecular determinant of p65 leakiness and activation probability (Fig. 4C; Fig. 5C-D)"
+      },
+      {
+        "id": "S12",
+        "name": "PBS wash after primary antibody",
+        "bb": "BB2",
+        "condition": "activationSignal > 0 only",
+        "inputs": ["PBS"],
+        "operation": "wash",
+        "duration_s": 60,
+        "notes": "Removes unbound primary antibody before secondary incubation"
+      },
+      {
+        "id": "S13",
+        "name": "Secondary antibody incubation (Alexa Fluor 647)",
+        "bb": "BB2",
+        "condition": "activationSignal > 0 only",
+        "inputs": ["AlexaFluor647_SecondaryAntibody"],
+        "antibody": "Goat polyclonal anti-rabbit IgG H&L Alexa Fluor 647 (G378361)",
+        "dilution_buffer": "2% BSA + 0.1% Triton X-100 in PBS",
+        "duration_m": 60,
+        "temperature_C": 37,
+        "excitation_nm": 650,
+        "emission_nm": 668,
+        "notes": "Enables quantification of IkB-alpha protein levels in nuclear and cytoplasmic compartments for IkB/NF-kB ratio analysis"
+      },
+      {
+        "id": "S14",
+        "name": "Immunofluorescence staining QC detection",
+        "bb": "BB4",
+        "detection_module": "immunofluorescenceDetection",
+        "detection_duration_s": 30,
+        "readout": "Nuclear and cytoplasmic IkB-alpha (AF647) + p65-dsRed quantification; IkB/NF-kB ratio per cell",
+        "validation_results": {
+          "IkB_NF-kB_vs_leaky_p65_rho": -0.256,
+          "IkB_NF-kB_vs_leaky_p65_P": "2.7e-11",
+          "activated_vs_inactive_differences": ["nuclear NF-kB", "IkB/NF-kB ratio", "total IkB", "cellular area"],
+          "figure": "Fig. 5C-D"
+        },
+        "branch": {
+          "pass": { "condition": "ifStainingSignal > 0", "action": "dispose stained sample", "bb": "BB5" },
+          "fail": { "condition": "ifStainingSignal <= 0", "action": "drain stained sample", "bb": "BB6" }
+        }
+      }
+    ],
+
+    "machine_learning": {
+      "model": "Support Vector Machine (SVM)",
+      "kernel_main": "cubic",
+      "kernel_alternate": ["rbf", "polynomial"],
+      "accuracy_main_single_dose": { "value_pct": 79.4, "n": 2113, "dose_ng_mL": 0.1 },
+      "accuracy_multi_dose": { "value_pct": 73.0, "n": 3456, "doses_ng_mL": [0.005, 0.05, 0.5, 5] },
+      "cross_validation": "10-fold; 8 train, 1 validation, 1 test per run; 10% dropout",
+      "features_total": 236,
+      "feature_extraction": "Hand-crafted; custom MATLAB scripts; nuclear segmentation per tracked cell",
+      "top_predictor": {
+        "feature": "Mean nuclear p65-dsRed fluorescence at t=0 (prestimulation)",
+        "correlation_r": 0.62,
+        "p_value": "< 1e-100",
+        "fold_change_log": "highest among all features (Fig. 2C)"
+      },
+      "umap_visualization": "8 top features; cells segregate into TNF-sensitive and TNF-resistant regions",
+      "alternate_models_tested": ["CNN", "Decision tree", "Random forest", "AdaBoost", "Logistic regression"],
+      "code_repository": "https://github.com/parthivapatel/ML_cellim.git",
+      "dataset_doi": "10.5281/zenodo.5361956"
+    },
+
+    "key_findings": {
+      "primary_predictor": "Leaky (prestimulation) nuclear p65-dsRed level is the single best predictor of NF-kB activation (r=0.62)",
+      "molecular_mechanism": "IkB/NF-kB (p65) ratio predetermines p65 leakiness and activation probability; inverse correlation rho=-0.256, P=2.7e-11",
+      "state_dynamics": "Unstimulated cells dynamically transition between molecular states but maintain stable activation probability (autocorrelation r=0.78 at 35 min prestimulation)",
+      "activation_fraction": "73.71% of cell state transitions remain within or adjacent to the same activation-probability cluster",
+      "counterintuitive_finding": "Cells with high initial IkB require smaller TNF dose for activation; probability depends on IkB/NF-kB ratio, not absolute IkB level",
+      "leaky_p65_magnitude": "Activated cells show ~5-fold higher leaky nuclear p65 than non-responding cells (P=1.35e-13); leakiness is ~12% of total cell fluorescence"
+    },
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1", "label": "main",          "type": "entry",        "contents": "Fibronectin coat, PBS wash, cell seeding, 5h culture, 90m prestim imaging, TNF stimulation, 360m post-stim imaging, activation QC detect" },
+        { "id": "BB2", "label": "bsbbif_2_t",    "type": "branch_true",  "condition": "activationSignal > 0",   "action": "Full fixed-cell IF pipeline: PBS rinse, PFA fix, block/perm, 1° Ab, PBS wash, 2° Ab, dispose" },
+        { "id": "BB3", "label": "bsbbif_3_f",    "type": "branch_false", "condition": "activationSignal <= 0",  "action": "drain(stimulatedCells)" },
+        { "id": "BB4", "label": "bsbbif_4_j",    "type": "join",         "contents": "dispose(activationSignal); PBS dispense; IF staining QC detect" },
+        { "id": "BB5", "label": "bsbbif_5_t",    "type": "branch_true",  "condition": "ifStainingSignal > 0",   "action": "dispose(finalSample)" },
+        { "id": "BB6", "label": "bsbbif_6_f",    "type": "branch_false", "condition": "ifStainingSignal <= 0",  "action": "dispose(finalSample)" },
+        { "id": "BB7", "label": "bsbbif_7_j",    "type": "terminal",     "contents": "dispose(ifStainingSignal); NOP" }
+      ],
+      "edges": [
+        ["BB1","BB2"], ["BB1","BB3"],
+        ["BB2","BB4"], ["BB3","BB4"],
+        ["BB4","BB5"], ["BB4","BB6"],
+        ["BB5","BB7"], ["BB6","BB7"]
+      ]
+    }
+  }
+}

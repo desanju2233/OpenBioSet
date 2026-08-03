@@ -1,0 +1,522 @@
+{
+  "protocol": {
+    "name": "LENGEN - Lentiviral Generation, Packaging and Transduction",
+
+    "platform": "Digital Microfluidic (DMF)",
+    "device": {
+      "bottom_plate_electrodes": 80,
+      "production_site_diameter_mm": 1.6,
+      "transduction_site_diameter_mm": 1.2,
+      "transduction_sites_per_set": 6,
+      "electrode_sets": 2,
+      "droplet_volume_production_uL": 3,
+      "droplet_volume_unit_uL": 1,
+      "actuation_voltage_V": 500,
+      "actuation_frequency_kHz": 15,
+      "electrode_configuration": "Four-prong production area + highway track",
+      "highway_track_connections": 2,
+      "highway_track_electrodes_bussed": 22
+    },
+    "reagents": [
+      {
+        "name": "HEK293T_cells",
+        "role": "Producer cell line for lentiviral packaging",
+        "cell_density_cells_per_mL": "2.5e6 - 3.0e6"
+      },
+      {
+        "name": "TargetCells",
+        "role": "Breast cancer cells for transduction",
+        "cell_lines": ["MCF-7", "T47DKB-Luc", "H1299"],
+        "cell_density_cells_per_mL": "1.0e6 - 1.5e6"
+      },
+      {
+        "name": "PluronicF127",
+        "concentration": "0.05% w/v",
+        "role": "DMF actuation additive"
+      },
+      {
+        "name": "pMDLg_pRRE",
+        "amount_ug": 0.75,
+        "role": "Packaging plasmid"
+      },
+      {
+        "name": "pRSV_Rev",
+        "amount_ug": 0.75,
+        "role": "Packaging plasmid"
+      },
+      {
+        "name": "pMD2g",
+        "amount_ug": 1.5,
+        "role": "Envelope plasmid"
+      },
+      {
+        "name": "TransferPlasmid",
+        "amount_ug": 3.0,
+        "role": "Transfer vector (e.g. pLv-mCherry)"
+      },
+      {
+        "name": "Lipofectamine3000",
+        "amount_uL": 12.5,
+        "role": "Transfection reagent"
+      },
+      {
+        "name": "P3000_Reagent",
+        "amount_uL": 12.0,
+        "role": "Transfection enhancer"
+      },
+      {
+        "name": "OptiMEM",
+        "amount_uL": 500,
+        "role": "Reduced-serum medium for transfection mastermix"
+      },
+      {
+        "name": "ViralSupernatant",
+        "role": "Cell-free lentiviral harvest from HEK293T production site",
+        "note": "Modelled as fresh dispense in .bs to represent supernatant collection step; cells remain adhered to hydrophilic spot"
+      },
+      {
+        "name": "DMEM_Polybrene",
+        "polybrene_ug_mL": 8,
+        "pluronics_concentration": "0.05% w/v",
+        "role": "Viral dilution buffer"
+      },
+      {
+        "name": "TrypsinEDTA",
+        "concentration": "0.25% w/v",
+        "volume_uL": 2,
+        "role": "Cell detachment reagent for harvest and expansion"
+      },
+      {
+        "name": "PBS",
+        "volume_uL": 5,
+        "role": "Wash buffer prior to trypsinization"
+      },
+      {
+        "name": "shRNA_Plasmid",
+        "catalog_id": "TRCN00000003300",
+        "role": "MISSION shRNA targeting ESR1 (Step 9, optional)",
+        "replaces": "TransferPlasmid"
+      },
+      {
+        "name": "sgRNA_Cas9_Plasmid",
+        "id": "LCMNv2",
+        "full_name": "pLentiCRISPR-mCherry-NeoRv2",
+        "size_kb": 15,
+        "role": "All-in-one Cas9 + sgRNA targeting ESR1 (Step 10, optional)",
+        "replaces": "TransferPlasmid"
+      }
+    ],
+    "detection_modules": [
+      {
+        "name": "mCherryDetection",
+        "type": "fluorescence",
+        "wavelengths_nm": { "excitation": 585, "emission": 608 },
+        "microscope": "Olympus IX73 inverted",
+        "duration": "30s",
+        "used_in_steps": [8, 10]
+      },
+      {
+        "name": "geneKnockdownDetection",
+        "type": "qRT-PCR",
+        "method": "delta-delta-Cq",
+        "reference_gene": "ACTB (beta-actin)",
+        "duration": "30s",
+        "used_in_steps": [9]
+      },
+      {
+        "name": "geneKnockoutDetection",
+        "type": "Genomic cleavage assay",
+        "parental_band_bp": 409,
+        "cleavage_bands_bp": [235, 174],
+        "used_in_steps": [10],
+        "note": "Not directly called as detect module in corrected .bs; downstream of crisprCells trypsinization"
+      }
+    ],
+    "cfg_structure": {
+      "note": "CFG derived from corrected .bs; verified against lengen_lentiviral_main_dag.dot",
+      "basic_blocks": [
+        {
+          "id": 1,
+          "label": "main",
+          "dot_label": "main",
+          "description": "Entry block: Steps 1-8 (producer seeding, mastermix, transfection, viral harvest, target seeding, serial dilution, transduction, mCherry detection)",
+          "successors": [2, 3]
+        },
+        {
+          "id": 2,
+          "label": "bsbbif_2_t",
+          "description": "mCherry QC pass: signal_1_3 > 0; dispose transduction droplets",
+          "branch": "true",
+          "condition": "signal_1_3 > 0",
+          "ops": ["dispose transduction_1_3", "dispose transduction_1_6", "dispose transduction_1_12", "dispose transduction_1_24"],
+          "successors": [4]
+        },
+        {
+          "id": 3,
+          "label": "bsbbif_3_f",
+          "description": "mCherry QC fail: signal_1_3 <= 0; drain transduction droplets",
+          "branch": "false",
+          "condition": "signal_1_3 <= 0",
+          "ops": ["drain transduction_1_3", "drain transduction_1_6", "drain transduction_1_12", "drain transduction_1_24"],
+          "note": "IR emits dispose for drain (known compiler limitation in lilott8/BioScript ir_target); .bs source is correct",
+          "successors": [4]
+        },
+        {
+          "id": 4,
+          "label": "bsbbif_4_j",
+          "description": "qcJoin: dispose all main-branch signal droplets; enter shRNA branch (Step 9)",
+          "ops": ["dispose signal_1_3", "dispose signal_1_6", "dispose signal_1_12", "dispose signal_1_24", "shRNA branch ops"],
+          "successors": [5, 6]
+        },
+        {
+          "id": 5,
+          "label": "bsbbif_5_t",
+          "description": "shRNA QC pass: shrnaSignal > 0; dispose shrnaCells",
+          "branch": "true",
+          "condition": "shrnaSignal > 0",
+          "ops": ["dispose shrnaCells"],
+          "successors": [7]
+        },
+        {
+          "id": 6,
+          "label": "bsbbif_6_f",
+          "description": "shRNA QC fail: shrnaSignal <= 0; drain shrnaCells",
+          "branch": "false",
+          "condition": "shrnaSignal <= 0",
+          "ops": ["drain shrnaCells"],
+          "note": "IR emits dispose for drain (known compiler limitation)",
+          "successors": [7]
+        },
+        {
+          "id": 7,
+          "label": "bsbbif_7_j",
+          "description": "shrnaJoin: dispose shrnaSignal; enter CRISPR branch (Step 10)",
+          "ops": ["dispose shrnaSignal", "CRISPR branch ops"],
+          "successors": [8, 9]
+        },
+        {
+          "id": 8,
+          "label": "bsbbif_8_t",
+          "description": "CRISPR QC pass: crisprMCherry > 0; dispose crisprCells",
+          "branch": "true",
+          "condition": "crisprMCherry > 0",
+          "ops": ["dispose crisprCells"],
+          "successors": [10]
+        },
+        {
+          "id": 9,
+          "label": "bsbbif_9_f",
+          "description": "CRISPR QC fail: crisprMCherry <= 0; drain crisprCells",
+          "branch": "false",
+          "condition": "crisprMCherry <= 0",
+          "ops": ["drain crisprCells"],
+          "note": "IR emits dispose for drain (known compiler limitation)",
+          "successors": [10]
+        },
+        {
+          "id": 10,
+          "label": "bsbbif_10_j",
+          "description": "finalCleanup: dispose crisprMCherry; NOP terminal node",
+          "ops": ["dispose crisprMCherry", "NOP"],
+          "successors": []
+        }
+      ]
+    },
+    "steps": [
+      {
+        "step": 1,
+        "name": "Seed HEK293T Producer Cells",
+        "bb": "main",
+        "bs_ops": ["dispense HEK293T_cells", "dispense PluronicF127", "mix producerCells with pluronic1 for 2s", "heat producerSuspension at 37c for 24h"],
+        "description": "Dispense HEK293T cells with Pluronics F-127 onto the 1.6 mm hydrophilic production site via passive dispensing.",
+        "cell_density_cells_per_mL": "2.5e6 - 3.0e6",
+        "target_cell_count": "~2500",
+        "target_confluency": "50-70%",
+        "dispensed_volume_uL": 1.5,
+        "incubation": { "temperature_C": 37, "duration": "24h" }
+      },
+      {
+        "step": 2,
+        "name": "Prepare Lipofectamine-DNA Mastermix",
+        "bb": "main",
+        "bs_ops": [
+          "dispense x8 reagents",
+          "mix pMDLg_pRRE + pRSV_Rev for 5s",
+          "mix + pMD2g for 5s",
+          "mix + TransferPlasmid for 5s",
+          "mix Lipofectamine3000 + P3000 for 5s",
+          "mix plasmid pool + lipoReagent for 5s",
+          "mix + OptiMEM for 5s",
+          "mix + PluronicF127 for 20m",
+          "heat lipoMix at 25c for 20m"
+        ],
+        "description": "Co-transfection mastermix containing four plasmids combined with Lipofectamine 3000 and P3000 in Opti-MEM, supplemented with Pluronics F-127 for DMF actuation.",
+        "plasmids": [
+          { "name": "pMDLg_pRRE",      "amount_ug": 0.75 },
+          { "name": "pRSV_Rev",         "amount_ug": 0.75 },
+          { "name": "pMD2g",            "amount_ug": 1.5  },
+          { "name": "TransferPlasmid",  "amount_ug": 3.0  }
+        ],
+        "transfection_reagents": {
+          "Lipofectamine3000_uL": 12.5,
+          "P3000_uL": 12.0,
+          "OptiMEM_total_volume_uL": 500
+        },
+        "mixing_order": [
+          "Mix pMDLg_pRRE + pRSV_Rev (5s)",
+          "Add pMD2g (5s)",
+          "Add TransferPlasmid (5s)",
+          "Mix Lipofectamine3000 + P3000 (5s)",
+          "Combine plasmid pool with lipofection reagents (5s)",
+          "Add OptiMEM (5s)",
+          "Add Pluronics F-127 (20m mix + 20m heat at 25c)"
+        ],
+        "incubation": {
+          "temperature_C": 25,
+          "duration": "20m",
+          "purpose": "DNA-liposomal complex formation at room temperature"
+        }
+      },
+      {
+        "step": 3,
+        "name": "Transfect HEK293T Cells",
+        "bb": "main",
+        "bs_ops": ["mix lipoMix with producerSuspension for 1m"],
+        "description": "Actuate lipofectamine mastermix onto seeded HEK293T cells using the four-prong electrode production area. Circulate droplet for uniform mixing to replicate reverse transfection (adding transfection mixture to unseeded cells).",
+        "electrode_configuration": "Four-prong production area (8 electrodes)",
+        "mixing_circulations": 3,
+        "mixing_duration": "1m",
+        "total_volume_uL": 3
+      },
+      {
+        "step": 4,
+        "name": "Lentiviral Particle Production and Supernatant Harvest",
+        "bb": "main",
+        "bs_ops": ["heat transfectionMix at 37c for 24h", "dispense ViralSupernatant"],
+        "description": "Incubate transfected HEK293T cells for 24h to allow lentiviral particle accumulation in the supernatant. Cells remain adhered to hydrophilic spot; viral supernatant is collected by electrode actuation.",
+        "incubation": { "temperature_C": 37, "duration": "24h" },
+        "expected_titer_TU_per_mL": "~1e7",
+        "expected_TU_per_cell": { "24h": 1.56, "48h": 2.65 },
+        "macroscale_TU_per_cell_5days": 2.80,
+        "note": "ViralSupernatant manifest in .bs models the cell-free harvest; actual supernatant is the HEK293T culture medium post-production"
+      },
+      {
+        "step": 5,
+        "name": "Seed Target Cells",
+        "bb": "main",
+        "bs_ops": [
+          "dispense TargetCells x4 + dispense PluronicF127 x4",
+          "mix targetCellDrop[1-4] with pluronic[a-d] for 2s (x4)",
+          "heat targetSuspension[1-4] at 37c for 24h (x4)"
+        ],
+        "description": "Dispense four independent target cell droplets onto four 1.2 mm transduction sites via highway track passive dispensing. One droplet per dilution to satisfy BioScript use-once type system.",
+        "cell_lines": ["MCF-7", "T47DKB-Luc", "H1299"],
+        "cell_density_cells_per_mL": "1.0e6 - 1.5e6",
+        "dispensed_volume_uL": 1.0,
+        "sites_used": 4,
+        "total_sites_available": 6,
+        "incubation": { "temperature_C": 37, "duration": "24h" },
+        "cell_viability": {
+          "MCF-7":      { "48h": "83.7%", "72h": "85.7%" },
+          "T47DKB-Luc": { "48h": "98.4%", "72h": "88.6%" }
+        }
+      },
+      {
+        "step": 6,
+        "name": "Serial Dilution of Viral Supernatant",
+        "bb": "main",
+        "bs_ops": [
+          "dispense DMEM_Polybrene x4",
+          "mix dmem1 with viralSupernatant for 5s -> dilution_1_3",
+          "mix dmem2 with dilution_1_3 for 5s  -> dilution_1_6",
+          "mix dmem3 with dilution_1_6 for 5s  -> dilution_1_12",
+          "mix dmem4 with dilution_1_12 for 5s -> dilution_1_24"
+        ],
+        "description": "Generate four serial dilutions of the lentiviral supernatant using DMEM + polybrene as diluent via highway track electrode actuation (~98% accuracy).",
+        "diluent": "DMEM + 8 ug/mL polybrene + 0.05% Pluronics F-127",
+        "dilution_accuracy": "~98%",
+        "dilutions": [
+          { "ratio": "1:3",  "composition": "2 uL viral supernatant + 1 uL DMEM", "source": "viralSupernatant" },
+          { "ratio": "1:6",  "composition": "1 uL dilution_1_3 + 1 uL DMEM",      "source": "dilution_1_3" },
+          { "ratio": "1:12", "composition": "1 uL dilution_1_6 + 1 uL DMEM",      "source": "dilution_1_6" },
+          { "ratio": "1:24", "composition": "1 uL dilution_1_12 + 1 uL DMEM",     "source": "dilution_1_12" }
+        ]
+      },
+      {
+        "step": 7,
+        "name": "Transduce Target Cells",
+        "bb": "main",
+        "bs_ops": [
+          "mix dilution_1_3  with targetSuspension1 for 24h -> transduction_1_3",
+          "mix dilution_1_6  with targetSuspension2 for 24h -> transduction_1_6",
+          "mix dilution_1_12 with targetSuspension3 for 24h -> transduction_1_12",
+          "mix dilution_1_24 with targetSuspension4 for 24h -> transduction_1_24"
+        ],
+        "description": "Deliver each dilution to its own target cell site via highway track one-directional electrode actuation. Incubation encoded in mix duration per BioScript reference syntax.",
+        "delivery_method": "Highway track one-directional electrode actuation",
+        "device_orientation": "Inverted (upside down) for overnight incubation",
+        "incubation": { "temperature_C": 37, "duration": "24h" },
+        "transduction_efficiency_T47DKB_Luc": {
+          "48h_post_transduction": "~43%",
+          "96h_post_transduction": "~60%"
+        }
+      },
+      {
+        "step": 8,
+        "name": "mCherry Fluorescence Detection and Viral Titer Calculation",
+        "bb": "main + bsbbif_2_t/3_f + bsbbif_4_j",
+        "bs_ops": [
+          "detect mCherryDetection on transduction_1_3  for 30s -> signal_1_3",
+          "detect mCherryDetection on transduction_1_6  for 30s -> signal_1_6",
+          "detect mCherryDetection on transduction_1_12 for 30s -> signal_1_12",
+          "detect mCherryDetection on transduction_1_24 for 30s -> signal_1_24",
+          "if (signal_1_3 > 0) { dispose x4 } else { drain x4 }",
+          "dispose signal_1_3/6/12/24"
+        ],
+        "description": "Detect mCherry fluorescence on each transduction site. QC gate on 1:3 dilution signal: pass disposes transduction droplets, fail drains them. All signal droplets disposed unconditionally at join block.",
+        "detection": {
+          "module": "mCherryDetection",
+          "excitation_nm": 585,
+          "emission_nm": 608,
+          "microscope": "Olympus IX73 inverted",
+          "duration": "30s"
+        },
+        "titer_formula": "TU/mL = (# cells transduced x % fluorescent x dilution factor) / transduction volume (mL)",
+        "imaging_pipeline": [
+          "Split Hoechst (nuclear) and mCherry channels",
+          "Apply threshold to each channel",
+          "Count Hoechst nuclei (total cell count)",
+          "Count mCherry-positive cells",
+          "Calculate % fluorescence = (mCherry+ / Hoechst nuclei) x 100"
+        ],
+        "qc_gate": {
+          "condition": "signal_1_3 > 0",
+          "pass_action": "dispose transduction droplets (BB2)",
+          "fail_action": "drain transduction droplets (BB3)",
+          "note": "drain lowered to dispose in IR by lilott8/BioScript compiler; .bs source is semantically correct"
+        },
+        "expected_results": {
+          "optimal_dilution": "1:3",
+          "titer_range_TU_per_mL": "6.5e6 - 1.33e7",
+          "functional_titer_TU_per_mL": "~1e7",
+          "comparable_to_macroscale": true
+        }
+      },
+      {
+        "step": 9,
+        "name": "shRNA Knockdown Assay (Optional)",
+        "bb": "bsbbif_4_j + bsbbif_5_t/6_f + bsbbif_7_j",
+        "optional": true,
+        "target_gene": "ESR1 (Estrogen Receptor alpha)",
+        "bs_ops": [
+          "dispense shRNA_Plasmid (replaces TransferPlasmid)",
+          "repeat mastermix build (Steps 2-3) with fresh producer cells",
+          "heat shrnaTxMix at 37c for 24h",
+          "dispense ViralSupernatant",
+          "dispense fresh TargetCells",
+          "mix shrnaDilution with shrnaTargetSusp for 24h",
+          "mix shrnaPBS with shrnaTransduction for 5s",
+          "mix shrnaTrypsin with shrnaWash for 2m",
+          "detect geneKnockdownDetection on shrnaCells for 30s -> shrnaSignal",
+          "if (shrnaSignal > 0) { dispose shrnaCells } else { drain shrnaCells }",
+          "dispose shrnaSignal"
+        ],
+        "description": "Replace transfer plasmid with MISSION shRNA plasmid targeting ESR1. Fresh producer and target cell droplets dispensed independently (use-once compliance). Cells retrieved by trypsinization and cultured 7 days with puromycin before qRT-PCR.",
+        "plasmid": { "name": "shRNA_Plasmid", "catalog_id": "TRCN00000003300" },
+        "nontarget_control": "nontarget shRNA plasmid (not targeting any known genes)",
+        "selection": { "antibiotic": "Puromycin", "concentration_ug_mL": 1 },
+        "cell_harvest": {
+          "wash": "5 uL PBS aspirated with Pasteur pipette",
+          "detachment": "2 uL Trypsin-EDTA (0.25% w/v), 2 min at 37C with 5% CO2",
+          "pooling": "2 microwells per dilution resuspended in 10 uL complete medium",
+          "expansion": "96-well plate, 100 uL complete medium per well",
+          "pooled_cell_count": "~2800 cells"
+        },
+        "analysis": {
+          "method": "qRT-PCR (delta-delta-Cq)",
+          "reference_gene": "ACTB (beta-actin)",
+          "outgrowth_days": 7
+        },
+        "expected_knockdown": {
+          "1:3_dilution":  "89%",
+          "1:6_dilution":  "79%",
+          "1:12_dilution": "48%",
+          "1:24_dilution": "18%"
+        }
+      },
+      {
+        "step": 10,
+        "name": "CRISPR-Cas9 Knockout Assay (Optional)",
+        "bb": "bsbbif_7_j + bsbbif_8_t/9_f + bsbbif_10_j",
+        "optional": true,
+        "target_gene": "ESR1 (Estrogen Receptor alpha)",
+        "bs_ops": [
+          "dispense sgRNA_Cas9_Plasmid (replaces TransferPlasmid)",
+          "repeat mastermix build (Steps 2-3) with fresh producer cells",
+          "heat crisprTxMix at 37c for 24h",
+          "dispense ViralSupernatant",
+          "dispense fresh TargetCells",
+          "mix crisprDilution with crisprTargetSusp for 24h",
+          "mix crisprPBS with crisprTransduction for 5s",
+          "mix crisprTrypsin with crisprWash for 2m",
+          "detect mCherryDetection on crisprCells for 30s -> crisprMCherry",
+          "if (crisprMCherry > 0) { dispose crisprCells } else { drain crisprCells }",
+          "dispose crisprMCherry"
+        ],
+        "description": "Replace transfer plasmid with LCMNv2 all-in-one Cas9 + sgRNA plasmid. Fresh producer and target cell droplets dispensed independently (use-once compliance). Cells retrieved by trypsinization for genomic cleavage assay at day 7.",
+        "plasmid": {
+          "name": "sgRNA_Cas9_Plasmid",
+          "id": "LCMNv2",
+          "full_name": "pLentiCRISPR-mCherry-NeoRv2",
+          "size_kb": 15
+        },
+        "no_antibiotic_selection": true,
+        "cell_harvest": {
+          "wash": "5 uL PBS aspirated with Pasteur pipette",
+          "detachment": "2 uL Trypsin-EDTA (0.25% w/v), 2 min at 37C with 5% CO2",
+          "pooling": "1:3 transduced cells pooled together",
+          "expansion": "96-well plate, 100 uL complete medium per well",
+          "pooled_cell_count": "~2800 cells"
+        },
+        "analysis": {
+          "method": "Genomic cleavage assay",
+          "timepoint_days_post_transduction": 7,
+          "parental_band_bp": 409,
+          "cleavage_bands_bp": [235, 174]
+        },
+        "expected_knockout_cleavage": {
+          "1:3_dilution_LENGEN":  "6.9%",
+          "MOI_0.5_well_plate":   "5.8%",
+          "MOI_1_well_plate":     "6.2%",
+          "MOI_2_well_plate":     "6.4%",
+          "MOI_5_well_plate":     "9.4%"
+        },
+        "terminal_block": "bsbbif_10_j (NOP)"
+      }
+    ],
+    "performance_summary": {
+      "total_protocol_duration": "~2 days (vs ~2 weeks macroscale)",
+      "volume_savings": "100-fold reduction vs macroscale",
+      "cells_per_target_spot": "~1400",
+      "pooled_cells_for_analysis": "~2800",
+      "viral_titer_TU_per_mL": "6.5e6 - 1.33e7",
+      "functional_titer_TU_per_mL": "~1e7",
+      "transduction_efficiency_T47DKB_Luc": {
+        "48h": "~43%",
+        "96h": "~60%"
+      },
+      "multiplexing": "12-plex simultaneous transduction analysis",
+      "ultracentrifugation_required": false,
+      "manual_purification_required": false,
+      "payload_size_supported_kb": "up to 15"
+    },
+    "compiler_notes": {
+      "compiler": "lilott8/BioScript (github.com/lilott8/BioScript)",
+      "antlr4_encoding": "ASCII only - no Unicode characters permitted anywhere in .bs file including comments",
+      "heat_semantics": "void statement - no assignment; variable name remains valid after heat call",
+      "drain_vs_dispose_in_ir": "lilott8/BioScript ir_target lowers both drain and dispose to dispose() opcode; distinction is preserved in .bs source only",
+      "use_once_type_system": "every variable consumed on first use; separate dispense required per branch and per dilution",
+      "cfg_fall_through": "true-branch (_t) falls through to join block; false-branch (_f) emits explicit jump"
+    }
+  }
+}

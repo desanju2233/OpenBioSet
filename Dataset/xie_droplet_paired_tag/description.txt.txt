@@ -1,0 +1,295 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Droplet-based Single-cell Joint Profiling of Histone Modification and Transcriptome (Droplet Paired-Tag)
+Source Link  : https://www.protocols.io/view/droplet-based-single-cell-joint-profiling-of-histo-eq2ly6kergx9/v1
+Paper DOI    : https://dx.doi.org/10.21203/rs.3.pex-2310/v1
+Journal      : Research Square (Method Article preprint), 2023
+Authors      : Yang Xie, Chenxu Zhu, Zhaoning Wang, Melodi Tastemel, Lei Chang, Yang Eric Li, Bing Ren
+Affiliation  : Department of Cellular and Molecular Medicine, University of California San Diego;
+               Ludwig Institute for Cancer Research, La Jolla; Center for Epigenomics, UCSD
+Platform     : 10x Chromium Next GEM Single Cell Multiome (ATAC + Gene Expression) with pA-Tn5 tagmentation
+
+
+OVERVIEW
+--------
+Droplet Paired-Tag is a rapid multiomic technique for joint single-cell profiling of histone
+modifications and gene expression simultaneously at scale. The method adapts the original
+combinatorial indexing-based Paired-Tag protocol by incorporating nuclei barcoding on the
+commercially available 10x Chromium Single Cell Multiome platform and simplifying the library
+preparation process.
+
+Compared to conventional Paired-Tag, Droplet Paired-Tag delivers a higher signal-to-noise ratio
+for histone modification data and generates joint modality data with the same efficiency as
+single-modality methods such as scRNA-seq and scCUT&Tag. The protocol has been validated on
+both cultured mammalian cells (mouse embryonic stem cells, mESC) and primary mouse brain tissue,
+where it accurately reconstructs cell type-specific active (H3K27ac) and repressive (H3K27me3)
+gene regulatory networks.
+
+The core innovation is a bridged Protein A-Tn5 (pA-Tn5) transposome that carries 10x Genomics-
+compatible adapter sequences. Nuclei are first incubated overnight with an anti-histone antibody
+bound to pA-Tn5. Tagmentation is then activated by Mg2+, inserting sequencing adapters at histone-
+marked genomic loci. Tagmented nuclei are loaded onto the Chromium chip, where each nucleus is
+co-encapsulated with a gel bead (GEM) barcoding both the CUT&Tag DNA fragments and the nuclear
+mRNA in the same droplet, enabling paired epigenomic and transcriptomic readout per cell.
+
+The three-day protocol produces two independently sequenced libraries per sample:
+  - DNA library: histone modification CUT&Tag (200-1000 bp; nucleosome ladder pattern)
+  - RNA library: single-nucleus gene expression cDNA (400-500 bp peak, narrow)
+
+
+DEVICE / PLATFORM
+-----------------
+Microfluidics : 10x Chromium Next GEM platform (ChromiumX controller)
+Chip          : Chromium Next GEM Chip J Single Cell Kit (Cat#1000234)
+Encapsulation : Gel-bead-in-emulsion (GEM) droplet generation; each GEM contains one nucleus
+                + one gel bead; barcoded RT primer on bead captures both cDNA and tagmented DNA
+Sequencing    : Illumina NextSeq 2000
+  DNA library : 200-cycle kit (#20046812); cycle config 100+8+24+100
+                (Read1 + Index1 + Index2 [cellular barcodes] + Read2)
+  RNA library : 100-cycle kit (#20046811); cycle config 28+10+10+72
+                (Read1 [cellular barcodes] + Index1 + Index2 + Read2)
+Demultiplexing: cellranger-arc mkfastq (10X Genomics); downstream analysis with in-house pipeline
+
+
+REAGENTS
+--------
+Buffers (freshly prepared):
+  ATAC-RSB Buffer   : 300 uL 1M Tris-HCl pH 7.4 + 60 uL 5M NaCl + 90 uL 1M MgCl2 + 29.55 mL H2O
+  OMNI Lysis Buffer : ATAC-RSB 693.75 uL + Digitonin 2% 3.75 uL + IGEPAL-CA630 10% 7.5 uL +
+                      Tween-20 10% 7.5 uL + SUPERaseIN 15 uL + RNaseOUT 7.5 uL + 50X PI 15 uL
+                      (total 750 uL; freshly prepared on ice)
+  MED Buffer 1      : HEPES 1M 20 uL + NaCl 5M 54.2 uL + Spermidine 1M 0.5 uL + 50X PI 20 uL +
+                      SUPERaseIN 50 uL + RNaseOUT 25 uL + IGEPAL-CA630 10% 1 uL +
+                      Digitonin 2% 5 uL + EDTA 500mM 4 uL + 10% BSA 200 uL + H2O 620.3 uL
+                      (total 1 mL; RNase inhibitor doubled for mouse embryos; 50% sufficient for
+                      cultured cells and brain tissue)
+  MED Buffer 2      : Same as MED1 without EDTA (699.3 uL H2O); Mg2+ must remain free for Tn5
+  2X Stop Solution  : 1M Tris-HCl 10 uL + 500mM EDTA 40 uL + 10% BSA 200 uL + H2O 750 uL
+  PBS + RI Wash     : 1X PBS 942.5 uL + 50X PI 20 uL + SUPERaseIN 25 uL + RNaseOUT 12.5 uL
+  1X Nuclei Buffer  : 20X Nuclei Buffer (PN-2000207) 5 uL + DTT 100mM 1 uL +
+                      SUPERaseIN 5 uL + RNaseOUT 2.5 uL + H2O 86.5 uL
+
+Antibody          : Rabbit polyclonal anti-histone modification (1 ug per reaction)
+                    e.g. anti-H3K27ac or anti-H3K27me3
+Protein A-Tn5     : Assembled bridged pA-Tn5 transposome (0.4 mg/mL; 1 uL per reaction)
+                    Assembled from pMENTs-Bridge + AdapterA and AdapterB oligos (IDT)
+                    + unloaded Protein A-Tn5 (MacroLab p2409, 0.5 mg/mL)
+
+10X Genomics reagents:
+  Chromium Next GEM Single Cell Multiome ATAC + GEX Reagent Bundle (Cat#1000283)
+  Barcoding Reagent Mix (PN-2000267); Template Switch Oligo (PN-3000228)
+  Reducing Agent B (PN-2000087); Barcoding Enzyme Mix (PN-2000266)
+  Quenching Agent (PN-2000269); ATAC Buffer B (PN-2000193)
+  20X Nuclei Buffer (PN-2000207); Single Index Kit N Set A (Cat#1000212)
+  Dual Index Kit TT Set A (Cat#1000215)
+
+Cleanup reagents  : SPRI beads (Beckman Coulter Cat#B23319); Dynabeads (per CG000338)
+
+
+PROTOCOL STEPS
+--------------
+
+DAY 1
+
+Step 1 | OMNI Nuclei Lysis Buffer Preparation
+  Combine all components (see Reagents above) in order on ice; mix gently.
+  Use immediately; do not pre-make. Keep on ice throughout.
+
+Step 2 | Antibody + pA-Tn5 Conjugation
+  Mix  : 1 ug rabbit polyclonal anti-histone antibody + 1 uL assembled pA-Tn5 (0.4 mg/mL)
+         in 50 uL MED1 buffer per PCR tube.
+  Incubation : Rotate 60 min at room temperature (25 C).
+  IR duration: 3600.0 SECOND
+  Storage : Conjugate can be stored at -20 C if not used immediately.
+
+Step 3 | Nuclei Preparation (Cultured Cells)
+  Input    : 250,000 - 1,000,000 cells
+  a) Disassociate cells per culture protocol. Spin at 300 RCF / 5 min.
+     Wash once with PBS; spin at 300 RCF / 5 min (4 C). [IR: 300.0 SECOND @ 4 C]
+  b) Resuspend in 750 uL OMNI buffer (<5 million cells/mL); sit on ice 5 min.
+     [IR: mix @ 300.0 SECOND]
+  c) Spin at 1,000 RCF / 10 min at 4 C. [IR: 600.0 SECOND @ 4 C]
+  d) Resuspend nuclei in 100 uL MED1 buffer. Count using cell counter.
+
+Step 4 | Epitope Targeting (Overnight)
+  Input    : 250,000 - 500,000 nuclei
+  a) Aliquot nuclei into Maximum Recovery tubes. Spin at 1,000 RCF / 10 min at 4 C.
+     [IR: 600.0 SECOND @ 4 C]
+  b) Resuspend in 25 uL MED1. Add conjugated antibody-pA-Tn5 (in MED1).
+  c) Incubate overnight at 4 C with rotation (~12 h).
+     [IR: 43200.0 SECOND @ 4 C; BioScript: 720m]
+
+
+DAY 2
+
+Step 5 | MED Buffer 2 Preparation (prepare 3 fresh working volumes)
+  Prepare three independent 1 mL batches of MED2 (composition in Reagents section above).
+  Instance 1 (med2BufferWash1): first MED2 wash
+  Instance 2 (med2BufferWash2): second MED2 wash
+  Instance 3 (med2BufferTag)  : tagmentation resuspension
+  Note: Three fresh builds required; BioScript cannot re-dispense from computed variables.
+
+Step 6 | PBS + RI Wash Buffer and 1X Nuclei Buffer Preparation
+  Prepare PBS + RNase Inhibitor wash buffer and 1X Nuclei Buffer (see Reagents above).
+  Use within 1 h; do not pre-make the day before.
+
+Step 7 | Nuclei Washing (x2) and Tn5 Tagmentation
+  a) Spin nuclei at 300 RCF / 10 min at 4 C. Wash with 50 uL MED2. [IR: 600.0 SECOND @ 4 C]
+  b) Repeat wash: add 50 uL MED2; spin 300 RCF / 10 min at 4 C. [IR: 600.0 SECOND @ 4 C]
+  c) Resuspend in 50 uL MED2. Add 2 uL MgCl2 (250 mM) to activate Tn5.
+  d) Rotate in ThermoMixer at 550 rpm, 37 C, 60 min. [IR: 3600.0 SECOND @ 37 C]
+     Note: Thaw 10X Multiome gel beads and barcoding reagents at room temperature during this step.
+
+Step 8 | Stop Tagmentation and Post-Tagmentation Wash
+  a) Add 50 uL 2X Stop Solution; mix well.
+  b) Spin at 500 RCF / 6 min at 4 C. [IR: 360.0 SECOND @ 4 C]
+  c) Wash with PBS + RI buffer.
+  d) Spin at 500 RCF / 6 min at 4 C. [IR: 360.0 SECOND @ 4 C]
+
+Step 9 | Nuclei Resuspension and Chromium Chip Loading Preparation
+  a) Resuspend in 20 uL 1X Nuclei Buffer. Count nuclei using cell counter.
+  b) Aliquot 10,000-16,000 nuclei in 8 uL into PCR tube.
+  c) Add 7 uL ATAC Buffer B (PN-2000193). Total volume: 15 uL.
+  d) Proceed immediately to droplet generation.
+
+Step 10 | RT Master Mix Preparation and GEM Droplet Generation
+  Prepare RT master mix:
+    Barcoding Reagent Mix (PN-2000267) : 49.5 uL
+    Template Switch Oligo (PN-3000228) :  1.1 uL
+    Reducing Agent B (PN-2000087)      :  1.9 uL
+    Barcoding Enzyme Mix (PN-2000266)  :  7.5 uL
+    Total                              : 60.0 uL
+  Add 60 uL master mix to 15 uL nuclei mixture. Load onto Chip J.
+  Proceed to droplet generation on ChromiumX per 10X Multiome user guide CG000338.
+  Aspirate 100 uL emulsion into new PCR tube after generation.
+  Note: `mix` in BioScript abstracts the microfluidic GEM encapsulation event.
+
+Step 11 | Reverse Transcription and Cell Barcoding in Droplets
+  Incubate emulsion in Bio-Rad T100 thermal cycler (lid at 50 C):
+    Stage 1 : 37 C for 45 min  -- reverse transcription (cDNA synthesis)
+              [IR: 2700.0 SECOND @ 37 C]
+    Stage 2 : 25 C for 30 min  -- template switching and cell barcoding
+              [IR: 1800.0 SECOND @ 25 C]
+    Hold    : 4 C
+  Note: Both cell barcoding and cDNA synthesis complete during this incubation.
+
+Step 12 | Quench and Products Cleanup
+  a) Add 5 uL Quenching Agent (PN-2000269). Pipette mix gently.
+  b) Proceed to Dynabeads + SPRI bead cleanup per 10X Multiome user guide CG000338.
+     Dynabeads cleanup: 5 min mix [IR: 300.0 SECOND]
+     SPRI bead cleanup: 5 min mix [IR: 300.0 SECOND]
+
+
+DAY 3
+
+Step 13 | Pre-amplification
+  Protocol : Per 10X Multiome user guide CG000338 with one modification:
+             Elute in 80 uL after SPRI cleanup (instead of standard 160 uL).
+  Rationale: Concentrates tagmented fragments; scCUT&Tag library complexity is lower than ATAC;
+             higher input increases DNA library complexity.
+  Extension: 72 C / 5 min [IR: 300.0 SECOND @ 72 C]
+  PCR cycles:
+    H3K27ac  : 13 cycles (recommended)
+    H3K27me3 : 12 cycles (recommended)
+    Adjust based on sample type and estimated recovered nuclei.
+  Storage  : Pre-amplified product stable at -20 C for up to 6 months.
+
+Step 14 | DNA and RNA Library Preparation
+  Split pre-amplified product:
+    DNA library : use 40 uL purified product
+    RNA library : use 17.5 uL purified product + 17.5 uL H2O
+                  (maintains standard 10X Multiome input volume)
+  Both library preps per 10X Multiome user guide CG000338.
+  Final SPRI cleanup: 5 min [IR: 300.0 SECOND]
+
+Step 15 | Library QC (Fragment Size Check)
+  Instrument : Fragment Analyzer or Agilent TapeStation
+  Expected   :
+    DNA library (histone CUT&Tag) : 200-1,000 bp; nucleosome ladder pattern
+    RNA library (cDNA)            : 400-500 bp peak; narrow distribution
+  QC gate    :
+    PASS (libraryQCSignal > 0)  -> proceed to sequencing [BB: bsbbif_2_t; dispose]
+    FAIL (libraryQCSignal <= 0) -> re-evaluate PCR cycles or nuclei input [BB: bsbbif_3_f; drain]
+  Detection duration: 30 s [IR: 30.0 SECOND]
+
+Step 16 | Sequencing
+  DNA library : Illumina NextSeq 2000; 200-cycle kit (#20046812)
+                Cycle config: 100 (R1) + 8 (I1) + 24 (I2, cellular barcodes) + 100 (R2)
+  RNA library : Illumina NextSeq 2000; 100-cycle kit (#20046811)
+                Cycle config: 28 (R1, cellular barcodes) + 10 (I1) + 10 (I2) + 72 (R2)
+  Demux       : cellranger-arc mkfastq; analysis with in-house pipeline
+
+
+TROUBLESHOOTING
+---------------
+Low nuclei yield before chip loading:
+  - Increase input cells to >250,000.
+  - Check for nuclei clumping during CUT&Tag; fragile nuclei may lyse and aggregate in high-salt buffer.
+  - If clumping observed: crosslink nuclei with 0.1% formaldehyde 5 min at room temperature before lysis.
+  - Typical yield: 30-60% of input nuclei recovered before loading.
+
+Low library complexity (DNA):
+  - scCUT&Tag library complexity is overall lower than snATAC-seq.
+  - Increase indexing PCR cycles (13 for H3K27ac, 12 for H3K27me3 as baseline).
+  - Confirm elution volume at pre-amplification step is 80 uL (not 160 uL).
+
+Unexpected fragment size distribution:
+  - Verify Tn5 activation: ensure MgCl2 was added and tagmentation ran at 37 C / 60 min.
+  - Check stop solution was added immediately after tagmentation.
+  - Verify antibody specificity and pA-Tn5 assembly quality.
+
+
+TIME ESTIMATION
+---------------
+Day 1:
+  Antibody + pA-Tn5 conjugation (Step 2)       :  1.0 - 1.5 h
+  Nuclei preparation (Step 3)                   :  1.0 - 1.5 h
+  Epitope targeting (Step 4)                    :  overnight (~12 h)
+
+Day 2:
+  Buffer preparation (Steps 5-6)                :  0.5 h
+  Nuclei washing and tagmentation (Step 7)      :  2.0 - 2.5 h
+  Stop, wash, and nuclei resuspension (Steps 8-9):  0.5 h
+  Droplet generation (Step 10)                  :  0.5 h
+  Reverse transcription and barcoding (Step 11) :  2.0 h
+  Products cleanup (Step 12)                    :  1.0 h
+
+Day 3:
+  Library pre-amplification (Step 13)           :  1.0 - 2.0 h
+  DNA and RNA library preparation (Step 14)     :  3.0 - 4.0 h
+  Library QC (Step 15)                          :  0.5 h
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file  : xie_droplet_paired_tag.bs
+Compiler        : lilott8/BioScript (ANTLR4-based)
+IR output       : xie_droplet_paired_tag.ir
+DAG output      : xie_droplet_paired_tag_main_dag.dot
+Basic blocks    : 4 (main, bsbbif_2_t, bsbbif_3_f, bsbbif_4_j)
+CFG edges       : 4 (main->2t, main->3f, 2t->4j, 3f->4j)
+Modules         : libraryQCDetection
+Manifests       : 29 (all dispense sources declared; no computed variable used as dispense source)
+
+Duration unit convention:
+  BioScript supports `s` and `m` tokens only (no `h`).
+  All hour and overnight values converted to minutes.
+  Key conversions (BioScript -> IR):
+    60 min conjugation          ->  60m  -> 3600.0 SECOND
+    overnight epitope incubation -> 720m -> 43200.0 SECOND
+    60 min tagmentation         ->  60m  -> 3600.0 SECOND
+    45 min RT stage 1           ->  45m  -> 2700.0 SECOND
+    30 min barcoding stage 2    ->  30m  -> 1800.0 SECOND
+
+Buffer rebuild note:
+  BioScript `dispense` is restricted to declared manifests and cannot draw from computed mix
+  variables. Buffers needed at multiple protocol sites (MED1 x3 instances for conjugation,
+  nuclei resuspension, and epitope prep; MED2 x3 instances for two washes and tagmentation
+  resuspend) are each rebuilt independently from their component manifests using distinct
+  variable name prefixes (m1a_, m1b_, m1c_ for MED1; m2a_, m2b_, m2c_ for MED2).
+
+drain normalisation:
+  `drain` in the .bs fail branch normalises to `dispose` in the IR output.
+  This is standard lilott8/BioScript compiler behaviour; consistent with samlali and moazami
+  reference protocol IR outputs.

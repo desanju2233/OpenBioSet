@@ -1,0 +1,58 @@
+bsbbif_2_t:
+	dispose(concentratedFlow1[0])
+bsbbif_3_f:
+	dispose(concentratedFlow1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(concSignal1[0])
+	lectinNeg1[0] = dispense(FITC_Lectin_pH87)
+	lectinPos1[0] = dispense(FITC_Lectin_pH74)
+	bsaBuffer1[0] = dispense(BSA_Solution)
+	bufferPH741[0] = dispense(Phosphate_Buffer_1mM_pH74)
+	lectinPosMix1[0] = mix(lectinPos1[0], bsaBuffer1[0]) @ 5.0SECOND
+	lectinNegMix1[0] = mix(lectinNeg1[0], bufferMain1[0]) @ 5.0SECOND
+	concentratedLectinNeg1[0] = mix(lectinNegMix1[0], bufferMain1[0]) @ 1800.0SECOND
+	concentratedLectinPos1[0] = mix(lectinPosMix1[0], bufferPH741[0]) @ 1800.0SECOND
+	polaritySignal1[0] = detect(concentrationDetection, concentratedLectinNeg1[0]) @ 30.0SECOND
+	if polaritySignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	sampleFluorescein1[0] = dispense(FluoresceinSodiumSalt)
+	bufferMain1[0] = dispense(Phosphate_Buffer_1mM_pH87)
+	sampleMix1[0] = mix(sampleFluorescein1[0], bufferMain1[0]) @ 5.0SECOND
+	primingBuffer1[0] = dispense(Phosphate_Buffer_1mM_pH87)
+	primedDevice1[0] = mix(primingBuffer1[0], sampleMix1[0]) @ 120.0SECOND
+	heat(primedDevice1[0]) @ 25.0CELSIUS @ 1800.0SECOND
+	concentratedFlow1[0] = mix(primedDevice1[0], bufferMain1[0]) @ 1800.0SECOND
+	concSignal1[0] = detect(concentrationDetection, concentratedFlow1[0]) @ 30.0SECOND
+	if concSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(concentratedLectinNeg1[0])
+	dispose(concentratedLectinPos1[0])
+bsbbif_6_f:
+	dispose(concentratedLectinNeg1[0])
+	dispose(concentratedLectinPos1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(polaritySignal1[0])
+	rbcSample1[0] = dispense(RedBloodCells)
+	ecoliSample1[0] = dispense(EColi_ER2738)
+	pbsBuffer1[0] = dispense(PBS_150mM)
+	pluronicF1081[0] = dispense(PluronicF108)
+	lbTetMedium1[0] = dispense(LB_Tet_Medium)
+	rbcBuffer1[0] = mix(pbsBuffer1[0], pluronicF1081[0]) @ 5.0SECOND
+	rbcMix1[0] = mix(rbcSample1[0], rbcBuffer1[0]) @ 5.0SECOND
+	ecoliBuffer1[0] = mix(pbsBuffer1[0], lbTetMedium1[0]) @ 5.0SECOND
+	ecoliMix1[0] = mix(ecoliSample1[0], ecoliBuffer1[0]) @ 5.0SECOND
+	cellMix1[0] = mix(rbcMix1[0], ecoliMix1[0]) @ 5.0SECOND
+	heat(cellMix1[0]) @ 25.0CELSIUS @ 120.0SECOND
+	concentratedCells1[0] = mix(cellMix1[0], pbsBuffer1[0]) @ 1800.0SECOND
+	cellSignal1[0] = detect(cellCountDetection, concentratedCells1[0]) @ 120.0SECOND
+	if cellSignal1[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(concentratedCells1[0])
+bsbbif_9_f:
+	dispose(concentratedCells1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(cellSignal1[0])
+	NOP

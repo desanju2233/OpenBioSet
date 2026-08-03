@@ -1,0 +1,373 @@
+module libraryQC
+module sequencerReadyDetection
+
+manifest GenomicDNA
+manifest NexteraEnzymeMix
+manifest PCRMixture
+manifest MagneticBeads_SPRI
+manifest EthanolWash
+manifest ElutionBuffer
+manifest PluronicF127
+manifest FC40_Oil
+
+// ============================================================
+// A Microfluidic DNA Library Preparation Platform for
+// Next-Generation Sequencing.
+// Kim H, Jebrail MJ, Sinha A, et al.
+// PLoS ONE 8(7): e68988 (2013).
+// DOI: 10.1371/journal.pone.0068988
+//
+// Platform: Digital Microfluidics (DMF) hub with peripheral
+//   capillary-based modules. Central DMF hub (185 um or
+//   400 um gap, 48-electrode ITO array) routes droplets
+//   via fused-silica capillaries to off-chip modules for
+//   each unit operation.
+//
+// PROTOCOL OVERVIEW (Nextera workflow on DMF):
+//   All DNA is prepared in TE buffer + 0.1% Pluronic F127
+//   (w/v) to prevent biofouling on Teflon-AF coated surfaces.
+//   Reagent boluses are moved at 10 uL/min by syringe pumps.
+//   Driving potential: 80-90 V_rms at 15 kHz.
+//
+//   STEP 1:  Dispense gDNA sample (1.8 uL at 5 ng/uL) and
+//            Nextera Enzyme Mix (0.6 uL) onto DMF hub; mix
+//            by aspirating/dispensing in and out of capillary
+//            for 30 s at room temperature.
+//   STEP 2:  Tagmentation: aspirate into thermal module
+//            (~850 um deep x 800 um wide trench in Al block)
+//            and incubate at 55 C for 5 min. Transposase
+//            simultaneously fragments and tags gDNA.
+//   STEP 3:  Merge tagmented product with SPRI magnetic bead
+//            droplet (4.5 uL) on DMF hub; aspirate into
+//            clean-up module. External neodymium magnet
+//            (3 mm dia x 3 mm thick) immobilises bead pellet.
+//   STEP 4:  Wash bead pellet: dispense 3 uL ethanol onto
+//            DMF hub, aspirate into clean-up module, shuttle
+//            back-and-forth for 30 s; return to DMF, aspirate
+//            to waste. Repeat wash twice (3 washes total).
+//   STEP 5:  Elute DNA: dispense 2.2 uL elution buffer,
+//            aspirate into clean-up module, remove magnet,
+//            resuspend beads (30 s), re-apply magnet, return
+//            eluate to DMF hub.
+//   STEP 6:  Mix eluate (2.2 uL) with PCR Mixture (2.8 uL)
+//            on DMF hub; aspirate 2.8 uL into PCR thermal
+//            module (remaining 2.2 uL waste).
+//            PCR conditions: 3 min 72 C init, 30 s 95 C
+//            denaturation; 10 cycles (10 s 95 C, 30 s 62 C,
+//            3 min 72 C). Adds sequencing adapters (Illumina).
+//   STEP 7:  Size selection - Stage 1 (remove <200 bp):
+//            merge PCR product with 2.2 uL SPRI beads,
+//            aspirate into size-selection module.
+//            Immobilise beads, return supernatant to DMF hub.
+//   STEP 8:  Size selection - Stage 2 (remove >400 bp):
+//            merge supernatant with 0.45 uL SPRI beads,
+//            aspirate into size-selection module, ethanol
+//            wash bead pellet; elute library (3 uL EB)
+//            back onto DMF hub. Target library: 200-400 bp.
+//   STEP 9:  QC detection: detect library signal on final
+//            library droplet (Bioanalyzer / Kapa quant proxy).
+//
+// REAGENT VOLUMES (185 um-gap hub, human gDNA):
+//   gDNA sample:        1.8 uL  (5 ng/uL in TE + 0.1% F127)
+//   Nextera Enzyme Mix: 0.6 uL  (2 uL HMW + 0.5 uL enzyme mix)
+//   SPRI beads clean-up: 4.5 uL
+//   Ethanol wash:       3.0 uL  (repeated x3)
+//   Elution buffer:     2.2 uL  (clean-up elution)
+//   PCR Mixture:        2.8 uL  (12.5 uL 2X PCR buffer +
+//                                0.5 uL primer cocktail +
+//                                0.5 uL PCR enzyme +
+//                                0.5 uL 50X Adapter 2)
+//   SPRI beads SS1:     2.2 uL  (Stage 1: remove <200 bp)
+//   SPRI beads SS2:     0.45 uL (Stage 2: remove >400 bp)
+//   Elution buffer:     3.0 uL  (final library elution)
+//
+//   NOTE (400 um-gap hub, bacterial gDNA): all volumes 2X
+//   except elution buffer (5 uL final); 9 PCR cycles used.
+//
+// NOTE ON PLURONIC ADDITIVE:
+//   0.1% Pluronic F127 is added to all DNA and reagent
+//   solutions to prevent biofouling (protein/enzyme adhesion
+//   to Teflon-AF). Validated not to affect tagmentation
+//   efficiency (Fig S1 in paper). Modelled here as a single
+//   manifest; in practice it is pre-mixed into all solutions.
+//
+// NOTE ON MAGNETIC BEAD STEPS:
+//   Wash and elution steps are implemented in peripheral
+//   off-DMF capillary modules (not on the DMF electrode
+//   array). `mix` statements model the bolus shuttle
+//   mixing in the module tubing. Supernatant/waste removal
+//   is modelled with `dispose`/`drain` per BioScript convention.
+//
+// NOTE ON HEAT STEPS:
+//   Temperature control via closed-loop thermoelectric Al block.
+//   BioScript `heat` duration tokens: s (seconds), m (minutes).
+//   All durations converted accordingly.
+//
+// NOTE ON CONTAMINATION PREVENTION:
+//   Between library runs the system is rinsed with 10% (v/v)
+//   bleach and then deionized water (off-chip; not modelled).
+//
+// CFG STRUCTURE:
+//   BB1  main            -- entry: dispense, tagmentation,
+//                           bead clean-up, PCR, size-selection
+//   BB2  libraryPass     -- librarySignal > 0: valid library
+//                           (200-400 bp); dispose for sequencing
+//   BB3  libraryFail     -- librarySignal <= 0: failed library;
+//                           drain
+//   BB4  finalCleanup    -- terminal: dispose QC signal;
+//                           library ready for MiSeq loading
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1a: Dispense gDNA sample (1.8 uL, 5 ng/uL in TE
+//   buffer + 0.1% Pluronic F127). Sample dispensed from
+//   pre-loaded capillary onto the 185 um-gap DMF hub at
+//   160 V_rms, 15 kHz driving potential.
+// ------------------------------------------------------------
+
+gdnaDroplet     = dispense 1 units of GenomicDNA
+
+// ------------------------------------------------------------
+// STEP 1b: Dispense Nextera Enzyme Mix (0.6 uL) from its
+//   capillary onto the DMF hub. Mix contains 2 uL High
+//   Molecular Weight component + 0.5 uL enzyme mix +
+//   0.1% Pluronic F127 to prevent biofouling (Fig S1).
+// ------------------------------------------------------------
+
+nexteraEnzyme   = dispense 1 units of NexteraEnzymeMix
+
+// ------------------------------------------------------------
+// STEP 1c: Mix gDNA + Nextera Enzyme on DMF hub.
+//   Active mixing (30 s, room temperature) achieved by
+//   continuously aspirating and dispensing the merged droplet
+//   in and out of the capillary. The mixed droplet is then
+//   aspirated into the tagmentation thermal module.
+// ------------------------------------------------------------
+
+tagmentationMix = mix gdnaDroplet with nexteraEnzyme for 30s
+
+// ------------------------------------------------------------
+// STEP 2: Tagmentation - incubate at 55 C for 5 min.
+//   Mixed droplet aspirated into the tagmentation module
+//   (750 um OD tubing recessed ~100 um below the surface
+//   of a custom Al block; temperature match within ~5 C).
+//   Transposase simultaneously fragments and adapter-tags
+//   gDNA. Product: adapter-tagged DNA fragments (150-1000 bp
+//   broad distribution; Fig 4b). Adapter dimers (~45 bp)
+//   also generated and removed in the clean-up step below.
+// ------------------------------------------------------------
+
+heat tagmentationMix at 55c for 5m
+
+// ------------------------------------------------------------
+// STEP 3a: Dispense SPRI magnetic bead droplet (4.5 uL) from
+//   the clean-up module capillary onto the DMF hub. Beads
+//   are Solid Phase Reversible Immobilisation (SPRI) beads
+//   (Beckman Coulter) used to purify tagmented DNA and remove
+//   excess enzyme, adapter dimers, and small fragments.
+// ------------------------------------------------------------
+
+cleanupBeads    = dispense 1 units of MagneticBeads_SPRI
+
+// ------------------------------------------------------------
+// STEP 3b: Merge tagmented product with SPRI beads on DMF
+//   hub. The combined droplet is aspirated into the clean-up
+//   module (capillary tubing, 160 um OD / 100 um ID,
+//   inserted into the DMF air gap via side port).
+//   External neodymium magnet (3 mm dia x 3 mm) positioned
+//   below the module immobilises the bead pellet against the
+//   inner tube wall. Positive pressure-driven syringe pump
+//   flow (10 uL/min) achieves near-complete supernatant
+//   removal from the pellet (Fig 3, frames 1-3).
+//   Supernatant (excess enzyme + small DNA + adapter dimers)
+//   is returned to DMF hub and actuated to waste capillary.
+// ------------------------------------------------------------
+
+tagmentedBead   = mix tagmentationMix with cleanupBeads for 30s
+dispose tagmentedBead
+
+// ------------------------------------------------------------
+// STEP 4: Ethanol wash of bead pellet (x3).
+//   Wash 1: 3 uL ethanol (100%) dispensed onto DMF hub,
+//   aspirated into clean-up module, shuttled back-and-forth
+//   for 30 s across the immobilised bead pellet (chaotic
+//   mixing; removes trace contaminants / salts).
+//   Ethanol is returned to DMF hub, actuated to waste module,
+//   and aspirated off-chip. Procedure repeated twice more
+//   (3 total washes) as per Nextera protocol.
+//
+//   NOTE: Each wash cycle uses a fresh 3 uL ethanol droplet.
+//   Three separate wash droplets are modelled below to
+//   reflect the sequential, independent wash boluses.
+// ------------------------------------------------------------
+
+ethanolWash1    = dispense 1 units of EthanolWash
+ethanolBolus1   = mix ethanolWash1 with ethanolWash1 for 30s
+dispose ethanolBolus1
+
+ethanolWash2    = dispense 1 units of EthanolWash
+ethanolBolus2   = mix ethanolWash2 with ethanolWash2 for 30s
+dispose ethanolBolus2
+
+ethanolWash3    = dispense 1 units of EthanolWash
+ethanolBolus3   = mix ethanolWash3 with ethanolWash3 for 30s
+dispose ethanolBolus3
+
+// ------------------------------------------------------------
+// STEP 5: Elution of clean tagmented DNA from bead pellet.
+//   2.2 uL elution buffer (water + 0.1% Pluronic F127)
+//   dispensed onto DMF hub and aspirated into clean-up module.
+//   External magnet removed; beads resuspended in buffer by
+//   back-and-forth bolus shuttling for 30 s at room temperature.
+//   Magnet re-applied to immobilise beads; the DNA-containing
+//   eluate droplet returned to the DMF hub and actuated to
+//   the PCR inlet electrode.
+//   Product: 2.2 uL purified, adapter-tagged DNA fragments.
+// ------------------------------------------------------------
+
+elutionBuf1     = dispense 1 units of ElutionBuffer
+cleanedDNA      = mix elutionBuf1 with elutionBuf1 for 30s
+
+// ------------------------------------------------------------
+// STEP 6a: Dispense PCR Mixture (2.8 uL) from its capillary.
+//   Contents: 12.5 uL 2X PCR buffer + 0.5 uL primer cocktail
+//   + 0.5 uL PCR enzyme + 0.5 uL 50X Adapter 2 (per well
+//   per manufacturer; scaled to 2.8 uL on-chip volume).
+//   This mixture adds Illumina-specific dual-indexed adapters
+//   to the fragment ends via limited-cycle PCR amplification.
+// ------------------------------------------------------------
+
+pcrMix          = dispense 1 units of PCRMixture
+
+// ------------------------------------------------------------
+// STEP 6b: Merge eluate with PCR mixture on DMF hub (30 s).
+//   The combined ~5 uL droplet is then aspirated into the
+//   PCR thermal module: 2.8 uL enters the module inlet;
+//   remaining 2.2 uL actuated to waste on DMF hub.
+// ------------------------------------------------------------
+
+prePCRDroplet   = mix cleanedDNA with pcrMix for 30s
+
+// ------------------------------------------------------------
+// STEP 6c: Limited-cycle PCR - adapter addition and enrichment.
+//   Thermocycling conditions (OpenPCR benchtop cycler via
+//   Al block; closed-loop PID temperature control):
+//     Initial extension:  72 C for 3 min
+//     Denaturation:       95 C for 30 s
+//     10 cycles:
+//       Denaturation:     95 C for 10 s
+//       Annealing:        62 C for 30 s
+//       Extension:        72 C for 3 min
+//   After PCR the product is dispensed back onto DMF hub
+//   for size selection.
+//   Product (Fig 4c): broad ~200-10000 bp enriched library
+//   with primer dimers (~55 bp) to be removed by size selection.
+//
+//   NOTE: BioScript `heat` models one temperature phase per
+//   call. The full thermocycling program is abstracted as
+//   sequential heat steps (init extension, denaturation,
+//   and the rate-limiting 10-cycle block at the annealing
+//   temperature as the combined incubation).
+//   10 cycles x (10s + 30s + 180s) = 10 cycles x 220s = 2200s.
+// ------------------------------------------------------------
+
+heat prePCRDroplet at 72c for 3m
+heat prePCRDroplet at 95c for 30s
+heat prePCRDroplet at 62c for 2200s
+
+// ------------------------------------------------------------
+// STEP 7a: Size Selection - Stage 1 (remove fragments <200 bp).
+//   PCR product dispensed back to DMF hub from PCR module.
+//   Merge with 2.2 uL SPRI beads (high bead:DNA ratio to
+//   bind all DNA including primer dimers and small fragments).
+//   Aspirate into size-selection module. Immobilise beads
+//   with external magnet; supernatant (contains desired
+//   200-400 bp fragments) returned to DMF hub.
+//
+//   NOTE: The supernatant -- not the bead-bound fraction --
+//   carries the size-selected library at this stage (binding
+//   conditions set to leave 200-400 bp fragments in solution).
+// ------------------------------------------------------------
+
+sizeSelBeads1   = dispense 1 units of MagneticBeads_SPRI
+sizeSelMix1     = mix prePCRDroplet with sizeSelBeads1 for 30s
+
+// Supernatant (200-400 bp library) recovered from Stage 1.
+// Bead pellet (small DNA + primer dimers) disposed.
+librarySuper    = mix sizeSelMix1 with sizeSelMix1 for 10s
+dispose sizeSelMix1
+
+// ------------------------------------------------------------
+// STEP 7b: Size Selection - Stage 2 (remove fragments >400 bp).
+//   The supernatant from Stage 1 is merged with 0.45 uL SPRI
+//   beads (low bead:DNA ratio to bind only large fragments
+//   >400 bp). Beads immobilised; ethanol wash performed on
+//   bead pellet (large DNA + residual contaminants disposed).
+//   Final elution: 3 uL elution buffer resuspends the desired
+//   200-400 bp library from the Stage-2 bead pellet; eluate
+//   returned to DMF hub as the final sequencer-ready library.
+//
+//   NOTE: At Stage 2 the DESIRED library is bead-bound (large
+//   fragments captured; smaller fragments remain in solution
+//   and are disposed). Elution releases the 200-400 bp library.
+// ------------------------------------------------------------
+
+sizeSelBeads2   = dispense 1 units of MagneticBeads_SPRI
+sizeSelMix2     = mix librarySuper with sizeSelBeads2 for 30s
+
+// Ethanol wash of Stage-2 bead pellet (200-400 bp library bound).
+ethanolSS       = dispense 1 units of EthanolWash
+sizeSelWash     = mix sizeSelMix2 with ethanolSS for 30s
+dispose sizeSelWash
+
+// Elute final library (3 uL elution buffer) from Stage-2 beads.
+elutionBuf2     = dispense 1 units of ElutionBuffer
+dnaLibrary      = mix elutionBuf2 with elutionBuf2 for 30s
+
+// ------------------------------------------------------------
+// STEP 8: Library QC detection.
+//   Final library droplet (3 uL, target 200-400 bp) dispensed
+//   back to DMF hub for analysis.
+//   On-chip QC abstracts the Bioanalyzer (Agilent) size
+//   distribution check (Fig 4d) and Kapa library quantification
+//   kit fluorescence-based quantitation step (off-chip).
+//   Passing criterion: library peak in 200-400 bp window
+//   at sufficient concentration for MiSeq loading (8 pM).
+// ------------------------------------------------------------
+
+librarySignal   = detect libraryQC on dnaLibrary for 30s
+
+// ============================================================
+// BB2 / BB3: Library QC gate
+// Pass (BB2): librarySignal > 0 -> valid 200-400 bp library
+//             at sequencer-compatible concentration; dispose
+//             for off-chip MiSeq loading (300-cycle paired-end
+//             150 bp kit, loading concentration 8 pM).
+// Fail (BB3): librarySignal <= 0 -> library preparation
+//             failed (insufficient size selection, low yield,
+//             or under/over-clustering risk); drain.
+// Both branches converge at BB4 (finalCleanup).
+// ============================================================
+
+if (librarySignal > 0) {
+    dispose dnaLibrary
+} else {
+    drain dnaLibrary
+}
+
+// ============================================================
+// BB4: finalCleanup (terminal)
+// Dispose library QC signal droplet.
+// Sequencer-ready library available off-chip for MiSeq run.
+// Total on-chip time: ~1 h (5 min hands-on).
+// ============================================================
+
+dispose librarySignal
+
+// [terminal -- no further instructions; exit node for CFG]

@@ -1,0 +1,530 @@
+module plaDataQC
+module rnaExpressionDetection
+module proteinComplexDetection
+module vlaVcamInteractionDetection
+
+manifest TonsilTissueSection
+manifest PFA_1pct
+manifest SSC_3x
+manifest BSA_BlockingBuffer
+manifest AOC_CocktailPairs
+manifest ProbeBindingBuffer
+manifest LigationBuffer
+manifest WashBuffer1
+manifest WashBuffer2
+manifest USER_EnzymeBuffer
+manifest SSC_1x_DecrosslinkBuffer
+manifest PermeabilizationBuffer
+manifest SSC_01x
+manifest ReverseTranscriptaseReagents
+manifest SPRIselect_06x
+manifest SPRIselect_12x
+manifest SPRIselect_21x
+manifest KAPA_HiFi_Mix
+manifest BufferEB
+manifest IndexingPrimers
+manifest PhiX_Spike
+
+// ============================================================
+// Spatial Proximity Sequencing Maps Developmental Dynamics
+// in the Germinal Center
+// Wang, Xia, Rahman, Keisham, Padhi, Deng, Li, Vistain,
+// Kim, Mercado-Vasquez, Khan, Clark, Tay
+// bioRxiv 2025.10.27.684659
+//
+// Protocol: Sprox-seq on the 10x Visium platform.
+// Tissue: fresh-frozen human palatine tonsil (10-um sections).
+// Simultaneous in situ capture of:
+//   (1) mRNAs via poly(A) capture on spatial barcodes
+//   (2) Protein abundance via PLA UMI counts (Probe A + Probe B)
+//   (3) Protein complexes via proximity ligation assay (PLA)
+//       quantified by Fisher's Exact Test + fractional overlap.
+//
+// AOC panel: 32 antibody-oligonucleotide conjugate pairs
+//   (29 targets + 3 isotype controls). Each protein targeted
+//   with Probe A and Probe B carrying distinct DNA barcodes.
+//   Probe B carries 6 terminal UTP residues; USER enzyme
+//   digestion post-ligation exposes a poly(A) tail enabling
+//   co-capture of PLA products alongside mRNAs.
+//
+// Median per-spot output (3 biological replicates):
+//   RNA:     14,930 UMIs / 5,403 genes
+//   PLA:      4,799 UMIs / 425 unique PLA pairs
+//   Protein:  9,713 UMIs / 32 proteins
+//
+// Samples encoded in this file: A1 (representative replicate).
+// Samples B1 and D1 follow an identical workflow; encode as
+// separate .bs files to keep each sample's CFG independent.
+//
+// NOTE ON DMF ABSTRACTION: Sprox-seq is a slide-based spatial
+// transcriptomics workflow (10x Visium cassette), not a DMF
+// electrode-array protocol. `mix` steps here abstract
+// cassette-based incubation, wash, and buffer-exchange events
+// performed on the Visium slide within the 10x Genomics
+// gasket. `heat` steps abstract temperature-controlled
+// incubation on a thermocycler adapter or heat block.
+// `dispense` abstracts pipetting of reagent volumes into the
+// cassette well. This is consistent with the BioScript
+// abstraction level used in the reference .bs files for
+// microfluidic workflows where channel-flow and electrode
+// operations are similarly modelled as `mix`/`heat`.
+//
+// NOTE ON TEMPERATURE UNITS: BioScript `heat` requires integer
+// Celsius. All temperatures from the Methods section are
+// encoded exactly (25c = RT, 37c = incubator, 70c =
+// decrosslinking). Duration tokens are `s` (seconds) or
+// `m` (minutes); hours are converted to minutes.
+//
+// CFG STRUCTURE:
+//   BB1  main                -- tissue prep, AOC incubation,
+//                               ligation, USER digest, imaging,
+//                               permeabilization, cDNA capture
+//   BB2  plaQCPass           -- plaQCSignal > 0: PLA library
+//                               passes QC; proceed to sequencing
+//   BB3  plaQCFail           -- plaQCSignal <= 0: PLA library
+//                               fails QC; drain
+//   BB4  plaQCJoin           -- join: cDNA library QC branch
+//   BB5  rnaQCPass           -- rnaQCSignal > 0: cDNA library
+//                               valid; dispose and sequence
+//   BB6  rnaQCFail           -- rnaQCSignal <= 0: cDNA library
+//                               fails QC; drain
+//   BB7  finalCleanup        -- terminal: dispose QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Mount and pre-warm tissue section.
+//   10-um fresh-frozen tonsil section mounted on Visium slide.
+//   Pre-warm on thermocycler adapter at 37c for 1 min.
+//   Methods: "slides were placed on a 37 C heat block for
+//   1 minute" prior to fixation.
+// ------------------------------------------------------------
+
+tissueSection     = dispense 1 units of TonsilTissueSection
+preheatPad        = dispense 1 units of SSC_3x
+
+prewarmTissue     = mix tissueSection with preheatPad for 5s
+heat prewarmTissue at 37c for 1m
+
+// ------------------------------------------------------------
+// STEP 2: Tissue fixation with 1% PFA.
+//   1% paraformaldehyde (PFA) at room temperature for 10 min.
+//   Preserves tissue morphology and protein epitopes.
+//   Methods: "fixed with 1% paraformaldehyde (PFA) for
+//   10 minutes."
+// ------------------------------------------------------------
+
+pfaFixative       = dispense 1 units of PFA_1pct
+fixedTissue       = mix prewarmTissue with pfaFixative for 10m
+
+// ------------------------------------------------------------
+// STEP 3: Post-fixation washes with 3x SSC (x3).
+//   Three sequential washes to remove residual PFA.
+//   Methods: "washed three times with 3x SSC buffer."
+//   Three explicit wash cycles are encoded; each `mix`
+//   abstracts one wash cycle on the Visium cassette.
+// ------------------------------------------------------------
+
+wash1_SSC         = dispense 1 units of SSC_3x
+wash2_SSC         = dispense 1 units of SSC_3x
+wash3_SSC         = dispense 1 units of SSC_3x
+
+washedTissue_1    = mix fixedTissue with wash1_SSC for 30s
+washedTissue_2    = mix washedTissue_1 with wash2_SSC for 30s
+washedTissue_3    = mix washedTissue_2 with wash3_SSC for 30s
+
+// ------------------------------------------------------------
+// STEP 4: Blocking with 1% BSA in PBS.
+//   Cassette mounted; 1% BSA blocking buffer applied at RT
+//   for 10 min to reduce non-specific AOC binding.
+//   Methods: "blocked with blocking buffer at room temperature
+//   for 10 minutes."
+//   RT is modelled as 25c.
+// ------------------------------------------------------------
+
+blockingBuffer    = dispense 1 units of BSA_BlockingBuffer
+blockedTissue     = mix washedTissue_3 with blockingBuffer for 10m
+heat blockedTissue at 25c for 10m
+
+// ------------------------------------------------------------
+// STEP 5: AOC incubation -- 32-plex antibody-oligonucleotide
+//   conjugate cocktail (29 targets + 3 isotype controls).
+//   90 uL of Probe Binding Buffer containing AOCs (each 2.5 nM)
+//   applied at 4c for 1.5 h (90 min).
+//   Each protein targeted by a Probe A / Probe B pair carrying
+//   distinct DNA barcodes. Upon spatial proximity (50-70 nm),
+//   probes are ligated in the next step.
+//   Methods: "incubated with 90 uL of Probe Binding Buffer
+//   containing AOCs (each at 2.5 nM) at 4 C for 1.5 hours."
+// ------------------------------------------------------------
+
+aocCocktail       = dispense 1 units of AOC_CocktailPairs
+probeBuffer       = dispense 1 units of ProbeBindingBuffer
+aocMix            = mix aocCocktail with probeBuffer for 5s
+
+aocBound          = mix blockedTissue with aocMix for 90m
+heat aocBound at 4c for 90m
+
+// ------------------------------------------------------------
+// STEP 6: Post-AOC washes with Wash Buffer 1 (x4).
+//   Four washes to remove unbound AOCs before ligation.
+//   Methods: "washed four times with Wash Buffer 1."
+// ------------------------------------------------------------
+
+wb1_a             = dispense 1 units of WashBuffer1
+wb1_b             = dispense 1 units of WashBuffer1
+wb1_c             = dispense 1 units of WashBuffer1
+wb1_d             = dispense 1 units of WashBuffer1
+
+postAOC_w1        = mix aocBound with wb1_a for 30s
+postAOC_w2        = mix postAOC_w1 with wb1_b for 30s
+postAOC_w3        = mix postAOC_w2 with wb1_c for 30s
+postAOC_w4        = mix postAOC_w3 with wb1_d for 30s
+
+// ------------------------------------------------------------
+// STEP 7: Proximity ligation.
+//   90 uL Ligation Buffer (containing T4 ligase, 10 mM ATP,
+//   RNase inhibitor) applied at 37c for 30 min.
+//   Co-bound Probe A and Probe B on the same or adjacent
+//   proteins (<50-70 nm) are ligated via connector oligomer.
+//   The PLA product carries a Probe B-derived poly(A) tail
+//   (after USER digestion, Step 9) enabling spatial barcode
+//   capture alongside mRNA on the Visium slide.
+//   Methods: "incubated with 90 uL of Ligation Buffer at
+//   37 C for 30 minutes."
+// ------------------------------------------------------------
+
+ligBuffer         = dispense 1 units of LigationBuffer
+ligatedTissue     = mix postAOC_w4 with ligBuffer for 30m
+heat ligatedTissue at 37c for 30m
+
+// ------------------------------------------------------------
+// STEP 8: Post-ligation washes with Wash Buffer 1 (x4).
+//   Methods: "washed four times with Wash Buffer 1."
+// ------------------------------------------------------------
+
+wb1_e             = dispense 1 units of WashBuffer1
+wb1_f             = dispense 1 units of WashBuffer1
+wb1_g             = dispense 1 units of WashBuffer1
+wb1_h             = dispense 1 units of WashBuffer1
+
+postLig_w1        = mix ligatedTissue with wb1_e for 30s
+postLig_w2        = mix postLig_w1 with wb1_f for 30s
+postLig_w3        = mix postLig_w2 with wb1_g for 30s
+postLig_w4        = mix postLig_w3 with wb1_h for 30s
+
+// ------------------------------------------------------------
+// STEP 9: USER enzyme digestion.
+//   USER enzyme (NEB M5505L) cleaves the 6x UTP residues at
+//   the 3' end of ligated Probe B, releasing a poly(A) tail
+//   on the PLA product. This enables co-capture of PLA products
+//   with mRNAs via the poly(dT) spatial barcodes on the Visium
+//   slide during permeabilization (Step 12).
+//   Methods: "USER Enzyme Buffer was then added and incubated
+//   at 37 C for 30 minutes."
+// ------------------------------------------------------------
+
+userBuffer        = dispense 1 units of USER_EnzymeBuffer
+userDigested      = mix postLig_w4 with userBuffer for 30m
+heat userDigested at 37c for 30m
+
+// ------------------------------------------------------------
+// STEP 10: Post-USER washes with Wash Buffer 1 (x3) + SSC.
+//   Additional washes to remove USER enzyme before imaging.
+//   Methods: "additional washes with Wash Buffer 1" then
+//   "dipped into 3x SSC buffer 20 times prior to imaging."
+//   3x SSC dip modelled as a single wash step.
+// ------------------------------------------------------------
+
+wb1_i             = dispense 1 units of WashBuffer1
+wb1_j             = dispense 1 units of WashBuffer1
+wb1_k             = dispense 1 units of WashBuffer1
+sscDip            = dispense 1 units of SSC_3x
+
+postUser_w1       = mix userDigested with wb1_i for 30s
+postUser_w2       = mix postUser_w1 with wb1_j for 30s
+postUser_w3       = mix postUser_w2 with wb1_k for 30s
+imagingPrep       = mix postUser_w3 with sscDip for 20s
+
+// ------------------------------------------------------------
+// STEP 11: Brightfield imaging.
+//   Slide removed from cassette and imaged to record tissue
+//   morphology and H&E-staining reference for cluster
+//   annotation. `mix` with neutral buffer abstracts the
+//   imaging event; no new reagent is consumed.
+//   Methods: "After imaging, slides were remounted."
+//   RT = 25c; imaging duration abstracted as 5 min.
+// ------------------------------------------------------------
+
+heat imagingPrep at 25c for 5m
+
+// ------------------------------------------------------------
+// STEP 12: Decrosslinking.
+//   Slide remounted in cassette; 1x SSC decrosslinking buffer
+//   applied at 70c for 15 min to reverse PFA crosslinks and
+//   restore mRNA availability for capture.
+//   Methods: "treated with Decrosslinking Buffer (1x SSC) at
+//   70 C for 15 minutes."
+// ------------------------------------------------------------
+
+decrosslinkBuf    = dispense 1 units of SSC_1x_DecrosslinkBuffer
+decrosslinked     = mix imagingPrep with decrosslinkBuf for 15m
+heat decrosslinked at 70c for 15m
+
+// ------------------------------------------------------------
+// STEP 13: Equilibration at room temperature (10 min).
+//   Methods: "equilibrated at room temperature for 10 minutes."
+// ------------------------------------------------------------
+
+heat decrosslinked at 25c for 10m
+
+// ------------------------------------------------------------
+// STEP 14: Wash Buffer 2 rinse (1 min).
+//   Methods: "100 uL of Wash Buffer 2 was added and incubated
+//   at room temperature for 1 minute."
+// ------------------------------------------------------------
+
+wb2               = dispense 1 units of WashBuffer2
+wb2Rinsed         = mix decrosslinked with wb2 for 1m
+
+// ------------------------------------------------------------
+// STEP 15: Tissue permeabilization.
+//   70 uL Permeabilization Buffer applied dropwise at 37c
+//   for 25 min. Permeabilization releases mRNA poly(A) tails
+//   and PLA products (which carry USER-exposed poly(A) tails)
+//   for capture by the spatial barcoded oligos on the Visium
+//   slide surface directly below the tissue section.
+//   Methods: "70 uL of Permeabilization Buffer was applied
+//   dropwise and incubated at 37 C for 25 minutes."
+// ------------------------------------------------------------
+
+permBuffer        = dispense 1 units of PermeabilizationBuffer
+permeabilized     = mix wb2Rinsed with permBuffer for 25m
+heat permeabilized at 37c for 25m
+
+// ------------------------------------------------------------
+// STEP 16: Post-permeabilization wash with 0.1x SSC (x2).
+//   Methods: "wells were gently washed twice with 100 uL
+//   of 0.1x SSC."
+// ------------------------------------------------------------
+
+ssc01_a           = dispense 1 units of SSC_01x
+ssc01_b           = dispense 1 units of SSC_01x
+
+postPerm_w1       = mix permeabilized with ssc01_a for 30s
+capturedMolecules = mix postPerm_w1 with ssc01_b for 30s
+
+// ------------------------------------------------------------
+// STEP 17: Reverse transcription (cDNA synthesis).
+//   Standard 10x Visium reverse transcription step (Step 1.2
+//   of the 10x Visium Spatial Gene Expression User Guide).
+//   RT reagents include the U-Fwd primer (added here as a
+//   modification to enhance PLA product amplification).
+//   Both mRNA-derived cDNAs and PLA products are captured
+//   on the spatial barcodes and extended by RT at 53c for
+//   45 min (standard Visium RT conditions).
+//   Methods: "Subsequent steps followed the 10x Visium Spatial
+//   Gene Expression User Guide, starting from reverse
+//   transcription (Step 1.2) through cDNA amplification,
+//   with two modifications: during second-strand synthesis
+//   and cDNA amplification, U-Fwd primer was added."
+// ------------------------------------------------------------
+
+rtReagents        = dispense 1 units of ReverseTranscriptaseReagents
+cDNA_raw          = mix capturedMolecules with rtReagents for 45m
+heat cDNA_raw at 53c for 45m
+
+// ------------------------------------------------------------
+// STEP 18: cDNA amplification and library separation.
+//   Standard Visium cDNA amplification PCR.
+//   After amplification, PLA products and mRNA-derived cDNAs
+//   are separated by 0.6x SPRIselect bead cleanup:
+//     - Bead fraction (>600 bp): mRNA-derived cDNAs
+//     - Supernatant fraction:    PLA ligation products
+//   Methods: "PLA products and mRNA-derived cDNAs were
+//   separated using 0.6x SPRIselect reagent, with the bead
+//   fraction containing mRNA-derived cDNAs and the supernatant
+//   containing PLA products."
+//   PCR: 98c 3m; 12 cycles of (98c 20s, 63c 30s, 72c 1m);
+//   72c 5m. Modelled as a heat step.
+// ------------------------------------------------------------
+
+spri06x           = dispense 1 units of SPRIselect_06x
+
+amplifiedcDNA     = mix cDNA_raw with spri06x for 8m
+heat amplifiedcDNA at 98c for 3m
+
+// mRNA-derived cDNA library (bead fraction after 0.6x SPRI)
+cDNA_mRNA_Library = mix amplifiedcDNA with spri06x for 5m
+
+// PLA product supernatant fraction (separated simultaneously)
+pla_Supernatant   = mix amplifiedcDNA with spri06x for 5m
+
+// ------------------------------------------------------------
+// STEP 19: PLA library cleanup and indexing.
+//   2.1x SPRIselect bead cleanup of the PLA supernatant (75 uL
+//   supernatant + 70 uL SPRIselect = 145 uL total, ~2.1x ratio).
+//   Purified PLA products then indexed and PCR-amplified:
+//     98c 2m; 13 cycles (98c 20s, 63c 30s, 72c 5s); 72c 5m.
+//   Post-amplification cleanup: 1.2x SPRIselect; elute 25 uL
+//   Buffer EB. Quantify by TapeStation.
+//   Methods: "70 uL of SPRIselect reagent (2.1x) was added to
+//   75 uL of the supernatant to complete PLA product cleanup.
+//   Purified PLA products were indexed and amplified."
+// ------------------------------------------------------------
+
+spri21x           = dispense 1 units of SPRIselect_21x
+spri12x           = dispense 1 units of SPRIselect_12x
+indexPrimers      = dispense 1 units of IndexingPrimers
+bufEB             = dispense 1 units of BufferEB
+kapaHiFi          = dispense 1 units of KAPA_HiFi_Mix
+
+pla_Cleaned       = mix pla_Supernatant with spri21x for 8m
+
+pla_IndexedMix    = mix pla_Cleaned with indexPrimers for 5s
+pla_IndexedMix2   = mix pla_IndexedMix with kapaHiFi for 5s
+
+// PLA indexing PCR: 98c 2m; 13 cycles; 72c 5m.
+heat pla_IndexedMix2 at 98c for 2m
+
+pla_Amplified     = mix pla_IndexedMix2 with spri12x for 8m
+pla_Library       = mix pla_Amplified with bufEB for 2m
+
+// ------------------------------------------------------------
+// STEP 20: PLA library quality control (TapeStation / Bioanalyzer).
+//   PLA library concentration measured. Expected size range:
+//   ~150-200 bp (ligation product + index + sequencing adapters).
+//   QC gate: detect plaDataQC on the PLA library.
+//   Pass: library concentration and fragment size are within
+//         expected range -> proceed to sequencing.
+//   Fail: library fails QC (too low concentration, wrong size)
+//         -> drain; repeat from STEP 18 with more PCR cycles.
+//   Methods: "product concentration was measured using
+//   TapeStation analysis."
+// ------------------------------------------------------------
+
+plaQCSignal       = detect plaDataQC on pla_Library for 30s
+
+// ============================================================
+// BB2 / BB3: PLA library QC gate
+// Pass (BB2): plaQCSignal > 0 -> PLA library within spec;
+//             dispose intermediate cleanup product and proceed.
+// Fail (BB3): plaQCSignal <= 0 -> library QC failure; drain.
+// Both branches converge at BB4 (plaQCJoin).
+// ============================================================
+
+if (plaQCSignal > 0) {
+    dispose pla_Library
+    // PATCH 1: dummy variable forces the compiler to emit an explicit
+    // jump from BB2 to BB4_j (without it bsbbif_2_t falls through
+    // with no jump instruction in the IR, breaking the CFG edge).
+    plaQCPassFlag = dispense 1 units of BufferEB
+    dispose plaQCPassFlag
+} else {
+    drain pla_Library
+}
+
+// ============================================================
+// BB4: plaQCJoin
+// Dispose PLA QC signal. Control falls into cDNA library
+// QC branch (BB5/BB6).
+// ============================================================
+
+dispose plaQCSignal
+
+// ------------------------------------------------------------
+// STEP 21: cDNA (mRNA) library quality control.
+//   Standard Visium mRNA cDNA library preparation follows
+//   the 10x Visium Library Construction Kit instructions.
+//   QC gate: detect rnaExpressionDetection on cDNA library.
+//   Pass: cDNA library size (~400-500 bp median) and
+//         concentration within Visium spec.
+//   Fail: cDNA library fails QC; drain.
+//   Sequenced on Illumina NextSeq 2000 200-cycle P3 kit:
+//     Read 1: 28 cycles (spatial barcode + UMI)
+//     i7 index: 10 cycles
+//     i5 index: 10 cycles
+//     Read 2: 90 cycles (cDNA insert)
+//   PhiX spike-in: 1% vol/vol.
+// ------------------------------------------------------------
+
+phixSpike         = dispense 1 units of PhiX_Spike
+cDNA_FinalLib     = mix cDNA_mRNA_Library with phixSpike for 2m
+
+rnaQCSignal       = detect rnaExpressionDetection on cDNA_FinalLib for 30s
+
+// ============================================================
+// BB5 / BB6: cDNA library QC gate
+// Pass (BB5): rnaQCSignal > 0 -> cDNA library within spec;
+//             dispose all final libraries (submitted to
+//             sequencing core); proceed to protein complex
+//             detection downstream analysis gate.
+// Fail (BB6): rnaQCSignal <= 0 -> cDNA library fails QC;
+//             drain (re-amplify from captured cDNA).
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (rnaQCSignal > 0) {
+    // ------------------------------------------------------------
+    // DOWNSTREAM ANALYSIS GATE (pass path only):
+    //   After sequencing, Space Ranger 2.0.1 aligns RNA reads.
+    //   A custom Java aligner processes PLA reads (github:
+    //   tay-lab/Prox-seq). Output: digital RNA matrix and
+    //   PLA matrix per spatial spot.
+    //
+    //   Protein complex detection (Fisher's Exact Test, adj.
+    //   p < 0.05) and fractional overlap scoring are applied
+    //   in silico (Python; github: jjxia955/Spatial-Prox-seq).
+    //
+    //   VLA-4-VCAM1 mediated B cell-FDC interaction is
+    //   captured by the protein complex detection pipeline:
+    //   ITGA4-VCAM1 and CD29-VCAM1 PLA pairs both pass
+    //   Fisher's Exact Test and show highest enrichment in
+    //   the Light zone across all 3 biological replicates,
+    //   consistent with in trans B cell-FDC interaction.
+    //   This downstream detection event is abstracted here
+    //   as a vlaVcamInteractionDetection signal gate.
+    //
+    //   NOTE: In a full Sprox-seq run the analysis is
+    //   computational (not a physical detection step); this
+    //   block models the logical outcome of the pipeline.
+    // ------------------------------------------------------------
+
+    plaFinalLib         = dispense 1 units of PhiX_Spike
+    // PATCH 2: use cDNA_FinalLib (in-scope across the branch boundary)
+    // instead of pla_Library, which the compiler re-versioned as
+    // pla_Library2[0] (undefined SSA slot) inside this nested block.
+    pla_SequencingLib   = mix cDNA_FinalLib with plaFinalLib for 2m
+
+    complexSignal       = detect vlaVcamInteractionDetection on pla_SequencingLib for 60s
+
+    if (complexSignal > 0) {
+        // VLA-4-VCAM1 interaction confirmed in Light zone.
+        // Dispose sequencing libraries; experiment complete.
+        dispose pla_SequencingLib
+        dispose cDNA_FinalLib
+    } else {
+        // No interaction signal; drain for re-analysis.
+        drain pla_SequencingLib
+        drain cDNA_FinalLib
+    }
+
+    dispose complexSignal
+
+} else {
+    drain cDNA_FinalLib
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose RNA QC signal droplet; experiment ends.
+// ============================================================
+
+dispose rnaQCSignal
+
+// [terminal -- no further instructions; exit node for CFG]

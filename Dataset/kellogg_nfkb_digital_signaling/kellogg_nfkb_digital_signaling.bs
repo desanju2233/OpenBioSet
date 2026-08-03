@@ -1,0 +1,467 @@
+module nfkbTranslocationDetection
+module geneExpressionDetection
+
+manifest NIH3T3_NFkB_Cells
+manifest LPS_Stock
+manifest TNF_Stock
+manifest CompleteMedia
+manifest FibronectinSolution
+manifest LPS_PulseStock
+manifest TrypsinEDTA
+manifest RNALysisBuffer
+manifest cDNA_Primers
+manifest GAPDH_Primer
+
+// ============================================================
+// Digital Signaling Decouples Activation Probability and
+// Population Heterogeneity
+// Kellogg RA, Tian C, Lipniacki T, Quake SR, Tay S.
+// eLife 2015;4:e08931. DOI: 10.7554/eLife.08931
+//
+// Cell line: p65-knockout NIH 3T3 fibroblasts expressing
+//   p65-DsRed (NF-kB reporter) and H2B-GFP (nuclear reporter).
+//   Clonally derived to express p65-DsRed at lowest detectable
+//   level to preserve near-endogenous expression.
+//
+// Two experimental arms are encoded in sequence:
+//
+// PROTOCOL 1 (BB1-BB6): LPS Dose-Modulation Experiment
+//   Constant long-duration (LL) LPS stimulation at varying
+//   concentrations (0.25 - 500 ng/ml), delivered via continuous
+//   flow through microfluidic chambers. Modulates fraction of
+//   responding cells AND NF-kB response timing/heterogeneity.
+//   Duplicate chambers per condition on a single chip.
+//   Stimulation by step increase in LPS via media exchange.
+//   Live-cell imaging at 5-6 min intervals for ~250 min.
+//   Outcome: digital (all-or-none) NF-kB activation; Hill
+//   coefficient ~2.3; dose-dependent activation delay (35-80 min
+//   median peak time); 5% (0.25 ng/ml) to ~100% (500 ng/ml)
+//   responding cells. (Figures 2, 3)
+//
+// PROTOCOL 2 (BB7-BB12): LPS Duration-Modulation Experiment
+//   Short-Strong (SS) pulsed LPS at constant 500 ng/ml, with
+//   pulse duration varied from 1 to 40 s by washing with media
+//   after each pulse duration. Controls fraction of responding
+//   cells WITHOUT altering NF-kB response timing or cell-to-cell
+//   variability. Outcome: 3.3% (1 s) to 87.5% (40 s) responding;
+//   median peak time shifts < 2 min across all durations.
+//   (Figures 4, 5, 7)
+//
+// PROTOCOL 3 (BB13-BB15, off-chip): Gene Expression Assay
+//   Bulk 96-well plate LPS stimulation (1-500 ng/ml, 10,000
+//   cells/well) for dose-dependent gene expression profiling
+//   by Fluidigm qPCR (48.48 dynamic arrays). 8 target genes:
+//   nfkbia, a20, nfkbie, tnf, ccl20, icam1, casp4, ccl5.
+//   Normalized to GAPDH. (Figure 2E)
+//
+// TEMPERATURE: All cell culture and stimulation steps run at
+//   37 C / 5% CO2 unless otherwise noted.
+//   `heat` statements model incubator conditions.
+//
+// DURATION TOKENS: BioScript accepts s and m only.
+//   1 day = 1440 min; used for cell seeding/growth steps.
+//
+// CFG STRUCTURE:
+//   BB1   main              -- device coating, cell seeding (Protocol 1)
+//   BB2   llDoseHigh        -- LL high-dose LPS arm (500 ng/ml)
+//   BB3   llDoseLow         -- LL low-dose LPS arm (0.25 ng/ml)
+//   BB4   llDoseJoin        -- join: NF-kB detection (LL arm)
+//   BB5   llPassGate        -- llSignal > 0: digital activation detected; dispose
+//   BB6   llFailGate        -- llSignal <= 0: no activation; drain
+//   BB7   llFinalJoin       -- join: Protocol 2 begins
+//   BB8   ssPulseShort      -- SS short-pulse arm (1 s @ 500 ng/ml)
+//   BB9   ssPulseLong       -- SS long-pulse arm (40 s @ 500 ng/ml)
+//   BB10  ssPulseJoin       -- join: NF-kB detection (SS arm)
+//   BB11  ssPassGate        -- ssSignal > 0: digital activation detected; dispose
+//   BB12  ssFailGate        -- ssSignal <= 0: no activation; drain
+//   BB13  ssFinalJoin       -- join: Protocol 3 (gene expression) begins
+//   BB14  gexPassGate       -- gexSignal > 0: expression detected; dispose
+//   BB15  gexFailGate       -- gexSignal <= 0: no expression; drain
+//   BB16  finalCleanup      -- terminal: dispose all QC signals, experiment ends
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// Device priming, fibronectin coating, and cell seeding.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Coat microfluidic chambers with fibronectin.
+//   Fibronectin solution flowed through chambers to promote
+//   cell adhesion to PDMS walls. Each experimental condition
+//   is measured in duplicate chambers on the chip.
+//   Models channel coating by mixing priming volume of
+//   fibronectin into the microfluidic chamber.
+// ------------------------------------------------------------
+
+fibronectin     = dispense 1 units of FibronectinSolution
+media_prime     = dispense 1 units of CompleteMedia
+coatedChamber   = mix fibronectin with media_prime for 5m
+
+// ------------------------------------------------------------
+// STEP 2: Seed cells into coated chambers.
+//   Approx 200 cells/chamber. Cells grown for 1 day (1440 min)
+//   with periodic media replenishment until ~80% confluence.
+//   `mix` abstracts channel-based cell loading; `heat` models
+//   incubator growth at 37 C.
+// ------------------------------------------------------------
+
+seedCells       = dispense 1 units of NIH3T3_NFkB_Cells
+loadedChamber   = mix seedCells with coatedChamber for 2s
+
+// 24 h growth to ~80% confluence at 37 C (= 1440 min).
+heat loadedChamber at 37c for 1440m
+
+// ============================================================
+// PROTOCOL 1: LPS Dose-Modulation (LL Signal)
+// Constant, long-duration stimulation at two representative
+// doses: 500 ng/ml (high, ~100% cells respond) and 0.25 ng/ml
+// (low, ~5% cells respond). Both are parallel branches in the
+// CFG that converge at BB4 (llDoseJoin) for NF-kB detection.
+//
+// NOTE ON ABSTRACTION: The microfluidic chip runs all
+// concentrations (0.25 - 500 ng/ml) in parallel duplicate
+// chambers. BB2 and BB3 encode two representative concentrations
+// as the CFG fork. The full dose-response screen is captured
+// in post-processing of the nfkbTranslocationDetection readout.
+//
+// Stimulation: media equilibrated to 5% CO2 containing LPS
+// is delivered as a step increase; ligand loss due to
+// cellular internalization is replenished by continuous flow.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 3: Dispense LPS stock solutions for dose-modulation arm.
+//   LPS stock concentrations are pre-diluted off-chip in
+//   CompleteMedia before loading into chip reservoirs.
+//   500 ng/ml: 1.2e7 LPS molecules per cell (see Appendix Table 4).
+//   0.25 ng/ml: 6.0e3 LPS molecules per cell.
+// ------------------------------------------------------------
+
+lpsHighDose     = dispense 1 units of LPS_Stock
+lpsLowDose      = dispense 1 units of LPS_Stock
+
+// ============================================================
+// BB2: llDoseHigh
+// High-dose LL arm: 500 ng/ml continuous LPS stimulation.
+// Response: ~100% cells activate; rapid onset (~35 min peak);
+// low cell-to-cell timing variability; sustained oscillations
+// under continuous ligand replenishment.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 4a (High-dose LL): Load 500 ng/ml LPS into the chamber.
+//   LPS is delivered to the sealed chamber by continuous media
+//   exchange. Duration ~250 min (entire imaging window).
+//   `mix` abstracts the flow-through delivery event.
+//   `heat` maintains 37 C / 5% CO2 during stimulation.
+// ------------------------------------------------------------
+
+llHighChamber   = mix loadedChamber with lpsHighDose for 5s
+heat llHighChamber at 37c for 250m
+
+llHighSignal    = detect nfkbTranslocationDetection on llHighChamber for 250m
+
+// ============================================================
+// BB3: llDoseLow
+// Low-dose LL arm: 0.25 ng/ml continuous LPS stimulation.
+// Response: ~5% cells activate; delayed onset (>80 min peak);
+// high cell-to-cell timing variability (heterogeneous dynamics).
+// Same stimulus area achievable via longer duration (Area Rule).
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 4b (Low-dose LL): Load 0.25 ng/ml LPS into the chamber.
+//   Identical delivery method to high-dose arm; dose pre-diluted
+//   in media before chip loading.
+// ------------------------------------------------------------
+
+llLowChamber    = mix loadedChamber with lpsLowDose for 5s
+heat llLowChamber at 37c for 250m
+
+llLowSignal     = detect nfkbTranslocationDetection on llLowChamber for 250m
+
+// ============================================================
+// BB4: llDoseJoin
+// Both dose arms converge here. NF-kB translocation signals
+// from high- and low-dose chambers are evaluated.
+// Gate is keyed on llHighSignal (highest expected signal).
+// ============================================================
+
+// ============================================================
+// BB5 / BB6: LL Dose QC gate
+// Pass (BB5): llHighSignal > 0 -> digital NF-kB activation
+//             detected in at least one chamber; dispose both
+//             stimulated chamber readouts.
+// Fail (BB6): llHighSignal <= 0 -> no translocation signal
+//             (imaging failure or no activation); drain both.
+// Both branches converge at BB7 (llFinalJoin).
+// ============================================================
+
+if (llHighSignal > 0) {
+    dispose llHighChamber
+    dispose llLowChamber
+} else {
+    drain llHighChamber
+    drain llLowChamber
+}
+
+// ============================================================
+// BB7: llFinalJoin
+// Dispose LL dose QC signals. Control falls into
+// Protocol 2 (LPS Duration-Modulation / SS arm).
+// ============================================================
+
+dispose llHighSignal
+dispose llLowSignal
+
+// ============================================================
+// PROTOCOL 2: LPS Duration-Modulation (SS Signal)
+// Pulsed LPS at constant 500 ng/ml; pulse duration varied
+// from 1 to 40 s. Chambers washed with media after each pulse.
+// Controls fraction of responding cells WITHOUT affecting
+// NF-kB response timing or cell-to-cell variability.
+//
+// Two representative pulse durations encoded as CFG branches:
+//   BB8:  1 s pulse  -> ~3.3% cells activate (few active)
+//   BB9: 40 s pulse  -> ~87.5% cells activate (many active)
+// Branches converge at BB10 (ssPulseJoin) for NF-kB detection.
+//
+// Key result: despite >25x difference in responding fraction,
+// median peak time changes by < 2 min between 1 s and 40 s.
+// This contrasts with LL dose modulation where peak time
+// shifts > 35 min from 0.25 to 500 ng/ml.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 5: Prepare fresh cells in new chambers for SS arm.
+//   Same seeding protocol as Protocol 1. Fresh LPS pulse
+//   stock (500 ng/ml) is pre-loaded. Media wash solution
+//   is in a parallel reservoir for post-pulse washing.
+// ------------------------------------------------------------
+
+ssCells         = dispense 1 units of NIH3T3_NFkB_Cells
+ssMedia         = dispense 1 units of CompleteMedia
+ssChamber       = mix ssCells with ssMedia for 2s
+heat ssChamber at 37c for 1440m
+
+// SS pulse stock: 500 ng/ml LPS for both short and long pulse arms.
+ssPulseHigh     = dispense 1 units of LPS_PulseStock
+ssPulseLong40   = dispense 1 units of LPS_PulseStock
+
+// Media wash: flowed through chamber immediately after pulse
+// to remove LPS (no further receptor occupancy after pulse end).
+// Abstracts the post-pulse wash by mixing in fresh media.
+mediaWashShort  = dispense 1 units of CompleteMedia
+mediaWashLong   = dispense 1 units of CompleteMedia
+
+// ============================================================
+// BB8: ssPulseShort
+// 1 s pulse at 500 ng/ml LPS.
+// LPS delivered for exactly 1 s then washed out with media.
+// Result: ~3.3% cells activate; rapid, synchronous responses
+// in the small activating fraction. Same responding fraction
+// as 0.25 ng/ml continuous LL stimulation (Fig 5B vs Fig 2D).
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 6a (1 s SS pulse): Deliver 1 s LPS pulse, then wash.
+//   `mix for 1s` abstracts the 1 s flow of LPS through the
+//   chamber at 500 ng/ml. Media wash immediately follows
+//   to terminate receptor-ligand contact.
+//   Post-wash: chamber sealed; imaging at 5-6 min intervals.
+// ------------------------------------------------------------
+
+// 1 s LPS pulse (500 ng/ml): flow-through event.
+ss1sPulsed      = mix ssChamber with ssPulseHigh for 1s
+// Immediate media wash to terminate stimulus.
+ss1sWashed      = mix ss1sPulsed with mediaWashShort for 5s
+
+// Image for 150 min post-pulse (NF-kB peak occurs ~50 min).
+heat ss1sWashed at 37c for 150m
+ss1sSignal      = detect nfkbTranslocationDetection on ss1sWashed for 150m
+
+// ============================================================
+// BB9: ssPulseLong
+// 40 s pulse at 500 ng/ml LPS.
+// LPS delivered for 40 s then washed out with media.
+// Result: ~87.5% cells activate; rapid, uniform responses
+// (low timing variability). Median peak time ~47 min.
+// Identical single-cell dynamics shape to 1 s pulse arm;
+// only the responding fraction differs.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 6b (40 s SS pulse): Deliver 40 s LPS pulse, then wash.
+//   Same method as 1 s arm; only pulse duration changes.
+// ------------------------------------------------------------
+
+// 40 s LPS pulse (500 ng/ml): flow-through event.
+ss40sPulsed     = mix ssChamber with ssPulseLong40 for 40s
+// Immediate media wash to terminate stimulus.
+ss40sWashed     = mix ss40sPulsed with mediaWashLong for 5s
+
+// Image for 150 min post-pulse (NF-kB peak occurs ~47 min).
+heat ss40sWashed at 37c for 150m
+ss40sSignal     = detect nfkbTranslocationDetection on ss40sWashed for 150m
+
+// ============================================================
+// BB10: ssPulseJoin
+// Both SS pulse arms converge here. Gate keyed on ss40sSignal
+// (highest expected responding fraction and amplitude).
+// ============================================================
+
+// ============================================================
+// BB11 / BB12: SS Pulse QC gate
+// Pass (BB11): ss40sSignal > 0 -> digital NF-kB activation
+//              detected in >=1 chamber; dispose both readouts.
+// Fail (BB12): ss40sSignal <= 0 -> no translocation signal
+//              (imaging or reagent failure); drain both.
+// Both branches converge at BB13 (ssFinalJoin).
+// ============================================================
+
+if (ss40sSignal > 0) {
+    dispose ss1sWashed
+    dispose ss40sWashed
+} else {
+    drain ss1sWashed
+    drain ss40sWashed
+}
+
+// ============================================================
+// BB13: ssFinalJoin
+// Dispose SS pulse QC signals. Control falls into
+// Protocol 3 (off-chip gene expression assay).
+// ============================================================
+
+dispose ss1sSignal
+dispose ss40sSignal
+
+// ============================================================
+// PROTOCOL 3: Gene Expression Assay (off-chip, 96-well plate)
+// Dose-dependent NF-kB gene expression profiling under LPS
+// stimulation. Two representative doses: 500 ng/ml and 50 ng/ml.
+//
+// Off-chip workflow:
+//   - 10,000 cells/well seeded in 96-well plate overnight.
+//   - Stimulated with LPS at the indicated concentration.
+//   - Lysed at time points from 0 to 8 h post-stimulation.
+//   - RNA reverse-transcribed with Invitrogen One-Step RT-PCR kit.
+//   - cDNA pre-amplified (specific target amplification,
+//     24-primer set).
+//   - Quantitative PCR on 48.48 Fluidigm dynamic arrays
+//     (technical duplicates per sample).
+//   - Expression normalized to GAPDH.
+//
+// Target genes and their response class:
+//   Early  (peak 0.5-1 h):  nfkbia, a20
+//   Early  (peak 1-2 h):    nfkbie, tnf
+//   Intermediate (1-3 h):   ccl20, icam1
+//   Late   (slow kinetics): casp4, ccl5
+//
+// NOTE: Late genes (casp4, ccl5) do not reflect the delayed
+// NF-kB activation because their induction kinetics are slow.
+// Early and intermediate genes show dose-dependent delay
+// consistent with NF-kB translocation data (Figure 2E).
+//
+// NOTE ON ABSTRACTION: 96-well plate seeding and LPS delivery
+// are abstracted using `dispense` and `mix`; `heat` models the
+// incubator. Cell lysis, RNA extraction, and qPCR steps are
+// modelled as sequential mix + detect operations.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 7: Seed cells into 96-well plate and attach overnight.
+//   10,000 cells/well; 37 C overnight = 1440 min (1 day).
+// ------------------------------------------------------------
+
+bulkCells       = dispense 1 units of NIH3T3_NFkB_Cells
+bulkMedia       = dispense 1 units of CompleteMedia
+bulkWell        = mix bulkCells with bulkMedia for 1m
+heat bulkWell at 37c for 1440m
+
+// ------------------------------------------------------------
+// STEP 8: Stimulate with LPS (500 ng/ml; high-dose arm).
+//   LPS added directly to wells; incubated at 37 C.
+//   Cells lysed at 0, 0.5, 1, 2, 3, 4, 6, 8 h time points.
+//   Here encoded as a single 8 h (480 min) stimulation
+//   window; time-resolved lysis is abstracted by detection
+//   module (geneExpressionDetection).
+// ------------------------------------------------------------
+
+lpsGex500       = dispense 1 units of LPS_Stock
+stimWell500     = mix bulkWell with lpsGex500 for 5s
+heat stimWell500 at 37c for 480m
+
+// ------------------------------------------------------------
+// STEP 9: Stimulate with LPS (50 ng/ml; low-dose arm).
+//   Parallel well. Identical protocol; different LPS dose.
+//   Low dose induces dose-dependent delay in early gene peaks
+//   (e.g., nfkbia peak shifts from 30 min to 1 h; IkBe from
+//   1 h to 2 h; ccl20 from 1 h to 2-3 h).
+// ------------------------------------------------------------
+
+lpsGex50        = dispense 1 units of LPS_Stock
+stimWell50      = mix bulkWell with lpsGex50 for 5s
+heat stimWell50 at 37c for 480m
+
+// ------------------------------------------------------------
+// STEP 10: Lyse cells and prepare RNA for qPCR.
+//   RNALysisBuffer added to each well; RNA reverse-transcribed
+//   and cDNA pre-amplified. Modelled as mix steps.
+//   geneExpressionDetection abstracts Fluidigm qPCR readout
+//   (48.48 dynamic array; normalization to GAPDH).
+// ------------------------------------------------------------
+
+lysate500       = dispense 1 units of RNALysisBuffer
+lysate50        = dispense 1 units of RNALysisBuffer
+primers500      = dispense 1 units of cDNA_Primers
+primers50       = dispense 1 units of cDNA_Primers
+gapdh500        = dispense 1 units of GAPDH_Primer
+gapdh50         = dispense 1 units of GAPDH_Primer
+
+// Lysis and cDNA prep.
+rna500          = mix stimWell500 with lysate500 for 5m
+cdna500         = mix rna500 with primers500 for 30m
+cdnaNorm500     = mix cdna500 with gapdh500 for 5s
+
+rna50           = mix stimWell50 with lysate50 for 5m
+cdna50          = mix rna50 with primers50 for 30m
+cdnaNorm50      = mix cdna50 with gapdh50 for 5s
+
+// Fluidigm qPCR: detect gene expression signal.
+// geneExpressionDetection module abstracts 48.48 dynamic array
+// qPCR with technical duplicates. Signal > 0 indicates
+// detectable expression above GAPDH-normalized baseline.
+gexSignal500    = detect geneExpressionDetection on cdnaNorm500 for 60m
+gexSignal50     = detect geneExpressionDetection on cdnaNorm50 for 60m
+
+// ============================================================
+// BB14 / BB15: Gene expression QC gate
+// Pass (BB14): gexSignal500 > 0 -> detectable NF-kB-dependent
+//              gene expression at high dose; dispose readouts.
+// Fail (BB15): gexSignal500 <= 0 -> no expression detected
+//              (RT-PCR or Fluidigm failure); drain all.
+// Both branches converge at BB16 (finalCleanup).
+// ============================================================
+
+if (gexSignal500 > 0) {
+    dispose cdnaNorm500
+    dispose cdnaNorm50
+} else {
+    drain cdnaNorm500
+    drain cdnaNorm50
+}
+
+// ============================================================
+// BB16: finalCleanup (terminal)
+// Dispose all gene expression QC signals.
+// Experiment ends.
+// ============================================================
+
+dispose gexSignal500
+dispose gexSignal50
+
+// [terminal -- no further instructions; exit node for CFG]

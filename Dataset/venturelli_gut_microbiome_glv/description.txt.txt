@@ -1,0 +1,261 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Deciphering Microbial Interactions in Synthetic Human Gut Microbiome Communities
+Source Link  : https://link.springer.com/article/10.15252/msb.20178157
+Paper DOI    : https://doi.org/10.15252/msb.20178157
+Journal      : Molecular Systems Biology (2018), Vol. 14, Article e8157
+Platform     : Automated liquid-handling robotic platform (Biomek) + 96-well deep-well microplate
+               array; Tecan Infinite F200 Pro plate reader; Illumina MiSeq 16S amplicon sequencing
+
+
+OVERVIEW
+--------
+This protocol describes a systematic model-guided experimental framework to dissect microbial
+interactions governing the assembly and stability of a 12-member synthetic human gut microbiome
+community. The community spans four major phyla: Bacteroidetes (BT, BO, BU, BV), Firmicutes
+(BH, CH, ER, FP), Actinobacteria (CA, EL), and Proteobacteria (DP), plus Prevotella copri (PC).
+
+Time-resolved measurements of monospecies and pairwise assemblages are used to parameterise a
+generalised Lotka-Volterra (gLV) ODE model of community dynamics. The parameterised model is
+validated against full 12-member and 11-member single-species dropout communities, and
+exo-metabolomics profiling of all monospecies is performed to illuminate metabolic capabilities
+and potential molecular bases of microbial interactions.
+
+The protocol is divided into five experimental phases:
+  1. Monospecies growth characterisation (M dataset, 12 conditions)
+  2. Pairwise co-cultures, 1:1 initial ratio (PW1 dataset, 66 combinations)
+  3. Pairwise co-cultures, asymmetric initial ratio (PW2 dataset, 15 conditions, 95:5 and 5:95)
+  4. Multi-species community validation (full 12-member + 12 single-species dropout communities)
+  5. Exo-metabolomics profiling (11 monospecies; DP excluded; 97 metabolites by LC-MS/MS)
+
+
+SPECIES COMMUNITY
+-----------------
+Slow-growth species (inoculated 41 h before experiment):
+  BH = Blautia hydrogenotrophica (DSM 10507)
+  FP = Faecalibacterium prausnitzii (DSM 17677)
+  CA = Collinsella aerofaciens (DSM 3979)
+  PC = Prevotella copri (DSM 18205)
+  ER = Eubacterium rectale (ATCC 33656)
+  DP = Desulfovibrio piger (ATCC 29098)
+
+Fast-growth species (inoculated 16 h before experiment):
+  BU = Bacteroides uniformis (DSM 6597)
+  BV = Bacteroides vulgatus (ATCC 8482)
+  BT = Bacteroides thetaiotaomicron (ATCC 29148)
+  BO = Bacteroides ovatus (ATCC 8483)
+  CH = Clostridium hiranonis (DSM 13275)
+  EL = Eggerthella lenta (DSM 2243)
+
+
+GROWTH CONDITIONS
+-----------------
+Atmosphere   : Anaerobic (85% N2, 5% H2, 10% CO2); Coy Lab Products anaerobic chamber
+Temperature  : 37 C, no shaking
+Media        : Anaerobic Basal Broth (ABB, Oxoid) — rich media supporting all 12 species
+Plate format : 96-well deep-well plates covered with gas-permeable Breathe Easy seal
+Robot        : Biomek liquid-handling robot (community arraying and serial transfer)
+OD600        : Tecan Infinite F200 Pro (384-well absorbance plate); 30 min intervals
+16S sampling : ~12 h intervals; V3-V4 region, Illumina MiSeq 300 bp paired-end,
+               dual-indexed primers (64 forward x 8 bp reverse; 1536 samples/run)
+               Processed: PEAR v0.9.0 (merge) + USEARCH v8.0 (align, 97.5% threshold)
+Serial transfer: 1:20 dilution into fresh ABB every 24 h; total experiment duration 72 h (3 transfers)
+Inoculation  : Each species at 0.01 OD600 from 25% glycerol stock starter cultures
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Starter Culture Preparation
+  Slow-growth species (BH, FP, CA, PC, ER, DP):
+    Inoculate 200 uL glycerol stock into 15 mL ABB; 37 C, no shaking; 41 h (2460 min).
+    IR duration: 147600.0 SECOND
+  Fast-growth species (BU, BV, BT, BO, CH, EL):
+    Inoculate 200 uL glycerol stock into 15 mL ABB; 37 C, no shaking; 16 h (960 min).
+    IR duration: 57600.0 SECOND
+  Purpose: ensures all species reach comparable growth phase at t=0 of each community experiment.
+
+Step 2 | Phase 1 — Monospecies Growth Characterisation (M dataset)
+  Conditions   : 12 monocultures (one per species); each at 0.01 OD600 in fresh ABB
+  Sampling     : OD600 every 30 min; 16S rRNA at ~12 h (detect duration: 43200.0 SECOND in IR)
+  Transfer     : 1:20 dilution (1 unit community + 19 units fresh ABB) every 24 h; 3 transfers
+  Duration     : 72 h total
+  BioScript    : BT, FP, EL encoded as representative monospecies; all 12 follow identical pattern
+  Key findings :
+    - BT, BV (Bacteroides): lowest CV; fitness least altered by co-species
+    - FP: bimodal CV; receives 5 positive incoming interactions in gLV model (ecologically responsive)
+    - EL: low monospecies fitness but highest ecological impact; 6 positive outgoing interactions
+    - Training on M alone: median Pearson r = 0.53 (T1); monospecies growth does not predict
+      multi-species community structure
+
+Step 3 | Monospecies QC Gate
+  Module       : monospeciesGrowthDetection
+  Branch       : monoQCSignal > 0 -> dispose (BB2, bsbbif_2_t)
+                 monoQCSignal <= 0 -> drain  (BB3, bsbbif_3_f)
+  Join         : BB4 (bsbbif_4_j); PW1 branch begins
+
+Step 4 | Phase 2 — Pairwise Co-cultures, 1:1 Ratio (PW1 dataset)
+  Conditions   : 66 combinations (C(12,2)); each species at 0.01 OD600; total OD600 = 0.02
+  Sampling     : OD600 every 30 min; 16S rRNA at ~12 h
+  Transfer     : 1:20 dilution every 24 h; 3 transfers; 72 h total
+  BioScript    : 3 representative pairs encoded (BT+FP, CH+ER, EL+BH)
+  Representative pairs:
+    BT + FP  : BT inhibits FP (negative outgoing); FP receives 5 positive interactions in full
+               community. BT dominance expected.
+    CH + ER  : +/- topology (CH inhibits ER; ER stimulates CH). Exemplar of robust coexistence
+               motif (Fig 4B, 4C). Converges to ~1:1 from distinct initial conditions.
+               Negative feedback loop balances disparate monospecies fitness levels.
+    EL + BH  : Mutualism (+/+). Highest pairwise productivity enhancement vs null model.
+  Community behaviours at 72 h (across all 51 pairs in PW2 design):
+    ~50% single-species dominance
+    ~24% stable coexistence
+    ~12% history dependence
+  Training on M+PW1: median Pearson r = 0.79 (T2); pairwise interactions are major drivers
+
+Step 5 | PW1 QC Gate
+  Module       : communityCompositionDetection
+  Branch       : pw1QCSignal > 0 -> dispose (BB5, bsbbif_5_t)
+                 pw1QCSignal <= 0 -> drain  (BB6, bsbbif_6_f)
+  Join         : BB7 (bsbbif_7_j); PW2 branch begins
+
+Step 6 | Phase 3 — Pairwise Co-cultures, Asymmetric Ratio (PW2 dataset)
+  Conditions   : 15 pairs x 2 initial conditions = 30 community runs
+  Initial conditions:
+    Condition A: species A at 95% (0.0158 OD600), species B at 5% (0.0008 OD600)
+    Condition B: species A at 5% (0.0008 OD600), species B at 95% (0.0158 OD600)
+  BioScript    : BO+BT encoded as representative pair (both conditions)
+                 Asymmetry via dispense 19 units (major) vs dispense 1 units (minor)
+  Purpose      : Probe history-dependent community behaviours
+  Key findings :
+    - 6 of 8 history-dependent pairs linked by bidirectional negative coupling (-/-)
+    - 5 of 6 mutual inhibition pairs: NOT bistable; history dependence from slow relaxation
+      to monostable equilibrium (increased convergence time at higher dilution rates)
+    - BU+BT: parameter set on bistable boundary; bistability not robust to parameter variation
+    - Colonic transit time (dilution rate) is major variable modulating time to reach steady state
+    - +/- topology (e.g. CH+ER): broader coexistence parameter regime than -/- topology (Fig 4D)
+  Training on M+PW1+PW2: median Pearson r = 0.85 (T3)
+
+Step 7 | PW2 QC Gate
+  Module       : communityCompositionDetection
+  Branch       : pw2QCSignal > 0 -> dispose (BB8, bsbbif_8_t)
+                 pw2QCSignal <= 0 -> drain  (BB9, bsbbif_9_f)
+  Join         : BB10 (bsbbif_10_j); validation branch begins
+
+Step 8 | Phase 4a — Full 12-Member Community Validation
+  Conditions   : All 12 species at 0.01 OD600 each; total OD600 = 0.12
+  BioScript    : 11 chained binary mix ops to build full community droplet (compiler constraint:
+                 no n-ary merge supported)
+  Transfer     : 1:20 dilution every 24 h; 3 transfers; 72 h total
+  Key findings :
+    - Model (T3) median Pearson r = 0.85; T4 (includes full community in training) r = 0.90 (81% variance)
+    - BT behaviour not fully reproduced; BO, CH show deviation at specific time points
+    - Community relative abundance at 72 h correlated with human metagenomics data:
+      Pearson r = 0.79 (p < 0.05) vs Balzola et al. 2010 (7 shared species)
+    - BU contamination detected in BU- dropout at 47.5 h (0.4%); 2% at 72 h
+
+Step 9 | Phase 4b — Single-Species Dropout Communities (EL- representative)
+  Conditions   : 12 dropout communities (one per species removed); each 11-member
+  BioScript    : EL- encoded (10 chained binary mix ops; EL_Cells dispense omitted)
+  Key findings :
+    - EL-, BO-, BU- show largest community assembly change (Fig 3B)
+    - EL-: Shannon equitability reduced at later time points; EL promotes community diversity
+    - EL-: community productivity 28% / 45% / 46% lower in growth stages 1, 2, 3 vs full community
+    - EL-: growth rate reduced by 33% (stage 1) and 19% (stage 3) vs full community
+    - EL impact disproportionate to its low steady-state abundance (paradox resolved by gLV network)
+    - BO-: diversity higher than null (BO reduces diversity)
+    - Species impact score (relative abundance + sum outgoing gLV coefficients): r = 0.67 (p < 0.05)
+
+Step 10 | Validation QC Gate
+  Module       : communityCompositionDetection
+  Branch       : valQCSignal > 0 -> dispose (BB11, bsbbif_11_t)
+                 valQCSignal <= 0 -> drain  (BB12, bsbbif_12_f)
+  Join         : BB13 (bsbbif_13_j); metabolomics branch begins
+
+Step 11 | Phase 5 — Exo-Metabolomics Profiling (Dataset EV4)
+  Species      : 11 monospecies (DP excluded: insufficient biomass within 24 h window)
+  BioScript    : BT, FP, EL, BU, CH encoded; remaining 6 species follow identical pattern
+  Saturation culture:
+    Duration   : 72 h at 37 C (4320 min; IR: 259200.0 SECOND)
+    Volume     : 30 mL per replicate (n=3) in 4-well plates (E&K Scientific)
+    Supplement : ER, FP supplemented with 33 mM sodium acetate in ABB
+  Sample collection: centrifuge 6000g 5 min; 0.22 um filtration; freeze -80 C; lyophilise
+  Resuspension: 200 uL MeOH + 6 internal standards (25 uM each)
+  LC-MS/MS system:
+    HPLC       : Agilent 1290 UHPLC
+    MS         : Agilent 6550 Q-TOF, dual AJS ESI source
+    Column     : SeQuant ZIC-pHILIC, 5 um, 200 A, 150 x 2.1 mm (+ 20 mm guard)
+    Temp       : 40 C; flow: 0.25 mL/min; injection: 2 uL
+    Gradient   : 100% B -> 50% A over 23.5 min -> 65% A, hold 6 min; re-equil 100% B
+    MS/MS      : Collision energies 10, 20, 40 V; isolation window 1.3 m/z; 4 precursors/cycle
+    Identification: retention time + exact mass + MS/MS vs METLIN or in-house standards
+    Analysis   : MassHunter + Metabolite Atlas workflow (Yao et al. 2015)
+  Threshold    : twofold change (log2 fold change, initial vs final timepoint)
+  Key findings :
+    - CH: largest metabolite consumer (hub in utilisation network); biomass not proportional
+      to metabolite consumption -> energy funnelled to non-biomass processes
+    - BU: major metabolite secretor; consistent with influential role in community assembly
+    - FP: predicted to utilise metabolites from BU, BO, PC, BT, CH
+      -> molecular basis of positive incoming interactions enhancing FP in full community
+    - EL: metabolite profiles fail to explain EL ecological role
+      -> interactions likely from biomolecular warfare or toxic metabolite secretion, not
+         resource competition
+    - Resource competition metabolites: methyl-5'-thioadenosine (55 pairs),
+      N-methylanthranilic acid (6 pairs), dihexose (3 pairs)
+    - Secretion-linked metabolites (3+ interactions): cytidine, adenine, 2-ketobutyric acid
+    - Metabolite secretion sum correlated with: total biomass (Rs=0.83, p<0.002),
+      community relative abundance at 72 h (Rs=0.66, p=0.02),
+      negative interactions count (Rs=0.65, p=0.02), growth rate (Rs=0.74, p=0.0008)
+    - Conditioned media experiments: 75% qualitative agreement with gLV interaction sign (T3)
+
+Step 12 | Metabolomics QC Gate (Terminal)
+  Module       : exoMetabolomicsDetection
+  Branch       : metaQCSignal > 0 -> dispose (BB14, bsbbif_14_t)
+                 metaQCSignal <= 0 -> drain  (BB15, bsbbif_15_f)
+  Terminal     : BB16 (bsbbif_16_j) disposes all 5 metaSignal droplets; exits with NOP
+
+
+gLV MODEL SUMMARY
+-----------------
+Equation     : dxi/dt = xi(li + sum_j(aij*xj))
+Parameters   : 156 total (n^2 + n; n=12 species)
+Regularisation: L1 (lambda = 0.0077, optimal from scan 1e-5 to 10)
+Network      : 77% pairs exhibit interaction (threshold 1e-5); 56% negative, 21% positive
+Topologies   : 36% unidirectional negative, 32% bidirectional negative, 26% positive/negative
+Ecological drivers   : EL (6 positive outgoing), BH, CH (positive hubs)
+                       Bacteroides BT/BO/BV/BU (net negative impact on network)
+Responsive species   : FP (5 positive incoming; 2nd highest abundance in full community
+                       despite lowest monospecies fitness)
+Coexistence motif    : +/- (positive/negative) topology is significantly more robust to
+                       growth rate variation than -/- (Fig 4D); negative feedback loop
+                       balances disparate monospecies fitness levels
+MCMC uncertainty     : Metropolis-Hastings; 670000 iterations, 100000 burnin, 5 chains;
+                       90% of parameters CV < 0.5; Gelman-Rubin PSRF < 1.5 for 60% of parameters
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file  : venturelli_gut_microbiome_glv.bs
+Compiler        : lilott8/BioScript (ANTLR4-based)
+IR output       : venturelli_gut_microbiome_glv.ir
+DAG output      : venturelli_gut_microbiome_glv_main_dag.dot (16 nodes, 20 edges)
+Modules (3)     : communityCompositionDetection, monospeciesGrowthDetection, exoMetabolomicsDetection
+Manifests (14)  : BT_Cells, BO_Cells, BU_Cells, BV_Cells, BH_Cells, CA_Cells, CH_Cells, DP_Cells,
+                  EL_Cells, ER_Cells, FP_Cells, PC_Cells, ABB_Media, GlycerolStock
+CFG structure   : 16 basic blocks (BB1-BB16); 5 if/else QC gates; 5 join nodes; terminal NOP
+IR verified     : All ops compile cleanly; no stranded droplets; terminal NOP confirmed
+DAG verified    : Strict digraph; 16 nodes; all 20 edges resolve; no unreachable nodes
+
+Duration conversions (BioScript supports s and m only; h token not supported):
+  41 h  (slow starter preincubation) = 2460 m  -> IR: 147600.0 SECOND
+  16 h  (fast starter preincubation) = 960 m   -> IR: 57600.0 SECOND
+  12 h  (sampling window / detect)   = 720 m   -> IR: 43200.0 SECOND
+  72 h  (metabolomics saturation)    = 4320 m  -> IR: 259200.0 SECOND
+
+Compiler constraints handled:
+  - No n-ary merge: 12-member community built via 11 chained binary mix ops
+  - No array indexing: all droplets are scalars; dispense 19 units resolves to single [0]
+  - dispense 19 units encodes 1:20 serial transfer dilution and PW2 95% major species
+  - DP excluded from metabolomics (insufficient biomass; paper M&M constraint)
+  - drain vs dispose: both lower to same disposal op in lilott8/BioScript IR
+  - IR note: both _t and _f branches emit dispose (compiler behaviour; biologically intentional)

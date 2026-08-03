@@ -1,0 +1,388 @@
+module nfkbActivationDetection
+module geneExpressionDetection
+
+manifest TNF_Solution
+manifest LPS_Stimulant
+manifest RAW264_7_Macrophage
+manifest NIH_3T3_Fibroblast
+manifest Fibronectin_PBS
+manifest FreshMedium
+manifest TrypLE_Express
+manifest PBS
+manifest LysisSolution
+manifest RT_qPCR_A20_Probe
+manifest RT_qPCR_Casp4_Probe
+manifest RT_qPCR_RANTES_Probe
+
+// ============================================================
+// Spatiotemporal NF-kB Dynamics Encodes the Position,
+// Amplitude, and Duration of Local Immune Inputs
+// Son, Frank, Holst-Hansen, Wang, Junkin, Kashaf,
+// Trusina, Tay - Sci. Adv. 8, eabn6240 (2022)
+// DOI: 10.1126/sciadv.abn6240
+//
+// PROTOCOL OVERVIEW:
+// This file encodes the TNF diffusion microfluidic coculture
+// experiment (primary experimental arm, Figs. 1-3 and 6).
+// A custom PDMS two-chamber microfluidic chip separates a
+// cytokine source chamber from a fibroblast receiving chamber
+// via a pneumatically actuated PDMS membrane valve. TNF
+// (100 ng/mL) is loaded in the source chamber and released
+// for 60 min into the receiving chamber. The bottom sink
+// channel is continuously perfused at 0.33 Hz to deplete
+// cytokine and simulate capillary clearance. Single-cell
+// NF-kB nuclear translocation (p65-DsRed reporter) is
+// tracked at 6 min intervals by fluorescence microscopy.
+// Cells are retrieved from near (0-0.4 mm), mid (0.5-0.9 mm),
+// and far (1.0-1.5 mm) regions at 0, 2, 4, and 8 h for
+// downstream RT-qPCR of A20 (early gene), Casp4 (late gene),
+// and RANTES/Ccl5 (late gene).
+//
+// DEVICE ABSTRACTION NOTES:
+// - `mix` steps abstract fluid introduction, valve actuation,
+//   and diffusive transport events within the microfluidic
+//   chip; there is no DMF-electrode mixing in this system.
+// - Peristaltic sink perfusion is modelled as a heat step at
+//   37C (chip incubator temperature) applied to the receiving
+//   chamber droplet during TNF diffusion.
+// - Cell retrieval from spatially resolved chip regions is
+//   abstracted as three parallel dispense-from-chip events
+//   followed by lysis and qPCR probing.
+// - The macrophage coculture arm (Fig. 5) is not separately
+//   encoded here; this file encodes the soluble TNF diffusion
+//   experiment (100 ng/mL, 60 min release) as the primary
+//   representative protocol.
+//
+// DURATION TOKENS: s and m only (no h).
+//   60 min release = 60m
+//   200 min NF-kB imaging window = 200m
+//   8 h gene expression time course = 480m
+//
+// CFG STRUCTURE:
+//   BB1  main               -- device priming, fibroblast
+//                              loading, TNF source loading,
+//                              valve opening, TNF diffusion,
+//                              NF-kB imaging window
+//   BB2  nfkbPass           -- nfkbSignal > 0: wave propagation
+//                              confirmed; dispose imaged cells,
+//                              proceed to gene expression arm
+//   BB3  nfkbFail           -- nfkbSignal <= 0: no activation
+//                              detected; drain chamber contents
+//   BB4  nfkbJoin           -- join: gene expression branch
+//   BB5  geneExprPass       -- geneExprSignal > 0: valid qPCR
+//                              signal from all three regions;
+//                              dispose all reactions
+//   BB6  geneExprFail       -- geneExprSignal <= 0: qPCR failure;
+//                              drain all reactions
+//   BB7  finalCleanup       -- terminal: dispose QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Coat receiving chamber with fibronectin.
+//   1 mg/mL fibronectin in PBS, 1:4 dilution applied to
+//   PDMS channel surface overnight at room temperature to
+//   promote fibroblast adhesion. Channels washed with fresh
+//   medium before cell seeding.
+//   Paper M&M: "surface in microfluidic chambers was treated
+//   with 1:4 fibronectin (1 mg/ml) in phosphate-buffered
+//   saline (PBS) solution overnight and washed with fresh medium."
+//   overnight = 720m (12 h x 60 min/h).
+// ------------------------------------------------------------
+
+fibronectinPBS  = dispense 1 units of Fibronectin_PBS
+washMedium1     = dispense 1 units of FreshMedium
+
+coatedChamber   = mix fibronectinPBS with washMedium1 for 720m
+
+// ------------------------------------------------------------
+// STEP 2: Load NIH 3T3 fibroblasts into receiving chamber.
+//   p65-/- NIH 3T3 cells expressing p65-DsRed (NF-kB marker)
+//   and H2B-GFP (nucleus marker) seeded at ~80% confluency.
+//   Cells allowed to attach for at least 5 h with 1-2 feedings.
+//   Non-adherent cells in side channels flushed with trypsin.
+//   Paper M&M: "fibroblasts were loaded in the diffusion
+//   chamber at about 80% confluency. After seeding, we waited
+//   at least 5 hours with one or two feedings in the middle."
+//   NOTE: `mix` abstracts channel flow-through seeding event.
+//   5 h attachment = 300m.
+// ------------------------------------------------------------
+
+fibroblastSeed  = dispense 1 units of NIH_3T3_Fibroblast
+pbsWash1        = dispense 1 units of PBS
+
+attachedFibs    = mix fibroblastSeed with coatedChamber for 5s
+
+// 5 h attachment incubation at 37C / 5% CO2 (= 300m).
+heat attachedFibs at 37c for 300m
+
+// Remove non-adherent cells via PBS flush.
+trypsinFlush    = mix pbsWash1 with attachedFibs for 2s
+
+// ------------------------------------------------------------
+// STEP 3: Load TNF solution into source chamber.
+//   TNF (R&D Systems, 410-MT) diluted to 100 ng/mL in fresh
+//   DMEM. Loaded into source chamber with separating PDMS
+//   membrane valve in closed position.
+//   Paper M&M: "TNF of either 10, 30, or 100 ng/ml (R&D
+//   Systems, 410-MT) was loaded in the source chamber."
+//   This file encodes the 100 ng/mL, 60 min release condition.
+// ------------------------------------------------------------
+
+tnfSolution     = dispense 1 units of TNF_Solution
+
+// ------------------------------------------------------------
+// STEP 4: Open separating valve - initiate TNF diffusion.
+//   Pneumatic solenoid valve (Festo 197334) opened via
+//   MATLAB-controlled interface. TNF diffuses from source
+//   chamber into receiving chamber along the 2.5 mm length
+//   axis. Cells at farther distances experience delayed onset
+//   and lower peak TNF concentration (Fig. 1E, fig. S4).
+//   Bottom sink channel simultaneously perfused at 0.33 Hz
+//   (20 cycles/min) to provide capillary-sink effect and
+//   deplete cytokine signal.
+//   TNF release duration: 60 min (valve held open, then closed).
+//   Paper Fig. 3B: "the separating valve was opened and then
+//   closed after 15, 30, or 60 min."
+//   Peristaltic sink perfusion modelled as 37C incubation.
+//   NOTE: `mix` abstracts valve-open diffusion event.
+// ------------------------------------------------------------
+
+diffusingChamber = mix tnfSolution with trypsinFlush for 60m
+
+// 60 min TNF diffusion at 37C with active sink perfusion.
+heat diffusingChamber at 37c for 60m
+
+// ------------------------------------------------------------
+// STEP 5: Close valve - continue NF-kB imaging window.
+//   After 60 min, valve closed to stop TNF source input.
+//   NF-kB nuclear translocation (p65-DsRed) imaged every
+//   6 min for 200 min total post-release (Fig. 3A/B).
+//   Wave-like NF-kB propagation observed across 2.5 mm.
+//   Near cells activate first (~0 min delay); far cells
+//   activate with ~25 min delay and extended duration (Fig. 1I).
+//   FIX: freshMedium1 dispensed explicitly before mix;
+//   bare manifest names are not valid mix operands in compiler.
+// ------------------------------------------------------------
+
+freshMedium1    = dispense 1 units of FreshMedium
+imagingWindow   = mix diffusingChamber with freshMedium1 for 5s
+
+// 200 min NF-kB imaging window at 37C inside stage-top
+// incubator (5% CO2, >98% humidity). Hamamatsu ORCA-Flash4.0
+// V2 camera, 555-nm excitation, Nikon 20x objective, 6 min
+// acquisition interval, NIS Elements software (Nikon).
+heat imagingWindow at 37c for 200m
+
+// ------------------------------------------------------------
+// STEP 6: NF-kB activation detection.
+//   nfkbActivationDetection module abstracts the custom MATLAB
+//   image analysis pipeline that identifies p65-DsRed nuclear
+//   translocation in individual cells. Images stitched from
+//   4 FOVs using detectSURFFeatures / estimateGeometricTransform.
+//   Lowess smoothing applied to reduce cell-migration noise.
+//   Basal NF-kB level (pre-valve) used as reference per cell.
+//   Threshold: 2 SDs above mean basal level per subregion.
+//   QC criterion: >75% of near-region cells (0-0.4 mm) must
+//   activate, consistent with Fig. 1J (100 ng/mL condition).
+// ------------------------------------------------------------
+
+nfkbSignal = detect nfkbActivationDetection on imagingWindow for 30s
+
+// ============================================================
+// BB2 / BB3: NF-kB activation QC gate
+// Pass (BB2): nfkbSignal > 0 -> wave-like NF-kB propagation
+//             confirmed; dispose imaging chamber, continue.
+// Fail (BB3): nfkbSignal <= 0 -> no detectable activation
+//             (device failure or TNF degradation); drain.
+// Both branches converge at BB4 (nfkbJoin).
+// ============================================================
+
+if (nfkbSignal > 0) {
+    dispose imagingWindow
+} else {
+    drain imagingWindow
+}
+
+// ============================================================
+// BB4: nfkbJoin
+// Dispose NF-kB QC signal. Control falls into spatially
+// resolved gene expression measurement branch (BB5/BB6).
+// ============================================================
+
+dispose nfkbSignal
+
+// ------------------------------------------------------------
+// STEP 7: Continue incubation to 8 h time point for qPCR.
+//   Gene expression time course: cells retrieved at 0, 2, 4,
+//   and 8 h post-TNF release (Fig. 6C). 200 min NF-kB imaging
+//   window is included within this 8 h period.
+//   Remaining incubation after 200 min imaging = 280m.
+//   Total 8 h = 480m; 200m elapsed = 280m additional incubation.
+//   Paper Fig. 6C: "cells from three different regions are
+//   collected at 0, 2, 4, and 8 hours after releasing TNF."
+//   freshMedium2 dispensed to maintain cells during incubation.
+// ------------------------------------------------------------
+
+freshMedium2    = dispense 1 units of FreshMedium
+continuedIncub  = mix imagingWindow with freshMedium2 for 5s
+
+heat continuedIncub at 37c for 280m
+
+// ------------------------------------------------------------
+// STEP 8: Spatially resolved cell retrieval from three regions.
+//   Chip outlet PDMS cut with razor. Separating valves actuated
+//   to divide receiving chamber into three spatial zones:
+//     near (0-0.4 mm), mid (0.5-0.9 mm), far (1.0-1.5 mm).
+//   Each zone purged with PBS; cells detached with TrypLE
+//   Express (Gibco; 1-2 min) and collected in 10 uL ice-cold
+//   lysis buffer (0.1% Triton X-100 + RNase inhibitor, Takara).
+//   Lysate stored at -80C until qPCR processing.
+//   Paper M&M: "separating valves were actuated to divide the
+//   cell chamber into top, middle, and bottom sections."
+//   FIX: continuedIncub consumed once per branch via distinct
+//   chamber copy variables (chambNear/Mid/Far). The compiler
+//   treats any variable consumed in a mix as disposed; re-use
+//   in a second mix is rejected. Three independent dispenses
+//   of each reagent give three distinct unconsumed variables.
+// ------------------------------------------------------------
+
+trypLE1         = dispense 1 units of TrypLE_Express
+trypLE2         = dispense 1 units of TrypLE_Express
+trypLE3         = dispense 1 units of TrypLE_Express
+
+lysisBuffer1    = dispense 1 units of LysisSolution
+lysisBuffer2    = dispense 1 units of LysisSolution
+lysisBuffer3    = dispense 1 units of LysisSolution
+
+// Three separate PBS dispenses to stage each spatial region
+// independently before TrypLE detachment.
+pbsNear         = dispense 1 units of PBS
+pbsMid          = dispense 1 units of PBS
+pbsFar          = dispense 1 units of PBS
+
+// Stage each region from the shared incubated chamber.
+// Each chambX variable is a distinct unconsumed copy.
+chambNear       = mix continuedIncub with pbsNear for 1s
+chambMid        = mix continuedIncub with pbsMid for 1s
+chambFar        = mix continuedIncub with pbsFar for 1s
+
+// TrypLE detachment: 1-2 min at 37C per region.
+detachedNear    = mix chambNear with trypLE1 for 2m
+detachedMid     = mix chambMid with trypLE2 for 2m
+detachedFar     = mix chambFar with trypLE3 for 2m
+
+// Collect in ice-cold lysis buffer.
+lysateNear      = mix detachedNear with lysisBuffer1 for 1m
+lysateMid       = mix detachedMid with lysisBuffer2 for 1m
+lysateFar       = mix detachedFar with lysisBuffer3 for 1m
+
+// ------------------------------------------------------------
+// STEP 9: RT-qPCR gene expression measurement.
+//   CellDirect One-Step RT-qPCR kit (Thermo Fisher Scientific).
+//   Custom primer/probe sets for:
+//     - Tnfaip3 (A20): early NF-kB target, rapid turnover.
+//     - Casp4: late inflammatory response gene.
+//     - Ccl5 (RANTES): late chemokine response gene.
+//   Normalized to GAPDH. DeltaCT vs. unstimulated control.
+//   Expression = 2^(DeltaDeltaCT).
+//
+//   FIX: Each lysate is consumed once per probe reaction by
+//   chaining through intermediate variables. lysateNear cannot
+//   appear as operand in three separate mix statements; instead
+//   the probe is chained sequentially:
+//     rxnNearA  = mix lysateNear  with a20ProbeNear   -> consumed
+//     rxnNearAC = mix rxnNearA    with casp4ProbeNear -> consumed
+//     rxnNearACR= mix rxnNearAC   with rantesProbeNear
+//   Same pattern applied to Mid and Far lysates.
+//   Nine probe dispenses remain distinct (3 probes x 3 regions).
+// ------------------------------------------------------------
+
+// Near region probes
+a20ProbeNear     = dispense 1 units of RT_qPCR_A20_Probe
+casp4ProbeNear   = dispense 1 units of RT_qPCR_Casp4_Probe
+rantesProbeNear  = dispense 1 units of RT_qPCR_RANTES_Probe
+
+// Mid region probes
+a20ProbeMid      = dispense 1 units of RT_qPCR_A20_Probe
+casp4ProbeMid    = dispense 1 units of RT_qPCR_Casp4_Probe
+rantesProbeMid   = dispense 1 units of RT_qPCR_RANTES_Probe
+
+// Far region probes
+a20ProbeFar      = dispense 1 units of RT_qPCR_A20_Probe
+casp4ProbeFar    = dispense 1 units of RT_qPCR_Casp4_Probe
+rantesProbeFar   = dispense 1 units of RT_qPCR_RANTES_Probe
+
+// Assemble RT-qPCR reactions: chain probes sequentially into
+// each lysate so no variable is consumed more than once.
+// Near region: lysateNear -> a20 -> casp4 -> rantes chain
+rxnNearA        = mix lysateNear with a20ProbeNear for 5s
+rxnNearAC       = mix rxnNearA with casp4ProbeNear for 5s
+rxnNearACR      = mix rxnNearAC with rantesProbeNear for 5s
+
+// Mid region: lysateMid -> a20 -> casp4 -> rantes chain
+rxnMidA         = mix lysateMid with a20ProbeMid for 5s
+rxnMidAC        = mix rxnMidA with casp4ProbeMid for 5s
+rxnMidACR       = mix rxnMidAC with rantesProbeMid for 5s
+
+// Far region: lysateFar -> a20 -> casp4 -> rantes chain
+rxnFarA         = mix lysateFar with a20ProbeFar for 5s
+rxnFarAC        = mix rxnFarA with casp4ProbeFar for 5s
+rxnFarACR       = mix rxnFarAC with rantesProbeFar for 5s
+
+// RT step: 50C for 15 min per reaction chain terminal.
+heat rxnNearACR at 50c for 15m
+heat rxnMidACR  at 50c for 15m
+heat rxnFarACR  at 50c for 15m
+
+// PCR amplification: 95C for 42m (2 min denaturation +
+// 40 cycles x ~1 min/cycle; CellDirect One-Step conditions).
+heat rxnNearACR at 95c for 42m
+heat rxnMidACR  at 95c for 42m
+heat rxnFarACR  at 95c for 42m
+
+// ------------------------------------------------------------
+// STEP 10: Gene expression QC detection.
+//   geneExpressionDetection module abstracts the real-time
+//   fluorescence readout and DeltaDeltaCT calculation.
+//   QC criterion: A20 upregulation in near region must exceed
+//   3 SDs above unstimulated baseline at 2 h (Fig. 6C dashed
+//   threshold). Near-region rxnNearACR contains all three
+//   probes and is the highest-confidence positive control:
+//   A20 is strongly and rapidly induced proximal to TNF source.
+// ------------------------------------------------------------
+
+geneExprSignal  = detect geneExpressionDetection on rxnNearACR for 30s
+
+// ============================================================
+// BB5 / BB6: Gene expression QC gate
+// Pass (BB5): geneExprSignal > 0 -> valid A20 upregulation
+//             confirmed; dispose all three reaction chains.
+// Fail (BB6): geneExprSignal <= 0 -> qPCR failure or no
+//             detectable induction; drain all reactions.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (geneExprSignal > 0) {
+    dispose rxnNearACR
+    dispose rxnMidACR
+    dispose rxnFarACR
+} else {
+    drain rxnNearACR
+    drain rxnMidACR
+    drain rxnFarACR
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose gene expression QC signal. Experiment ends.
+// ============================================================
+
+dispose geneExprSignal
+
+// [terminal -- no further instructions; exit node for CFG]

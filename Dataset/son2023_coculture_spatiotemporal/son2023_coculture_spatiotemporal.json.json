@@ -1,0 +1,319 @@
+{
+  "protocol": {
+    "title": "High-throughput co-culture system for analysis of spatiotemporal cell-cell signaling",
+    "source": "Biosensors and Bioelectronics, 2023, Article 115089",
+    "source_link": "https://www.sciencedirect.com/science/article/abs/pii/S0956566323000313",
+    "doi": "https://doi.org/10.1016/j.bios.2023.115089",
+    "authors": ["Minjun Son", "Andrew G. Wang", "Emma Kenna", "Savas Tay"],
+    "platform": "Two-layer PDMS microfluidics (pneumatic valve control, 192-chamber array)",
+    "cell_lines": [
+      "RelA-/- RelA-DsRed NIH3T3 mouse embryonic fibroblasts (3T3s)",
+      "RelA-GFP RAW264.7 macrophage-like cells",
+      "Primary murine adult fibroblasts (RelA-YFP knock-in mouse)",
+      "Bone-marrow-derived macrophages (BMMΦ, RelA-YFP knock-in mouse)"
+    ],
+    "objective": "Automated high-throughput spatiotemporal co-culture platform enabling macrophage stimulation, cytokine gradient formation, live NF-kB single-cell imaging, spatially resolved cell retrieval, and downstream gene expression quantification at 192-chamber scale",
+
+    "device": {
+      "fabrication": "Conventional soft lithography; two-layer PDMS bonded to glass substrate (127.8 x 85.5 x 1 mm, Marienfeld); oxygen plasma bonding (Harrick, PDC-001)",
+      "layers": [
+        "Fluid layer: thin PDMS ~50 um height, spun at 2300 RPM from ~10 g mixture on fluid mold pretreated with chlorotrimethylsilane",
+        "Control layer: thick PDMS slab with pneumatic valve features; aligned to fluid layer under custom stereomicroscope with XYZ translation stage"
+      ],
+      "chambers": {
+        "total": 192,
+        "array_format": "8x24",
+        "independently_controlled_pairs": 96,
+        "unit_structure": "Pre-chamber (source) + receiving chamber partitioned into near/mid/far regions"
+      },
+      "valves": {
+        "control_inputs": 88,
+        "actuation": "Solenoid valves (Festo, 197334) via Tygon tubes (Cole-Parmer, ND-100-80)",
+        "control_software": "Custom Matlab GUI (Gomez-Sjoberg et al., 2010)"
+      },
+      "sink_channel": {
+        "location": "Bottom of receiving chamber, separated by pillar forest",
+        "function": "Peristaltic pumping removes cytokines at far end; mimics capillary clearance",
+        "pumping": "Gentle peristaltic; shear-free across multiple chambers simultaneously"
+      },
+      "retrieval_channels": {
+        "regions": ["near (0-1 mm from pre-chamber)", "mid (1-2 mm)", "far (>2 mm)"],
+        "cells_per_section": "~100",
+        "cross_contamination": "Not observed across >100 retrievals"
+      },
+      "imaging": {
+        "microscope": "Nikon Ti2 epifluorescence",
+        "environmental_control": "Temperature, CO2, and humidity controlled enclosure",
+        "nfkb_quantification": "Nucleus/cytosol DsRed intensity ratio per cell (Kudo et al., 2018 method)"
+      }
+    },
+
+    "reagents": {
+      "fibroblast_media": "DMEM high glucose (Gibco) + 10% FBS (Omega Scientific) + 2 mM GlutaMAX (Gibco) + 1% penicillin/streptomycin (Lonza)",
+      "fibroblast_loading_concentration_cells_mL": "5e5",
+      "fibronectin": "Sigma-Aldrich FC010; chamber coating prior to cell loading",
+      "lps_high_dose": "50 ng/mL LPS (InvivoGen, tlrl-3pelps); macrophage stimulation in pre-chamber, 10 min",
+      "lps_low_dose": "3 ng/mL LPS; used in cell-patterning experiments (subthreshold for direct fibroblast activation)",
+      "tnf_alpha": "30 ng/mL TNF-a (R&D Systems, aa80-235); loaded directly into pre-chamber for fixed-dose arm",
+      "hoechst": "1 uM Hoechst 33342; nuclear tracking during live-cell imaging",
+      "trypsin": "TrypLE (Gibco); cell detachment for retrieval (~10 s flow, ~60 s incubation)",
+      "pbs": "Gibco; retrieval wash and channel flush",
+      "lysis_buffer": "10 uL ice-cold; 0.1% Triton-X-100 + RNase inhibitor (Takara); cells collected as ~2 uL droplet",
+      "cy5_tracer": "Cyanine 5 (Cy5); used to characterise gradient formation kinetics (Fig. 2C)",
+      "smartseq2_reagents": "Reverse transcription and pre-amplification per Picelli et al. 2014 pipeline",
+      "qpcr_genes": {
+        "Tnfaip3_A20": "Early NF-kB target gene; fast degradation; peaks 60 min (near) / 120 min (mid/far)",
+        "Casp4": "Late NF-kB target gene; slow degradation; peaks 4-6 h; similar magnitude across positions",
+        "Ccl5_RANTES": "Late NF-kB target gene; slow degradation; gradual rise; highest at mid in macrophage arm",
+        "GAPDH": "Housekeeping control gene"
+      }
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Chamber coating with fibronectin",
+        "bb": "BB1",
+        "inputs": ["Fibronectin", "PBS", "DMEM_HighGlucose"],
+        "operation": "mix + incubate + wash",
+        "temperature_C": 25,
+        "duration_s": 1800,
+        "notes": "Fibronectin loaded through inlet channels into 192 receiving chambers; incubated 30 min at RT; washed with fresh DMEM to remove unbound fibronectin before cell loading"
+      },
+      {
+        "id": "S2",
+        "name": "RelA-DsRed 3T3 fibroblast loading into receiving chambers",
+        "bb": "BB1",
+        "cell_line": "RelA-/- RelA-DsRed NIH3T3",
+        "cell_concentration_cells_mL": "5e5",
+        "suspension_buffer": "DMEM high glucose + 10% FBS + 2 mM GlutaMAX + 1% pen/strep",
+        "operation": "flow-through cell loading channel (abstracted as mix in BioScript)",
+        "target_confluency_pct": 70,
+        "cells_per_chamber": "200-400",
+        "adhesion_incubation_temperature_C": 37,
+        "adhesion_incubation_duration_s": 18000,
+        "notes": "Loaded at ~70% confluency for sufficient single-cell data without significant overlap; 5 h adhesion at 37 C / 5% CO2 (midpoint of 4-6 h window)"
+      },
+      {
+        "id": "S3",
+        "name": "Hoechst 33342 nuclear staining (optional)",
+        "bb": "BB1",
+        "inputs": ["Hoechst33342"],
+        "concentration_uM": 1,
+        "operation": "mix",
+        "incubation_temperature_C": 37,
+        "incubation_duration_s": 600,
+        "notes": "Performed selectively for nucleus tracking in live-cell epifluorescence imaging; 10 min at 37 C"
+      },
+      {
+        "id": "S4",
+        "name": "RelA-GFP RAW264.7 macrophage loading into pre-chamber",
+        "bb": "BB1",
+        "cell_line": "RelA-GFP RAW264.7",
+        "cells_per_pre_chamber": "10-100 (controlled-density experiments: 60 +/- 15)",
+        "suspension_buffer": "DMEM_HighGlucose",
+        "operation": "flow through source channel into pre-chamber (separator valve CLOSED)",
+        "settling_temperature_C": 37,
+        "settling_duration_s": 1800,
+        "notes": "Separator valve between pre-chamber and receiving chamber remains closed during loading; macrophages allowed to settle 30 min at 37 C before LPS stimulation"
+      },
+      {
+        "id": "S5",
+        "name": "LPS stimulation of macrophages and pre-chamber wash",
+        "bb": "BB1",
+        "inputs": ["LPS_50ngmL", "FreshMedium"],
+        "lps_concentration_ng_mL": 50,
+        "lps_duration_s": 600,
+        "operation": "mix (valve-directed flow into pre-chamber, separator CLOSED)",
+        "wash": "Fresh DMEM flowed through pre-chamber after LPS removal",
+        "notes": "LPS activates canonical NF-kB in RAW macrophages via TLR4; macrophages secrete TNF-a and other cytokines; LPS washed out before separator opens to prevent direct fibroblast LPS exposure"
+      },
+      {
+        "id": "S6",
+        "name": "Separator valve opening and cytokine gradient formation",
+        "bb": "BB1",
+        "inputs": ["CyanonineFive", "FreshMedium"],
+        "operation": "open separator valve + initiate peristaltic sink pumping",
+        "gradient_duration_s": 24000,
+        "temperature_C": 37,
+        "detection_module": "gradientDetection",
+        "detection_duration_s": 10,
+        "gradient_kinetics": {
+          "near_region_rise_min": 30,
+          "full_equilibration_min": 400,
+          "cy5_characterisation": "Fig. 2C; heatmap shows spatial fluorescence decay from source to sink over time"
+        },
+        "branch": {
+          "pass": { "condition": "gradientSignal > 0", "action": "dispose(gradientChamber)", "bb": "BB2" },
+          "fail": { "condition": "gradientSignal <= 0", "action": "drain(gradientChamber)", "bb": "BB3" }
+        },
+        "notes": "Sink channel flushed by peristaltic pumping establishes and maintains diffusion gradient; mimics capillary clearance. Cy5 used as surrogate tracer for gradient QC; BioScript encodes as mix abstraction of valve-directed flow."
+      },
+      {
+        "id": "S7",
+        "name": "Live-cell NF-kB translocation imaging",
+        "bb": "BB4",
+        "inputs": ["FreshMedium"],
+        "operation": "continuous epifluorescence imaging + peristaltic sink flow",
+        "imaging_duration_s": 12000,
+        "temperature_C": 37,
+        "quantification": "Nucleus/cytosol RelA-DsRed ratio per 3T3 cell; RelA-GFP tracked in RAW macrophages",
+        "detection_module": "nfkbTranslocationDetection",
+        "detection_duration_s": 30,
+        "findings": {
+          "signaling_range": "Scales with macrophage number (Fig. 3B); buffered at high densities (~60 cells)",
+          "fibroblast_heterogeneity": "Wide variability in response dynamics even at matched macrophage count (~60)",
+          "distance_dependence": "Near cells: rapid strong NF-kB activation then rapid decay; far cells: slower, lower amplitude, more heterogeneous oscillations"
+        },
+        "branch": {
+          "pass": { "condition": "nfkbSignal > 0", "action": "dispose(imagingChamber)", "bb": "BB5" },
+          "fail": { "condition": "nfkbSignal <= 0", "action": "drain(imagingChamber)", "bb": "BB6" }
+        }
+      },
+      {
+        "id": "S8",
+        "name": "Spatially resolved cell retrieval (near / mid / far)",
+        "bb": "BB7",
+        "inputs": ["TrypLE", "PBS", "LysisBuffer"],
+        "trypLE_flow_duration_s": 10,
+        "trypLE_incubation_duration_s": 60,
+        "total_detachment_duration_s": 70,
+        "retrieval_volume_per_region_uL": 2,
+        "lysis_buffer_volume_uL": 10,
+        "lysis_buffer_composition": "0.1% Triton-X-100 + RNase inhibitor (Takara), ice-cold",
+        "storage_temperature_biological_C": -80,
+        "storage_encoded_in_ir": "4.0CELSIUS @ 57600.0SECOND (heat at 4c for 960m in .bs; biological intent is -80 C long-term cryostorage; compiler cannot represent negative temperatures)",
+        "regions": [
+          { "name": "near", "distance_mm": "0-1", "cells": "~100" },
+          { "name": "mid",  "distance_mm": "1-2", "cells": "~100" },
+          { "name": "far",  "distance_mm": ">2",  "cells": "~100" }
+        ],
+        "procedure": "TrypLE flowed 10 s; partitioning valves closed before full detachment; 60 s further incubation; PBS rapidly flowed through retrieval side channels to flush cells to outlet; collected as ~2 uL droplet; deposited into ice-cold lysis buffer; stored at -80 C",
+        "detection_module": "geneExpressionDetection",
+        "detection_duration_s": 30,
+        "branch": {
+          "pass": { "condition": "geneExprSignal > 0", "action": "dispose all lysates", "bb": "BB8" },
+          "fail": { "condition": "geneExprSignal <= 0", "action": "drain all lysates", "bb": "BB9" }
+        }
+      },
+      {
+        "id": "S9",
+        "name": "Downstream qPCR gene expression quantification",
+        "bb": "BB10",
+        "pipeline": "SmartSeq2: reverse transcription + pre-amplification (Picelli et al., 2014); then qPCR",
+        "timepoints_h": [0, 1, 2, 4, 6, 8],
+        "replicates": 3,
+        "genes_quantified": ["Tnfaip3 (A20)", "Casp4", "Ccl5 (RANTES)", "GAPDH (control)"],
+        "normalization": "Each gene level normalized to maximum across all samples",
+        "simulation": "NF-kB translocation dynamics used as input to ODE gene expression model; degradation rate varied 20-fold to explain distance-dependent patterns (Fig. 4C)",
+        "notes": "Lysates stored at -80 C until processing; suitable for qPCR or RNA sequencing"
+      }
+    ],
+
+    "supplemental_arm": {
+      "name": "Fixed-dose TNF-a stimulation (Section 3.4, Fig. 4)",
+      "rationale": "Remove macrophage variability; use fixed 30 ng/mL TNF-a for reproducible distance-dependent gene expression comparison across samples",
+      "difference_from_main_arm": "No macrophages loaded in pre-chamber; TNF-a loaded directly; otherwise identical fibroblast loading, gradient formation, cell retrieval, and qPCR pipeline",
+      "tnf_concentration_ng_mL": 30,
+      "imaging_window_h": 8,
+      "retrieval_timepoints_h": [0, 1, 2, 4, 6, 8],
+      "key_finding": "Tnfaip3 peaks at 60 min (near) vs 120 min (mid/far); Ccl5 and Casp4 peak at 4-6 h with similar magnitude across all positions; degradation rate determines distance sensitivity of gene expression"
+    },
+
+    "cell_patterning_arm": {
+      "name": "Spatial distribution and density of sentinel cells (Section 3.5, Fig. 5)",
+      "cell_lines": ["Primary murine adult fibroblasts (RelA-YFP)", "BMMΦ (RelA-YFP knock-in mouse)"],
+      "lps_dose_ng_mL": 3,
+      "rationale": "3 ng/mL LPS is sub-threshold for direct fibroblast activation; any fibroblast NF-kB activation is paracrine (macrophage-mediated)",
+      "macrophage_positions_tested": ["near (0-0.5 mm from source)", "mid (1-1.5 mm from source)"],
+      "finding": "Macrophages at near position: strong fibroblast activation locally, weak at far; macrophages at mid position: more uniform population-level fibroblast response but weaker absolute activation than near-position loading"
+    },
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1",  "label": "main",          "type": "entry",        "content": "Coating, fibroblast loading, Hoechst staining, macrophage loading, LPS stimulation, gradient formation" },
+        { "id": "BB2",  "label": "bsbbif_2_t",    "type": "branch_true",  "condition": "gradientSignal > 0",   "action": "dispose(gradientChamber)" },
+        { "id": "BB3",  "label": "bsbbif_3_f",    "type": "branch_false", "condition": "gradientSignal <= 0",  "action": "mix(gradientChamber, washBuffer) -> drain(gradientWaste)" },
+        { "id": "BB4",  "label": "bsbbif_4_j",    "type": "join",         "content": "dispose(gradientSignal); sinkFlow + gradientJoin -> imagingChamber; NF-kB imaging; detect nfkbSignal" },
+        { "id": "BB5",  "label": "bsbbif_5_t",    "type": "branch_true",  "condition": "nfkbSignal > 0",       "action": "dispose(imagingChamber)" },
+        { "id": "BB6",  "label": "bsbbif_6_f",    "type": "branch_false", "condition": "nfkbSignal <= 0",      "action": "mix(imagingChamber, sinkFlow) -> drain(nfkbWaste)" },
+        { "id": "BB7",  "label": "bsbbif_7_j",    "type": "join",         "content": "dispose(nfkbSignal); TrypLE detachment; near/mid/far lysate preparation; heat at 4c for 960m; detect geneExprSignal" },
+        { "id": "BB8",  "label": "bsbbif_8_t",    "type": "branch_true",  "condition": "geneExprSignal > 0",   "action": "dispose(nearLysate, midLysate, farLysate)" },
+        { "id": "BB9",  "label": "bsbbif_9_f",    "type": "branch_false", "condition": "geneExprSignal <= 0",  "action": "mix per-region waste -> drain(lysateWasteN, lysateWasteM, lysateWasteF)" },
+        { "id": "BB10", "label": "bsbbif_10_j",   "type": "join",         "content": "dispose(geneExprSignal); TNF-a arm entry: coating, fibroblast loading, tnfaChamber, imagingChamber2; detect geneExprSignal2" },
+        { "id": "BB11", "label": "bsbbif_11_t",   "type": "branch_true",  "condition": "geneExprSignal2 > 0",  "action": "dispose(imagingChamber2)" },
+        { "id": "BB12", "label": "bsbbif_12_f",   "type": "branch_false", "condition": "geneExprSignal2 <= 0", "action": "mix(imagingChamber2, sinkFlow2) -> drain(tnfaWaste)" },
+        { "id": "BB13", "label": "bsbbif_13_j",   "type": "join",         "content": "TrypLE detachment; near/mid/far lysate preparation (TNF-a arm); heat at 4c for 960m; detect geneExprSignal3" },
+        { "id": "BB14", "label": "bsbbif_14_t",   "type": "branch_true",  "condition": "geneExprSignal3 > 0",  "action": "dispose(nearLysate2, midLysate2, farLysate2)" },
+        { "id": "BB15", "label": "bsbbif_15_f",   "type": "branch_false", "condition": "geneExprSignal3 <= 0", "action": "mix per-region waste -> drain(lysateWasteN2, lysateWasteM2, lysateWasteF2)" },
+        { "id": "BB16", "label": "bsbbif_16_j",   "type": "terminal",     "content": "dispose(geneExprSignal2, geneExprSignal3); NOP" }
+      ],
+      "edges": [
+        ["BB1","BB2"],  ["BB1","BB3"],
+        ["BB2","BB4"],  ["BB3","BB4"],
+        ["BB4","BB5"],  ["BB4","BB6"],
+        ["BB5","BB7"],  ["BB6","BB7"],
+        ["BB7","BB8"],  ["BB7","BB9"],
+        ["BB8","BB10"], ["BB9","BB10"],
+        ["BB10","BB11"],["BB10","BB12"],
+        ["BB11","BB13"],["BB12","BB13"],
+        ["BB13","BB14"],["BB13","BB15"],
+        ["BB14","BB16"],["BB15","BB16"]
+      ]
+    },
+
+    "compiler_notes": {
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "bs_file": "son2023_coculture_spatiotemporal_v2.bs",
+      "ir_file": "son2023_coculture_spatiotemporal_v2.ir",
+      "dot_file": "son2023_coculture_spatiotemporal_v2_main_dag.dot",
+      "modules": [
+        "gradientDetection",
+        "nfkbTranslocationDetection",
+        "geneExpressionDetection",
+        "viabilityDetection"
+      ],
+      "duration_units": "BioScript supports s and m only; all durations in m converted to s by compiler",
+      "duration_table": {
+        "30m":   "1800 s   (fibronectin coating, macrophage settling)",
+        "300m":  "18000 s  (fibroblast adhesion)",
+        "10m":   "600 s    (LPS stimulation, Hoechst staining)",
+        "400m":  "24000 s  (gradient formation)",
+        "200m":  "12000 s  (NF-kB imaging, main arm)",
+        "480m":  "28800 s  (imaging window, TNF-a arm)",
+        "960m":  "57600 s  (lysate staging; biological intent: -80 C cryostorage)"
+      },
+      "v1_bugs_fixed_in_v2": [
+        {
+          "id": "FIX1",
+          "issue": "Negative temperature sign stripped",
+          "v1_ir": "heat(nearLysate1[0]) @ 80.0CELSIUS @ 57600.0SECOND",
+          "v2_ir": "heat(nearLysate1[0]) @ 4.0CELSIUS @ 57600.0SECOND",
+          "fix": "Replace `heat at -80c` with `heat at 4c for 960m`; biological intent (-80 C) noted in .bs comment"
+        },
+        {
+          "id": "FIX2",
+          "issue": "False branches emitted dispose() instead of drain()",
+          "v1_ir": "bsbbif_3_f: dispose(gradientChamber1[0])",
+          "v2_ir": "bsbbif_3_f: gradientWaste1[0] = mix(...); dispose(gradientWaste1[0])",
+          "fix": "Explicit waste variable in false branch; compiler emits correct dispose on waste rather than on source variable"
+        },
+        {
+          "id": "FIX3",
+          "issue": "Dead variable lysisBufferStock dispensed but never consumed",
+          "v1_ir": "lysisBufferStock1[0] = dispense(LysisBuffer) [orphaned]",
+          "v2_ir": "variable removed entirely",
+          "fix": "Remove standalone lysisBufferStock dispense; per-region lysis variables sufficient"
+        },
+        {
+          "id": "FIX4",
+          "issue": "Self-mix in imagingChamber (same variable both operands)",
+          "v1_ir": "imagingChamber1[0] = mix(freshMediumFlow1[0], freshMediumFlow1[0])",
+          "v2_ir": "imagingChamber1[0] = mix(sinkFlow1[0], gradientJoin1[0])",
+          "fix": "Two distinct FreshMedium dispenses: sinkFlow and gradientJoin"
+        }
+      ],
+      "remaining_limitation": "drain() has no dedicated opcode in lilott8/BioScript IR; all drain() calls compile to dispose() on the waste variable. The waste variable pattern (FIX2) preserves semantic intent in .bs source even though IR output is structurally identical to dispose."
+    }
+  }
+}

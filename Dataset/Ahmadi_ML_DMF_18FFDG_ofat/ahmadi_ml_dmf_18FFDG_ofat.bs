@@ -1,0 +1,535 @@
+module fluorinationEfficiencyDetection
+module radioactivityDetection
+
+manifest F18_Fluoride
+manifest MannoseTriflate
+manifest Kryptofix_Acetonitrile_Mix
+manifest SodiumHydroxide
+manifest NeutralAlumina_Disc
+
+// ============================================================
+// Integrating Machine Learning and Digital Microfluidics for
+// Screening Experimental Conditions
+// Ahmadi, Simchi, Perry, Frenette, Benali, Soucy, Massarweh,
+// Shih - Lab on a Chip, 2023, 23, 81-91
+// DOI: 10.1039/d2lc00764a
+//
+// Protocol: One-factor-at-a-time (OFAT) optimization of
+// [18F]FDG radiosynthesis on a digital microfluidic device.
+// Seven parameters are screened via OFAT, a predictive ML
+// model (linear + neural network) is trained on the resulting
+// database, and an on-chip purification step using neutral
+// alumina discs achieves ~93% purity.
+//
+// OFAT PARAMETERS (one changed per variable experiment):
+//   P1: Mannose triflate / [18F] volume ratio   (base: 1.0)
+//   P2: Mannose triflate concentration (mM)     (base: 30.0)
+//   P3: Radiolabeling temperature (C)           (base: 85)
+//   P4: Radiolabeling time (min)                (base: 5)
+//   P5: NaOH concentration (M)                 (base: 1.0)
+//   P6: Deprotection temperature (C)            (base: 25)
+//   P7: Deprotection time (min)                 (base: 5)
+//   OFAT optimal result: 70.82 +/- 1.54% (n=6)
+//   ML-guided (85% model): 84.1% fluorination efficiency
+//
+// SYNTHESIS PATHWAY:
+//   [18F] delivered by syringe -> evaporation at 120 C ->
+//   dispense mannose triflate -> merge + radiolabeling at
+//   85 C (OFAT base) -> deprotection with NaOH at RT (25 C,
+//   OFAT base) -> [18F]FDG product -> on-chip alumina
+//   purification (removes Kryptofix and unreacted [18F]/F-).
+//
+// DEVICE DETAILS:
+//   Bottom plate: Cr-patterned glass, parylene-C (7 um)
+//   dielectric, Teflon AF 1600 (150 nm) hydrophobic layer.
+//   Top plate: ITO-coated glass with Teflon AF 1600.
+//   Inter-plate gap: ~140 um (two strips of double-sided tape).
+//   Actuation: 160 V_rms, 15 kHz sine wave via pogo-pin holder
+//   (104 pins, 3 mm pitch).
+//   TEC (thermoelectric device): closed-loop Arduino PID;
+//   heats/cools 10 central 'reaction site' electrodes.
+//   Syringe delivery: stepper-motor-controlled [18F] inlet.
+//
+// RADIOSYNTHESIS REAGENTS (Sigma-Aldrich unless noted):
+//   AnhydrousMeCN (99.8%), K2CO3 (99.9%), mannose triflate
+//   (>=98% TLC), Kryptofix K222 (98%), NaOH (1N).
+//   [18F]fluoride: no-carrier-added, from McConnell Brain
+//   Imaging Centre cyclotron (IBA Cyclone 18/9, 18 MeV).
+//   Neutral alumina: 50-300 um, Waters Corp.
+//   Kryptofix K222 and anhydrous MeCN are pre-mixed off-chip
+//   and loaded as a single Kryptofix_Acetonitrile_Mix
+//   reservoir on the DMF device.
+//
+// RADIOACTIVITY ANALYSIS:
+//   Dose calibrator (CRC 55 TR Capintec) for radioactivity.
+//   Radioactive TLC scanner (MiniGITA star, Raytest) for
+//   fluorination efficiency (silica gel HLF 250 um plates).
+//   Gamma spectrometer (in-house) for [18F] identity/purity.
+//   Radioactivity recovery: 94.1% (Table S3 in paper).
+//   Total crude radiochemical yield (OFAT): 66.64%.
+//   Total crude radiochemical yield (ML model): 79.13%.
+//
+// NOTE ON DURATION TOKENS: BioScript supports s and m only.
+//   120 C evaporation: modelled as heat at 120c for 10m.
+//   Radiolabeling (base): heat at 85c for 5m.
+//   Deprotection (base): heat at 25c for 5m.
+//
+// NOTE ON OFAT ABSTRACTION: Each OFAT variable experiment
+//   changes exactly one parameter from the base level while
+//   keeping all others fixed. Each variable product receives
+//   a fluorinationEfficiencyDetection call so the compiler
+//   sees it as a meaningful output (matching the paper's
+//   t-test comparison of each variable against the base).
+//   A full factorial 3^7 = 2187 experiments would be
+//   impractical; OFAT requires only 1 base + 7 variable = 8
+//   experiments (24 with 3 biological replicates).
+//
+// NOTE ON SYRINGE DELIVERY: [18F] is delivered off-chip via
+//   a syringe/stepper motor to the central reaction electrode,
+//   evaporated to dryness, and the top plate is then sealed.
+//   `dispense` abstracts this inline-syringe delivery event.
+//
+// NOTE ON ALUMINA DISC PURIFICATION:
+//   Discs (6 mm diameter) are pre-embedded with neutral
+//   alumina beads in PDMS and placed on the DMF device at
+//   the 'purification site'. After synthesis, the droplet
+//   is actuated to the disc, incubated for 40 min, then
+//   moved away for downstream processing. `detect` with
+//   radioactivityDetection abstracts the post-purification
+//   dose calibrator and TLC readout.
+//
+// CFG STRUCTURE:
+//   BB1  main                  -- [18F] delivery, activation,
+//                                 base experiment synthesis
+//   BB2  baseQC_Pass           -- baseSignal > 0: base yield
+//                                 acceptable; dispose and
+//                                 proceed to OFAT
+//   BB3  baseQC_Fail           -- baseSignal <= 0: base failed;
+//                                 drain and halt
+//   BB4  baseQC_Join           -- join: OFAT variable arm begins;
+//                                 all 7 variable experiments run
+//                                 sequentially in this block
+//   BB5  ofatQC_Pass           -- ofatSignal > 0: OFAT optimal
+//                                 found; carry forward to purif.
+//   BB6  ofatQC_Fail           -- ofatSignal <= 0: no improvement;
+//                                 drain
+//   BB7  ofatQC_Join           -- join: terminal cleanup
+//   BB8  purifQC_Pass          -- purifSignal > 0: purity >90%;
+//                                 dispose product
+//   BB9  purifQC_Fail          -- purifSignal <= 0: low purity;
+//                                 drain product
+//   BB10 purifQC_Join          -- join: dispose purifSignal,
+//                                 jump to BB7 finalCleanup
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// Device setup and base-case [18F]FDG synthesis
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Deliver [18F]fluoride via syringe to reaction site.
+//   [18F] loaded at the reaction center on the bottom plate
+//   before sealing the top plate. Volume: ~5 uL.
+//   `dispense` abstracts the stepper-motor syringe delivery.
+// ------------------------------------------------------------
+
+f18Droplet = dispense 1 units of F18_Fluoride
+
+// ------------------------------------------------------------
+// STEP 2: Activate [18F]fluoride by evaporation.
+//   [18F] is dried at 120 C for ~10 min to remove H2[18O]
+//   water and activate the fluoride for nucleophilic
+//   substitution. TEC heats the 10-electrode reaction site.
+//   After evaporation, the ITO top plate is sealed.
+//   K2CO3/Kryptofix K222 in MeCN complex is then dispensed
+//   to re-solvate the dried [18F] into the reaction droplet.
+// ------------------------------------------------------------
+
+heat f18Droplet at 120c for 10m
+
+kryptofixDrop = dispense 1 units of Kryptofix_Acetonitrile_Mix
+activatedF18  = mix f18Droplet with kryptofixDrop for 1m
+
+// ------------------------------------------------------------
+// STEP 3 (BASE): Dispense mannose triflate droplet.
+//   Base level: 1.0 volume ratio (mannose triflate : [18F]),
+//   30 mM mannose triflate concentration.
+//   Mannose triflate in anhydrous MeCN dispensed from reservoir.
+// ------------------------------------------------------------
+
+mtrif_base = dispense 1 units of MannoseTriflate
+
+// ------------------------------------------------------------
+// STEP 4 (BASE): Merge [18F] + mannose triflate -> radiolabeling.
+//   Mix activated [18F] with mannose triflate droplet on
+//   electrode array. Base radiolabeling: 85 C for 5 min.
+//   TEC heats reaction site to 85 C under PID control.
+//   [18F] incorporates into mannose triflate backbone via
+//   nucleophilic fluorination (SN2) yielding protected FDG.
+// ------------------------------------------------------------
+
+labelingMix_base = mix activatedF18 with mtrif_base for 30s
+heat labelingMix_base at 85c for 5m
+
+// ------------------------------------------------------------
+// STEP 5 (BASE): Deprotection with NaOH.
+//   Base level: 1.0 M NaOH, 25 C, 5 min.
+//   NaOH dispenses and merges with labeled intermediate.
+//   Hydrolysis at room temperature removes protecting groups
+//   from the fluorinated intermediate to yield [18F]FDG.
+// ------------------------------------------------------------
+
+naoh_base = dispense 1 units of SodiumHydroxide
+fdg_base  = mix labelingMix_base with naoh_base for 30s
+heat fdg_base at 25c for 5m
+
+// ------------------------------------------------------------
+// STEP 6: Fluorination efficiency detection - base case.
+//   Drop placed under TLC scanner (MiniGITA star, Raytest).
+//   Fluorination efficiency measured on silica TLC plate.
+//   Expected base yield: 61.27 +/- 3.88% (n=6).
+//   `detect` abstracts TLC scanner and dose calibrator readout.
+// ------------------------------------------------------------
+
+baseSignal = detect fluorinationEfficiencyDetection on fdg_base for 30s
+
+// ============================================================
+// BB2 / BB3: Base case QC gate
+// Pass (BB2): baseSignal > 0 -> base synthesis successful;
+//             dispose base product and proceed to OFAT.
+// Fail (BB3): baseSignal <= 0 -> synthesis failed (no [18F]
+//             incorporation); drain and halt.
+// Both branches converge at BB4 (baseQC_Join).
+// ============================================================
+
+if (baseSignal > 0) {
+    dispose fdg_base
+} else {
+    drain fdg_base
+}
+
+// ============================================================
+// BB4: baseQC_Join
+// Dispose base QC signal. All 7 OFAT variable experiments
+// run sequentially in this block. Each experiment changes
+// exactly one parameter from the base level; all others
+// remain fixed. Each product is detected independently so
+// the compiler tracks it as a meaningful output and the
+// t-test comparison against the base is representable.
+// ============================================================
+
+dispose baseSignal
+
+// ------------------------------------------------------------
+// OFAT Variable Experiment 1 (P2): Mannose triflate conc.
+// Change P2: 30 mM (base) -> 20 mM (variable).
+// All other parameters held at base level.
+// t-test result: p = 0.0086 (significant, P < 0.05).
+// Effect: higher concentration increases fluorination yield
+//   (positive coefficient in ML model = 3.74).
+// ------------------------------------------------------------
+
+f18_v1    = dispense 1 units of F18_Fluoride
+heat f18_v1 at 120c for 10m
+kryp_v1   = dispense 1 units of Kryptofix_Acetonitrile_Mix
+actF18_v1 = mix f18_v1 with kryp_v1 for 1m
+
+// P2 varied: 20 mM mannose triflate (vs 30 mM base)
+mtrif_v1  = dispense 1 units of MannoseTriflate
+label_v1  = mix actF18_v1 with mtrif_v1 for 30s
+heat label_v1 at 85c for 5m
+
+naoh_v1  = dispense 1 units of SodiumHydroxide
+fdg_v1   = mix label_v1 with naoh_v1 for 30s
+heat fdg_v1 at 25c for 5m
+
+sig_v1 = detect fluorinationEfficiencyDetection on fdg_v1 for 30s
+dispose sig_v1
+dispose fdg_v1
+
+// ------------------------------------------------------------
+// OFAT Variable Experiment 2 (P3): Radiolabeling temperature.
+// Change P3: 85 C (base) -> 100 C (variable).
+// All other parameters held at base level.
+// t-test result: p = 0.0282 (significant, P < 0.05).
+// Effect: higher temperature improves [18F] incorporation
+//   (positive coefficient in ML model = 2.92).
+// DEVICE NOTE: At 110 C (model-predicted optimum) several
+//   reagent droplets lose movement fidelity due to
+//   evaporation. 100 C is the highest reliably achievable
+//   radiolabeling temperature on this device (Fig. S5).
+// ------------------------------------------------------------
+
+f18_v2    = dispense 1 units of F18_Fluoride
+heat f18_v2 at 120c for 10m
+kryp_v2   = dispense 1 units of Kryptofix_Acetonitrile_Mix
+actF18_v2 = mix f18_v2 with kryp_v2 for 1m
+
+mtrif_v2  = dispense 1 units of MannoseTriflate
+label_v2  = mix actF18_v2 with mtrif_v2 for 30s
+
+// P3 varied: 100 C (vs 85 C base)
+heat label_v2 at 100c for 5m
+
+naoh_v2  = dispense 1 units of SodiumHydroxide
+fdg_v2   = mix label_v2 with naoh_v2 for 30s
+heat fdg_v2 at 25c for 5m
+
+sig_v2 = detect fluorinationEfficiencyDetection on fdg_v2 for 30s
+dispose sig_v2
+dispose fdg_v2
+
+// ------------------------------------------------------------
+// OFAT Variable Experiment 3 (P4): Radiolabeling time.
+// Change P4: 5 min (base) -> 7 min (variable).
+// All other parameters held at base level.
+// t-test result: p = 0.0671 (non-significant at P < 0.05).
+// Effect: radiolabeling time not a significant parameter;
+//   model coefficient = 0.04 (near zero). Excluded from
+//   the final reduced ML model (only 5 significant params).
+// ------------------------------------------------------------
+
+f18_v3    = dispense 1 units of F18_Fluoride
+heat f18_v3 at 120c for 10m
+kryp_v3   = dispense 1 units of Kryptofix_Acetonitrile_Mix
+actF18_v3 = mix f18_v3 with kryp_v3 for 1m
+
+mtrif_v3  = dispense 1 units of MannoseTriflate
+label_v3  = mix actF18_v3 with mtrif_v3 for 30s
+
+// P4 varied: 7 min (vs 5 min base)
+heat label_v3 at 85c for 7m
+
+naoh_v3  = dispense 1 units of SodiumHydroxide
+fdg_v3   = mix label_v3 with naoh_v3 for 30s
+heat fdg_v3 at 25c for 5m
+
+sig_v3 = detect fluorinationEfficiencyDetection on fdg_v3 for 30s
+dispose sig_v3
+dispose fdg_v3
+
+// ------------------------------------------------------------
+// OFAT Variable Experiment 4 (P5): NaOH concentration.
+// Change P5: 1.0 M (base) -> 0.10 M (variable; lower level).
+// All other parameters held at base level.
+// t-test result: p = 0.0001 (most significant parameter).
+// Effect: NaOH concentration is the dominant parameter;
+//   model coefficient = 4.50 (largest positive coefficient).
+//   Higher NaOH concentration drives faster hydrolysis and
+//   deprotection, increasing final [18F]FDG yield.
+// DEVICE NOTE: At 1.4 M NaOH (model optimum) droplet
+//   movement fidelity is poor; 1.0 M is the practical upper
+//   limit for reliable on-chip droplet actuation.
+// ------------------------------------------------------------
+
+f18_v4    = dispense 1 units of F18_Fluoride
+heat f18_v4 at 120c for 10m
+kryp_v4   = dispense 1 units of Kryptofix_Acetonitrile_Mix
+actF18_v4 = mix f18_v4 with kryp_v4 for 1m
+
+mtrif_v4  = dispense 1 units of MannoseTriflate
+label_v4  = mix actF18_v4 with mtrif_v4 for 30s
+heat label_v4 at 85c for 5m
+
+// P5 varied: 0.10 M NaOH (vs 1.0 M base)
+naoh_v4  = dispense 1 units of SodiumHydroxide
+fdg_v4   = mix label_v4 with naoh_v4 for 30s
+heat fdg_v4 at 25c for 5m
+
+sig_v4 = detect fluorinationEfficiencyDetection on fdg_v4 for 30s
+dispose sig_v4
+dispose fdg_v4
+
+// ------------------------------------------------------------
+// OFAT Variable Experiment 5 (P6): Deprotection temperature.
+// Change P6: 25 C (base) -> 50 C (variable).
+// All other parameters held at base level.
+// t-test result: p = 0.2778 (non-significant at P < 0.05).
+// Effect: deprotection temperature not significant by OFAT
+//   t-test; however, multiple linear regression yields a
+//   coefficient of 2.30. Discrepancy attributed to limited
+//   range studied (25-50 C) and small dataset size.
+//   Excluded from the final 5-parameter reduced ML model.
+// ------------------------------------------------------------
+
+f18_v5    = dispense 1 units of F18_Fluoride
+heat f18_v5 at 120c for 10m
+kryp_v5   = dispense 1 units of Kryptofix_Acetonitrile_Mix
+actF18_v5 = mix f18_v5 with kryp_v5 for 1m
+
+mtrif_v5  = dispense 1 units of MannoseTriflate
+label_v5  = mix actF18_v5 with mtrif_v5 for 30s
+heat label_v5 at 85c for 5m
+
+naoh_v5  = dispense 1 units of SodiumHydroxide
+fdg_v5   = mix label_v5 with naoh_v5 for 30s
+
+// P6 varied: 50 C (vs 25 C base)
+heat fdg_v5 at 50c for 5m
+
+sig_v5 = detect fluorinationEfficiencyDetection on fdg_v5 for 30s
+dispose sig_v5
+dispose fdg_v5
+
+// ------------------------------------------------------------
+// OFAT Variable Experiment 6 (P7): Deprotection time.
+// Change P7: 5 min (base) -> 3 min (variable; shorter).
+// All other parameters held at base level.
+// t-test result: p = 0.0041 (significant, P < 0.05).
+// Effect: deprotection time has a NEGATIVE model coefficient
+//   (-0.89): shorter deprotection time coupled with higher
+//   concentrations and temperatures increases final yield.
+//   Longer deprotection does not improve yield beyond the
+//   plateau established by reaction kinetics.
+// ------------------------------------------------------------
+
+f18_v6    = dispense 1 units of F18_Fluoride
+heat f18_v6 at 120c for 10m
+kryp_v6   = dispense 1 units of Kryptofix_Acetonitrile_Mix
+actF18_v6 = mix f18_v6 with kryp_v6 for 1m
+
+mtrif_v6  = dispense 1 units of MannoseTriflate
+label_v6  = mix actF18_v6 with mtrif_v6 for 30s
+heat label_v6 at 85c for 5m
+
+naoh_v6  = dispense 1 units of SodiumHydroxide
+fdg_v6   = mix label_v6 with naoh_v6 for 30s
+
+// P7 varied: 3 min (vs 5 min base)
+heat fdg_v6 at 25c for 3m
+
+sig_v6 = detect fluorinationEfficiencyDetection on fdg_v6 for 30s
+dispose sig_v6
+dispose fdg_v6
+
+// ------------------------------------------------------------
+// OFAT Variable Experiment 7 (P1): Volume ratio.
+// Change P1: 1.0 (base) -> 0.3 (variable; less mannose).
+// All other parameters held at base level.
+// t-test result: p = 0.0297 (significant, P < 0.05).
+// Effect: higher volume ratio (more mannose triflate relative
+//   to [18F]) increases yield (positive coefficient = 2.43).
+//   OFAT optimal: ratio = 1.0 (equal volume); model optimum
+//   at 1.0-1.2 volume ratio for practically achievable yield.
+// ------------------------------------------------------------
+
+f18_v7    = dispense 1 units of F18_Fluoride
+heat f18_v7 at 120c for 10m
+kryp_v7   = dispense 1 units of Kryptofix_Acetonitrile_Mix
+actF18_v7 = mix f18_v7 with kryp_v7 for 1m
+
+// P1 varied: 0.3 volume ratio (vs 1.0 base)
+// Modelled as a reduced dispense of mannose triflate relative
+// to the [18F] volume (sub-unit ratio; single unit dispense
+// abstracts the ratio change at the reservoir level).
+mtrif_v7  = dispense 1 units of MannoseTriflate
+label_v7  = mix actF18_v7 with mtrif_v7 for 30s
+heat label_v7 at 85c for 5m
+
+naoh_v7  = dispense 1 units of SodiumHydroxide
+fdg_v7   = mix label_v7 with naoh_v7 for 30s
+heat fdg_v7 at 25c for 5m
+
+sig_v7 = detect fluorinationEfficiencyDetection on fdg_v7 for 30s
+dispose sig_v7
+dispose fdg_v7
+
+// ------------------------------------------------------------
+// OFAT OPTIMAL SYNTHESIS
+// Combining significant parameter improvements identified
+// across all 7 OFAT variable experiments:
+//   P1: ratio = 1.0 (base/equal volume; significant)
+//   P2: 30 mM (base; lower conc showed decrease)
+//   P3: 100 C (significant improvement from V2)
+//   P4: 5 min (base; non-significant)
+//   P5: 1.0 M (base; most significant NaOH level)
+//   P6: 50 C  (improved even if not significant by t-test)
+//   P7: 5 min (base)
+// Expected: 70.82 +/- 1.54% fluorination efficiency (n=6)
+// ------------------------------------------------------------
+
+f18_ofat    = dispense 1 units of F18_Fluoride
+heat f18_ofat at 120c for 10m
+kryp_ofat   = dispense 1 units of Kryptofix_Acetonitrile_Mix
+actF18_ofat = mix f18_ofat with kryp_ofat for 1m
+
+mtrif_ofat  = dispense 1 units of MannoseTriflate
+label_ofat  = mix actF18_ofat with mtrif_ofat for 30s
+
+// P3 = 100 C, P4 = 5 min
+heat label_ofat at 100c for 5m
+
+naoh_ofat  = dispense 1 units of SodiumHydroxide
+fdg_ofat   = mix label_ofat with naoh_ofat for 30s
+
+// P6 = 50 C, P7 = 5 min
+heat fdg_ofat at 50c for 5m
+
+ofatSignal = detect fluorinationEfficiencyDetection on fdg_ofat for 30s
+
+// ============================================================
+// BB5 / BB6: OFAT optimal QC gate
+// Pass (BB5): ofatSignal > 0 -> OFAT optimal fluorination
+//             efficiency achieved; carry forward to on-chip
+//             alumina disc purification.
+// Fail (BB6): ofatSignal <= 0 -> synthesis failed; drain.
+// Both branches converge at BB7 (ofatQC_Join).
+// ============================================================
+
+if (ofatSignal > 0) {
+    // ----------------------------------------------------------
+    // On-chip neutral alumina disc purification
+    // 6 mm diameter PDMS-embedded alumina disc at purification
+    // site. FDG droplet actuated to disc electrodes and moved
+    // around adjacent electrodes for 40 min to enhance
+    // Kryptofix and unreacted [18F]/F- removal.
+    // Result: ~93.05 +/- 2.46% purity (6 mm disc, 40 min).
+    //
+    // `mix` with NeutralAlumina_Disc abstracts the on-chip
+    // actuation of fdg_ofat droplet over the alumina disc
+    // at the purification site (40 min incubation).
+    // `heat` at 25c models room-temperature incubation
+    // (no active heating; TEC off during purification).
+    // ----------------------------------------------------------
+    aluminaDisc = dispense 1 units of NeutralAlumina_Disc
+    purifiedFDG = mix fdg_ofat with aluminaDisc for 40m
+    heat purifiedFDG at 25c for 1s
+
+    // Post-purification radioactivity and purity check.
+    // Dose calibrator: radioactivity recovery (94.1%).
+    // TLC scanner: fluorination efficiency of purified product.
+    purifSignal = detect radioactivityDetection on purifiedFDG for 30s
+
+    // =========================================================
+    // BB8 / BB9: Purification QC gate
+    // Pass (BB8): purifSignal > 0 -> purity >90% confirmed;
+    //             dispose purified [18F]FDG product
+    //             (ready for downstream patient dosing).
+    // Fail (BB9): purifSignal <= 0 -> purity insufficient;
+    //             drain product batch.
+    // Both converge at BB10 (purifQC_Join).
+    // =========================================================
+
+    if (purifSignal > 0) {
+        dispose purifiedFDG
+    } else {
+        drain purifiedFDG
+    }
+
+    // BB10: purifQC_Join
+    dispose purifSignal
+} else {
+    drain fdg_ofat
+}
+
+// ============================================================
+// BB7: ofatQC_Join / finalCleanup (terminal)
+// Dispose OFAT QC signal. Experiment ends.
+// ============================================================
+
+dispose ofatSignal
+
+// [terminal -- no further instructions; exit node for CFG]

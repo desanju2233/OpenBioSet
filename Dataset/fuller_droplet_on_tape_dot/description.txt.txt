@@ -1,0 +1,267 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Droplet On Tape: Protocol
+Source Link  : https://www.protocols.io/view/droplet-on-tape-protocol-n2bvj9wzblk5/v1
+DOI Link     : https://dx.doi.org/10.1038/protex.2017.017
+Journal      : Nature Protocols Exchange, February 28, 2017
+Platform     : Acoustic Droplet Ejection (ADE) onto Kapton conveyor belt (DOT system) for XFEL sample delivery
+Associated   : Fuller et al., Nature Methods, 2017; DOI: 10.1038/nmeth.4195
+
+
+OVERVIEW
+--------
+This protocol describes the Droplet On Tape (DOT) system, a flexible sample delivery platform
+coupling Acoustic Droplet Ejection (ADE) with a moving Kapton conveyor belt for time-resolved
+X-ray studies at X-ray Free Electron Lasers (XFELs). DOT enables simultaneous X-ray Diffraction
+(XRD) and X-ray Emission Spectroscopy (XES) from protein microcrystal slurry or protein
+solution, along with ancillary signals (transmission, fluorescence). It supports multiple
+reaction initiation schemes: laser flash photolysis (single-excitation free-space timing and
+multi-step fiber excitation) and gas-phase activation (differential pumping of reactive gas).
+
+The platform is designed for restricted-access beamline environments and is operated entirely
+via remote control (EPICS framework). The DOT system is comprised of five main sub-systems:
+the ADE injector, control systems, the conveyor belt, the sample environment (Helium enclosure),
+and reaction initiation systems.
+
+Typical beamline deployment: 5 days setup (3 people); 4-5 days data collection per experiment.
+Custom fabrication of all components: ~1 month (machining) + ~1 month (assembly, 2 people).
+
+
+SYSTEM ARCHITECTURE
+-------------------
+Five integrated sub-systems:
+
+Sub-system 1 | ADE Injector
+  Transducer   : Olympus V319-SU, 1 inch spherical focus, 15 MHz resonance frequency
+                 (developed for ultrasonic imaging applications)
+  Waveform gen.: Agilent 33612A; tone-burst at 15 MHz, controllable amplitude and duration
+  Amplifier    : Amplifier Research 500A250C RF amplifier; final driving voltage ~40 V
+  Ejection     : Tone-burst <100 us ejects nano-liter droplet from sample-air interface
+  Coupling     : BNC cable -> bi-directional coupler (30 dB) -> transducer
+                 Bi-directional coupler samples forward and reverse signals
+  Echo probe   : "probe" spike (few hundred ns) sent a few ms before ejection burst
+                 Sonar principle: echo return at ~35 us delay (1 inch focal length transducer)
+                 at correct focus; fluid level monitored with <50 um accuracy
+                 Oscilloscope monitored remotely via remote desktop (critical at beamline hutch)
+  Sample path  : Polymicro tubing (360 um O.D., 180-250 um I.D.) from Legato 130 syringe pump
+                 to ADE reservoir; coupling water column isolates sample from transducer
+
+Sub-system 2 | Control Systems
+  Framework    : EPICS (Experimental Physics Industrial Control Software)
+  Hardware     : Syringe pump (Legato 130), Waveform generator (Agilent 33612A),
+                 Actuator motors (Newport XPS-Q8), Tape drive motor (Lexium M-Drive),
+                 Cameras (Allied Vision Manta-style)
+  Custom IOCs  : Syringe pump: https://github.com/fullerf/LEGATO130
+                 Waveform generator: https://github.com/fullerf/Agilent33600A
+  Dependencies : EPICS base, StreamDevice, Asyn
+  Tape drive   : Lexium M-Drive connected via built-in serial terminal; telnet from Linux/Mac
+                 Speed controlled via motor slew rate adjustments (infrequently needed after
+                 initial calibration)
+
+Sub-system 3 | Conveyor Belt System
+  Belt type    : Seamless Kapton (polyimide, Kapton 100H, C22H10O2N5, DuPont)
+                 0.063-0.125 inch width; 31-36 inch diameter; 50 micron thickness
+                 Supplier: BPB Inc., Bay Area, CA (custom request)
+  Why seamless : Ultrasonically welded belts skip at weld over rollers, disrupting XFEL
+                 synchronisation. Seamless belts eliminate this problem.
+  Alternative  : Mylar film (used early in development; inferior x-ray scattering vs Kapton)
+  Consumable   : Yes; one belt lasts several shifts if XFEL beam does not directly hit it
+  Surface tmt  : FAS (1H,1H,2H,2H-Perfluorodecyltriethoxysilane, 97%, Sigma-Aldrich) in
+                 n-octane; WCA increased from ~60 deg to 100 +/- 5 deg (see protocol below)
+  Tensioner    : Hanging weight on rotating arm; two crowned rollers; adjustable by adding or
+                 removing weights; over-tension indicator: belt curls when tension released
+  Rollers      : ABEC 5 low-friction ball bearings with CNC-machined crown cap (3 inch radius
+                 of curvature); crown keeps belt centred during operation
+  Electrostatic: Passive: steel anti-static brushes near drive mechanism
+                 Active: Transforming Technologies IN3425 static gun (ionised air) near ADE
+                 deposition point; both required to avoid disrupting ADE ejection
+  Mounting     : Newport UTS-100 motorised stage; modified Thorlabs aluminium breadboards
+  Drive motor  : Lexium M-Drive LMDCE423 micro-stepping stepper motor; direct drive to 1 inch
+                 stainless steel shaft; <4 revolutions/s typical operating speed
+                 (geared mechanism abandoned due to velocity error introduction)
+
+Sub-system 4 | Sample Environment
+  Enclosure    : Custom acrylic (0.5 inch) helium chamber; Professional Plastics Inc.
+  Door         : Large inflatable door with wide aperture at X-ray interaction region
+  Joints       : Solvent welded (where possible); rubber foam gaskets elsewhere
+  Feed-through : 0.125 inch aluminium panel, water-jet cut; handles all electronic, gas,
+                 water, and fibre connections into the chamber
+  Helium path  : Thin inflatable polyethylene bags extend helium environment from sample to
+                 detector; second bag between XES crystal spectrometer and main chamber;
+                 minimises scatter from heavier atoms in air during XRD/XES
+
+Sub-system 5 | Reaction Initiation Systems
+  Laser (fiber): High-precision CNC-machined grid (tolerance 0.0005 inch); holds 3 excitation
+                 fibre-coupled laser inputs and 2 IR gate fibres
+                 IR gate separation: 60 mm; each gate 30 mm from nearest excitation point
+                 Each excitation fibre: 5 degrees of freedom for coupling optimisation
+                 Droplet arrival monitored via IR scatter onto photodiode
+                 All 5 fibres monitored on remote-accessible oscilloscopes
+  Laser (free) : Single-excitation; movable 1 m focal-length motorised lens upstream of XFEL
+                 Max laser advance: 6 mm upstream of XFEL interaction
+                 Time delay range: 20-100 ms (at 300-60 mm/s belt speed)
+                 Spatial overlap: 100 um accuracy (laser spot: ~400 um diameter)
+                 Temporal overlap: 200 us accuracy (camera exposure); ns via photodiode
+  Gas reaction : Conveyor belt passes through limited-extent reactive gas region (O2 example)
+                 Confinement: differential pumping via series of small orifices
+                 Exposure time: L / v_tape; Dead time: L_xfel / v_tape
+                 Sealing: vacuum grease on all openings except belt entry and exit holes
+
+
+BELT SURFACE TREATMENT PROTOCOL
+---------------------------------
+
+Step 1 | Belt Cleaning
+  Reagents  : Milli-Q water, isopropanol
+  Action    : Sonicate in Milli-Q water for 10 min; then sonicate in isopropanol for 10 min
+  Notes     : Removes surface contaminants before hydrophobicity treatment
+
+Step 2 | Vacuum Drying (pre-FAS)
+  Equipment : Precision vacuum oven, model 19
+  Condition : 50 C, 1 hour
+  Notes     : Belt must be fully dry before FAS treatment; moisture interferes with silane
+              bonding chemistry
+
+Step 3 | FAS Hydrophobicity Treatment
+  Reagent   : 0.25% (w/v) FAS (1H,1H,2H,2H-Perfluorodecyltriethoxysilane, Sigma-Aldrich)
+              in n-octane
+  Action    : Reflux belt in FAS/n-octane solution for 2 hours
+  Result    : Water contact angle (WCA) increases from ~60 deg to 100 +/- 5 deg
+  Purpose   : Aqueous droplets bead up on belt surface and do not spread; critical for
+              maintaining droplet integrity during transport to XFEL interaction region
+
+Step 4 | Vacuum Drying (post-FAS)
+  Equipment : Precision vacuum oven, model 19
+  Condition : 150 C, 3 hours
+  Notes     : Removes all residual unreacted FAS from belt surface
+
+
+BELT CLEANING PROCEDURE (in-experiment)
+-----------------------------------------
+  Method    : Drive belt through 4 high-pressure water jets (200+ psi, 500 um I.D.)
+  Drying    : 2 compressed Helium blow-off nozzles (top and bottom of belt)
+  Gas supply: 3 x KNF Neuberger N145.1.2AN.18 gas-tight diaphragm pumps draw Helium from
+              the Helium chamber and recirculate it to power the blow-off nozzles
+  Residue QC: Run belt dry (no sample injected); probe XES signal; accumulated residue
+              detected as XES background above baseline; performed periodically during beamtimes
+
+
+FIBER EXCITATION TIMING (Multi-excitation, e.g. Photosystem II)
+-----------------------------------------------------------------
+  Principle : Space-time diagram representation; constant belt velocity -> trajectories are
+              straight lines with slope = velocity; excitation positions fixed in space/time
+  Two DOF   : (1) deposition delay (Delta_tau_dep): when droplet is ejected onto belt
+              (2) laser delay (Delta_tau_laser): when each fibre excitation fires
+  Setup     :
+    1. Adjust deposition delay until droplet appears in XFEL crosshairs (stroboscopic monitor)
+    2. Fine-adjust deposition delay until droplet observed to explode (camera synced to XFEL)
+    3. Confirm via solvent scatter in forward detector or emission signal in XES detector
+    4. Adjust belt velocity until IR gate signals coincide in time
+       (confirms droplets simultaneously present on all excitation points)
+    5. Laser delay must be time-coincident with IR gate signals
+  Allowed speeds at 10 Hz rep rate: 30, 60, 150, 300 mm/s
+  (droplet spacing must be integer multiple or divisor of both 30 mm and 60 mm)
+  Note      : Deposition delay and belt speed are coupled; adjust both incrementally
+
+
+PROTOCOL STEPS (BioScript encoding)
+--------------------------------------
+
+Step 1 | Kapton Belt Cleaning (BB1 / main)
+  Inputs    : MQWater, Isopropanol
+  Operation : mix (sonication abstracted); 10 min
+  Notes     : Sequential sonication in Milli-Q water then isopropanol
+
+Step 2 | Vacuum Drying Before FAS (BB1 / main)
+  Operation : heat at 50 C for 60 min (3600 s in IR)
+  Equipment : Precision vacuum oven
+
+Step 3 | FAS Reflux Treatment (BB1 / main)
+  Inputs    : FAS_NOctane (0.25% w/v FAS in n-octane)
+  Operation : mix (reflux abstracted); 120 min (7200 s in IR)
+
+Step 4 | Vacuum Drying After FAS (BB1 / main)
+  Operation : heat at 150 C for 180 min (10800 s in IR)
+  Notes     : Residual FAS removal
+
+Step 5 | ADE Injector Setup and Sample Loading (BB1 / main)
+  Inputs    : SampleSolution, CouplingWater
+  Operation : mix (reservoir loading abstracted); 2 s
+  Notes     : Legato 130 syringe pump controls sample influx rate; coupling water column
+              isolates sample from transducer
+
+Step 6 | Acoustic Echo Probe — Fluid Level QC (BB1 -> BB2/BB3)
+  Operation : detect echoLevelDetection for 10 s
+  Pass (BB2): echoSignal > 0 -> fluid level and focus confirmed; eject droplet; dispose
+  Fail (BB3): echoSignal <= 0 -> echo out of range; drain; re-adjust sample influx rate
+  Join (BB4): dispose(echoSignal)
+
+Step 7 | Laser Zone Droplet Transport (BB4 / echoJoin)
+  Inputs    : ProteinCrystalSlurry, HeliumGas
+  Operation : mix (belt transport through Helium enclosure abstracted); 5 s
+  Notes     : Belt carries droplet from ADE deposition point through Helium chamber to laser
+              excitation zone; belt speed 30-300 mm/s; time delays 20-100 ms
+
+Step 8 | Droplet-Hit and Timing Confirmation (BB4 -> BB5/BB6)
+  Operation : detect dropletHitDetection for 30 s
+  Methods   : stroboscopic camera (sync'd to XFEL), forward scatter detector, XES detector,
+              IR gate photodiode coincidence
+  Pass (BB5): laserHitSignal > 0 -> overlap confirmed; dispose; proceed to XRD
+  Fail (BB6): laserHitSignal <= 0 -> droplet missed; drain; re-adjust delay/belt speed
+  Join (BB7): dispose(laserHitSignal)
+
+Step 9 | XFEL Data Collection - XRD (BB7 -> BB8/BB9)
+  Inputs    : ProteinCrystalSlurry, HeliumGas
+  Operation : detect xrdSignalDetection for 30 s
+  Motor     : Lexium M-Drive LMDCE423 direct drive; <4 rps
+  Pass (BB8): xrdSignal > 0 -> valid diffraction; dispose; proceed to XES
+  Fail (BB9): xrdSignal <= 0 -> beam miss or crystal failure; drain
+  Join(BB10): dispose(xrdSignal)
+
+Step 10 | Simultaneous XES Data Collection (BB10 -> BB11/BB12)
+  Inputs    : ProteinCrystalSlurry, HeliumGas
+  Operation : detect xesSignalDetection for 30 s
+  Notes     : Second Helium bag between XES crystal spectrometer and main Helium chamber
+  Pass(BB11): xesSignal > 0 -> valid emission spectrum; dispose; proceed to belt residue check
+  Fail(BB12): xesSignal <= 0 -> no emission; drain
+  Join(BB13): dispose(xesSignal)
+
+Step 11 | Belt Cleaning Run (BB13 / xesJoin)
+  Inputs    : MQWater, HeliumGas
+  Operation : mix (water jet pass abstracted); 5 min cleaning; 2 min blow-off drying
+  Water jets: 4 x 200+ psi jets; 500 um I.D.
+  Drying    : 2 compressed Helium blow-off nozzles (KNF Neuberger pump system)
+
+Step 12 | Belt Residue QC Check (BB13 -> BB14/BB15)
+  Operation : detect residueDetection for 30 s
+  Method    : dry belt run; XES background monitoring
+  Pass(BB14): residueSignal > 0 -> residue above baseline; dispose; repeat cleaning cycle
+  Fail(BB15): residueSignal <= 0 -> belt clean; dispose; ready for next shift
+  Join(BB16): dispose(residueSignal); NOP [terminal]
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : fuller_droplet_on_tape_dot.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 16 basic blocks (BB1-BB16), 5 if/else QC gates, 20 CFG edges
+DAG file       : fuller_droplet_on_tape_dot_main_dag.dot
+Duration units : All durations converted to minutes (m) for compiler compatibility
+                 (BioScript supports s and m only; h token not supported)
+                 60 min  (50 C dry)    -> 60m   -> IR: 3600.0 SECOND   [verified]
+                 120 min (FAS reflux)  -> 120m  -> IR: 7200.0 SECOND   [verified]
+                 180 min (150 C dry)   -> 180m  -> IR: 10800.0 SECOND  [verified]
+                 sonication            -> 10m   -> IR: 600.0 SECOND    [verified]
+Modules        : echoLevelDetection, dropletHitDetection, xrdSignalDetection,
+                 xesSignalDetection, residueDetection
+Platform notes : mix steps abstract ADE acoustic ejection, belt transport through Helium
+                 enclosure, and surface chemistry (reflux, sonication); not DMF electrode mixing
+                 heat steps cover vacuum oven drying (50 C, 150 C) and FAS reflux chemistry
+                 treatedBelt variable carried from BB1 (FAS treatment) -> BB13 (cleaning),
+                 confirmed in IR line 59: mix(treatedBelt1[0], cleaningWater1[0])
+                 drain -> dispose compiler mapping confirmed in bsbbif_6_f (IR line 30)
+IR anomaly     : bsbbif_3_f (BB3 echo fail) emits dispose() for drain; standard compiler
+                 behaviour for non-DMF targets; functionally correct
+CFG verified   : strict digraph with 16 nodes and 20 edges; diamond-chain structure;
+                 no stray edges, no missing joins, no cycles; NOP terminal at BB16 confirmed

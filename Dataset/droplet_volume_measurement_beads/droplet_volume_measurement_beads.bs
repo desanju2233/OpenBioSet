@@ -1,0 +1,160 @@
+module beadCountDetection
+
+manifest PolyBeads_LysisBuffer
+manifest PBS
+
+// ============================================================
+// Measuring Droplet Volume in Home-Made Microfluidic Devices
+// Protocol Source: Drop-seq / home-made microfluidic device
+// calibration procedure (Harvard / McCarroll Lab style).
+// DOI / Reference: standard lab protocol (no primary paper DOI).
+//
+// Purpose: Determine droplet volume in a home-made droplet-
+// microfluidic device using monodisperse polystyrene beads as
+// a volumetric calibration standard (Poisson-statistics-based
+// droplet occupancy method).
+//
+// Reagents:
+//   PolyBeads_LysisBuffer : durable, monodisperse polystyrene
+//     beads (~10 um, carboxylated, e.g. Bangs Labs PC06N-11355
+//     or fluorescent FC06F-10163) washed and resuspended in
+//     Drop-seq lysis buffer at 1000 beads/uL. Loaded in syringe
+//     with magnetic mixer as per standard barcoded-bead protocol.
+//   PBS : phosphate-buffered saline loaded in the syringe
+//     intended for cells. Co-flowing beads with PBS gives an
+//     estimated bead concentration of 500 beads/uL in the
+//     combined droplet fluid.
+//
+// Key calculation (post-detection):
+//   Droplet occupancy  = (total beads counted) / (droplets counted)
+//   Droplet volume     = occupancy / 500 beads per uL
+//                      = # uL per droplet
+//
+// Device/Method scope:
+//   This protocol is encoded for a DMF-adjacent or electrode-
+//   actuated droplet-generation device. The syringe pump flows
+//   are abstracted as dispense operations; the microfluidic
+//   chip junction (where beads + PBS co-flow and generate
+//   droplets) is abstracted as the first mix step. The bead-
+//   counting step (several hundred droplets imaged under
+//   microscope, beads counted per droplet) is abstracted as the
+//   beadCountDetection module.
+//
+// CFG STRUCTURE (3 basic blocks):
+//   BB1  main          -- dispense beads + PBS, co-flow and
+//                         generate droplets, detect bead count
+//                         occupancy signal
+//   BB2  validDrop     -- beadSignal > 0: valid droplet
+//                         population generated; dispose
+//   BB3  invalidDrop   -- beadSignal <= 0: no detectable beads
+//                         in droplets (device failure or zero
+//                         droplet generation); drain
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Dispense polystyrene bead suspension.
+//   Beads (10 um carboxylated polystyrene, e.g. Bangs Labs
+//   PC06N-11355 / fluorescent FC06F-10163) resuspended in
+//   Drop-seq lysis buffer at 1000 beads/uL. Loaded into a
+//   syringe with a magnetic mixer and drawn into syringe pump.
+//   1 unit represents the bead-loaded syringe volume committed
+//   to the droplet-generation run.
+// ------------------------------------------------------------
+
+beadSuspension  = dispense 1 units of PolyBeads_LysisBuffer
+
+// ------------------------------------------------------------
+// STEP 2: Dispense PBS (cell-channel syringe).
+//   The syringe intended for cells is loaded with regular PBS.
+//   When co-flowing with the bead suspension at equal volume
+//   ratio, the bead concentration in the combined aqueous phase
+//   is halved: 1000 / 2 = 500 beads/uL in the droplet fluid.
+//   1 unit represents the PBS syringe volume committed to the
+//   same run.
+// ------------------------------------------------------------
+
+pbsFlow         = dispense 1 units of PBS
+
+// ------------------------------------------------------------
+// STEP 3: Co-flow and droplet generation.
+//   Connect all tubing to the appropriate channels in the
+//   microfluidic device. Both syringe pumps are started:
+//   the bead syringe and the PBS syringe co-flow into the
+//   aqueous inlet; the oil phase (carrier) generates droplets
+//   at the T-junction or flow-focus nozzle.
+//
+//   NOTE ON ABSTRACTION: `mix` here models the co-flow
+//   merging of the two aqueous streams at the chip inlet
+//   junction, not a DMF electrode-merging event. The result
+//   is a homogeneous bead-containing aqueous phase at
+//   500 beads/uL that is subsequently broken into droplets
+//   by the oil phase at the nozzle. Duration of 30s models
+//   the stabilisation period before droplet collection begins.
+// ------------------------------------------------------------
+
+combinedFluid   = mix beadSuspension with pbsFlow for 30s
+
+// ------------------------------------------------------------
+// STEP 4: Bead-counting detection (droplet occupancy).
+//   Several hundred droplets are imaged under microscopy
+//   (fluorescence if fluorescent beads are used; brightfield
+//   otherwise). The total number of beads inside all counted
+//   droplets is divided by the number of droplets counted to
+//   yield the droplet occupancy (mean beads per droplet).
+//
+//   beadCountDetection module abstracts:
+//     (a) image acquisition across >= several hundred droplets,
+//     (b) bead segmentation and per-droplet counting,
+//     (c) occupancy calculation: occupancy = total_beads /
+//         total_droplets counted,
+//     (d) volume calculation: droplet volume (uL) =
+//         occupancy / 500 beads/uL.
+//
+//   Detection duration: 60s models the image acquisition
+//   and automated counting window for a statistically
+//   sound estimate (>= 200 droplets recommended).
+//
+//   beadSignal > 0 : beads detected in droplets; valid
+//                    droplet population; occupancy and
+//                    volume calculated successfully.
+//   beadSignal <= 0 : no beads detected (device failure,
+//                     clogged nozzle, or empty syringe);
+//                     drain and troubleshoot.
+// ------------------------------------------------------------
+
+beadSignal      = detect beadCountDetection on combinedFluid for 60s
+
+// ============================================================
+// BB2 / BB3: Droplet generation QC gate
+// Pass (BB2): beadSignal > 0 -> beads detected in droplets;
+//             valid droplet population and volume estimate
+//             obtained; dispose combined fluid.
+// Fail (BB3): beadSignal <= 0 -> no bead signal detected;
+//             drain combined fluid (device failure path:
+//             check tubing connections, nozzle, oil flow
+//             rate, and bead resuspension quality).
+// Both branches terminate after their respective operation.
+// ============================================================
+
+if (beadSignal > 0) {
+    dispose combinedFluid
+} else {
+    drain combinedFluid
+}
+
+// ============================================================
+// finalCleanup (terminal)
+// Dispose the bead detection QC signal. Experiment ends.
+// Calculated droplet volume is available from the
+// beadCountDetection module output log.
+// ============================================================
+
+dispose beadSignal
+
+// [terminal -- no further instructions; exit node for CFG]

@@ -1,0 +1,338 @@
+{
+  "protocol": {
+    "title": "NF-kappaB Memory Coordinates Transcriptional Responses to Dynamic Inflammatory Stimuli",
+    "source": "Cell Reports 2022, 40, 111159",
+    "doi": "10.1016/j.celrep.2022.111159",
+    "platform": "Automated microfluidic live-cell imaging (channel-based, pressure-driven, PDMS/glass)",
+    "cell_lines": [
+      "RelA^-/- NIH/3T3 mouse embryonic fibroblasts stably expressing RelA-DsRed, JNK-KTR-mCerulean3, H2B-GFP"
+    ],
+    "objective": "Systematic single-cell profiling of NF-kappaB responses to 24 non-repeating sequential combinations of four inflammatory ligands at three dose levels; information-theoretic quantification of stimulus history encoding; IKK inhibition and transcriptomics to identify ligand-dependent negative feedback mechanisms producing short-term NF-kappaB memory",
+
+    "device": {
+      "type": "Pressure-driven automated microfluidic cell culture device (channel-based, not DMF)",
+      "design_reference": "Kellogg et al. 2014, Nat. Protoc. 9, 1713; Son et al. 2021, Sci. Signal. 14, eaaz4382",
+      "inputs": 14,
+      "chambers": 64,
+      "chamber_dimensions_mm": "3.5 x 0.8 x 0.035",
+      "cells_per_chamber": ">500",
+      "material": "PDMS (Momentive RTV-615, 10:1 monomer:catalyst)",
+      "fabrication": "Multilayer soft lithography; control layer 66 g PDMS poured on silicon wafer, cured 80 C overnight; flow layer 15 g PDMS spun at 2200 rpm (50 um thick), cured 80 C 1 h; bonded by oxygen plasma alignment and 80 C overnight bake",
+      "surface_coating": "0.25 mg/mL human plasma fibronectin (Millipore) in sterile PBS pH 7.4; overnight at room temperature",
+      "control": "Pneumatic solenoid valves driven by MATLAB scripts + custom GUI; input pressure 4 psi; PEEK tubing (VICI TPK.505) reagent delivery",
+      "microscope": "Nikon Ti2 enclosed in temperature-controlled incubator (Life Imaging Services)",
+      "camera": "Hamamatsu ORCA-Flash4.0 V2 sCMOS",
+      "imaging_interval_min": 6,
+      "magnification": "20X",
+      "channels": {
+        "RelA_DsRed":       { "excitation_nm": 555, "exposure_s": "0.5-1",   "readout": "NF-kappaB nuclear translocation" },
+        "H2B_GFP":          { "excitation_nm": 485, "exposure_ms": "50-100", "readout": "Nuclear segmentation and cell tracking" },
+        "JNK_KTR_mCerulean3":{ "excitation_nm": 440, "exposure_ms": 100,    "readout": "JNK kinase activity (cytoplasmic/nuclear ratio)" }
+      }
+    },
+
+    "reagents": {
+      "cell_culture_medium": "DMEM High Glucose (Gibco) + 10% FBS (Omega Scientific) + 1% GlutaMAX (Gibco) + 100 U/mL penicillin-streptomycin (Gibco)",
+      "imaging_medium": "FluoroBrite DMEM (Gibco, A1896701) + same supplements; used to reduce background fluorescence during live imaging",
+      "surface_coating": "Human plasma fibronectin 0.25 mg/mL in PBS (Gibco)",
+      "ligands": {
+        "TNF_alpha": {
+          "full_name": "Recombinant Mouse TNF-alpha (R&D Systems, aa 80-235)",
+          "receptor": "TNFR",
+          "pathway": "TNFR-associated intermediaries -> IKK -> NF-kappaB (MyD88-independent)",
+          "doses": {
+            "high": "90 ng/mL  (>95% cells activated)",
+            "mid":  "30 ng/mL  (85-95% cells activated; maximal TNF-alpha activation ~90%)",
+            "low":  "3 ng/mL   (50-70% cells activated)"
+          }
+        },
+        "IL1beta": {
+          "full_name": "Recombinant Mouse IL-1 beta/IL-1F2 (R&D Systems, 401ML010CF)",
+          "receptor": "IL-1R",
+          "pathway": "MyD88 -> IRAK1/4 -> IKK -> NF-kappaB",
+          "doses": {
+            "high": "3 ng/mL   (>95% cells activated)",
+            "mid":  "0.2 ng/mL (85-95% cells activated)",
+            "low":  "0.05 ng/mL (50-70% cells activated)"
+          }
+        },
+        "LPS": {
+          "full_name": "Ultrapure LPS from E. coli 0111:B4 (InvivoGen, tlrl-3pelps)",
+          "receptor": "TLR4",
+          "pathway": "MyD88 -> IRAK1/4 -> IKK -> NF-kappaB (MyD88-dependent; TRIF/TRAM pathway negligible in 3T3s)",
+          "doses": {
+            "high": "400 ng/mL (>95% cells activated)",
+            "mid":  "100 ng/mL (85-95% cells activated)",
+            "low":  "12.5 ng/mL (50-70% cells activated)"
+          }
+        },
+        "PAM": {
+          "full_name": "PAM2CSK4 synthetic diacylated lipopeptide (InvivoGen, tlrl-pm2s-1)",
+          "receptor": "TLR2/6",
+          "pathway": "MyD88 -> IRAK1/4 -> IKK -> NF-kappaB",
+          "doses": {
+            "high": "1 ng/mL   (>95% cells activated)",
+            "mid":  "0.2 ng/mL (85-95% cells activated)",
+            "low":  "0.01 ng/mL (50-70% cells activated)"
+          }
+        }
+      },
+      "IKK_inhibitor": {
+        "name": "PS1145 dihydrochloride (Tocris, 4569)",
+        "target": "IKK-beta (reversible small-molecule inhibitor)",
+        "concentration_uM": 40,
+        "pretreatment_duration_min": 90,
+        "notes": "Washed out after LPS stimulus (2x15 min complete media washes) before IL-1beta restimulation"
+      },
+      "cell_retrieval": {
+        "detachment": "TrypLE Express (Gibco)",
+        "lysis_buffer": "10 uL ice-cold 0.1% Triton-X100 + RNase inhibitor (Takara, 2313A)",
+        "storage": "-80 C until SMART-Seq2 processing"
+      },
+      "antibodies_western": {
+        "MyD88": "Cell Signaling Technologies, D80F5 Rabbit mAb, Cat. 4283 (1:1000)",
+        "beta_actin": "Invitrogen MA5-15739-D680 DyLight 680 (1:1000)",
+        "secondary": "Invitrogen SA5-10036 Goat anti-Rabbit DyLight 800 (1:25000)"
+      }
+    },
+
+    "stimulus_design": {
+      "description": "24 non-repeating permutations of 4 ligands (T, I, L, P) at each of 3 dose levels = 72 total conditions; 1 positive control (mid-dose T-I-L-P), 1 negative control (4x complete media); each condition analyzed in 2 independent biological replicates",
+      "stimulus_interval_min": 120,
+      "total_imaging_duration_min": 480,
+      "sequence_positions": ["S1 (naive)", "S2 (1 prior ligand)", "S3 (2 prior ligands)", "S4 (3 prior ligands)"],
+      "cells_analyzed_total": ">10000",
+      "cells_per_condition": ">200 (randomly selected 50 shown in heatmaps)",
+      "normalization": "Single-cell responses normalized to mean S1 response for the corresponding ligand at each dose",
+      "information_theory": {
+        "method": "Channel capacity (CC) = max mutual information I(R;S) over input probability distribution Q",
+        "features": "Nuclear NF-kappaB amplitude at 6 timepoints per stimulus interval (20, 30, 40, 50, 70, 90 min post-stimulus)",
+        "code_source": "Selimkhanov et al. 2014 Science 346:1370 (Hoffmann/Wollman lab)",
+        "reference": "Selimkhanov et al. 2014, Science, 346, 1370-1373"
+      }
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Device fabrication and surface coating",
+        "bb": "BB1",
+        "inputs": ["PDMS", "PBS", "Fibronectin"],
+        "operation": "mix",
+        "duration_m": 5,
+        "notes": "PDMS device bonded to glass slide by oxygen plasma. Chambers filled with 0.25 mg/mL fibronectin in PBS, incubated overnight at room temperature. Chambers flushed with complete medium before cell loading."
+      },
+      {
+        "id": "S2",
+        "name": "Cell loading and equilibration",
+        "bb": "BB1",
+        "cell_line": "RelA^-/- NIH/3T3 (RelA-DsRed / JNK-KTR / H2B-GFP)",
+        "cell_concentration_cells_mL": "5e6",
+        "suspension_buffer": "FluoroBrite DMEM + supplements",
+        "operation": "flow-through loading (abstracted as mix in BioScript)",
+        "target_confluency_pct": 50,
+        "equilibration_duration_m": 300,
+        "equilibration_temperature_C": 37,
+        "co2_pct": 5,
+        "humidity_pct": 100,
+        "notes": "Cells harvested with trypsin, resuspended in FluoroBrite DMEM, loaded at ~50% confluency to optimize tracking efficiency. 5 h equilibration before imaging start."
+      },
+      {
+        "id": "S3",
+        "name": "S1 stimulus - naive NF-kappaB response",
+        "bb": "BB1",
+        "operation": "automated ligand delivery via MATLAB valve control",
+        "ligand_sequence_position": "S1",
+        "representative_ligand_mid_dose": "IL-1beta 0.2 ng/mL",
+        "stimulus_duration_m": 120,
+        "imaging_interval_min": 6,
+        "detection_module": "nfkbTranslocationDetection",
+        "detection_timepoints_min": [20, 30, 40, 50, 70, 90],
+        "notes": "Naive response: no prior inflammatory ligand exposure. S1 response used as baseline for normalization of S2-S4 responses. Ligand diluted from -80 C stock immediately before stimulus; stored on ice during experiment."
+      },
+      {
+        "id": "S4",
+        "name": "S1 QC gate - valid naive response check",
+        "bb": "BB2/BB3",
+        "detection_module": "nfkbTranslocationDetection",
+        "detection_duration_s": 90,
+        "branch": {
+          "pass": { "condition": "s1Signal > 0", "action": "dispose(s1Ligand); continue to S2", "bb": "BB2" },
+          "fail": { "condition": "s1Signal <= 0", "action": "drain(s1Ligand); skip chamber", "bb": "BB3" }
+        },
+        "notes": "Cells with no detectable S1 response excluded from analysis. 95th percentile of maxima from unstimulated cells used as cutoff threshold."
+      },
+      {
+        "id": "S5",
+        "name": "S2 stimulus - first history-conditioned response",
+        "bb": "BB4",
+        "operation": "automated ligand switch via MATLAB valve control",
+        "ligand_sequence_position": "S2",
+        "representative_ligand_mid_dose": "LPS 100 ng/mL",
+        "stimulus_duration_m": 120,
+        "detection_module": "nfkbTranslocationDetection",
+        "detection_timepoints_min": [20, 30, 40, 50, 70, 90],
+        "key_finding": "Prior IL-1beta (S1) induces MyD88-dependent IRAK1 auto-inhibition attenuating LPS response at mid dose (Fig. 4B/E). Channel capacity increases from S1 to S2, encoding prior history (Fig. 3B).",
+        "branch": {
+          "pass": { "condition": "s2Signal > 0", "action": "dispose(s2Ligand); continue to S3", "bb": "BB5" },
+          "fail": { "condition": "s2Signal <= 0", "action": "drain(s2Ligand)", "bb": "BB6" }
+        }
+      },
+      {
+        "id": "S6",
+        "name": "S3 stimulus - two-ligand history response",
+        "bb": "BB7",
+        "operation": "automated ligand switch via MATLAB valve control",
+        "ligand_sequence_position": "S3",
+        "representative_ligand_mid_dose": "PAM 0.2 ng/mL",
+        "stimulus_duration_m": 120,
+        "detection_module": "nfkbTranslocationDetection",
+        "detection_timepoints_min": [20, 30, 40, 50, 70, 90],
+        "key_finding": "Cumulative MyD88-dependent history (IL-1beta + LPS) induces downstream NF-kappaB-dependent negative feedback (A20, IkappaBepsilon upregulation). CC remains elevated at S3 vs S1 (Fig. 3B/C).",
+        "branch": {
+          "pass": { "condition": "s3Signal > 0", "action": "dispose(s3Ligand); continue to S4", "bb": "BB8" },
+          "fail": { "condition": "s3Signal <= 0", "action": "drain(s3Ligand)", "bb": "BB9" }
+        }
+      },
+      {
+        "id": "S7",
+        "name": "S4 stimulus - three-ligand history response",
+        "bb": "BB10",
+        "operation": "automated ligand switch via MATLAB valve control",
+        "ligand_sequence_position": "S4",
+        "representative_ligand_mid_dose": "TNF-alpha 30 ng/mL",
+        "stimulus_duration_m": 120,
+        "detection_module": "nfkbTranslocationDetection",
+        "detection_timepoints_min": [20, 30, 40, 50, 70, 90],
+        "key_finding": "TNF-alpha signals via TNFR (not MyD88), bypassing accumulated IRAK1 auto-inhibition and downstream MyD88-dependent feedbacks from S1-S3. TNF-alpha response only weakly attenuated regardless of prior history (Figs. 2B, 4B/D).",
+        "branch": {
+          "pass": { "condition": "s4Signal > 0", "action": "cell retrieval for RNA-seq; continue to IKK sub-protocol", "bb": "BB11" },
+          "fail": { "condition": "s4Signal <= 0", "action": "drain(s4Ligand)", "bb": "BB12" }
+        }
+      },
+      {
+        "id": "S8",
+        "name": "Cell retrieval for transcriptomics (S4 pass path only)",
+        "bb": "BB11",
+        "condition": "s4Signal > 0 only",
+        "operation": "TrypLE detachment + lysis buffer collection",
+        "detachment_reagent": "TrypLE Express",
+        "detachment_duration_m": 1,
+        "collection_buffer": "PBS",
+        "lysis_buffer": "10 uL 0.1% Triton-X100 + RNase inhibitor (ice-cold)",
+        "cells_per_replicate": "~1500",
+        "storage": "-80 C",
+        "library_prep": "SMART-Seq2 (modified); TSO oligo AAGCAGTGGTATCAACGCAGAGTGAAT[rG][rG][rG]; OligodT30VN; 6 cycles KAPA HiFi preamplification; Nextera XT library prep",
+        "sequencing": "Illumina HiSEQ4000; single-end 50 bp; University of Chicago Genomics Facility",
+        "alignment": "STAR; reference GRCm38; transcript quantification by featureCounts",
+        "differential_expression": "R packages edgeR + limma; BH FDR < 0.01 and log2FC > 1",
+        "replicates": 3,
+        "rnaseq_accession": "GEO: GSE193053",
+        "detection_module": "rnaSeqDetection",
+        "detection_duration_s": 30
+      },
+      {
+        "id": "S9",
+        "name": "IKK inhibition sub-protocol (Fig. 5A)",
+        "bb": "BB13",
+        "purpose": "Test whether NF-kappaB signalling downstream of IKK is required for LPS-dependent attenuation of subsequent IL-1beta responses",
+        "cell_line": "RelA^-/- NIH/3T3 (RelA-DsRed)",
+        "operation": "PS1145 pretreatment -> LPS stimulus -> wash -> IL-1beta rechallenge",
+        "substeps": [
+          {
+            "substep": 1,
+            "name": "PS1145 pretreatment",
+            "reagent": "PS1145 dihydrochloride 40 uM in complete media",
+            "duration_m": 90,
+            "temperature_C": 37
+          },
+          {
+            "substep": 2,
+            "name": "LPS + PS1145 co-stimulus",
+            "reagent": "LPS (25-400 ng/mL) + 40 uM PS1145 in complete media",
+            "duration_m": 240,
+            "temperature_C": 37,
+            "notes": "NF-kappaB translocation significantly reduced during LPS stimulus due to IKK-beta inhibition (Supp. Fig. 6D)"
+          },
+          {
+            "substep": 3,
+            "name": "Drug washout",
+            "reagent": "Complete DMEM (2 x 15 min washes)",
+            "duration_m": 30,
+            "temperature_C": 37
+          },
+          {
+            "substep": 4,
+            "name": "IL-1beta rechallenge",
+            "reagent": "IL-1beta 3 ng/mL (high dose)",
+            "duration_m": 120,
+            "temperature_C": 37,
+            "detection_module": "nfkbTranslocationDetection",
+            "detection_duration_s": 90,
+            "result": "PS1145-treated cells show significantly stronger NF-kappaB response vs untreated (***p < 1e-4); >120 cells per condition, 2 biological replicates (Fig. 5A)"
+          }
+        ],
+        "branch": {
+          "pass": { "condition": "ikkSignal > 0", "action": "dispose(ikkRechallenge)", "bb": "BB14" },
+          "fail": { "condition": "ikkSignal <= 0", "action": "drain(ikkRechallenge)", "bb": "BB15" }
+        }
+      }
+    ],
+
+    "negative_feedback_model": {
+      "description": "Two-motif ODE model: (1) IRAK1 auto-inhibitory phosphorylation (upstream, shared by all MyD88-dependent ligands); (2) NF-kappaB-dependent downstream inhibitor expression (A20, IkappaBepsilon; LPS-induced 4x stronger than IL-1beta or TNF-alpha)",
+      "equations": 14,
+      "parameters": 20,
+      "receptors_modelled": ["TNFR", "IL-1R", "TLR4"],
+      "base_model": "Krishna et al. 2006, PNAS 103:10840",
+      "implementation": "Python; scipy.integrate.odeint; Bokeh visualization",
+      "key_prediction": "At high dose: symmetric IRAK1-driven attenuation among all MyD88-dependent ligands. At mid/low dose: asymmetric attenuation - prior LPS inhibits IL-1beta/PAM but not vice versa, due to differential downstream feedback induction.",
+      "lps_feedback_multiplier": 4,
+      "github": "https://github.com/tay-lab/Sequential_NF-kB_stim"
+    },
+
+    "transcriptomics": {
+      "condition": "Mid-dose 2 h stimulus: LPS (100 ng/mL) vs PAM (0.2 ng/mL) vs IL-1beta (0.2 ng/mL) vs untreated",
+      "DEGs_LPS_vs_untreated": 609,
+      "DEGs_PAM_vs_untreated": 166,
+      "DEGs_IL1beta_vs_untreated": 108,
+      "key_NF_kappaB_negative_regulators_upregulated_by_LPS": ["Nfkbia", "Nfkbiz", "Acod1", "Nlrp3", "Tnfaip3", "Nfkbie", "Zc3h12a", "Nod2"],
+      "key_cytokines_upregulated_by_LPS": ["Cxcl2", "Csf3", "Il23a", "Ccl20", "Cxcl3", "Cxcl1", "Csf2", "Cxcl10", "Tnfsf9", "Il6"],
+      "qPCR_validation_genes": ["Csf2", "Csf3", "Cxcl2", "Cxcl3", "Il23a", "Nfkbia", "Nfkbie", "Tnfaip3"],
+      "conclusion": "Differences in NF-kappaB activation duration (not total AUC) drive differential downstream gene expression between LPS and IL-1beta. LPS produces longer NF-kappaB activation duration; 1 ng/mL IL-1beta (matching LPS AUC) does not induce comparable Nfkbia or Tnfaip3 expression."
+    },
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1",  "label": "main",         "type": "entry",        "description": "Device prep, fibronectin coating, cell loading, 5 h equilibration, S1 IL-1beta-Mid stimulus" },
+        { "id": "BB2",  "label": "bsbbif_2_t",   "type": "branch_true",  "condition": "s1Signal > 0",   "action": "dispose(s1Ligand)" },
+        { "id": "BB3",  "label": "bsbbif_3_f",   "type": "branch_false", "condition": "s1Signal <= 0",  "action": "drain(s1Ligand)" },
+        { "id": "BB4",  "label": "bsbbif_4_j",   "type": "join",         "description": "dispose(s1Signal); S2 LPS-Mid stimulus + detect" },
+        { "id": "BB5",  "label": "bsbbif_5_t",   "type": "branch_true",  "condition": "s2Signal > 0",   "action": "dispose(s2Ligand)" },
+        { "id": "BB6",  "label": "bsbbif_6_f",   "type": "branch_false", "condition": "s2Signal <= 0",  "action": "drain(s2Ligand)" },
+        { "id": "BB7",  "label": "bsbbif_7_j",   "type": "join",         "description": "dispose(s2Signal); S3 PAM-Mid stimulus + detect" },
+        { "id": "BB8",  "label": "bsbbif_8_t",   "type": "branch_true",  "condition": "s3Signal > 0",   "action": "dispose(s3Ligand)" },
+        { "id": "BB9",  "label": "bsbbif_9_f",   "type": "branch_false", "condition": "s3Signal <= 0",  "action": "drain(s3Ligand)" },
+        { "id": "BB10", "label": "bsbbif_10_j",  "type": "join",         "description": "dispose(s3Signal); S4 TNF-alpha-Mid stimulus + detect" },
+        { "id": "BB11", "label": "bsbbif_11_t",  "type": "branch_true",  "condition": "s4Signal > 0",   "action": "cell retrieval; TrypLE + PBS + rnaSeqDetection" },
+        { "id": "BB12", "label": "bsbbif_12_f",  "type": "branch_false", "condition": "s4Signal <= 0",  "action": "drain(s4Ligand)" },
+        { "id": "BB13", "label": "bsbbif_13_j",  "type": "join",         "description": "IKK sub-protocol: PS1145 pretreat -> LPS 240 m -> 2x wash -> IL-1beta-High rechallenge + detect" },
+        { "id": "BB14", "label": "bsbbif_14_t",  "type": "branch_true",  "condition": "ikkSignal > 0",  "action": "dispose(ikkRechallenge)" },
+        { "id": "BB15", "label": "bsbbif_15_f",  "type": "branch_false", "condition": "ikkSignal <= 0", "action": "drain(ikkRechallenge)" },
+        { "id": "BB16", "label": "bsbbif_16_j",  "type": "terminal",     "description": "dispose(s4Signal); dispose(ikkSignal); NOP" }
+      ],
+      "edges": [
+        ["BB1","BB2"],  ["BB1","BB3"],
+        ["BB2","BB4"],  ["BB3","BB4"],
+        ["BB4","BB5"],  ["BB4","BB6"],
+        ["BB5","BB7"],  ["BB6","BB7"],
+        ["BB7","BB8"],  ["BB7","BB9"],
+        ["BB8","BB10"], ["BB9","BB10"],
+        ["BB10","BB11"],["BB10","BB12"],
+        ["BB11","BB13"],["BB12","BB13"],
+        ["BB13","BB14"],["BB13","BB15"],
+        ["BB14","BB16"],["BB15","BB16"]
+      ]
+    }
+  }
+}

@@ -1,0 +1,51 @@
+bsbbif_2_t:
+	dispose(readyForCVC11[0])
+bsbbif_3_f:
+	dispose(readyForCVC11[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(freefloatSignal1[0])
+	dispose(baselineSignal1[0])
+	sawActuator1[0] = dispense(SAW_Actuator)
+	plasmaRun21[0] = dispense(Plasma_Sample)
+	driverBuffer21[0] = dispense(PBS_1x)
+	sawLysate1[0] = mix(plasmaRun21[0], sawActuator1[0]) @ 60.0SECOND
+	lysisSignal1[0] = detect(sawLysingDetection, sawLysate1[0]) @ 10.0SECOND
+	channelFlow21[0] = mix(sawLysate1[0], driverBuffer21[0]) @ 2.0SECOND
+	cemConcentrator21[0] = dispense(IEM_CEM_Concentrator)
+	concentrating21[0] = mix(channelFlow21[0], cemConcentrator21[0]) @ 1200.0SECOND
+	heat(concentrating21[0]) @ 25.0CELSIUS @ 1200.0SECOND
+	washBuffer21[0] = dispense(PBS_4x)
+	washed21[0] = mix(concentrating21[0], washBuffer21[0]) @ 2.0SECOND
+	cvcBuffer21[0] = dispense(PBS_01x)
+	readyForCVC21[0] = mix(washed21[0], cvcBuffer21[0]) @ 2.0SECOND
+	totalSignal1[0] = detect(miR21TotalDetection, readyForCVC21[0]) @ 30.0SECOND
+	if totalSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	runningBuffer1[0] = dispense(PBS_1x)
+	probeBaseline1[0] = dispense(IEM_AEM_Sensor)
+	baselineMix1[0] = mix(runningBuffer1[0], probeBaseline1[0]) @ 5.0SECOND
+	baselineSignal1[0] = detect(iemSensorDetection, baselineMix1[0]) @ 30.0SECOND
+	plasmaRun11[0] = dispense(Plasma_Sample)
+	driverBuffer11[0] = dispense(PBS_1x)
+	channelFlow11[0] = mix(plasmaRun11[0], driverBuffer11[0]) @ 2.0SECOND
+	cemConcentrator11[0] = dispense(IEM_CEM_Concentrator)
+	concentrating11[0] = mix(channelFlow11[0], cemConcentrator11[0]) @ 1200.0SECOND
+	heat(concentrating11[0]) @ 25.0CELSIUS @ 1200.0SECOND
+	washBuffer11[0] = dispense(PBS_4x)
+	washed11[0] = mix(concentrating11[0], washBuffer11[0]) @ 2.0SECOND
+	cvcBuffer11[0] = dispense(PBS_01x)
+	readyForCVC11[0] = mix(washed11[0], cvcBuffer11[0]) @ 2.0SECOND
+	freefloatSignal1[0] = detect(miR21FreefloatingDetection, readyForCVC11[0]) @ 30.0SECOND
+	if freefloatSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(readyForCVC21[0])
+	dispose(lysisSignal1[0])
+bsbbif_6_f:
+	dispose(readyForCVC21[0])
+	dispose(lysisSignal1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(totalSignal1[0])
+	dispose(baselineMix1[0])
+	NOP

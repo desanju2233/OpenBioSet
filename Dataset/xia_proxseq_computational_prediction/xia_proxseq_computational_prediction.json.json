@@ -1,0 +1,432 @@
+{
+  "protocol": {
+    "title": "Computational Prediction of Protein Interactions in Single Cells by Proximity Sequencing",
+    "source": "PLoS Computational Biology 2024, 20(3): e1011915",
+    "doi": "10.1371/journal.pcbi.1011915",
+    "platform": "Proximity Sequencing (Prox-seq) combined with single-cell RNA sequencing (scRNA-seq)",
+    "cell_lines": [
+      "Jurkat (human T cell leukemia; T cell marker panel)",
+      "Raji (human Burkitt lymphoma B cell line; B cell marker panel)"
+    ],
+    "objective": "Simultaneous quantification of mRNA, surface protein expression, and protein complexes (dimers) at the single-cell level using dual-antibody proximity ligation assay (PLA) with DNA-conjugated probes, sequenced alongside scRNA-seq cDNA libraries; computational benchmarking of iterative, linear regression (LR), and ensemble methods for proximity noise removal and protein complex prediction",
+
+    "platform_details": {
+      "method": "Proximity Sequencing (Prox-seq)",
+      "assay_type": "Proximity Ligation Assay (PLA) with sequencing readout",
+      "probe_design": "Each target protein is stained with two DNA-conjugated antibodies: Probe A and Probe B. Ligation of Probe A oligo to Probe B oligo occurs only when the two probes are within 50-70 nm of each other (i.e., when their target proteins are co-localised or in complex).",
+      "ligation_distance_nm": "50-70",
+      "pla_product": "Ligated A+B oligo barcode pair; counted by unique molecular identifiers (UMIs) after sequencing",
+      "free_oligo_modification": "An experimentally modified Prox-seq procedure adds FreeOligoA and FreeOligoB (non-antibody-conjugated oligos) to measure non-proximal (unligated) probe counts. These counts are used as explanatory variables in the LR and ensemble methods for proximity noise estimation.",
+      "sequencing_platform": "Combined scRNA-seq + PLA product library (sequenced together)",
+      "umi_counting": "PLA product UMI counts per cell per protein pair extracted computationally (Python3/Anaconda3 v4.10.3)",
+      "code_repository": "https://github.com/tay-lab/Prox-seq_computation",
+      "data_repository": "NCBI GEO accession GSE196130"
+    },
+
+    "reagents": {
+      "cells": {
+        "jurkat": "Jurkat T cells; cultured under standard conditions; resuspended in PBS for staining",
+        "raji": "Raji B cells; cultured under standard conditions; resuspended in PBS for staining"
+      },
+      "buffers": {
+        "PBS": "Phosphate-buffered saline; used for cell suspension and wash steps",
+        "blocking_buffer": "Blocking buffer to reduce nonspecific antibody binding prior to probe staining; incubated 10 min at 4 C",
+        "wash_buffer": "PBS-based wash buffer; used 3x after each probe staining step to remove unbound probes",
+        "ligation_buffer": "Ligation buffer compatible with T4 DNA ligase proximity ligation reaction",
+        "stop_solution": "Stop solution to quench T4 DNA ligase activity after ligation"
+      },
+      "probes": {
+        "probe_A": "Prox-seq Probe A: DNA-conjugated antibody panel targeting CD3, CD28, PD1, CD147, ICAM1, PDL1, HLADR, B7 (same panel used for Jurkat and Raji arms; ref Vistain et al. Nat Methods 2022)",
+        "probe_B": "Prox-seq Probe B: DNA-conjugated antibody panel targeting same proteins as Probe A; B oligo is the ligation partner for A oligo",
+        "free_oligo_A": "FreeOligoA: non-antibody-conjugated oligo dispensed alongside probe panel; generates PLA product Protein_X:free_oligo_B to measure non-proximal Probe A counts",
+        "free_oligo_B": "FreeOligob: non-antibody-conjugated oligo dispensed alongside probe panel; generates PLA product free_oligo_A:Protein_Y to measure non-proximal Probe B counts",
+        "isotype_control": "Isotype control antibody with oligonucleotide conjugation; included in both Probe A and Probe B panels; used to estimate nonspecific antibody binding probability directly from observed PLA data (paper Section 2.2, S4 Fig)"
+      },
+      "ligation_enzyme": "T4 DNA Ligase; catalyses ligation of Probe A and Probe B oligos when within 50-70 nm proximity",
+      "library_reagents": {
+        "dna_library_buffer": "DNA library preparation buffer; used to generate combined cDNA (gene expression) and PLA product sequencing library",
+        "sequencing_reagent": "Sequencing reagent for combined scRNA-seq + Prox-seq library"
+      }
+    },
+
+    "probe_panel": {
+      "targets": ["CD3", "CD28", "PD1", "CD147", "ICAM1", "PDL1", "HLADR", "B7"],
+      "control": "Isotype control antibody (oligo-conjugated) in both Probe A and Probe B panels",
+      "jurkat_expressed": ["CD3", "CD28", "PD1", "CD147", "ICAM1"],
+      "raji_expressed": ["ICAM1", "PDL1", "HLADR", "B7", "CD147"],
+      "known_complexes": {
+        "jurkat": ["CD3:CD3 (homodimer, Ref 12)", "CD28:CD28 (homodimer, Ref 13)"],
+        "raji": ["ICAM1:ICAM1 (homodimer on cell surface, Ref 14)"]
+      }
+    },
+
+    "proximity_noise_model": {
+      "definition": "Random ligation of Probe A and Probe B oligos from non-interacting protein molecules that are sufficiently close by random chance; main background source in Prox-seq",
+      "theoretical_expected_count": "E(X_ij) = (d_ligation^2 / 4R^2) * A_i * B_j",
+      "variables": {
+        "d_ligation": "Ligation distance (50 nm in simulation)",
+        "R": "Cell radius (5 um = 5000 units in simulation)",
+        "A_i": "Non-proximal Probe A count for protein i",
+        "B_j": "Non-proximal Probe B count for protein j"
+      },
+      "distribution": "Binomial; X_ij ~ Binomial(n = A_i * B_j, p = d_ligation^2 / 4R^2)",
+      "overdispersion": "Negative binomial (NB) variance added in simulation (n_NB = 1.5) to capture real data overdispersion",
+      "note": "Proximity noise scales quadratically with protein abundance and ligation distance (Fig 2e)"
+    },
+
+    "computational_methods": {
+      "iterative_method": {
+        "mechanism": "Iteratively solve quadratic equations for all protein dimers; protein complex count = observed PLA count minus expected random PLA count",
+        "strengths": "Performs well in high signal-to-noise (homodimer or heterodimer only) scenarios",
+        "limitations": "Unstable with multiple protein dimers or overabundant proteins; sensitive to initialisation",
+        "applicable_situations": "Simpler biological scenarios with only homodimers or only heterodimers"
+      },
+      "lr_method": {
+        "mechanism": "Weighted least squares regression of observed PLA count onto product of non-proximal Probe A and Probe B counts; protein complex count = observed PLA count minus estimated proximity noise (beta_1 * A_i_prime * B_j_prime); requires free oligo modification",
+        "strengths": "Performs well in low signal-to-noise and complex multi-dimer scenarios",
+        "limitations": "Unstable when non-proximal probe counts are near zero; not optimal for high signal-to-noise homodimer/heterodimer-only scenarios",
+        "applicable_situations": "Low signal-to-noise and scenarios with multiple protein dimers or overabundant proteins"
+      },
+      "ensemble_method": {
+        "mechanism": "Apply LR method first; use LR output as initialisation for iterative method; bridges both approaches",
+        "strengths": "Robust and consistent across all biological scenarios; lowest false positive rate; best overall prediction score",
+        "limitations": "Requires free oligo modification experimental procedure",
+        "applicable_situations": "Robust choice when true biological conditions are uncertain; recommended default"
+      },
+      "fishers_exact_test": {
+        "mechanism": "One-sided Fisher's exact test on 2x2 contingency table of PLA counts; Benjamini-Hochberg correction; identifies protein complexes occurring at higher frequency than random",
+        "use": "Statistical validation of complex enrichment; complementary to quantification methods"
+      },
+      "prediction_score": {
+        "formula": "Score = w1 * SumPearson - w2 * SumMeanDeviation - w3 * SumFPrate",
+        "weights": { "w1": 0.5, "w2": 0.4, "w3": 0.1 },
+        "result": "Ensemble method has highest average prediction score and lowest variance across all 800 randomised simulation scenarios (S10d Fig, S2 Table)"
+      }
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Cell suspension preparation",
+        "arm": "Jurkat (ARM 1)",
+        "bb": "BB1",
+        "inputs": ["JurkatCells", "PBS"],
+        "operation": "mix",
+        "duration_s": 300,
+        "temperature_C": null,
+        "notes": "Resuspend Jurkat T cells in PBS at appropriate concentration for single-cell Prox-seq staining"
+      },
+      {
+        "id": "S2",
+        "name": "Nonspecific binding block",
+        "arm": "Jurkat (ARM 1)",
+        "bb": "BB1",
+        "inputs": ["jurkatSuspension", "BlockingBuffer"],
+        "operation": "mix + heat",
+        "duration_s": 600,
+        "temperature_C": 4,
+        "notes": "10 min blocking at 4 C; reduces nonspecific antibody binding background. Paper Section 2.2: nonspecific binding constitutes <1% of both-specific PLA counts for extracellular proteins (e.g. CD147:CD147 in Jurkat cells, S4 Fig)"
+      },
+      {
+        "id": "S3",
+        "name": "Probe A staining with isotype control",
+        "arm": "Jurkat (ARM 1)",
+        "bb": "BB1",
+        "inputs": ["blockedCells", "ProxSeqProbeA", "IsotypeControlAntibody"],
+        "operation": "mix + heat",
+        "duration_s": 1800,
+        "temperature_C": 4,
+        "notes": "30 min incubation at 4 C. Probe A panel targets CD3, CD28, PD1, CD147, ICAM1, PDL1, HLADR, B7. Isotype control antibody (oligo-conjugated) included in Probe A panel to directly define nonspecific binding distribution"
+      },
+      {
+        "id": "S4",
+        "name": "Wash unbound Probe A (3x)",
+        "arm": "Jurkat (ARM 1)",
+        "bb": "BB1",
+        "inputs": ["probeAStained", "WashBuffer x3"],
+        "operation": "mix (3 sequential washes)",
+        "duration_s": 120,
+        "washes": 3,
+        "temperature_C": null,
+        "notes": "3x PBS wash, 2 min each. Removes excess unbound Probe A antibodies. Unligated probes do not contribute to PLA signal (library prep and alignment require barcodes from both A and B probes)"
+      },
+      {
+        "id": "S5",
+        "name": "Probe B staining",
+        "arm": "Jurkat (ARM 1)",
+        "bb": "BB1",
+        "inputs": ["jurkatProbeAReady", "ProxSeqProbeB"],
+        "operation": "mix + heat",
+        "duration_s": 1800,
+        "temperature_C": 4,
+        "notes": "30 min incubation at 4 C. Probe B panel targets same proteins as Probe A. After this step, cells carry both Probe A and Probe B antibodies on surface proteins"
+      },
+      {
+        "id": "S6",
+        "name": "Wash unbound Probe B (3x)",
+        "arm": "Jurkat (ARM 1)",
+        "bb": "BB1",
+        "inputs": ["probeBStained", "WashBuffer x3"],
+        "operation": "mix (3 sequential washes)",
+        "duration_s": 120,
+        "washes": 3,
+        "temperature_C": null,
+        "notes": "3x PBS wash, 2 min each"
+      },
+      {
+        "id": "S7",
+        "name": "Free oligo addition (non-proximal probe measurement)",
+        "arm": "Jurkat (ARM 1)",
+        "bb": "BB1",
+        "inputs": ["jurkatDualStained", "FreeOligoA", "FreeOligoB"],
+        "operation": "mix + heat",
+        "duration_s": 600,
+        "temperature_C": 4,
+        "notes": "10 min incubation at 4 C. FreeOligoA and FreeOligoB added to measure non-proximal (unligated) probe counts. Free oligos are not conjugated to antibodies; they produce PLA products Protein_X:free_oligo_B (non-proximal Probe A) and free_oligo_A:Protein_Y (non-proximal Probe B). Required for LR and ensemble methods (Methods: LR method equation Y_ij = X_ij - beta_1 * A_i_prime * B_j_prime). Ref [4] Vistain et al. Nat Methods 2022."
+      },
+      {
+        "id": "S8",
+        "name": "Proximity ligation reaction",
+        "arm": "Jurkat (ARM 1)",
+        "bb": "BB1",
+        "inputs": ["jurkatWithFreeOligos", "LigationBuffer", "Ligase"],
+        "operation": "mix + heat",
+        "duration_s": 1800,
+        "temperature_C": 25,
+        "ligation_distance_nm": 50,
+        "notes": "30 min at 25 C. T4 DNA Ligase catalyses ligation of Probe A oligo to Probe B oligo only when within 50-70 nm. Random co-localisation generates proximity noise: E(X_ij) = (d_ligation^2 / 4R^2) * A_i * B_j. BioScript mix abstraction represents the proximity ligation event."
+      },
+      {
+        "id": "S9",
+        "name": "Ligation stop and wash (3x)",
+        "arm": "Jurkat (ARM 1)",
+        "bb": "BB1",
+        "inputs": ["jurkatLigated", "StopSolution", "WashBuffer x3"],
+        "operation": "mix (stop) + mix x3 (washes)",
+        "duration_s": 300,
+        "wash_duration_s": 120,
+        "washes": 3,
+        "temperature_C": null,
+        "notes": "Add stop solution to quench ligase; 3x PBS wash to remove ligation reagents before library preparation"
+      },
+      {
+        "id": "S10",
+        "name": "Single-cell encapsulation and library preparation",
+        "arm": "Jurkat (ARM 1)",
+        "bb": "BB1",
+        "inputs": ["jurkatLigatedReady", "DNALibraryBuffer", "SequencingReagent"],
+        "operation": "mix + heat",
+        "duration_s": 1800,
+        "temperature_C": 37,
+        "notes": "Cells encapsulated in individual droplets and lysed. mRNA captured by poly-dT oligonucleotides; PLA products captured by barcoded sequences. Combined cDNA and PLA product library prepared at 37 C for 30 min. Sequencing reagent added for final library preparation (10 min mix)."
+      },
+      {
+        "id": "S11",
+        "name": "Jurkat library QC detection",
+        "arm": "Jurkat (ARM 1)",
+        "bb": "BB1",
+        "inputs": ["jurkatSeqReady"],
+        "operation": "detect (seqLibraryQC)",
+        "detection_duration_s": 30,
+        "detection_module": "seqLibraryQC",
+        "notes": "QC check on Jurkat Prox-seq library: fragment size, complexity, UMI diversity (abstracted from fluorometric/electrophoretic QC e.g. Bioanalyzer, Qubit)",
+        "branch": {
+          "pass": { "condition": "jurkatLibSignal > 0", "action": "dispose(jurkatSeqReady)", "bb": "BB2" },
+          "fail": { "condition": "jurkatLibSignal <= 0", "action": "drain(jurkatSeqReady)", "bb": "BB3" }
+        }
+      },
+      {
+        "id": "S12",
+        "name": "Cell suspension preparation",
+        "arm": "Raji (ARM 2)",
+        "bb": "BB4",
+        "inputs": ["RajiCells", "PBS"],
+        "operation": "mix",
+        "duration_s": 300,
+        "temperature_C": null,
+        "notes": "Resuspend Raji B cells in PBS. Raji cells express ICAM1 (known homodimer), HLADR, PDL1, B7. Raji cells do not express CD3 or PD1; their PLA products for those targets are near zero, validating probe panel specificity"
+      },
+      {
+        "id": "S13",
+        "name": "Nonspecific binding block",
+        "arm": "Raji (ARM 2)",
+        "bb": "BB4",
+        "inputs": ["rajiSuspension", "BlockingBuffer"],
+        "operation": "mix + heat",
+        "duration_s": 600,
+        "temperature_C": 4,
+        "notes": "Same blocking procedure as Jurkat arm"
+      },
+      {
+        "id": "S14",
+        "name": "Probe A staining with isotype control",
+        "arm": "Raji (ARM 2)",
+        "bb": "BB4",
+        "inputs": ["rajiBlocked", "ProxSeqProbeA", "IsotypeControlAntibody"],
+        "operation": "mix + heat",
+        "duration_s": 1800,
+        "temperature_C": 4,
+        "notes": "Same panel as Jurkat arm. ICAM1:ICAM1 homodimer signal in Raji cells exceeds expected random ligation background (Fig 5d-f)"
+      },
+      {
+        "id": "S15",
+        "name": "Wash unbound Probe A (3x)",
+        "arm": "Raji (ARM 2)",
+        "bb": "BB4",
+        "inputs": ["rajiProbeAStained", "WashBuffer x3"],
+        "operation": "mix (3 sequential washes)",
+        "duration_s": 120,
+        "washes": 3,
+        "temperature_C": null,
+        "notes": "3x PBS wash, 2 min each"
+      },
+      {
+        "id": "S16",
+        "name": "Probe B staining",
+        "arm": "Raji (ARM 2)",
+        "bb": "BB4",
+        "inputs": ["rajiProbeAReady", "ProxSeqProbeB"],
+        "operation": "mix + heat",
+        "duration_s": 1800,
+        "temperature_C": 4,
+        "notes": "Same procedure as Jurkat arm"
+      },
+      {
+        "id": "S17",
+        "name": "Wash unbound Probe B (3x)",
+        "arm": "Raji (ARM 2)",
+        "bb": "BB4",
+        "inputs": ["rajiProbeBStained", "WashBuffer x3"],
+        "operation": "mix (3 sequential washes)",
+        "duration_s": 120,
+        "washes": 3,
+        "temperature_C": null,
+        "notes": "3x PBS wash, 2 min each"
+      },
+      {
+        "id": "S18",
+        "name": "Free oligo addition (non-proximal probe measurement)",
+        "arm": "Raji (ARM 2)",
+        "bb": "BB4",
+        "inputs": ["rajiDualStained", "FreeOligoA", "FreeOligoB"],
+        "operation": "mix + heat",
+        "duration_s": 600,
+        "temperature_C": 4,
+        "notes": "Same free oligo modification as Jurkat arm. Non-proximal probe counts for Raji cells used to calibrate proximity noise in LR and ensemble methods for Raji-specific protein complex detection"
+      },
+      {
+        "id": "S19",
+        "name": "Proximity ligation reaction",
+        "arm": "Raji (ARM 2)",
+        "bb": "BB4",
+        "inputs": ["rajiWithFreeOligos", "LigationBuffer", "Ligase"],
+        "operation": "mix + heat",
+        "duration_s": 1800,
+        "temperature_C": 25,
+        "ligation_distance_nm": 50,
+        "notes": "30 min at 25 C. Same conditions as Jurkat arm. ICAM1:ICAM1 homodimer signal in Raji cells exceeds E(X_ij) proximity noise baseline"
+      },
+      {
+        "id": "S20",
+        "name": "Ligation stop and wash (3x)",
+        "arm": "Raji (ARM 2)",
+        "bb": "BB4",
+        "inputs": ["rajiLigated", "StopSolution", "WashBuffer x3"],
+        "operation": "mix (stop) + mix x3 (washes)",
+        "duration_s": 300,
+        "wash_duration_s": 120,
+        "washes": 3,
+        "temperature_C": null,
+        "notes": "Add stop solution; 3x PBS wash"
+      },
+      {
+        "id": "S21",
+        "name": "Single-cell encapsulation and library preparation",
+        "arm": "Raji (ARM 2)",
+        "bb": "BB4",
+        "inputs": ["rajiLigatedReady", "DNALibraryBuffer", "SequencingReagent"],
+        "operation": "mix + heat",
+        "duration_s": 1800,
+        "temperature_C": 37,
+        "notes": "Same procedure as Jurkat arm. After sequencing, UMI counts per PLA product per single Raji cell are primary data for computational analysis (iterative / LR / ensemble methods)"
+      },
+      {
+        "id": "S22",
+        "name": "Raji library QC detection",
+        "arm": "Raji (ARM 2)",
+        "bb": "BB4",
+        "inputs": ["rajiSeqReady"],
+        "operation": "detect (seqLibraryQC)",
+        "detection_duration_s": 30,
+        "detection_module": "seqLibraryQC",
+        "notes": "Same QC procedure as Jurkat arm",
+        "branch": {
+          "pass": { "condition": "rajiLibSignal > 0", "action": "dispose(rajiSeqReady)", "bb": "BB5" },
+          "fail": { "condition": "rajiLibSignal <= 0", "action": "drain(rajiSeqReady)", "bb": "BB6" }
+        }
+      }
+    ],
+
+    "simulation_model": {
+      "description": "Physical model of PLA product formation per single cell; simulates proximity noise and protein complex signal independently",
+      "cell_radius_um": 5,
+      "ligation_distance_nm": 50,
+      "variance_model": "Negative binomial (NB); n_NB = 1.5; p_NB = (1 + A_i / n_NB)^-1",
+      "simulation_repeats": 100,
+      "cells_per_simulation": 100,
+      "calibration": "Calibrated against Jurkat (T cell) and Raji (B cell) experimental data; NB variance chosen from mean n_NB fitted to real PLA products (S3c Fig)",
+      "posterior_predictive_checks": "Mann-Whitney U statistic and coefficient of variation comparison between simulated and real data (S3a, S3b Fig)",
+      "scenarios_benchmarked": 800,
+      "scenario_types": [
+        "Only heterodimer",
+        "Only homodimer",
+        "One overabundant protein",
+        "Multiple protein dimers"
+      ],
+      "signal_to_noise_cases": ["High (complex:monomer 10:1)", "Low (complex:monomer 1:10)"]
+    },
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1", "label": "main",         "type": "entry",        "content": "Jurkat cell prep, blocking, Probe A staining, wash x3, Probe B staining, wash x3, free oligo addition, ligation, stop+wash x3, library prep, library QC detect" },
+        { "id": "BB2", "label": "bsbbif_2_t",   "type": "branch_true",  "condition": "jurkatLibSignal > 0",  "action": "dispose(jurkatSeqReady)" },
+        { "id": "BB3", "label": "bsbbif_3_f",   "type": "branch_false", "condition": "jurkatLibSignal <= 0", "action": "drain(jurkatSeqReady)" },
+        { "id": "BB4", "label": "bsbbif_4_j",   "type": "join",         "content": "dispose(jurkatLibSignal); Raji cell prep, blocking, Probe A staining, wash x3, Probe B staining, wash x3, free oligo addition, ligation, stop+wash x3, library prep, library QC detect" },
+        { "id": "BB5", "label": "bsbbif_5_t",   "type": "branch_true",  "condition": "rajiLibSignal > 0",   "action": "dispose(rajiSeqReady)" },
+        { "id": "BB6", "label": "bsbbif_6_f",   "type": "branch_false", "condition": "rajiLibSignal <= 0",  "action": "drain(rajiSeqReady)" },
+        { "id": "BB7", "label": "bsbbif_7_j",   "type": "terminal",     "content": "dispose(rajiLibSignal); experiment ends; data to computational pipeline" }
+      ],
+      "edges": [
+        ["BB1", "BB2"], ["BB1", "BB3"],
+        ["BB2", "BB4"], ["BB3", "BB4"],
+        ["BB4", "BB5"], ["BB4", "BB6"],
+        ["BB5", "BB7"], ["BB6", "BB7"]
+      ]
+    },
+
+    "bioscript_compiler_notes": {
+      "bs_file": "xia_proxseq_computational_prediction.bs",
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "ir_output": "7 basic blocks (BB1-BB7), 2 sequential if/else gates, 8 CFG edges",
+      "dag_file": "xia_proxseq_computational_prediction_main_dag.dot",
+      "duration_units": "All durations in s (seconds) or m (minutes); BioScript does not support h token",
+      "duration_conversions": {
+        "5m": "300.0 SECOND",
+        "10m": "600.0 SECOND",
+        "30m": "1800.0 SECOND",
+        "2m": "120.0 SECOND",
+        "30s": "30.0 SECOND"
+      },
+      "modules_declared": ["proxSeqDetection", "viabilityDetection", "plaDetection", "seqLibraryQC"],
+      "active_qc_module": "seqLibraryQC",
+      "manifests": [
+        "JurkatCells", "RajiCells", "PBS", "ProxSeqProbeA", "ProxSeqProbeB",
+        "FreeOligoA", "FreeOligoB", "LigationBuffer", "Ligase", "BlockingBuffer",
+        "WashBuffer", "DNALibraryBuffer", "SequencingReagent", "IsotypeControlAntibody",
+        "StopSolution"
+      ],
+      "compiler_behaviour_note": "lilott8/BioScript compiler maps both dispose and drain to a unified disposal IR operation (dispose in IR for both pass and fail branches). This does not affect compilation correctness. Observed in bsbbif_3_f (Jurkat fail path) and bsbbif_6_f (Raji fail path) of the IR output.",
+      "arms": "Two sequential arms encoded in main BB (Jurkat ARM 1) and jurkatLibJoin BB4 (Raji ARM 2). Each arm is structurally identical: blocking -> Probe A stain -> wash x3 -> Probe B stain -> wash x3 -> free oligo addition -> ligation -> stop+wash x3 -> library prep -> QC detect."
+    }
+  }
+}

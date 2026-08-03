@@ -1,0 +1,267 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : NF-kappaB Memory Coordinates Transcriptional Responses to Dynamic Inflammatory Stimuli
+Source Link  : https://www.cell.com/cell-reports/pdfExtended/S2211-1247(22)00968-8
+Paper DOI    : https://doi.org/10.1016/j.celrep.2022.111159
+Journal      : Cell Reports, 2022, Vol. 40, Article 111159
+Platform     : Automated pressure-driven microfluidic live-cell imaging (channel-based PDMS/glass device,
+               not DMF); 64-chamber device with 14 stimulus inputs; MATLAB-driven pneumatic valve control
+
+
+OVERVIEW
+--------
+This protocol describes a high-throughput microfluidic live-cell imaging approach to systematically
+profile single-cell NF-kappaB responses to 24 non-repeating sequential combinations of four
+inflammatory ligands (TNF-alpha, IL-1beta, LPS, PAM2CSK4) at three dose levels (high, mid, low)
+in RelA^-/- NIH/3T3 mouse embryonic fibroblasts expressing a RelA-DsRed fusion protein. The core
+finding is that NF-kappaB dynamics encode short-term memory of prior stimulus history through
+ligand-dependent engagement of distinct negative feedback modules.
+
+The protocol has four functional phases:
+  1. Microfluidic device preparation, cell loading, and equilibration
+  2. Sequential four-ligand stimulation (S1 -> S2 -> S3 -> S4, 2 h per interval) with continuous
+     live-cell time-lapse imaging and nuclear/cytoplasmic RelA-DsRed quantification
+  3. Information-theoretic analysis of NF-kappaB dynamics using channel capacity (CC) to quantify
+     how accurately subsequent responses encode prior stimulus history
+  4. Mechanistic dissection via IKK inhibition (PS1145), mathematical ODE modelling, and bulk
+     RNA sequencing to identify ligand-dependent negative feedback modules
+
+The complete 8 h imaging experiment profiles >10,000 single cells across 72 conditions
+(24 sequences x 3 dose levels) in 2 independent biological replicates.
+
+
+DEVICE ARCHITECTURE
+-------------------
+Type      : Pressure-driven automated microfluidic cell culture device (channel-based; not DMF).
+            No electrodes, no EWOD actuation. Reagent switching achieved by pneumatic valves.
+Material  : PDMS (Momentive RTV-615, 10:1 monomer:catalyst) bonded to glass slide by oxygen plasma.
+Layers    : Control layer: 66 g PDMS poured on silicon wafer master, cured 80 C overnight, ~2 cm thick.
+            Flow layer: 15 g PDMS spun at 2200 rpm on silicon wafer master (50 um thick), cured 80 C 1 h.
+            Both layers plasma-treated, aligned under custom stereomicroscope, baked 80 C overnight.
+Chambers  : 64 independently controlled cell culture chambers, each 3.5 x 0.8 x 0.035 mm; >500 cells/chamber.
+Inputs    : 14 unique stimulus inputs.
+Coating   : 0.25 mg/mL human plasma fibronectin (Millipore FC010) in sterile PBS pH 7.4; overnight RT.
+Control   : Pneumatic solenoid valves; electronic controller boxes; MATLAB scripts + custom GUI.
+            Input pressure: 4 psi; reagent delivery via PEEK tubing (VICI, TPK.505).
+Microscope: Nikon Ti2 enclosed in temperature-controlled incubator (Life Imaging Services); 37 C,
+            100% humidity, 5% CO2 throughout all imaging steps.
+Camera    : Hamamatsu ORCA-Flash4.0 V2 sCMOS; 20X magnification; images every 6 min.
+Channels  : RelA-DsRed (555 nm excitation, 0.5-1 s exposure; NF-kappaB nuclear translocation)
+            H2B-GFP (485 nm, 50-100 ms; nuclear segmentation and cell tracking)
+            JNK-KTR-mCerulean3 (440 nm, 100 ms; JNK kinase activity)
+Design ref: Kellogg et al. 2014, Nat. Protoc. 9, 1713-1726; Son et al. 2021, Sci. Signal. 14, eaaz4382
+
+
+CELL LINE
+---------
+RelA^-/- NIH/3T3 immortalized mouse embryonic fibroblasts (3T3s) stably expressing:
+  - RelA-DsRed fusion protein (NF-kappaB nuclear translocation reporter)
+  - JNK-KTR-mCerulean3 (JNK kinase activity reporter)
+  - H2B-GFP (nuclear marker for segmentation and tracking)
+Source    : Markus Covert laboratory (Stanford University)
+Culture   : DMEM High Glucose (Gibco) + 10% FBS (Omega Scientific) + 1% GlutaMAX (Gibco)
+            + 100 U/mL penicillin-streptomycin (Gibco); 37 C, 5% CO2.
+Imaging   : FluoroBrite DMEM (Gibco, A1896701) + same supplements; reduces autofluorescence.
+Passage   : No more than 15 passages; passed before reaching 100% confluency.
+MyD88 KO  : CRISPR-Cas9 knockout line generated using pX330 backbone (Addgene #42230) and
+            guide RNA 5'-TCGCGCTTAACGTGGGAGTG-3'; confirmed by Sanger sequencing and western blot.
+            Used to confirm MyD88-dependence of LPS, IL-1beta, and PAM signalling (Supp. Fig. 5).
+
+
+LIGANDS AND DOSE LEVELS
+------------------------
+Four inflammatory ligands covering two receptor pathway groups:
+
+  TNFR pathway (MyD88-independent):
+    TNF-alpha : Recombinant Mouse TNF-alpha (R&D Systems, aa 80-235)
+                Signals via TNFR -> TRADD/TRAF2 -> IKK -> NF-kappaB
+                High: 90 ng/mL (>95% activated); Mid: 30 ng/mL (85-95%); Low: 3 ng/mL (50-70%)
+                NOTE: maximal TNF-alpha activation ~90%; high dose activates slightly fewer cells than
+                other ligands at high dose.
+
+  MyD88-dependent pathway (shared IRAK1/4 -> IKK -> NF-kappaB):
+    IL-1beta  : Recombinant Mouse IL-1 beta/IL-1F2 (R&D Systems, 401ML010CF); receptor IL-1R
+                High: 3 ng/mL; Mid: 0.2 ng/mL; Low: 0.05 ng/mL
+    LPS       : Ultrapure LPS E. coli 0111:B4 (InvivoGen, tlrl-3pelps); receptor TLR4
+                High: 400 ng/mL; Mid: 100 ng/mL; Low: 12.5 ng/mL
+                NOTE: LPS produces characteristically delayed NF-kappaB activation kinetics
+                (linked to ligand-specific IKK cycling rates); TRIF/TRAM-independent in 3T3s.
+    PAM       : PAM2CSK4 synthetic diacylated lipopeptide (InvivoGen, tlrl-pm2s-1); receptor TLR2/6
+                High: 1 ng/mL; Mid: 0.2 ng/mL; Low: 0.01 ng/mL
+
+All ligands diluted from -80 C stocks immediately before each stimulus, stored on ice during
+the experiment. Delivered at 4 psi via PEEK tubing at each 2 h interval switch.
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Device Fabrication and Surface Coating
+  Reagents  : PDMS (RTV-615, 10:1), PBS (Gibco, pH 7.4), fibronectin 0.25 mg/mL
+  Operation : Plasma-bond PDMS device to glass. Fill chambers with fibronectin/PBS solution.
+  Duration  : Overnight at room temperature (fibronectin coating); flush with complete media before loading.
+  Purpose   : Fibronectin coating promotes cell adhesion to PDMS chamber floor.
+
+Step 2 | Cell Loading and Equilibration
+  Cell line  : RelA^-/- NIH/3T3 (RelA-DsRed / JNK-KTR / H2B-GFP)
+  Preparation: Harvest with trypsin; wash with complete medium; resuspend at 5e6 cells/mL
+               in FluoroBrite DMEM + supplements.
+  Loading    : Load at ~50% confluency to optimize single-cell tracking efficiency.
+  Equilibration: 5 h (300 min) at 37 C, 5% CO2, 100% humidity before stimulus and imaging begin.
+  Purpose    : Allow cells to adhere, spread, and return to baseline signalling state.
+
+Step 3 | S1 Stimulus - Naive NF-kappaB Response
+  Ligand (canonical mid-dose arm): IL-1beta 0.2 ng/mL
+  Duration   : 120 min (2 h interval)
+  Delivery   : MATLAB valve script switches input from media to ligand at t=0 min; 4 psi, PEEK tubing.
+  Imaging    : Time-lapse epifluorescence, 555 nm excitation, 0.5-1 s exposure, every 6 min.
+               For time-resolved LPS-to-IL-1beta switching experiments: imaging every 3 min.
+  Readout    : Nuclear/cytoplasmic RelA-DsRed ratio quantified by custom MATLAB image analysis.
+               H2B-GFP used for nuclear segmentation; single-cell trajectories tracked over full
+               experiment. Traces smoothed with lowess (span 3) to identify local maxima.
+               Multiple local maxima allowed (min 5-frame = 30 min spacing between peaks).
+               Cutoff: 95th percentile of maxima from unstimulated cells; sub-threshold values set to 0.
+  Information: Nuclear NF-kappaB at 6 timepoints (20, 30, 40, 50, 70, 90 min post-stimulus)
+               used as 6-dimensional input for channel capacity (CC) calculation (Fig. 3A).
+  Result     : S1 response is naive baseline; used to normalize all S2-S4 responses for that ligand.
+
+Step 4 | S1 QC Gate
+  Condition  : s1Signal > 0 -> pass (valid naive response); proceed to S2.
+               s1Signal <= 0 -> fail (no response: dead, unhealthy, or incorrectly loaded cell);
+               dispose ligand variable; chamber excluded from downstream analysis.
+
+Step 5 | S2 Stimulus - First History-Conditioned Response
+  Ligand (canonical mid-dose arm): LPS 100 ng/mL
+  Duration   : 120 min; valve switches from IL-1beta to LPS at t=120 min.
+  Key finding: Prior IL-1beta (S1, MyD88-dependent) induces IRAK1 auto-inhibitory phosphorylation,
+               attenuating the subsequent LPS response in a dose-dependent manner (Fig. 4B/E).
+               Asymmetry: prior LPS inhibits subsequent IL-1beta/PAM more strongly than vice versa
+               at mid and low doses (Fig. 4E, red vs blue/green). Prior TNF-alpha (TNFR-dependent)
+               only weakly attenuates MyD88-dependent signalling (Fig. 4D, blue).
+  CC result  : Channel capacity increases from S1 to S2 despite response attenuation, indicating
+               NF-kappaB dynamics encode prior history information (Fig. 3B).
+
+Step 6 | S3 Stimulus - Two-Ligand History Response
+  Ligand (canonical mid-dose arm): PAM 0.2 ng/mL
+  Duration   : 120 min; valve switches to PAM at t=240 min.
+  Key finding: Cumulative MyD88-dependent history (IL-1beta + LPS, S1+S2) induces downstream
+               NF-kappaB-dependent negative feedback proteins (A20/Tnfaip3, IkappaBepsilon/Nfkbie,
+               Nfkbia). Channel capacity remains elevated at S3 vs S1 (Fig. 3B/C).
+
+Step 7 | S4 Stimulus - Three-Ligand History Response
+  Ligand (canonical mid-dose arm): TNF-alpha 30 ng/mL
+  Duration   : 120 min; valve switches to TNF-alpha at t=360 min.
+  Key finding: TNF-alpha signals via TNFR (distinct receptor-associated intermediaries from MyD88);
+               converges on IKK downstream of the accumulated IRAK1 auto-inhibition and
+               NF-kappaB-dependent feedback induced at S1-S3. TNF-alpha response is only weakly
+               attenuated regardless of prior MyD88-dependent history (Figs. 2B, 4B/D).
+
+Step 8 | Cell Retrieval for Transcriptomics (S4 pass path only)
+  Timing     : End of 8 h imaging window (t=480 min)
+  Method     : TrypLE Express (Gibco); 1 min; detaches cells from fibronectin-coated surface.
+               PBS wash; cells accumulate at outlet channel; removed in 2 uL droplet by pipette.
+               Deposited in 10 uL ice-cold lysis buffer (0.1% Triton-X100 + RNase inhibitor, Takara).
+               Stored at -80 C until processing. ~1500 cells per replicate per condition.
+  Library prep: SMART-Seq2 pipeline. OligodT30VN annealing at 72 C. Reverse transcription
+               (SuperScript III, Invitrogen) + TSO oligo (AAGCAGTGGTATCAACGCAGAGTGAAT[rG][rG][rG])
+               at 42 C for 90 min + 10 cycles 50/42 C. 6-cycle KAPA HiFi preamplification.
+               Ampure XP bead purification (1:1). Nextera XT library prep (Illumina, FC-131-1024).
+  Sequencing : Illumina HiSEQ4000; single-end 50 bp; University of Chicago Genomics Facility.
+  Analysis   : STAR alignment to GRCm38. featureCounts transcript quantification.
+               edgeR + limma (R) differential expression. BH FDR < 0.01, log2FC > 1.
+               3 biological replicates. Data deposited: GEO GSE193053.
+  Conditions : LPS 100 ng/mL vs PAM 0.2 ng/mL vs IL-1beta 0.2 ng/mL vs untreated; 2 h stimulus.
+  qPCR       : CellDirect One-Step RT-qPCR. Custom primers for Tnfaip3. IDT PrimeTime probes
+               for Csf2, Csf3, Cxcl2, Cxcl3, Il23a, Gapdh. TaqMan probes for Nfkbia, Nfkbie.
+               Ct normalized to Gapdh (deltaCt); fold change over unstimulated (deltadeltaCt).
+               BH-adjusted two-tailed t-test. Data shown as mean +/- SEM, n=3 replicates.
+
+Step 9 | IKK Inhibition Sub-Protocol (Fig. 5A, Supp. Fig. 6C/D)
+  Purpose    : Determine whether NF-kappaB-mediated gene expression downstream of IKK is required
+               for LPS-specific asymmetric attenuation of subsequent MyD88-dependent signalling.
+  Reagent    : PS1145 dihydrochloride (Tocris, 4569); reversible IKK-beta inhibitor; 40 uM.
+  Sub-steps  :
+    9a. Load fresh RelA-DsRed 3T3 cells; equilibrate 5 h at 37 C, 5% CO2 (as Step 2).
+    9b. Pre-treat with PS1145 40 uM in complete media for 90 min at 37 C.
+    9c. Stimulate with LPS (25-400 ng/mL) + PS1145 40 uM for 240 min at 37 C.
+        (NF-kappaB translocation is significantly reduced during LPS due to IKK-beta inhibition;
+        Supp. Fig. 6D confirms reduced activation vs untreated at all LPS doses tested.)
+    9d. Wash out PS1145: 2 x 15 min washes with complete DMEM at 37 C.
+    9e. Restimulate with IL-1beta 3 ng/mL (high dose) for 120 min at 37 C.
+        Detect: nfkbTranslocationDetection; 90 s readout.
+  Result     : PS1145-treated cells show significantly stronger NF-kappaB response to subsequent
+               IL-1beta vs untreated cells (***p < 1e-4, Bonferroni-corrected Wilcoxon rank-sum;
+               >120 cells per condition; 2 biological replicates; Fig. 5A).
+  Conclusion : NF-kappaB nuclear translocation and NF-kappaB-mediated gene expression downstream
+               of IKK are required for LPS-specific asymmetric attenuation, confirming that
+               transcriptional induction of downstream negative feedback drives the asymmetry.
+
+
+MATHEMATICAL MODEL
+------------------
+Type       : ODE network model; 14 differential equations; 20 parameters.
+Base model : Krishna et al. 2006, PNAS 103:10840 (minimal 3-equation NF-kappaB oscillator).
+Expansion  : Added receptors TNFR, IL-1R, TLR4; IRAK1/4 auto-inhibitory phosphorylation
+             (Equations 6-9; nonlinear inactivation proportional to active IRAK^2);
+             downstream NF-kappaB-dependent inhibitor (Equations 4-5; targets IKK activation;
+             Hill coefficient 3 for cooperativity); IKK cycling (Equations 10-11).
+LPS vs IL-1beta feedback: LPS-induced downstream inhibitor C parameter set 4x lower threshold
+             than IL-1beta or TNF-alpha, modelling stronger transcriptional negative feedback.
+Implementation: Python; scipy.integrate.odeint; Bokeh visualization.
+Key result : Two-motif model (IRAK1 auto-inhibition + differential downstream feedback) is
+             sufficient to reproduce all observed ligand- and dose-specific attenuation patterns
+             without additional components (Fig. 5C-E, Supp. Fig. 7A).
+Code       : https://github.com/tay-lab/Sequential_NF-kB_stim
+Zenodo     : https://doi.org/10.5281/zenodo.6626195
+
+
+KEY FINDINGS
+------------
+1. Sequential inflammatory stimuli broadly attenuate subsequent NF-kappaB responses (Fig. 2).
+   LPS and PAM produce no response after first stimulus; TNF-alpha and IL-1beta show weak
+   responses at S2-S4 depending on dose.
+
+2. Variable attenuation encodes prior stimulus history. Channel capacity (CC) increases from
+   S1 to S2 despite attenuation, and remains elevated at S3-S4 (Fig. 3B). NF-kappaB dynamics
+   (multi-timepoint) carry substantially more information than peak amplitude alone (Fig. 3B/D).
+
+3. TNF-alpha (TNFR) and MyD88-dependent ligands (IL-1beta, LPS, PAM) form two distinct
+   history-encoding groups. Prior TNF-alpha weakly attenuates MyD88-dependent signalling
+   and vice versa; prior MyD88-dependent signalling strongly attenuates subsequent
+   MyD88-dependent signalling in a dose-dependent and asymmetric manner (Fig. 4D/E).
+
+4. Asymmetry mechanism: at high dose, IRAK1 auto-inhibition produces symmetric cross-attenuation.
+   At mid and low dose, differential downstream NF-kappaB-dependent gene expression (LPS induces
+   2-4x more negative regulator expression than IL-1beta: Nfkbia, Tnfaip3, Nfkbie; Fig. 6C/E)
+   produces asymmetric attenuation. This is IKK-dependent (PS1145 experiment; Fig. 5A).
+
+5. LPS-specific prolonged NF-kappaB activation duration (not total AUC) explains differential
+   downstream gene expression vs IL-1beta (Fig. 6E, Supp. Fig. 7F/G).
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : wang_nfkb_sequential_stimulation.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 16 basic blocks (BB1-BB16), 5 if/else gates, 20 CFG edges
+DAG            : wang_nfkb_sequential_stimulation_main_dag.dot
+Duration units : All durations in minutes (m); BioScript supports s and m tokens only.
+                 300 min  = 5 h equilibration        (IR: 18000.0 SECOND)
+                 120 min  = 2 h stimulus interval    (IR: 7200.0 SECOND)
+                 240 min  = 4 h IKK LPS stimulus     (IR: 14400.0 SECOND)
+                  90 min  = PS1145 pretreatment       (IR: 5400.0 SECOND)
+                  15 min  = each PS1145 wash          (IR: 900.0 SECOND)
+Modules        : nfkbTranslocationDetection, cellViabilityDetection, rnaSeqDetection
+ASCII note     : All Greek letters replaced with ASCII equivalents (alpha, beta, kappa, epsilon, u)
+                 to satisfy ANTLR4 FileStream ASCII-only requirement.
+Variable scope : Chamber variables (s1Active, s2Active, s3Active, s4Active) are never disposed
+                 or drained inside if/else branches to ensure they remain in scope at join nodes.
+                 Only ligand dispense variables (s1Ligand, s2Ligand, etc.) are disposed/drained
+                 inside branches. Bare manifest names are never used as mix arguments.
+Dose arm       : Mid-dose arm encoded as canonical protocol. Swap _MidDose manifests for
+                 _HighDose or _LowDose to run the other two arms with identical CFG topology.
+Biological scope: This .bs file encodes the canonical mid-dose sequential stimulation arm
+                 (IL-1beta -> LPS -> PAM -> TNF-alpha) plus the IKK inhibition sub-protocol.
+                 The 23 remaining stimulus sequences require separate .bs files or
+                 parameterisation of manifest sources.

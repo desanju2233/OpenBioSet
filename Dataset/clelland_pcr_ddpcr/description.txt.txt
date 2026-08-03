@@ -1,0 +1,280 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Polymerase Chain Reaction (PCR) and Droplet Digital PCR (ddPCR) Protocol
+Authors      : Katie Jing Kay Lam, Olubankole Arogundade, Claire Clelland
+Affiliations : Weill Institute for Neurosciences, University of California, San Francisco, USA
+               Department of Neurology, University of California, San Francisco, CA, USA
+Contact      : claire.clelland@ucsf.edu
+Source Link  : https://www.protocols.io/view/droplet-digital-pcr-ddpcr-kqdg3244ev25/v1
+DOI Link     : https://dx.doi.org/10.17504/protocols.io.kqdg3244ev25/v1
+Platform     : Benchtop PCR (Bio-Rad Thermal Cycler) + Droplet Digital PCR (Bio-Rad QX200 system)
+
+
+OVERVIEW
+--------
+This protocol covers two sequential, complementary molecular biology workflows:
+
+  1. Standard PCR: DNA amplification from cultured mammalian cells extracted with QuickExtract,
+     followed by gel electrophoresis QC on a Bio-Rad Sub-Cell GT system and fluorescence imaging
+     on a LI-COR Odyssey M imager.
+
+  2. Droplet Digital PCR (ddPCR): absolute quantification of target DNA copy number using a
+     Bio-Rad QX200 Droplet Generator and Droplet Reader, with a two-channel FAM/HEX probe
+     design (target gene + RPP30 reference). ddPCR partitions the PCR reaction into ~20,000
+     nanodroplets (~0.85 nL each), enabling Poisson-statistics-based absolute counting of
+     positive (target-containing) vs. negative (empty) droplets without a standard curve.
+
+An optional gel extraction module (Qiagen MinElute, modified) is included for downstream
+sequencing applications requiring a larger 50 uL PCR reaction.
+
+The BioScript encoding covers both workflows in a single file with a linear-sequential
+structure: DNA extraction → PCR → gel QC gate (BB1-BB4) → ddPCR → droplet readout gate
+(BB4-BB7). A total of 7 basic blocks and 2 if/else QC gates are generated.
+
+
+PROTOCOL 1: STANDARD PCR
+-------------------------
+
+Step 1 | DNA Preparation by QuickExtract (96-well plate)
+  Reagents   : PBS, QuickExtract DNA Extraction Solution (Biosearch Technologies, 76081-768)
+  Operations :
+    1. Wash cells with 100 uL PBS per well; aspirate.
+    2. Add 30 uL QuickExtract per well.
+    3. Scrape well bottom with pipette tip to detach cells.
+    4. Transfer cells to labelled PCR tubes.
+    5. Vortex 15 s.
+    6. Incubate at 65 C for 6 min.
+    7. Vortex 15 s.
+    8. Incubate at 98 C for 2 min.
+    9. Store at -20 C.
+  Output     : PCR-ready DNA template (direct lysis, no column purification required)
+
+Step 2 | Primer Preparation
+  Working stock : 10 uM (diluted from 100 uM IDT stock)
+  Preparation   :
+    - Resuspend IDT lyophilised primers in H2O to 100 uM (e.g. 20 nmol -> add 200 uL H2O).
+    - Dilute to 10 uM working stock in new microcentrifuge tube (20 uL + 180 uL H2O).
+    - Store at -20 C.
+  Design guidelines (PCR primers):
+    - Length: 18-30 bases (~20 optimal); GC content: 40-60%.
+    - 3' end should be G or C; avoid >3 consecutive G/C repeats.
+    - Tm: 50-65 C; primer pairs within 5 C of each other.
+    - Product length: 200-1000 bp (up to 2-3 kb if needed).
+    - Tools: Primer-BLAST (NCBI), Primer3web, OligoCalc (Properties Calculator).
+    - Order from IDT as Custom DNA oligos.
+
+Step 3 | PCR Reaction Setup (20 uL)
+  Master Mix for one 20 uL reaction:
+    BioMix Red (Meridian Life Sciences, C755F25)     10.0 uL
+    DMSO (Sigma Aldrich, D8418)                       0.6 uL
+    Forward primer (10 uM)                            1.0 uL
+    Reverse primer (10 uM)                            1.0 uL
+    RNase/DNase-free H2O                              6.4 uL
+    ------------------------------------------------ -------
+    Total Master Mix                                 19.0 uL
+    + 1 uL DNA template per tube                  -> 20 uL
+
+  Setup: prepare Master Mix for (number of reactions + 1) as extra.
+  Load into Bio-Rad Thermal Cycler.
+
+  PCR for sequencing (with gel extraction): use 50 uL reaction; 2.5 uL DNA + 47 uL Master Mix.
+    BioMix Red 25 uL | DMSO 1.5 uL | Fwd primer 2.5 uL | Rev primer 2.5 uL | H2O 16 uL.
+
+Step 4 | PCR Thermocycling (Bio-Rad Thermal Cycler)
+  Step | Name                 | Temperature | Time
+  -----+----------------------+-------------+----------
+    1  | Enzyme Activation    | 94 C        | 3 min
+    2  | Denaturation         | 94 C        | 30 s
+    3  | Annealing            | 50-65 C*    | 30 s
+    4  | Primary Extension    | 72 C        | 1 min/kb
+    5  | Repeat steps 2-4     | --          | x34
+    6  | Secondary Extension  | 72 C        | 5 min
+    7  | Hold                 | 4 C         | infinity
+  *Annealing temperature: 5-10 C below primer Tm.
+
+  PCR for sequencing cycle (39 amplification cycles, 50 uL reaction):
+    Enzyme Activation 94 C 3.5 min -> Denature 94 C 45 s -> Anneal 50-65 C 45 s ->
+    Extend 72 C 1 min/kb -> x39 -> Secondary Extension 72 C 5 min -> Hold 4 C.
+
+Step 5 | Gel Electrophoresis
+  Buffer preparation:
+    1X TAE: add 36 mL 50X TAE Buffer (Thermo Scientific, B49) to 2L bottle; add diH2O to 1800 mL.
+
+  Gel preparation (1.5-2% agarose):
+    - For 150 mL gel: weigh agarose (e.g. 2 g for 2% in 100 mL 1X TAE).
+    - Heat in microwave until completely dissolved; let cool slightly.
+    - Add 15 uL SYBR Safe DNA Gel Stain (Invitrogen, S33102) per 150 mL gel.
+    - Pour onto tray; remove bubbles; place 15 or 20-well comb; let solidify.
+    - NOTE: clean and rinse beaker after every use; do NOT discard excess gel in sink.
+
+  Running the gel:
+    - Place solidified gel in Bio-Rad Sub-Cell GT Cell; wells at negative (black) terminal.
+    - Fill with 1X TAE buffer until gel is fully submerged.
+    - Load ~12 uL Quick-Load Purple 1 kb Plus DNA Ladder (NEB, N0550S) and PCR products.
+      Submerge pipette tip into well before dispensing; press only to first stop to avoid bubbles.
+    - Set Bio-Rad PowerPac Power Supply to 100-140 V (Black to Black; Red to Red); START.
+    - Run until bands resolved (~40 min typical).
+
+  Gel imaging (LI-COR Odyssey M Imager):
+    - Clean imager glass with EtOH and Kimwipe before and after each use.
+    - Open LI-COR Acquisition Software.
+    - Select: Scan -> Username: Clelland Lab -> Imager: Odyssey M -> Connect.
+    - Select: Gel -> Connect -> Draw Scan Area -> Next.
+    - Select: 488 / SYBR Safe -> Save -> Focus offset 2.00 mm -> Scan.
+    - Wait for scan to finish; export image to desired destination.
+
+
+PROTOCOL 2: DROPLET DIGITAL PCR (ddPCR)
+-----------------------------------------
+Instrument: Bio-Rad QX200 Droplet Generator + Droplet Reader.
+NOTE: Schedule equipment at CAT on iLab before proceeding.
+
+Step 6 | 20X Target Primers/Probe Preparation
+  Component                     Volume
+  Forward primer (100 uM)       18 uL
+  Reverse primer (100 uM)       18 uL
+  Target probe (FAM)*            5 uL
+  RNase/DNase-free H2O          59 uL
+  Total                        100 uL
+  *Light sensitive. Store all at -20 C.
+
+  Design guidelines (ddPCR probes):
+    - Between primer pair; no overlap with primers.
+    - Length: <30 bases; Tm: 3-10 C above primers.
+    - More Cs than Gs; no G at 5' end.
+    - Product length: 50-250 bp (optimal 80-120 bp).
+    - Order from IDT as PrimeTime qPCR Probes (5' FAM/ZEN/3' Iowa Black FQ).
+
+Step 7 | ddPCR Master Mix Setup (22 uL per reaction)
+  Component                                          Volume
+  2X ddPCR Supermix for Probes (No dUTP, Bio-Rad)   11.0 uL
+  20X target primers/probe (FAM)                      1.1 uL
+  20X reference primers/probe (HEX/VIC) - RPP30       1.1 uL
+  RNase/DNase-free H2O + DNA sample           up to 22.0 uL
+  DNA input: up to 350 ng per reaction.
+
+  Reference assay: ddPCR Copy Number Assay RPP30, Human, Homo sapiens
+                   (Bio-Rad, dHsaCP1000485; HEX/VIC channel; Ch 2 Reference).
+  Setup: thaw all components to room temperature; vortex at full speed 15 s when mixing.
+  Prepare Master Mix for (number of reactions + 1).
+
+Step 8 | Droplet Generation (Bio-Rad QX200 Droplet Generator)
+  1. Insert DG8 Cartridge (Bio-Rad, 1864008) into cartridge holder (Bio-Rad, 1863051).
+  2. FIRST: load >20 uL sample into sample wells.
+     - Empty wells: add 50:50 mix of Supermix and H2O. All 8 wells must be loaded.
+     - No bubbles.
+  3. THEN: load 70 uL Droplet Generation Oil for Probes (Bio-Rad, 1863005) into oil wells.
+     - Oil is single-use; use within one day of opening.
+  4. Apply DG8 Gasket (Bio-Rad, 1863009) on cartridge.
+  5. Load cartridge into QX200 Droplet Generator; START (~1 min).
+
+Step 9 | Droplet Transfer and Plate Sealing (within 5 min of generation)
+  1. Transfer 40 uL droplets to ddPCR 96-Well Plates (Bio-Rad, 12001925).
+     - Pipette SLOWLY: >7 s for aspiration and dispensing to preserve droplet integrity.
+  2. Cover plate with foil seal sheet (PCR Plate Heat Seal, pierceable; Bio-Rad, 1814040).
+     - Red line facing UP.
+  3. Seal plate in PX1 PCR Plate Sealer (Bio-Rad, 1814000) at 180 C for 5 s.
+
+Step 10 | ddPCR Thermocycling (within 40 min of sealing)
+  Instrument: Bio-Rad C1000 Touch Thermal Cycler with 96-Deep Well C1000 block (Bio-Rad, 1851197).
+  Ramp rate: 2 C/s throughout.
+
+  Step | Name                   | Temperature | Time
+  -----+------------------------+-------------+---------
+    1  | Enzyme Activation      | 94 C        | 10 min
+    2  | Denaturation           | 94 C        | 30 s
+    3  | Annealing/Extension    | *50-65 C    | 1 min
+    4  | Repeat steps 2-3       | --          | x39
+    5  | Enzyme Deactivation    | 98 C        | 10 min
+    6  | Hold                   | 4 C         | infinity
+  *Optimise annealing temperature using gradient when using a new primers/probe set.
+
+Step 11 | Plate Reading and Data Analysis (Bio-Rad QX200 Droplet Reader)
+  1. Let plate equilibrate at room temperature for 1-2 min.
+     (Plate storable at 4 C for up to 3 days before reading.)
+  2. Place plate in Bio-Rad QX200 Droplet Reader.
+  3. Open QuantaSoft; configure each well:
+     - Sample: enter name; Experiment: CNV2; Supermix: ddPCR Supermix for Probes (no dUTP).
+     - Target 1 (FAM):     enter name; Type: Ch 1 Unknown.
+     - Target 2 (HEX/VIC): enter name (e.g. RPP30); Type: Ch 2 Reference.
+     - NOTE: copy and paste configuration for every well in the plate.
+  4. Save template; RUN.
+  5. Data analysis: set threshold manually (pink line); ensure positive droplets (blue/green)
+     are separated from negative droplets (grey). See 2-D and 1-D droplet plots.
+
+
+REAGENT AND EQUIPMENT LIST
+---------------------------
+
+Reagents:
+  QuickExtract DNA Extraction Solution  |  Biosearch Technologies  |  76081-768
+  BioMix Red                            |  Meridian Life Sciences  |  C755F25
+  DMSO (Dimethyl sulfoxide)             |  Sigma Aldrich / Biosciences  |  D8418
+  Quick-Load Purple 1 kb Plus DNA Ladder|  New England Biolabs     |  N0550S
+  SYBR Safe DNA Gel Stain               |  Invitrogen              |  S33102
+  TAE Buffer (Tris-acetate-EDTA) 50X    |  Thermo Scientific       |  B49
+  ddPCR Copy Number Assay RPP30 (Human) |  Bio-Rad                 |  dHsaCP1000485
+  ddPCR Supermix for Probes (No dUTP)   |  Bio-Rad                 |  1863024
+  Droplet Generation Oil for Probes     |  Bio-Rad                 |  1863005
+
+Equipment / Consumables:
+  Bio-Rad Thermal Cycler                          |  Bio-Rad
+  LI-COR Odyssey M Imager                         |  LI-COR
+  PowerPac HC Power Supply                        |  Bio-Rad
+  Sub-Cell GT Horizontal Electrophoresis System   |  Bio-Rad
+  C1000 Touch Thermal Cycler 96-Deep Well Module  |  Bio-Rad  |  1851197
+  ddPCR 96-Well Plates                            |  Bio-Rad  |  12001925
+  DG8 Cartridges                                  |  Bio-Rad  |  1864008
+  DG8 Cartridge Holder                            |  Bio-Rad  |  1863051
+  DG8 Gaskets                                     |  Bio-Rad  |  1863009
+  PCR Plate Heat Seal, foil, pierceable           |  Bio-Rad  |  1814040
+  PX1 PCR Plate Sealer                            |  Bio-Rad  |  1814000
+  QX200 Droplet Digital PCR System                |  Bio-Rad
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file  : clelland_pcr_ddpcr.bs
+Compiler        : lilott8/BioScript (ANTLR4-based)
+IR output file  : clelland_pcr_ddpcr.ir
+DAG output file : clelland_pcr_ddpcr_main_dag.dot
+Basic blocks    : 7 (BB1-BB7); 2 if/else QC gates; 8 CFG edges
+
+Duration tokens: BioScript supports s (seconds) and m (minutes) only; h token not supported.
+  QuickExtract 65 C 6 min        ->  6m   (IR: 360.0 SECOND)
+  QuickExtract 98 C 2 min        ->  2m   (IR: 120.0 SECOND)
+  PCR enzyme activation 3 min    ->  3m   (IR: 180.0 SECOND)
+  PCR final extension 5 min      ->  5m   (IR: 300.0 SECOND)
+  Gel electrophoresis run 40 min ->  40m  (IR: 2400.0 SECOND)
+  ddPCR enzyme activation 10 min ->  10m  (IR: 600.0 SECOND)
+  ddPCR enzyme deactivation 10min->  10m  (IR: 600.0 SECOND)
+  ddPCR QuantaSoft readout 30 min->  30m  (IR: 1800.0 SECOND)
+
+Modules    : gelElectrophoresisDetection, dropletReadoutDetection
+Manifests  : Cells, PBS, QuickExtract, BioMixRed, DMSO, ForwardPrimer_10uM,
+             ReversePrimer_10uM, RNaseDNaseFreeH2O, AgaroseGel_1pct5to2pct,
+             SYBR_Safe_Stain, TAE_Buffer_1X, DNALadder, ForwardPrimer_100uM,
+             ReversePrimer_100uM, TargetProbe_FAM, ReferencePrimersProbe_HEX,
+             ddPCR_Supermix_NoUTP, GenerationOil, FoilSealSheet
+
+Abstractions:
+  - Vortex steps (15 s) abstracted as heat at 25 C for 15 s (no standalone vortex op).
+  - PBS wash/aspirate: mix then dispose(pbsWash); disposed variable never re-referenced.
+  - PCR thermocycle loop: one representative cycle at 57 C (midpoint of 50-65 C); no loop.
+  - ddPCR thermocycle loop: one representative cycle at 57 C; no loop construct.
+  - Plate sealing (180 C, 5 s): heat(sealedPlate) after mix with FoilSealSheet.
+  - Gel electrophoresis run: heat(gelRunReady) at 25 C for 40 m (voltage at ambient temp).
+  - ddPCR DNA input: fresh second dispense/re-extraction block; avoids referencing disposed variable.
+  - drain normalises to dispose in IR output per compiler behaviour.
+
+CFG structure:
+  BB1  main          -- entry: QuickExtract extraction; PCR master mix; thermocycling;
+                        gel electrophoresis; gelElectrophoresisDetection
+  BB2  bsbbif_2_t   -- gelSignal > 0:  dispose(gelRunReady)
+  BB3  bsbbif_3_f   -- gelSignal <= 0: drain(gelRunReady)
+  BB4  bsbbif_4_j   -- join: ddPCR probe prep; ddPCR master mix; droplet generation;
+                        plate sealing; thermocycling; dropletReadoutDetection
+  BB5  bsbbif_5_t   -- ddpcrSignal > 0:  dispose(sealedPlate)
+  BB6  bsbbif_6_f   -- ddpcrSignal <= 0: drain(sealedPlate)
+  BB7  bsbbif_7_j   -- terminal: dispose(ddpcrSignal); NOP; experiment ends

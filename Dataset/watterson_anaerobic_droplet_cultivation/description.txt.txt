@@ -1,0 +1,340 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Droplet-Based High-Throughput Cultivation for Accurate Screening of
+               Antibiotic Resistant Gut Microbes
+Source Link  : https://elifesciences.org/articles/56998
+Paper DOI    : https://doi.org/10.7554/eLife.56998
+Journal      : eLife 2020, Vol. 9, Article e56998
+Platform     : Anaerobic droplet microfluidics (flow-focusing generation +
+               dielectrophoretic sorting) inside vinyl anaerobic chamber
+
+
+OVERVIEW
+--------
+This protocol describes a microfluidic platform for high-throughput anaerobic isolation,
+cultivation, and sorting of human gut-associated bacteria in picoliter-scale droplets.
+The system operates entirely within a vinyl anaerobic chamber, enabling cultivation of
+strictly anaerobic organisms that are incompatible with standard aerobic bench workflows.
+
+The protocol is divided into two functional phases:
+
+  1. Rich-media droplet cultivation (Protocol 1)
+     Fecal microbiota transplant (FMT) donor stool is stochastically encapsulated at
+     single-cell density in picoliter droplets formed with three distinct rich growth
+     media (BHIS, GMM, YCFA). Each droplet acts as an independent microreactor,
+     eliminating inter-species competition and enabling slow-growing taxa to expand
+     without being outcompeted. An image-based wavelet-OD sorting step selectively
+     retains sparse (slow-growing) colony droplets to further enrich rare taxa.
+
+  2. Antibiotic resistance screening (Protocol 2)
+     The same donor stool is encapsulated in BHIS droplets supplemented individually
+     with ampicillin (100 ug/mL), ciprofloxacin (5 ug/mL), or vancomycin (10 ug/mL).
+     After 1-day incubation, optical density-based sorting removes non-viable droplets
+     so only organisms that actively grew in the presence of antibiotic contribute to
+     downstream 16S sequencing reads.
+
+Key outcomes: richness increase over plate cultures of 15% (BHIS) to 410% (YCFA);
+105 vs 57 low-abundance ASVs (<1% in stool) recovered by droplets vs plates; 21 unique
+antibiotic-resistant organisms detected exclusively in droplets.
+
+
+DEVICE ARCHITECTURE
+-------------------
+Enclosure   : Vinyl anaerobic chamber (Coy Laboratory Products)
+Atmosphere  : 86% N2 / 10% CO2 / 4% H2; O2 <1 ppm; H2 maintained at 1.5-2.5%;
+              monitored by Coy CAM-12. Coy H2S-reducing column inside chamber
+              prevents corrosion of electronic components.
+
+Components inside chamber:
+  - Inverted microscope (Nikon Ts2R), 4x and 10x objectives
+  - Microfluidic devices (droplet generation + droplet sorting)
+  - High frame rate camera (Basler acA640-750um, 925 Hz, 672x360 px, 59 us exposure)
+  - Syringe pumps (Harvard Apparatus Pump 11 Pico Plus Elite)
+  - Incubator (37 C)
+  - Electrodes
+
+Components outside chamber (connected via sealed rubber ports):
+  - Computer running custom LabView code
+  - Voltage amplifier (TREK Model 2220, 200 V/V gain)
+  - NI-DAQ 6211 (analog output -> amplifier)
+
+Droplet generation device:
+  - Architecture     : Flow-focusing junction
+  - Channel height   : 50 um (SU-8 3050 on 4" silicon wafer)
+  - Fabrication      : Soft lithography; PDMS (RTV 615) 10:1 A:B; cured 80 C >=1 h;
+                       plasma bonded to glass slide
+  - Hydrophobicity   : Aquapel coating followed by Fluorinert FC-40 flush
+  - Oil phase        : Bio-Rad Droplet Generation Oil for EvaGreen
+  - Droplet volume   : 65-115 pL
+  - Emulsion volume  : 0.5-1 mL per run (~4-15 million droplets)
+  - Generation time  : 20-60 min depending on device
+
+Droplet sorting device:
+  - Same fabrication as generation device; bonded to ITO-coated glass slide
+    (Delta Technologies CG-811N-S207)
+  - Electrodes       : Low-melting solder (51% In / 32.5% Bi / 16.5% Sn; Indium Corp.)
+                       flowed into holes at 90 C
+  - Sorting mechanism: Dielectrophoresis (DEP)
+  - Actuation        : 10 kHz, 800 V p-p, 30% duty cycle, 10 ms pulse
+  - Sorting rate     : ~30 Hz
+  - Re-injection     : 20 uL/hr (droplets); 180 uL/hr (oil spacing)
+
+
+WAVELET OD SORTING ALGORITHM
+-----------------------------
+Detection region : Interior of each droplet (~6080 pixels) between red-dot markers
+                   at sorting junction; detected by edge-finding along channel centre.
+
+Algorithm:
+  - Discrete wavelet frame decomposition (LabView IMAQ Extract Texture Feature VI)
+  - Wavelet type    : Biorthogonal 3.1
+  - Subband         : Low-Low-High (LLH)
+  - Window          : 15 x 15 pixels, step size 5 pixels
+  - Co-occurrence   : 15 grey levels, 3 x 3 pixel displacement
+  - Normalization   : Non-zero elements of wavelet feature vector normalized to 1
+
+Threshold classification:
+  - Wavelet OD < 0.3       : Empty droplet (waste)
+  - Wavelet OD 0.3 to 0.7  : Sparse / slow-growing colony (KEEP)
+  - Wavelet OD > 0.7       : Dense colony (waste)
+
+False positive rate: <=8% (upper bound; actual rate likely lower as waste stream
+                     slow-grower fraction was not counted)
+
+
+STOOL SAMPLE PREPARATION
+-------------------------
+Donor         : Previously characterised FMT donor (Lee et al. 2017)
+Ethics        : University of Chicago Ethics Committee and IRB (IRB 132-0212);
+                written informed consent obtained from single donor
+Preparation   : 50 mL stool diluted in 100 mL PBS; centrifuged; supernatant
+                collected and stored at -80 C
+Cell density  : Live ~1.5 +/- 1.0 x10^8 cells/mL; dead ~21 +/- 3 x10^8 cells/mL
+                (Live/Dead BacLight kit, ThermoFisher; note: dye requires oxygenation,
+                may introduce measurement artefact)
+Plate control : 100 uL suspension spread at ~1 cell/500 um2 (bacterial lawn density)
+                to ensure rare cells are represented
+Droplet load  : 200x dilution; Poisson mean 2-12% of droplets contain one live cell
+                (range accounts for cell density uncertainty and droplet volume variation)
+
+
+GROWTH MEDIA
+------------
+
+BHIS (Brain Heart Infusion Supplemented):
+  500 mL water + 18.5 g BHI Broth (Sigma) + 2.5 g yeast extract + 0.25 g L-cysteine
+  + 7.5 g agar (plates only); autoclaved; add 0.5 mL 0.1% Vitamin K in 95% ethanol
+  + 0.5 mL hemin solution (5 mg/mL in 0.1 M NaOH, filter-sterilised).
+  BHIS-ASF variant: add 5% newborn calf serum + 5% sheep serum + 5% horse serum
+  (Fisher Scientific) for ASF validation cultures.
+
+GMM (Gut Microbiota Medium):
+  Prepared per Goodman et al. 2011.
+
+YCFA (Yeast Casitones Fatty Acid, modified DSMZ 1611):
+  10 g casitone, 2.5 g yeast extract, 5 g D-glucose, 0.045 g MgSO4.7H2O,
+  0.09 g CaCl2.2H2O, 0.45 g K2HPO4, 0.45 g KH2PO4, 0.9 g NaCl, 0.001 g resazurin,
+  1.9 mL acetic acid, 0.7 mL propionic acid, 90 uL iso-butyric acid, 100 uL n-valeric
+  acid, 100 uL iso-valeric acid, 500 mL DI water. Boil 10 min stirring; cool; add 4 g
+  NaHCO3 + 0.5 g L-cysteine-HCl + 0.01 g hemin + 0.0025 g mucin + 15 g agar (plates).
+  Adjust to 990 mL; pH 6.7-6.8; autoclave; +10 mL filter-sterilised vitamin solution.
+  Vitamin solution (per litre): 2 mg biotin, 2 mg folic acid, 12 mg pyridoxine-HCl,
+  4.5 mg thiamine-HCl, 5 mg riboflavin, 5 mg nicotinic acid, 5 mg D-Ca-pantothenate,
+  0.1 mg vitamin B12, 5 mg p-aminobenzoic acid, 5 mg DL-thioctic acid.
+
+Antibiotic-supplemented media (all in BHIS base):
+  Ampicillin   : 100 ug/mL (commensurate with commercially available selection plates)
+  Ciprofloxacin:   5 ug/mL
+  Vancomycin   :  10 ug/mL
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Fecal Cell Encapsulation in BHIS Droplets
+  Reagents      : FecalCellSuspension, BHIS_Medium, HFE7500_SurfactantOil
+  Operation     : Dispense cells + medium; mix (abstracts flow-focusing generation);
+                  mix with oil phase (produces droplet emulsion)
+  Poisson load  : 200x dilution; ~2-12% droplets encapsulate one live cell
+  Droplet vol   : 65-115 pL; emulsion 0.5-1 mL; ~4-15 million droplets
+  Storage       : 15 mL snap-cap culture tube (Fisherbrand 149569C) in 37 C incubator
+  Notes         : Stochastic single-cell isolation in discrete droplets eliminates
+                  competitive overgrowth of fast-growers over slow-growing taxa.
+                  Quorum sensing signal accumulation is accelerated in small droplet
+                  volumes (Boedicker et al. 2009), potentially benefiting certain organisms.
+
+Step 2 | BHIS Droplet Incubation
+  Operation     : heat at 37 C
+  Duration      : 2880 min (2 days; IR: 172800.0 SECOND)
+  Notes         : Plates cultured up to 7 days (10080 min) in parallel as comparator.
+                  Droplet volume reduction begins after ~4 days due to evaporation in
+                  the arid anaerobic atmosphere; cultures limited to 2 days.
+
+Step 3 | Colony Density Detection (BHIS)
+  Module        : imagingODDetection
+  Duration      : 30 s
+  Branch (BB2/BB3):
+    Pass (signal > 0)  : Colony-containing droplets detected; proceed to sorting
+    Fail (signal <= 0) : No growth; drain emulsion
+
+Step 4 | Slow-Grower Sorting in BHIS Droplets
+  Module        : waveletODSorting
+  Replicates    : 2 independent experiments
+  Keep criterion: Wavelet OD in [0.3, 0.7] (sparse colony)
+  False positive: <=8%
+  Sorted volume : ~1-10 uL (thin layer on top of oil due to ~30 Hz rate limit)
+  Results       : Average amplified ASVs (<1% to >1%): 6.5 (unsorted) vs 12.5 (sorted)
+                  out of 158 total ASVs. Community shift p<0.005 (Kolmogorov-Smirnov).
+                  6 distinct Alistipes populations (Rikenellaceae) enriched by sorting;
+                  plate-based dilution would require >=65 plates for 90% isolation.
+                  24 sorted colonies Sanger sequenced: Hafnia (12), Enterococcus (8),
+                  Bacteroides (4).
+  Branch (BB5/BB6):
+    Pass (signal > 0)  : Sorted fraction demulsified + DNA extracted + sequenced
+    Fail (signal <= 0) : Drain sorted fraction
+
+Step 5 | BHIS Demulsification, DNA Extraction, and 16S Sequencing (pass path)
+  Reagents      : PFO_DemulsificationAgent, DNAExtractionBuffer
+  Operations    :
+    1. Mix 100 uL emulsion with 100 uL PFO; vortex + centrifuge; remove oil and PFO.
+       For sorted droplets (~1-10 uL): add 150 uL DNA-free water + 150 uL PFO first.
+    2. DNA extraction: Qiagen DNeasy Blood and Tissue Kit per manufacturer instructions.
+    3. detect sixteenSrRNASequencing: abstracts Illumina MiSeq 2x151 V4 amplicon pipeline
+       (Argonne National Laboratory EMP protocol; MED ASV inference; SILVA taxonomy).
+
+Step 6 | GMM Droplet Cultivation and Sequencing
+  Reagents      : FecalCellSuspension, GMM_Medium, HFE7500_SurfactantOil
+  Incubation    : 37 C, 2880 min (2 days)
+  Branch (BB8/BB9):
+    Pass (gmmCultSignal > 0)  : PFO demulsification + DNA extraction + sequencing
+    Fail (gmmCultSignal <= 0) : Drain emulsion
+  Notes         : GMM per Goodman et al. 2011. Bacteroidetes and Proteobacteria
+                  underrepresented on GMM and YCFA plates; effect abolished in droplets.
+
+Step 7 | YCFA Droplet Cultivation and Sequencing
+  Reagents      : FecalCellSuspension, YCFA_Medium, HFE7500_SurfactantOil
+  Incubation    : 37 C, 2880 min (2 days)
+  Branch (BB11/BB12):
+    Pass (ycfaCultSignal > 0)  : PFO demulsification + DNA extraction + sequencing
+    Fail (ycfaCultSignal <= 0) : Drain emulsion
+  Notes         : YCFA shows highest richness increase over plates (up to 410%,
+                  p<0.005). Firmicutes dominate YCFA plates due to competitive advantage;
+                  droplets restore representation across all phyla.
+
+Step 8 | Ampicillin Resistance Screening in BHIS Droplets
+  Reagents      : FecalCellSuspension, Ampicillin_BHIS (100 ug/mL), HFE7500_SurfactantOil
+  Incubation    : 37 C, 1440 min (1 day; IR: 86400.0 SECOND)
+  Post-sort     : waveletODSorting removes empty/non-viable droplets before DNA extraction
+  Plate control : Stool diluted 10000x; density ~0.2 cell/mm2; cultured 3 days;
+                  DNA from plate scraping
+  Results       : Known resistors (both platforms): Bacteroides spp., Parabacteroides spp.
+                  (Boente et al. 2010). Novel droplet-only: Pseudomonas spp. (opportunistic
+                  pathogens), Shewanella spp. (progenitor of human antibiotic resistance
+                  genes; Yousfi et al. 2017).
+  Branch (BB14/BB15):
+    Pass (ampResistSignal > 0)  : PFO demulsification + DNA extraction + sequencing
+    Fail (ampResistSignal <= 0) : Drain emulsion
+
+Step 9 | Ciprofloxacin Resistance Screening in BHIS Droplets
+  Reagents      : FecalCellSuspension, Ciprofloxacin_BHIS (5 ug/mL), HFE7500_SurfactantOil
+  Incubation    : 37 C, 1440 min (1 day)
+  Post-sort     : waveletODSorting removes empty/non-viable droplets before DNA extraction
+  Results       : Known resistors (both platforms): Enterococcus spp., Enterobacteriaceae
+                  gen. sp. (Hooper 2002; Paterson 2006). Novel droplet-only: Bacteroides
+                  spp. and Parabacteroides spp. fluoroquinolone resistance (Snydman et al.
+                  2017). Gram-positive reduced susceptibility (Poole 2000).
+                  Plate-preferred: 4 Clostridium spp. (only 5 organisms total showed plate
+                  preference across all three antibiotics).
+  Branch (BB17/BB18):
+    Pass (ciproResistSignal > 0)  : PFO demulsification + DNA extraction + sequencing
+    Fail (ciproResistSignal <= 0) : Drain emulsion
+
+Step 10 | Vancomycin Resistance Screening in BHIS Droplets
+  Reagents      : FecalCellSuspension, Vancomycin_BHIS (10 ug/mL), HFE7500_SurfactantOil
+  Incubation    : 37 C, 1440 min (1 day)
+  Post-sort     : waveletODSorting removes empty/non-viable droplets before DNA extraction
+  Results       : Known resistors (both platforms): Enterobacteriaceae gen. spp.
+                  (intrinsic resistance; Citron et al. 2012). Novel droplet-only:
+                  Pseudomonas spp., Shewanella spp. Total across all 3 antibiotics:
+                  21 unique resistant organisms detected only in droplets.
+  Branch (BB20/BB21):
+    Pass (vancoResistSignal > 0)  : PFO demulsification + DNA extraction + sequencing
+    Fail (vancoResistSignal <= 0) : Drain emulsion
+
+
+SEQUENCING PIPELINE
+-------------------
+Facility       : Environmental Sample Preparation and Sequencing Facility,
+                 Argonne National Laboratory
+Protocol       : Earth Microbiome Project 16S rRNA standard protocol
+Target region  : V4 region of 16S rRNA gene
+Primers        : Caporaso et al. 2012 / 2011 primer set
+Amplification  : 35 cycles
+Platform       : Illumina MiSeq, paired-end 2x151
+
+Read processing (illumina-utils, Eren et al. 2013a):
+  1. De-multiplex raw reads into samples
+  2. Join paired-end sequences
+  3. Quality filter: minimum 45 nt overlap; max 2 mismatches in overlap region
+     (mismatches resolved using higher-quality base)
+
+ASV inference  : Minimum Entropy Decomposition (MED) via oligotyping pipeline v2.1
+                 (Eren et al. 2015a); Shannon entropy-based decomposition to amplicon
+                 sequence variants (ASVs) at single-nucleotide resolution
+Taxonomy       : SILVA database (Quast et al. 2013)
+
+ASV filtering (dead/nonviable DNA removal):
+  Conservative threshold per sample fitted by proportion of dead/nonviable DNA from
+  raw stool initial inoculum. 90% confidence interval per ASV by maximum likelihood
+  estimation (MLE, binomial model). ASVs whose lower CI limit falls below threshold
+  are discarded. (Source code 1 in supplementary files)
+
+Sanger sequencing (sorted colony validation):
+  Primers  : 27F (AGAGTTTGATCMTGGCTCAG), 1492R (GGTTACCTTGTTACGACTT)
+  PCR      : 250 nM primers, 10 uL GoTaq Green (Promega), 2 uL DNA, 7 uL DNA-free water
+             95 C 3 min; 30x [95 C 30s, 54 C 30s, 72 C 1 min]; 72 C 10 min
+  Gel      : 2% agarose; band excised; QIAquick Gel Extraction Kit (Qiagen)
+  Facility : University of Chicago Comprehensive Cancer Center DNA Sequencing Facility
+  Taxonomy : MAFFT alignment (Benchling); NCBI Standard Nucleotide BLAST
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : watterson_anaerobic_droplet_cultivation.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 22 basic blocks (BB1-BB22), 5 if/else QC gates, 28 CFG edges
+DAG            : watterson_anaerobic_droplet_cultivation_main_dag.dot
+Duration units : All durations converted to minutes (m) for compiler compatibility
+                 (BioScript supports s and m only; h token not supported)
+                 2 days  -> 2880m  (rich media cultivation; IR: 172800.0 SECOND)
+                 1 day   -> 1440m  (antibiotic screening;  IR:  86400.0 SECOND)
+Modules        : imagingODDetection, waveletODSorting,
+                 sixteenSrRNASequencing, antibioticResistanceDetection
+Manifests      : FecalCellSuspension, BHIS_Medium, GMM_Medium, YCFA_Medium,
+                 HFE7500_SurfactantOil, Ampicillin_BHIS, Ciprofloxacin_BHIS,
+                 Vancomycin_BHIS, DNAExtractionBuffer, PFO_DemulsificationAgent
+
+IR verification notes:
+  - bhisEmulsion promoted to bhisEmulsion2[0] by compiler SSA renaming when crossing
+    BB1->BB4 join boundary; correct expected behaviour.
+  - Terminal BB22 emits NOP as expected lilott8 exit node marker.
+  - All 28 CFG edges present in DAG; no orphaned nodes; clean diamond pattern
+    repeated 5 times (BHIS cultivation, BHIS sort, GMM, YCFA, each antibiotic arm).
+  - Time conversion verified: 2880m -> 172800.0 SECOND (2 days, rich media);
+    1440m -> 86400.0 SECOND (1 day, antibiotics). Both match paper protocol.
+
+Compiler constraint notes:
+  - No array indexing or multi-unit splits used (avoids lilott8 array zipping
+    failure modes documented in moazami_world_to_chip_dmf reference file).
+  - All emulsion variables are scalar; all downstream operations are strict 1-to-1.
+  - dispose used for pass paths; drain used for fail paths throughout.
+  - All QC signals explicitly disposed before terminal NOP in BB22.
+
+Biological scope note:
+  This .bs file encodes both Protocol 1 (rich media droplet cultivation with BHIS
+  slow-grower sorting, GMM, and YCFA arms) and Protocol 2 (antibiotic resistance
+  droplet screening with ampicillin, ciprofloxacin, and vancomycin arms).
+  Parallel plate-based cultures are off-chip comparators and are not encoded in
+  BioScript. The Altered Schaedler Flora (ASF) validation experiment (BHIS-ASF
+  medium, gnotobiotic mouse model) is also off-chip and not encoded here.

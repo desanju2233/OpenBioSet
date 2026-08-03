@@ -1,0 +1,48 @@
+bsbbif_2_t:
+	pbsRinse1[0] = dispense(PBS)
+	rinsedCells1[0] = mix(stimulatedCells1[0], pbsRinse1[0]) @ 60.0SECOND
+	pfaSolution1[0] = dispense(ParaformaldehydeFixative)
+	fixedCells1[0] = mix(rinsedCells1[0], pfaSolution1[0]) @ 600.0SECOND
+	blockingBuffer1[0] = dispense(BlockingPermeabilizationBuffer)
+	blockedCells1[0] = mix(fixedCells1[0], blockingBuffer1[0]) @ 3600.0SECOND
+	primaryAntibody1[0] = dispense(IkBa_PrimaryAntibody)
+	primaryStained1[0] = mix(blockedCells1[0], primaryAntibody1[0]) @ 3600.0SECOND
+	heat(primaryStained1[0]) @ 37.0CELSIUS @ 3600.0SECOND
+	pbsWash21[0] = dispense(PBS)
+	washedCells1[0] = mix(primaryStained1[0], pbsWash21[0]) @ 60.0SECOND
+	secondaryAntibody1[0] = dispense(AlexaFluor647_SecondaryAntibody)
+	stainedCells1[0] = mix(washedCells1[0], secondaryAntibody1[0]) @ 3600.0SECOND
+	heat(stainedCells1[0]) @ 37.0CELSIUS @ 3600.0SECOND
+	dispose(stainedCells1[0])
+bsbbif_3_f:
+	dispose(stimulatedCells1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(activationSignal1[0])
+	pbsFinalWash1[0] = dispense(PBS)
+	finalSample1[0] = mix(pbsFinalWash1[0], pbsFinalWash1[0]) @ 60.0SECOND
+	ifStainingSignal1[0] = detect(immunofluorescenceDetection, finalSample1[0]) @ 30.0SECOND
+	if ifStainingSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	fibronectinSolution1[0] = dispense(FibronectinCoating)
+	coatedChamber1[0] = mix(fibronectinSolution1[0], fibronectinSolution1[0]) @ 43200.0SECOND
+	pbsWash11[0] = dispense(PBS)
+	chamberwash1[0] = mix(coatedChamber1[0], pbsWash11[0]) @ 60.0SECOND
+	cellSuspension1[0] = dispense(NIH3T3_p65dsRed_H2BGFP_Cells)
+	seededChamber1[0] = mix(chamberwash1[0], cellSuspension1[0]) @ 5.0SECOND
+	heat(seededChamber1[0]) @ 37.0CELSIUS @ 18000.0SECOND
+	pbsImaging1[0] = dispense(PBS)
+	prestimImaging1[0] = mix(seededChamber1[0], pbsImaging1[0]) @ 5400.0SECOND
+	tnfStimulus1[0] = dispense(FluoroBriteDMEM_TNFalpha)
+	stimulatedCells1[0] = mix(prestimImaging1[0], tnfStimulus1[0]) @ 2.0SECOND
+	heat(stimulatedCells1[0]) @ 37.0CELSIUS @ 21600.0SECOND
+	activationSignal1[0] = detect(nfkbActivationDetection, stimulatedCells1[0]) @ 30.0SECOND
+	if activationSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(finalSample1[0])
+bsbbif_6_f:
+	dispose(finalSample1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(ifStainingSignal1[0])
+	NOP

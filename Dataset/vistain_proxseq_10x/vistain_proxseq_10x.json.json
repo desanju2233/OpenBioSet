@@ -1,0 +1,486 @@
+{
+  "protocol": {
+    "title": "Proximity sequencing for the detection of mRNA, extracellular proteins and extracellular protein complexes in single cells",
+    "source": "Nature Protocols, Volume 19, December 2024, pp. 3568-3589",
+    "source_link": "https://www.nature.com/articles/s41596-024-01030-x",
+    "doi": "10.1038/s41596-024-01030-x",
+    "platform": "Proximity ligation assay (PLA) + 10x Chromium 3' single-cell RNA sequencing",
+    "cell_lines": [
+      "Peripheral blood mononuclear cells (PBMCs)",
+      "Jurkat T cells (positive control for CD147 homodimers)",
+      "NCI-H1299 (as general model; user-defined primary cells)"
+    ],
+    "objective": "Simultaneous measurement of extracellular proteins, mRNA, and hundreds of extracellular protein complexes from single cells using DNA-barcoded antibody proximity ligation probes and 10x Chromium 3' V3.1 droplet sequencing",
+
+    "platform_details": {
+      "single_cell_method": "10x Chromium 3' V3.1 (recommended; best trade-off of data quality, cell throughput, and ease of use)",
+      "alternative_methods": ["Drop-seq (Steps 41-86)", "Plate-based SMART-Seq2 (Steps 103-131)"],
+      "sequencer": "Illumina NextSeq 500/550",
+      "interaction_range_nm": "50-70",
+      "throughput_cells": "10,000s",
+      "multiplexing_reported": "38 targets, 741 protein pairs",
+      "multiplexing_estimated_max_targets": 100,
+      "max_protein_complexes_at_100_targets": 5050,
+      "viable_cells_required": 20000,
+      "total_protocol_duration_h": 16,
+      "protocol_spread_days": "several"
+    },
+
+    "device": {
+      "probe_chemistry": "Copper-free click chemistry (DBCO-azide)",
+      "probe_components": [
+        "Antibody conjugated to DBCO via NHS ester (dibenzocyclooctyne-PEG4-N-hydroxysuccinimidyl ester)",
+        "Azide-functionalized DNA oligonucleotide (Probe A: unique barcode)",
+        "Azide-functionalized DNA oligonucleotide (Probe B: unique barcode)"
+      ],
+      "ligation_mechanism": "T4 ligase + connector oligomer (TTTCACGACACGACACGATTTAGGTC); ligation product formed only when probe A and probe B are within 50-70 nm",
+      "probe_storage": "50% (wt/vol) glycerol/PBS at -20 C; stable >= 1 year",
+      "concentrator": "Amicon Ultra-0.5, 50,000 MWCO",
+      "single_cell_platform": "10x Chromium Controller with Next GEM Chip G",
+      "gel_bead_kit": "Chromium Next GEM single cell 3' GEM, library and gel bead kit v3.1 (cat. 1000268)",
+      "sequencing_library_types": ["mRNA cDNA library (~500 bp final)", "PLA product library (~228 bp final)"],
+      "key_primer_addition": "U_fwd primer (2 uM) added to 10x amplification mix at Step 90 to co-amplify PLA products",
+      "spri_separation_ratio": "0.6x SPRIselect (cDNA on beads; PLA products in supernatant)",
+      "pla_library_size_bp": {
+        "post_preamp": 100,
+        "post_indexing": 228
+      },
+      "cdna_library_size_bp": {
+        "post_preamp": 1000,
+        "post_tagmentation": 500
+      }
+    },
+
+    "reagents": {
+      "buffer_exchange": "1x PBS (GIBCO, cat. 20012027)",
+      "dbco_reagent": "Dibenzocyclooctyne-PEG4-N-hydroxysuccinimidyl ester (Sigma-Aldrich, cat. 764019)",
+      "dbco_solvent": "DMSO (Sigma-Aldrich, cat. D8418; CAUTION: flammable)",
+      "oligos": "Custom azide-functionalized DNA oligomers (IDT; sequences from Vistain et al. Nat. Methods 2022)",
+      "probe_storage_agent": "Glycerol (Sigma-Aldrich, cat. G5516)",
+      "blocking_agent": "Blocker BSA (Thermo Scientific, cat. 37520)",
+      "fc_block": "TruStain FcX (Biolegend, cat. 422302)",
+      "carrier_dna": "Ultrapure salmon sperm DNA solution (Invitrogen, cat. 15632011)",
+      "probe_binding_buffer": "PBS + 0.1% (wt/vol) BSA + 0.1 mg/mL sonicated salmon sperm DNA + 6.7 nM per isotype",
+      "ligation_buffer": "50 mM HEPES pH 7.5, 10 mM MgCl2, 1 mM rATP, 9.5 nM connector oligomer, 130 U/mL T4 ligase",
+      "t4_ligase": "T4 ligase (New England Biolabs, cat. M0202L)",
+      "rnase_inhibitor": "RNase inhibitor, murine (New England Biolabs, cat. M0314L)",
+      "viability_stain": "Propidium iodide (PI; Invitrogen, cat. P1304MP)",
+      "dead_cell_removal": "Dead cell removal kit (Miltenyi Biotec, cat. 130-090-101)",
+      "ampure_beads": "AMPure XP (Beckman Coulter, cat. A63881)",
+      "spriselect_beads": "SPRIselect beads (Beckman Coulter, cat. B23317)",
+      "pcr_mix": "KAPA HiFi HotStart ReadyMix 2x (KAPA Biosystems, cat. KK2601)",
+      "elution_buffer": "Buffer EB (Qiagen, cat. 19086)",
+      "phix_control": "NextSeq PhiX control kit (Illumina, cat. FC-110-3002)",
+      "sequencing_kit_mid": "NextSeq 500/550 mid-output kit v2.5, 150 cycles (Illumina, cat. 20024904)",
+      "sequencing_kit_high": "NextSeq 500/550 high-output kit, 150 cycles (Illumina, cat. 20024907)",
+      "antibody_note": "CRITICAL: avoid antibodies formulated with protein (BSA or gelatin); compatible with azide, Tris, glycerol formulations",
+      "antibody_batch_size_ug": { "typical": 100, "minimum_tested": 25, "note": "Batches < 25 ug give inconsistent yield" }
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Antibody buffer exchange",
+        "phase": "Probe preparation",
+        "bs_block": "BB1 (main)",
+        "steps_in_paper": "1-12",
+        "inputs": ["Antibody in storage buffer", "PBS"],
+        "operation": "mix (concentrator wash/spin cycles abstracted)",
+        "concentrator": "Amicon Ultra-0.5, 50,000 MWCO",
+        "spin_conditions": "14,000g, 4 C",
+        "wash_cycles": 3,
+        "wash_volumes_uL": [500, 450, 450],
+        "spin_durations_min": [1, 5, 5, 10],
+        "duration_bs": "5m / 5m / 10m (three mix steps)",
+        "purpose": "Remove BSA or gelatin from antibody storage buffer; incompatible with DBCO NHS ester conjugation",
+        "notes": "Same concentrator used for buffer exchange and subsequent purification after DBCO conjugation"
+      },
+      {
+        "id": "S2",
+        "name": "DBCO stock preparation and antibody conjugation",
+        "phase": "Probe preparation",
+        "bs_block": "BB1 (main)",
+        "steps_in_paper": "13-19",
+        "inputs": ["DBCO-NHS ester", "DMSO", "PBS (QC dilution)", "Concentrated antibody"],
+        "operation": "mix + heat (on-ice incubation)",
+        "dbco_stock_preparation": {
+          "solvent": "DMSO",
+          "volume_uL": 10,
+          "qc_dilution": "1:100 in PBS; read absorbance at 309 nm on Nanodrop",
+          "molar_extinction_coefficient_M-1_cm-1": 12000,
+          "target_stock_concentration_mM": 2
+        },
+        "conjugation": {
+          "dbco_to_antibody_volume_ratio": "1:10",
+          "antibody_concentration_mg_mL": "0.5-2 (CRITICAL)",
+          "incubation_temperature_C": 0,
+          "incubation_duration_min": 60,
+          "incubation_duration_bs": "60m",
+          "extension_allowed_min": 120
+        },
+        "purpose": "Conjugate DBCO moiety to antibody lysines via NHS ester chemistry for subsequent click reaction with azide-DNA",
+        "notes": "On-ice (0 C) incubation modelled in BioScript as heat at 0c for 60m"
+      },
+      {
+        "id": "S3",
+        "name": "DBCO-antibody purification and QC",
+        "phase": "Probe preparation",
+        "bs_block": "BB1 (main) -> DBCO QC gate (BB2/BB3/BB4)",
+        "steps_in_paper": "20-23",
+        "inputs": ["DBCO-conjugated antibody", "PBS"],
+        "operation": "mix (concentrator purification) + detect (dbcoConjugationQC)",
+        "purification": "Repeat concentrator wash Steps 4-12 to remove unconjugated DBCO",
+        "qc": {
+          "instrument": "Nanodrop UV-visible spectrophotometer",
+          "absorbance_antibody_nm": 280,
+          "absorbance_dbco_nm": 309,
+          "extinction_coefficient_dbco_M-1_cm-1": 12000,
+          "extinction_coefficient_antibody_M-1_cm-1": 204000,
+          "note": "Account for DBCO absorbance at 280 nm when calculating antibody concentration",
+          "acceptable_ratio_dbco_per_antibody": "1-10",
+          "optimal_input_mass_ug": 100
+        },
+        "storage": "Aliquots at -20 C; avoid freeze-thaw cycles",
+        "cfg_gate": {
+          "pass": { "condition": "dbcoSignal > 0", "action": "dispose(dbcoReaction)", "bb": "BB2 (bsbbif_2_t)" },
+          "fail": { "condition": "dbcoSignal <= 0", "action": "drain(dbcoReaction)", "bb": "BB3 (bsbbif_3_f)",
+                    "troubleshooting": "Low input mass (<50 ug) or excessive DBCO ratio (>10 DBCO/Ab); increase scale or reduce DBCO" }
+        }
+      },
+      {
+        "id": "S4",
+        "name": "Azide-DNA oligo conjugation (click chemistry)",
+        "phase": "Probe preparation",
+        "bs_block": "BB4 (bsbbif_4_j)",
+        "steps_in_paper": "24-26",
+        "inputs": ["DBCO-conjugated antibody (2 ug)", "Azide-DNA oligo A (80 uM)", "Azide-DNA oligo B (80 uM)", "Probe binding buffer"],
+        "operation": "mix + heat (overnight 4 C click reaction)",
+        "reaction": {
+          "chemistry": "Copper-free DBCO-azide click (strain-promoted azide-alkyne cycloaddition)",
+          "temperature_C": 4,
+          "duration_h": 16,
+          "duration_min": 960,
+          "duration_bs": "960m",
+          "extension_allowed_days": 2
+        },
+        "probe_panel_assembly": {
+          "probe_concentration_each_nM": 2.5,
+          "total_probe_per_target_nM": 5,
+          "buffer": "PBS + 0.1% BSA + 0.1 mg/mL salmon sperm DNA + 6.7 nM per isotype"
+        },
+        "storage": "50% (wt/vol) glycerol/PBS at -20 C; stable >= 1 year; 4 C stable for months (antibody-dependent)",
+        "notes": "Two probes per target protein (A and B); probe A and probe B carry unique barcodes enabling identification of which two proteins ligated"
+      },
+      {
+        "id": "S5",
+        "name": "Cell pelleting, Fc blocking, and BSA wash",
+        "phase": "Sample processing (PLA)",
+        "bs_block": "BB4 (bsbbif_4_j)",
+        "steps_in_paper": "27-31",
+        "inputs": ["Single cell suspension", "TruStain FcX", "1% BSA/PBS"],
+        "operation": "mix (centrifugation abstracted)",
+        "spin_conditions": "300-500g, 4 C, 5 min",
+        "fc_block_duration_min": 10,
+        "wash_buffer": "1% (wt/vol) BSA/PBS, 1 mL",
+        "purpose": "Fc receptor blocking prevents non-specific antibody binding; BSA wash removes serum proteins before probe staining"
+      },
+      {
+        "id": "S6",
+        "name": "Prox-seq probe staining",
+        "phase": "Sample processing (PLA)",
+        "bs_block": "BB4 (bsbbif_4_j)",
+        "steps_in_paper": "32-34",
+        "inputs": ["Blocked cell pellet", "Prox-seq probe panel in probe binding buffer"],
+        "operation": "mix + heat (37 C incubation)",
+        "probe_concentration_per_probe_nM": 2.5,
+        "probe_volume_per_100k_cells_uL": 30,
+        "incubation_temperature_C": 37,
+        "incubation_duration_min": "30-60 (45 min modelled in BioScript)",
+        "incubation_duration_bs": "45m"
+      },
+      {
+        "id": "S7",
+        "name": "Post-staining washes",
+        "phase": "Sample processing (PLA)",
+        "bs_block": "BB4 (bsbbif_4_j)",
+        "steps_in_paper": "35",
+        "inputs": ["Stained cells", "1% BSA/PBS"],
+        "operation": "mix x3 (centrifugation washes)",
+        "wash_count": 3,
+        "wash_volume_mL": 1,
+        "wash_buffer": "1% (wt/vol) BSA/PBS",
+        "notes": "If overprocessing is a concern, reduce washes by at least one"
+      },
+      {
+        "id": "S8",
+        "name": "PLA ligation",
+        "phase": "Sample processing (PLA)",
+        "bs_block": "BB4 (bsbbif_4_j)",
+        "steps_in_paper": "36-37",
+        "inputs": ["Washed cell pellet", "Ligation buffer", "T4 ligase", "RNase inhibitor"],
+        "operation": "mix + heat (37 C ligation)",
+        "ligation_buffer_volume_uL": 100,
+        "ligation_buffer_composition": "50 mM HEPES pH 7.5, 10 mM MgCl2, 1 mM rATP, 9.5 nM connector oligomer (TTTCACGACACGACACGATTTAGGTC), 130 U/mL T4 ligase",
+        "incubation_temperature_C": 37,
+        "incubation_duration_min": 30,
+        "incubation_duration_bs": "30m",
+        "mechanism": "Connector oligomer bridges probe A and probe B oligonucleotides when target proteins are within 50-70 nm; T4 ligase seals the nick to form a covalent PLA ligation product",
+        "optional_free_oligo_method": {
+          "description": "Add free oligos A and B sequentially with additional connector to ensure all probes are ligated and measurable even if paired protein is absent",
+          "free_oligo_A_nM": 50,
+          "additional_connector_after_A_nM": 59.5,
+          "incubation_after_A_min": 15,
+          "free_oligo_B_nM": 60,
+          "additional_connector_after_B_nM": 109.5,
+          "incubation_after_B_min": 15,
+          "note": "Improves protein expression level estimates but benefits are minor when targeting many highly expressed proteins; increases overprocessing risk for low-count samples"
+        }
+      },
+      {
+        "id": "S9",
+        "name": "Post-ligation washes and viability check",
+        "phase": "Sample processing (PLA)",
+        "bs_block": "BB4 (bsbbif_4_j) -> viability gate (BB5/BB6/BB7)",
+        "steps_in_paper": "39-40",
+        "inputs": ["Ligated cells", "1% BSA/PBS", "Propidium iodide", "Dead cell removal kit (Miltenyi)"],
+        "operation": "mix x2 (post-ligation washes) + mix (dead cell removal) + mix (PI staining) + detect (viabilityDetection)",
+        "post_ligation_washes": 2,
+        "viability_requirement_pct": ">80",
+        "cells_required_for_10x": 20000,
+        "detection_module": "viabilityDetection",
+        "detection_duration_s": 30,
+        "bioscript_liveness_note": "viableCells and stainedForSort derive independently from postLigWash2; viableCells is NOT consumed inside the if-gate branches to keep it live at bsbbif_7_j (join block)",
+        "cfg_gate": {
+          "pass": { "condition": "viabilitySignal > 0", "action": "dispose(stainedForSort); viableCells passes through untouched", "bb": "BB5 (bsbbif_5_t)" },
+          "fail": { "condition": "viabilitySignal <= 0", "action": "drain(stainedForSort); viableCells passes through untouched", "bb": "BB6 (bsbbif_6_f)",
+                    "troubleshooting": "Reduce wash steps (Step 35); increase centrifugation speed for fixed samples; ensure all tubes passivated with BSA" }
+        }
+      },
+      {
+        "id": "S10",
+        "name": "10x Chromium GEM generation",
+        "phase": "10x-based single-cell isolation",
+        "bs_block": "BB7 (bsbbif_7_j)",
+        "steps_in_paper": "87-90",
+        "inputs": ["Viable cells (20,000)", "Chromium GEL beads (v3.1)", "Partitioning oil", "KAPA HiFi ReadyMix", "dNTP mix", "U_fwd primer (2 uM)"],
+        "operation": "mix (GEM encapsulation) + heat (12-cycle PCR amplification)",
+        "filter_before_loading": "40 um cell strainer to remove clumps",
+        "chip": "Chromium Next GEM Chip G (cat. 1000127)",
+        "critical_primer_addition": "1 uL of 2 uM U_fwd primer added to amplification mix alongside standard 10x cDNA primers (Step 90); without U_fwd, PLA products are not co-amplified",
+        "pcr_cycles": 12,
+        "pcr_program": {
+          "initial_denature": "98 C, 3 min",
+          "cycles_1_to_12": "98 C 20s / 67 C 20s / 72 C 20s",
+          "final_extension": "72 C, 5 min",
+          "hold": "4 C"
+        },
+        "gem_encapsulation_duration_bs": "45m",
+        "pcr_duration_bs": "30m"
+      },
+      {
+        "id": "S11",
+        "name": "SPRI size selection: separate cDNA from PLA products",
+        "phase": "10x-based single-cell isolation",
+        "bs_block": "BB7 (bsbbif_7_j)",
+        "steps_in_paper": "91-94",
+        "inputs": ["Amplified GEM product", "SPRIselect beads (0.6x cDNA path)", "SPRIselect beads (2.1x PLA path)", "Buffer EB"],
+        "operation": "mix x2 (two independent SPRI dispensations) + mix (cDNA elution)",
+        "spri_ratio_cdna": "0.6x (cDNA ~1,000 bp binds beads; PLA ~100 bp stays in supernatant)",
+        "spri_ratio_pla": "2.1x (PLA products bind beads for cleanup)",
+        "critical_step_92": "SAVE 75 uL supernatant for PLA library construction (CRITICAL: this supernatant is DISCARDED in standard 10x protocol)",
+        "cdna_elution_volume_uL": 35,
+        "cdna_elution_buffer": "Buffer EB (Qiagen)",
+        "tapestation_qc": {
+          "cdna_expected_peak_bp": 1000,
+          "pla_expected_peak_bp": 100,
+          "reference_figures": ["Fig. 2c (cDNA pre-amp)", "Fig. 2d (PLA pre-amp)"]
+        },
+        "bioscript_ssa_note": "Two independent dispense of SPRIselect_Beads (spriBeads_cDNA and spriBeads_PLA) used to avoid SSA single-use token violation; spriMix_cDNA consumed by elutedCDNA; spriMix_PLA flows through BB8/BB9 gate UNTOUCHED and consumed at bsbbif_10_j by plaCleanup",
+        "detection_module": "proxseqLibraryQC",
+        "detection_duration_s": 30,
+        "cfg_gate": {
+          "pass": { "condition": "librarySignal > 0", "action": "dispose(spriMix_cDNA); spriMix_PLA untouched", "bb": "BB8 (bsbbif_8_t)" },
+          "fail": { "condition": "librarySignal <= 0", "action": "drain(spriMix_cDNA); spriMix_PLA untouched", "bb": "BB9 (bsbbif_9_f)",
+                    "troubleshooting": "Check AMPure bead volume; avoid over-drying beads; peaks < 200 bp indicate adapter dimers" }
+        }
+      },
+      {
+        "id": "S12",
+        "name": "cDNA gene expression library construction",
+        "phase": "Library preparation",
+        "bs_block": "BB10 (bsbbif_10_j)",
+        "steps_in_paper": "95",
+        "inputs": ["Purified cDNA (10 uL)", "KAPA HiFi ReadyMix", "10x V3.1 library kit"],
+        "operation": "mix + heat (PCR per 10x standard protocol)",
+        "protocol_reference": "10x Genomics single-cell 3' V3.1; PCR cycles determined by cDNA input amount",
+        "final_library_size_bp": 500,
+        "reference_figure": "Fig. 2e"
+      },
+      {
+        "id": "S13",
+        "name": "PLA product library construction",
+        "phase": "Library preparation",
+        "bs_block": "BB10 (bsbbif_10_j)",
+        "steps_in_paper": "96-102",
+        "inputs": ["PLA supernatant (from spriMix_PLA)", "SPRIselect beads (2.1x)", "Buffer EB", "KAPA HiFi ReadyMix", "10x_SI_PCR primer (0.2 uM)", "P7_N70X_Custom2 primer (0.2 uM)", "NucleaseFreeWater", "SPRIselect beads (1.2x)"],
+        "operation": "mix (2.1x SPRI cleanup) + mix (elute) + mix (PCR setup) + heat (12-cycle PCR) + mix (1.2x SPRI final cleanup) + mix (final elution) + detect (plaProductDetection)",
+        "pcr_program": {
+          "initial_denature": "98 C, 2 min",
+          "cycles_1_to_12": "98 C 20s / 60 C 30s / 72 C 20s",
+          "final_extension": "72 C, 5 min",
+          "hold": "4 C",
+          "note": "60 C anneal (lower than cDNA library) due to short PLA amplicon"
+        },
+        "final_spri_ratio": "1.2x",
+        "final_elution_buffer_volume_uL": 40,
+        "final_library_size_bp": 228,
+        "storage": "-20 C until sequencing",
+        "detection_module": "plaProductDetection",
+        "detection_duration_s": 30,
+        "qc": {
+          "qubit": "Concentration measurement",
+          "tapestation": "Size distribution; target ~228 bp",
+          "reference_figures": ["Fig. 2f (10x PLA final)", "Fig. 2h (suboptimal example)"]
+        },
+        "cfg_gate": {
+          "pass": { "condition": "assaySignal > 0", "action": "proceed to sequencing", "bb": "BB11 (bsbbif_11_t)" },
+          "fail": { "condition": "assaySignal <= 0", "action": "drain(plaLibrary); drain(gexLibrary)", "bb": "BB12 (bsbbif_12_f)",
+                    "troubleshooting": "Check AMPure bead volume for carryover; peaks < 200 bp indicate adapter dimers; repeat cleanup" }
+        }
+      },
+      {
+        "id": "S14",
+        "name": "Next-generation sequencing",
+        "phase": "Sequencing",
+        "bs_block": "BB11 (bsbbif_11_t)",
+        "steps_in_paper": "133",
+        "platform": "Illumina NextSeq 500/550",
+        "sequencing_runs": {
+          "cdna_library": {
+            "kit": "High-output 150-cycle kit (cat. 20024907)",
+            "read_distribution": "Read 1: 28 cycles; i7 index: 10 cycles; i5 index: 10 cycles; Read 2: 90 cycles",
+            "phix_pct": 1
+          },
+          "pla_library": {
+            "kit": "Mid-output 150-cycle kit (cat. 20024904)",
+            "read_distribution": "Read 1: 28 cycles; i7 index: 8 cycles; Read 2: 75 cycles",
+            "phix_pct": 40,
+            "custom_primers": ["DropPLA_Read2 (spiked into Illumina read 2 primer)", "DropPLA_i7Read (custom i7 read primer)"],
+            "phix_note": "CRITICAL: 40% PhiX required due to low PLA library complexity; insufficient PhiX causes low Phred quality scores"
+          }
+        },
+        "sequencing_duration_bs": "600m (10h model for mid-output run)"
+      },
+      {
+        "id": "S15",
+        "name": "cDNA alignment (Cell Ranger)",
+        "phase": "Computational (not in BioScript)",
+        "steps_in_paper": "135-138",
+        "software": "Cell Ranger v6.1.1 or higher (10x Genomics)",
+        "commands": ["cellranger mkref (build reference genome index)", "cellranger count (alignment + cell-barcode + gene-barcode matrix)"],
+        "output": "Gene-barcode matrix (loadable in R with Read10x; Seurat/Scanpy compatible)"
+      },
+      {
+        "id": "S16",
+        "name": "PLA product alignment (custom Java program)",
+        "phase": "Computational (not in BioScript)",
+        "steps_in_paper": "139-143",
+        "software": "PLA_alignment.jar (github.com/tay-lab/Prox-seq)",
+        "commands": [
+          "ReadAlignment10x (extract cell barcode + UMI + probe identities from FASTQ)",
+          "BulidCellBarcodes (generate cell reference list)",
+          "CellBarcodeCorrection (barcode correction; SUFFIX=-1 for 10x)",
+          "UMIMerging (merge PLA products from same cell with similar UMI sequences)",
+          "DigitalCount (export DPE matrix as text file)"
+        ],
+        "output": "Digital PLA product Expression (DPE) matrix"
+      },
+      {
+        "id": "S17",
+        "name": "Protein abundance calculation and protein complex quantification",
+        "phase": "Computational (not in BioScript)",
+        "steps_in_paper": "144-147",
+        "software": "Python scripts (github.com/tay-lab/NProt_data-src; Anaconda3/Python v3.8.8)",
+        "steps": [
+          "Import DPE matrix -> PLA object",
+          "calculateProteinCount -> protein_count dataframe (Step 144-145)",
+          "predictComplex (method='iterative' default; method='lr' for free oligo variant only) -> complex_count dataframe (Step 146-147)"
+        ],
+        "double_filtering": "Filter invalid cell barcodes (mRNA-based correction) + filter cells with too few or too many PLA product UMIs",
+        "proximity_noise_note": "Proximity noise arises when two proteins are within 50-70 nm by random chance without functional interaction; the iterative method accounts for this computationally",
+        "output": "Integrated count matrices (mRNA + protein + protein complex) for multimodal single-cell analysis in Seurat or Scanpy"
+      }
+    ],
+
+    "cfg": {
+      "bioscript_file": "vistain_proxseq_10x.bs",
+      "compiler": "lilott8/BioScript (ANTLR4-based)",
+      "ir_output": "vistain_proxseq_10x.ir",
+      "dag_output": "vistain_proxseq_10x_main_dag.dot",
+      "total_basic_blocks": 13,
+      "total_cfg_edges": 16,
+      "duration_units_note": "BioScript supports s and m only; overnight 16h converted to 960m (IR: 57600.0 SECOND); on-ice 1h to 60m (IR: 3600.0 SECOND); sequencing run 10h to 600m (IR: 36000.0 SECOND)",
+      "modules": [
+        "dbcoConjugationQC",
+        "plasmidLigationQC",
+        "viabilityDetection",
+        "proxseqLibraryQC",
+        "plaProductDetection"
+      ],
+      "ssa_liveness_fixes": [
+        {
+          "variable": "viableCells",
+          "issue": "viableCells2[0] dangling ref in bsbbif_7_j",
+          "root_cause": "Compiler marks variable dead at join block if consumed in any preceding branch",
+          "fix": "viableCells and stainedForSort derive independently from postLigWash2; viableCells is NOT consumed inside the if-gate branches (neither dispose nor drain); only stainedForSort is disposed/drained inside the gate"
+        },
+        {
+          "variable": "spriMix_PLA",
+          "issue": "spriMix_PLA2[0] dangling ref in bsbbif_10_j",
+          "root_cause": "Single SPRI mix variable consumed twice (cDNA elution + PLA cleanup) violated SSA single-use token semantics",
+          "fix": "Two independent SPRIselect_Beads dispensations (spriBeads_cDNA and spriBeads_PLA) produce two separate mix variables; spriMix_PLA flows through the BB8/BB9 gate completely untouched and is consumed exactly once at bsbbif_10_j by plaCleanup"
+        }
+      ],
+      "basic_blocks": [
+        { "id": "BB1",  "label": "main",           "type": "entry",        "content": "Buffer exchange, DBCO stock prep, antibody conjugation, DBCO-Ab purification, detect dbcoConjugationQC; oligo conjugation overnight; probe panel assembly; cell pelleting, Fc block, probe staining, washes, PLA ligation, post-ligation washes; dead cell removal and PI staining independently from postLigWash2; detect viabilityDetection" },
+        { "id": "BB2",  "label": "bsbbif_2_t",     "type": "branch_true",  "condition": "dbcoSignal > 0",      "action": "dispose(dbcoReaction)" },
+        { "id": "BB3",  "label": "bsbbif_3_f",     "type": "branch_false", "condition": "dbcoSignal <= 0",     "action": "drain(dbcoReaction)" },
+        { "id": "BB4",  "label": "bsbbif_4_j",     "type": "join",         "content": "dispose(dbcoSignal); oligo conjugation; probe panel assembly; cell staining; PLA ligation; post-ligation washes; viableCells (independent); stainedForSort (independent); detect viabilityDetection; split to viability gate" },
+        { "id": "BB5",  "label": "bsbbif_5_t",     "type": "branch_true",  "condition": "viabilitySignal > 0", "action": "dispose(stainedForSort) only; viableCells untouched" },
+        { "id": "BB6",  "label": "bsbbif_6_f",     "type": "branch_false", "condition": "viabilitySignal <= 0","action": "drain(stainedForSort) only; viableCells untouched" },
+        { "id": "BB7",  "label": "bsbbif_7_j",     "type": "join",         "content": "dispose(viabilitySignal); 10x GEM generation with viableCells1[0]; 12-cycle PCR with U_fwd; two independent SPRI dispensations; cDNA elution; detect proxseqLibraryQC; split to library QC gate" },
+        { "id": "BB8",  "label": "bsbbif_8_t",     "type": "branch_true",  "condition": "librarySignal > 0",   "action": "dispose(spriMix_cDNA); spriMix_PLA untouched" },
+        { "id": "BB9",  "label": "bsbbif_9_f",     "type": "branch_false", "condition": "librarySignal <= 0",  "action": "drain(spriMix_cDNA); spriMix_PLA untouched" },
+        { "id": "BB10", "label": "bsbbif_10_j",    "type": "join",         "content": "dispose(librarySignal); GEX library construction; PLA 2.1x SPRI cleanup using spriMix_PLA1[0]; PLA PCR; 1.2x SPRI final cleanup; detect plaProductDetection; split to final QC gate" },
+        { "id": "BB11", "label": "bsbbif_11_t",    "type": "branch_true",  "condition": "assaySignal > 0",     "action": "sequencing run: PhiX spike-in, NextSeq mid-output kit, seqRunMix; heat 600m at 4c; dispose(gexSeqPool); dispose(seqRunMix)" },
+        { "id": "BB12", "label": "bsbbif_12_f",    "type": "branch_false", "condition": "assaySignal <= 0",    "action": "drain(plaLibrary); drain(gexLibrary)" },
+        { "id": "BB13", "label": "bsbbif_13_j",    "type": "terminal",     "content": "dispose(assaySignal); NOP" }
+      ],
+      "edges": [
+        ["BB1","BB2"],  ["BB1","BB3"],
+        ["BB2","BB4"],  ["BB3","BB4"],
+        ["BB4","BB5"],  ["BB4","BB6"],
+        ["BB5","BB7"],  ["BB6","BB7"],
+        ["BB7","BB8"],  ["BB7","BB9"],
+        ["BB8","BB10"], ["BB9","BB10"],
+        ["BB10","BB11"],["BB10","BB12"],
+        ["BB11","BB13"],["BB12","BB13"]
+      ]
+    },
+
+    "limitations": {
+      "antibody_requirement": "Antibodies must be selected carefully; probes must bind targets both individually and in complex; blocking/neutralizing antibodies must be avoided for receptor-ligand complex studies",
+      "interaction_range": "50-70 nm range cannot confirm direct protein-protein contact; other proteins may bridge the two targets; use FRET (5-10 nm range) for direct contact validation",
+      "multiplexing_upper_limit": "Low hundreds of targets (estimated); determined by antibody availability and cost (~$1,000 per new probe pair, including oligos reusable across experiments)",
+      "lowly_abundant_proteins": "Proteins not in complex with another panel target have little chance of forming a valid ligation product; difficult to identify lowly expressed surface proteins",
+      "computational_complexity": "DPE matrix must be pre-filtered to discard all-zero rows/columns before protein complex quantification; zero denominator errors otherwise"
+    },
+
+    "comparison_with_other_methods": {
+      "FRET": { "interaction_range_nm": "5-10", "multiplexing": "<10 pairs", "output": "Fluorescence", "throughput": "1,000s-100,000s cells", "prox_seq_advantage": "100x greater interaction range; 100x higher multiplexing" },
+      "super_resolution_microscopy": { "interaction_range_nm": "5-100", "multiplexing": "12 targets", "output": "Fluorescence", "throughput": "10s cells" },
+      "PLA_RCA_DuoLink": { "interaction_range_nm": 40, "multiplexing": "<5 pairs", "output": "Fluorescence", "throughput": "1,000s-100,000s cells", "limitation": "No proximity noise correction; commercial kit (DuoLink)" },
+      "proximity_sequencing": { "interaction_range_nm": "50-70", "multiplexing": "38 targets, 741 pairs (reported)", "output": "Sequencing", "throughput": "10,000s cells", "unique_advantage": "Only single-cell method capable of measuring hundreds of protein complexes simultaneously; accounts for proximity noise computationally" }
+    }
+  }
+}

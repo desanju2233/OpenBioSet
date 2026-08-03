@@ -1,0 +1,290 @@
+module preconcentrationDetection
+
+manifest NafionResin
+manifest PhosphateBuffer
+manifest BetaPhycoerythrin_Sample
+
+// ============================================================
+// Multiplexed Proteomic Sample Preconcentration Device Using
+// Surface-Patterned Ion-Selective Membrane.
+// Lee, Song & Han
+// Lab Chip, 2008, 8(4): 596-601
+// DOI: 10.1039/b717220f
+//
+// Platform: PDMS microfluidic chip (20 mm x 25 mm) with
+// surface-patterned planar Nafion ion-selective membrane
+// embedded at the PDMS/glass interface by plasma bonding.
+// Microchannels: 50 um deep x 50 um wide (all channels).
+// Channel layout (dual gate design): one central sample
+// channel flanked symmetrically by two buffer channels;
+// Nafion membrane stripe printed on glass substrate connects
+// all three channels at the channel bottom as a permselective
+// junction (analogous to nanochannels in prior silicon device).
+//
+// Separation physics: electrokinetic trapping.
+// Phase 1 - Depletion mode: voltage difference (Vdiff = V1-V2)
+//   applied across sample and buffer channels through Nafion
+//   membrane (V1=50V, V2=50V, buffer GND). Normal field (En)
+//   generates a depletion region in the sample channel; charged
+//   molecules are pushed away from the membrane toward V1.
+// Phase 2 - Concentration mode: V2 reduced to 25V while V1
+//   held at 50V. Tangential field (Et) drives electroosmotic
+//   flow (EOF) along sample channel toward the depletion zone.
+//   Molecules are stacked in front of the depletion boundary.
+//   Balance of En and Et produces a stable concentrated plug.
+// Optimum Vdiff = 25V (V1=50V, V2=25V); above 25V depletion
+// zone destabilized by secondary nonlinear electrokinetics.
+//
+// Model protein: beta-Phycoerythrin (beta-PE; MW 240 kDa,
+//   pI 4.3; Sigma-Aldrich). Dissolved in 10^-2 M phosphate
+//   buffer pH 7. Concentrations tested: 40 pM, 400 pM, 4 nM,
+//   40 nM. Internal reference standards: 2, 4, 8 uM.
+// Performance: concentration factor ~10^4 in 5 min (400 pM
+//   starting -> 8 uM reference in 5 min); ~5x10^4 in 10 min
+//   (40 pM starting); concentrated plug volume ~200 pL;
+//   coefficient of variance 11.5% across 3 devices.
+//
+// Nafion membrane:
+//   Material  : Nafion perfluorinated ion-exchange resin
+//               (Sigma-Aldrich, 5 wt% in aliphatic alcohols/H2O,
+//               15-20% water content)
+//   Patterning: Micro-flow patterning (preferred; more
+//               reproducible thickness than micro-stamping):
+//               (1) 1 uL Nafion resin filled by capillary force
+//               into reversibly bonded PDMS channel (120 um
+//               deep x 200 um wide); (2) liquid resin flushed
+//               out by negative pressure through syringe tubing,
+//               leaving thin residual layer on hydrophilic glass;
+//               (3) cure at 95 C for 10 min; (4) plasma bond
+//               PDMS chip to patterned glass substrate.
+//   Thickness : Target 191-400 nm; >400 nm causes PDMS sealing
+//               failure and leakage at membrane edges.
+//               Micro-stamping alternative: plasma-treat PDMS
+//               stamp, ink with Nafion, transfer to clean glass,
+//               cure 95 C 10 min; thickness 0.5-1 um (less
+//               reproducible; risk of leakage).
+//   Bonding   : O2 plasma bonding, PDMS chip on top of Nafion-
+//               patterned glass; post-bond bake 70 C for 12 h
+//               to enhance bonding strength.
+//
+// Array format: 10 single preconcentrators arranged radially
+//   with a common collection reservoir at center. Samples S1-S10
+//   each at V1=50V; common reservoir at V2=25V; individual
+//   ground reservoirs per buffer channel. Nafion patterned in
+//   half-circle shape per unit. Concentrated volume scales
+//   linearly with number of units: single ~200 pL; 10-unit
+//   array ~2 nL (3500x increase vs. prior silicon device).
+//   NOTE ON ARRAY ENCODING: BioScript has no loop construct;
+//   explicit unrolling of 10 identical channels would require
+//   10 identical dispense/mix/heat/detect blocks. This file
+//   encodes the single-preconcentrator canonical unit, which
+//   is the repeating element of the array. Array behavior is
+//   documented in the JSON/TXT companion files.
+//
+// NOTE ON VOLTAGE ABSTRACTION: BioScript has no electrical
+//   construct (no `voltage`, `electrode`, or `field` keyword).
+//   Electrokinetic voltage application steps (depletion and
+//   concentration modes) are abstracted as `heat` statements:
+//   - Depletion mode (V1=50V, V2=50V, GND): heat at 50c
+//     models the first voltage phase; 50c is a placeholder
+//     encoding the V1 voltage level (50V) as a temperature
+//     token, consistent with conventions in this library for
+//     representing electrode-driven operations without a
+//     native BioScript electrical primitive.
+//   - Concentration mode (V1=50V, V2=25V, GND): heat at 25c
+//     models the second voltage phase with the reduced V2=25V
+//     as the temperature token, reflecting the voltage
+//     differential that drives the electroosmotic flow.
+//   Both phases operate on the same physical droplet/channel
+//   contents; unique intermediate variable names are used for
+//   each phase to satisfy the no-reassignment constraint.
+//
+// NOTE ON DURATION TOKENS: BioScript supports s and m only.
+//   All durations in m or s; no h tokens used.
+//   Nafion cure    : 10 min   = 10m
+//   Post-bond bake : 12 h     = 720m
+//   Depletion mode : 1 min    = 1m  (per paper Fig. 5 V sweep)
+//   Concentration  : 5 min    = 5m  (optimum; 10^4 factor)
+//   Detection      : 5 min    = 5m  (fluorescence acquisition)
+//
+// CFG STRUCTURE:
+//   BB1  main              -- Nafion membrane patterning (cure),
+//                            post-bond bake, buffer channel
+//                            loading, sample loading, depletion
+//                            mode, concentration mode, detection
+//   BB2  concenPass        -- concenSignal > 0: concentrated plug
+//                            detected above reference threshold
+//                            (>=8 uM equivalent fluorescence);
+//                            dispose all channels
+//   BB3  concenFail        -- concenSignal <= 0: no plug detected
+//                            (membrane leak, voltage failure, or
+//                            insufficient preconcentration time);
+//                            drain all channels
+//   BB4  finalCleanup      -- terminal: dispose QC signal, end
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Nafion membrane patterning - micro-flow patterning.
+//   1 uL Nafion resin placed at reservoir of reversibly bonded
+//   PDMS channel (120 um deep x 200 um wide); capillary force
+//   fills channel immediately. Liquid resin flushed out by
+//   negative pressure via syringe tubing on opposite end,
+//   leaving a thin Nafion layer on the hydrophilic glass.
+//   Cure patterned stripe at 95 C for 10 min on hotplate.
+//   Target thickness: 191-400 nm.
+//   NOTE: The patterning PDMS channel is temporary and
+//   reversibly bonded (removed before device assembly).
+//   This step is encoded as a heat operation on NafionResin
+//   abstracting the flow-coat + thermal cure sequence.
+//   Off-chip physical fabrication; no liquid handling on the
+//   final device at this stage.
+// ------------------------------------------------------------
+
+nafionResin    = dispense 1 units of NafionResin
+nafionCured    = mix nafionResin with nafionResin for 1m
+heat nafionCured at 95c for 10m
+
+// ------------------------------------------------------------
+// STEP 2: PDMS chip plasma bonding and post-bond bake.
+//   PDMS chip (50 um deep x 50 um wide channels, dual gate
+//   layout: 1 sample channel center + 2 buffer channels
+//   flanking) plasma bonded on top of Nafion-patterned glass.
+//   No microscope alignment required (non-critical alignment).
+//   Post-bond bake: 70 C for 12 h (= 720 min) to enhance
+//   bonding strength between PDMS and glass/Nafion.
+//   Encoded as heat on cured membrane; abstracts bonding bake.
+//   NOTE: Self-mix pattern used (nafionCured with itself) to
+//   represent a single-material bake step with no second
+//   reagent. Same pattern as warkiani_spiral_ctc_isolation.bs
+//   ethanol priming step; documented compiler behavior.
+// ------------------------------------------------------------
+
+heat nafionCured at 70c for 720m
+
+// ------------------------------------------------------------
+// STEP 3: Load buffer solution into buffer channels (flanking).
+//   10^-2 M phosphate buffer pH 7 loaded into both outer
+//   buffer channels (left and right) of the dual gate design.
+//   Buffer channels are grounded (GND) during both depletion
+//   and concentration modes. Dual buffer channels improve
+//   stability of the depletion region by generating depletion
+//   zones from both sides of the sample channel simultaneously.
+//   Dispense two independent buffer droplets representing the
+//   two flanking buffer channels.
+// ------------------------------------------------------------
+
+bufferLeft  = dispense 1 units of PhosphateBuffer
+bufferRight = dispense 1 units of PhosphateBuffer
+bufferDual  = mix bufferLeft with bufferRight for 30s
+
+// ------------------------------------------------------------
+// STEP 4: Load protein sample into sample channel (center).
+//   beta-Phycoerythrin (beta-PE; MW 240 kDa, pI 4.3) at
+//   working concentration (e.g. 4 nM as canonical condition
+//   from Fig. 6) dissolved in 10^-2 M phosphate buffer pH 7.
+//   Sample loaded into central microchannel; both ends of
+//   sample channel accessible for electrode connections
+//   (V1 at one end, V2 at other end during concentration mode).
+//   NOTE: `mix` abstracts sample loading into the microchannel
+//   co-resident with the buffer; this is not a DMF droplet
+//   merge but represents channel filling with protein solution.
+// ------------------------------------------------------------
+
+proteinSample   = dispense 1 units of BetaPhycoerythrin_Sample
+loadedSample    = mix proteinSample with bufferDual for 30s
+
+// ------------------------------------------------------------
+// STEP 5: Depletion mode (Phase 1).
+//   Voltage configuration: V1=50V (sample channel inlet),
+//   V2=50V (sample channel outlet), buffer channels at GND.
+//   A potential difference is applied across sample and buffer
+//   channels through the Nafion membrane. The normal field
+//   component (En) across the membrane depletes ions in the
+//   sample channel and pushes charged beta-PE molecules away
+//   from the membrane toward the V1 reservoir.
+//   Duration: 1 min to establish and stabilize the depletion
+//   region before switching to concentration mode.
+//   ABSTRACTION: heat at 50c encodes V1=50V operating voltage.
+// ------------------------------------------------------------
+
+depletedSample  = mix loadedSample with bufferDual for 1m
+heat depletedSample at 50c for 1m
+
+// ------------------------------------------------------------
+// STEP 6: Concentration mode (Phase 2).
+//   Voltage configuration: V1=50V, V2=25V, buffer GND.
+//   Vdiff = V1-V2 = 25V (optimum; above 25V secondary
+//   nonlinear electrokinetics destabilize concentrated zone).
+//   Tangential field (Et) generates electroosmotic flow (EOF)
+//   along sample channel that injects molecules toward the
+//   stable depletion zone boundary. Molecules stack in front
+//   of the depletion region and form a concentrated plug.
+//   Duration: 5 min (canonical; achieves ~10^4 concentration
+//   factor from 400 pM starting to 8 uM reference intensity;
+//   from 40 pM, ~5x10^4 factor reached in 10 min).
+//   Concentrated plug volume: ~200 pL; coefficient of
+//   variance 11.5% across 3 devices.
+//   ABSTRACTION: heat at 25c encodes V2=25V reduced voltage;
+//   unique variable concentratedPlug used (no reassignment).
+// ------------------------------------------------------------
+
+concentratedPlug = mix depletedSample with bufferDual for 5m
+heat concentratedPlug at 25c for 5m
+
+// ------------------------------------------------------------
+// STEP 7: Fluorescence detection of concentrated plug.
+//   Platform: Olympus IX71 inverted epifluorescence microscope
+//   with thermoelectrically cooled CCD camera (Hamamatsu).
+//   Fluorescence images taken every 30 s; analyzed with IPLab.
+//   Mechanical shutter blocks UV between acquisitions to
+//   minimize photobleaching. Neutral density filter prevents
+//   CCD saturation (increased dynamic range).
+//   Internal reference standards: 2, 4, 8 uM beta-PE.
+//   Pass criterion: fluorescence intensity of concentrated plug
+//   >= 8 uM reference (corresponding to ~10^4 fold increase
+//   from 400 pM starting concentration at 5 min).
+//   preconcentrationDetection module abstracts the fluorescence
+//   intensity readout and comparison to reference standards.
+// ------------------------------------------------------------
+
+concenSignal = detect preconcentrationDetection on concentratedPlug for 5m
+
+// ============================================================
+// BB2 / BB3: Preconcentration detection gate
+// Pass (BB2): concenSignal > 0 -> concentrated plug detected
+//             at or above 8 uM reference intensity threshold;
+//             preconcentration successful. Dispose all.
+// Fail (BB3): concenSignal <= 0 -> no detectable plug or
+//             below threshold (membrane leakage, voltage
+//             failure, or Nafion film >400 nm causing
+//             imperfect sealing). Drain all channels.
+// Both branches converge at BB4 (finalCleanup).
+// ============================================================
+
+if (concenSignal > 0) {
+    dispose concentratedPlug
+} else {
+    drain concentratedPlug
+}
+
+// ============================================================
+// BB4: finalCleanup (terminal)
+// Dispose preconcentration QC signal. Experiment ends.
+// For array format (10-unit radial array): repeat BB1 main
+// block for each of S1-S10 sample channels (explicit unroll);
+// all share common reservoir at V2=25V and individual ground
+// reservoirs per buffer channel. Total concentrated volume
+// scales to ~2 nL (10 x ~200 pL) for mass spectrometer
+// interfacing. Array encoding is a candidate for a separate
+// .bs file with explicit 10-unit unrolled structure.
+// ============================================================
+
+dispose concenSignal
+
+// [terminal -- no further instructions; exit node for CFG]

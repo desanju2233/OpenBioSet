@@ -1,0 +1,74 @@
+module electroporationAssay
+module cytokineDetection
+
+manifest sampleMixture
+manifest highConductivityBuffer
+manifest cultureMedia
+
+instructions:
+
+// STEP 1: Sample droplet
+// Per the paper, cells + target payload are co-resuspended TOGETHER in a
+// single tube before being loaded into the middle reservoir, so this is
+// modeled as one dispense of a pre-mixed sample, not three separate
+// on-chip dispense+mix operations (which would wrongly inflate the
+// droplet to 3 units before merging with the flanks).
+// Cell count: 20000 - 40000 cells per reaction (triDrop optimum)
+// sampleMixture = mammalianCells + lowConductivityBuffer + plasmidPayload,
+// pre-combined off-chip at >= 2x10^7 cells/mL
+
+sampleDroplet = dispense 1 units of sampleMixture
+
+// STEP 2: triDrop three-droplet fusion
+// Two flanking high-conductivity droplets isolate cells from metal electrodes,
+// focusing a homogenous electric field (~0.55 kV/cm) across the sample droplet.
+// 1 unit (sample) + 1 unit + 1 unit (flanks) = 3 units total, matching the
+// paper's ~3 microliter total triDrop volume.
+
+flank1 = dispense 1 units of highConductivityBuffer
+flank2 = dispense 1 units of highConductivityBuffer
+
+triDropStage1  = mix flank1 with sampleDroplet for 3s
+triDropMerged  = mix triDropStage1 with flank2 for 3s
+
+// STEP 3: Electroporation pulse
+// NOTE: BioScript has no native voltage-pulse primitive. The 3 x 200 VDC,
+// 10 ms pulses are approximated here with three discrete "heat" calls purely
+// to mark timed energy-delivery events in the IR/DAG. This is a SYNTACTIC
+// STAND-IN ONLY: 200C is not a real temperature for this step and must never
+// be sent to a physical DMF actuator or a thermally-accurate simulator, since
+// it would destroy the droplet rather than electroporate it.
+
+heat triDropMerged at 200c for 10ms
+heat triDropMerged at 200c for 10ms
+heat triDropMerged at 200c for 10ms
+
+// STEP 4: Off-chip transfer and recovery
+// Per the paper, electroporated cells are pipetted off-chip directly into a
+// well plate PRE-LOADED WITH WARMED CULTURE MEDIA, not back into
+// electroporation buffer (prolonged EP-buffer exposure is explicitly noted
+// as detrimental to viability, so reusing electroporation buffer here would
+// contradict the protocol's own stated rationale).
+// Max EP-buffer exposure time: 20 minutes.
+
+cultureMediaDrop = dispense 1 units of cultureMedia
+recoveredCells   = mix triDropMerged with cultureMediaDrop for 5s
+
+// STEP 5: Post-electroporation incubation at 37C for >24h
+// triDrop achieves greater than 90 percent viability at 24h post-EP
+
+heat recoveredCells at 37c for 24h
+
+// STEP 6: Detect transfection efficiency and viability via flow cytometry
+
+transfectionSignal = detect electroporationAssay on recoveredCells for 30s
+viabilitySignal    = detect cytokineDetection on recoveredCells for 30s
+
+// STEP 7: recoveredCells is NOT disposed here - BioScript's "drain"/"dispose"
+// primitives are equivalent (both consume the droplet permanently), so a
+// conditional dispose on transfectionSignal would discard the sample either
+// way. There is no "keep"/"output" primitive distinct from disposal, so the
+// cells are simply left as the final output of the assay.
+
+dispose transfectionSignal
+dispose viabilitySignal

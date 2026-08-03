@@ -1,0 +1,409 @@
+module denv1Detection
+module denv2Detection
+module denv3Detection
+module denv4Detection
+
+manifest HumanPlasma_DENV_RNA
+manifest TRIzol_Reagent
+manifest Chloroform
+manifest ChitosanFilterDisc
+manifest SDS_Wash
+manifest DI_Water
+manifest RT_PCR_MasterMix
+manifest DENV1_Primers
+manifest DENV2_Primers
+manifest DENV3_Primers
+manifest DENV4_Primers
+manifest iScript_RT
+manifest NucleaseFree_H2O
+manifest PBS_4x
+manifest PBS_0_1x
+manifest DENV1_Oligoprobe_AEM
+manifest DENV2_Oligoprobe_AEM
+manifest DENV3_Oligoprobe_AEM
+manifest DENV4_Oligoprobe_AEM
+
+instructions:
+
+// ============================================================
+// A Non-Optical Multiplexed PCR Diagnostic Platform for
+// Serotype-Specific Detection of Dengue Virus
+// Yin et al., Sensors & Actuators B: Chemical 310 (2020) 127854
+// DOI: 10.1016/j.snb.2020.127854
+//
+// Platform overview:
+//   Three integrated steps (~90 min total):
+//   STEP 1 - Filter paper-based RNA extraction from plasma (~10 min)
+//   STEP 2 - On-chip multiplex RT-PCR amplification (~60 min)
+//   STEP 3 - Ion-exchange membrane (IEM) sensor detection (~20 min)
+//
+// Four DENV serotypes detected in a single on-chip PCR reactor
+// using four primer sets. Amplicons: DENV-1 = 110 bp,
+// DENV-2 = 98 bp, DENV-3 = 78 bp, DENV-4 = 83 bp.
+// Detection limit: 100 copies/mL RNA in spiked human plasma.
+//
+// NOTE ON TRIZOL / EXTRACTION ABSTRACTION:
+//   TRIzol-chloroform phase separation is an off-chip chemical
+//   lysis step. It is modelled here as mix + heat (room temp)
+//   followed by a transfer (mix) of the aqueous phase to the
+//   chitosan disc. This is a standard BioScript abstraction
+//   for a phase-separation event; no physical DMF mixing is
+//   implied. The ChitosanFilterDisc manifest represents the
+//   1 mm diameter chitosan-modified Fusion 5 filter paper disc.
+//
+// NOTE ON RT-PCR THERMAL PROTOCOL:
+//   Reverse transcription:  50 C for 30 min (1800 s)
+//   RT inactivation:        95 C for  2 min  (120 s)
+//   35 cycles of:
+//     Denaturation:         95 C for 15 s
+//     Annealing/extension:  55 C for 60 s
+//   Total cycling modelled as a single `heat` at 95 C for the
+//   denaturation phase (35 * 15 s = 525 s) followed by a
+//   single `heat` at 55 C for the anneal phase (35 * 60 s =
+//   2100 s). BioScript does not support loop constructs, so
+//   the cyclic thermal profile is collapsed into sequential
+//   heat statements per standard BioScript practice (see
+//   moazami_world_to_chip_dmf.bs precedent).
+//
+// NOTE ON IEM SENSOR ARCHITECTURE:
+//   Each AEM (anion-exchange nanomembrane) sensor is
+//   functionalized with a serotype-specific oligoprobe. The
+//   four sensors form isolated reservoirs on a single sensing
+//   chip. Each is modelled as an independent detect call on
+//   the corresponding oligoprobe manifest. The CVC shift
+//   (overlimiting current regime) is abstracted as a module
+//   detect event. Detection threshold: >0.2 V CVC shift
+//   (cutoff established in Fig. 4 of paper).
+//   Target CVC shifts: DENV-1 ~0.55 V, DENV-2 ~0.61 V,
+//   DENV-3 ~0.67 V, DENV-4 ~0.53 V at 40 uA.
+//
+// NOTE ON DENATURE STEP:
+//   After PCR, the amplicons are heated at 95 C for 5 min
+//   (300 s) within the same chamber to generate ssDNA for
+//   downstream IEM hybridisation. This is modelled as a
+//   `heat` at 95 C for 300 s on the pcr_amplicons droplet.
+//
+// CFG STRUCTURE:
+//   BB1  main            -- entry: RNA extraction, RT-PCR,
+//                           ssDNA generation, IEM detection
+//   BB2  denv1Pass       -- denv1Signal > 0: DENV-1 detected; dispose
+//   BB3  denv1Fail       -- denv1Signal <= 0: not detected; drain
+//   BB4  denv1Join       -- join: DENV-2 detection branch
+//   BB5  denv2Pass       -- denv2Signal > 0: DENV-2 detected; dispose
+//   BB6  denv2Fail       -- denv2Signal <= 0: not detected; drain
+//   BB7  denv2Join       -- join: DENV-3 detection branch
+//   BB8  denv3Pass       -- denv3Signal > 0: DENV-3 detected; dispose
+//   BB9  denv3Fail       -- denv3Signal <= 0: not detected; drain
+//   BB10 denv3Join       -- join: DENV-4 detection branch
+//   BB11 denv4Pass       -- denv4Signal > 0: DENV-4 detected; dispose
+//   BB12 denv4Fail       -- denv4Signal <= 0: not detected; drain
+//   BB13 finalCleanup    -- terminal: dispose all detection signals
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1A: TRIzol lysis of DENV RNA-spiked human plasma.
+//   10 uL extracted DENV RNA spiked into 1 mL human plasma.
+//   TRIzol reagent added and vortexed 30 s; 0.2 mL chloroform
+//   added and mixed 60 s to separate aqueous / organic phases.
+//   Aqueous phase (contains DENV RNA) collected as supernatant.
+//   Modelled as mix + heat (room temp, 90 s total lysis time).
+// ------------------------------------------------------------
+
+plasma_sample   = dispense 1 units of HumanPlasma_DENV_RNA
+trizol          = dispense 1 units of TRIzol_Reagent
+chloroform      = dispense 1 units of Chloroform
+
+trizol_mix      = mix plasma_sample with trizol for 30s
+lysed_sample    = mix trizol_mix with chloroform for 60s
+
+// Phase separation at room temperature (25 C) for 2 min.
+// Aqueous phase containing RNA rises to top.
+heat lysed_sample at 25c for 120s
+
+// ------------------------------------------------------------
+// STEP 1B: Dip-and-rinse chitosan filter paper RNA capture.
+//   1 mm diameter chitosan-modified Fusion 5 filter disc
+//   immersed in aqueous phase for 5 min. Negatively charged
+//   RNA molecules are electrostatically captured on the
+//   positively charged chitosan matrix. PCR inhibitors
+//   (Guanidinium thiocyanate etc.) are washed off.
+//   Recovery: down to 50 copies RNA/mL; 98%+ extraction
+//   efficiency for high-quality nucleic acid (Liu et al. 2017).
+//   `mix` abstracts the immersion / dip event.
+// ------------------------------------------------------------
+
+chitosan_disc   = dispense 1 units of ChitosanFilterDisc
+rna_captured    = mix lysed_sample with chitosan_disc for 5m
+
+// SDS wash (1% SDS + DI water) to remove PCR inhibitors
+// from filter surface before introducing into PCR chamber.
+sds_wash        = dispense 1 units of SDS_Wash
+di_water_wash   = dispense 1 units of DI_Water
+
+wash1           = mix rna_captured with sds_wash for 30s
+washed_disc     = mix wash1 with di_water_wash for 30s
+
+// ------------------------------------------------------------
+// STEP 2A: Assemble multiplex RT-PCR master mix.
+//   20 uL total reaction volume:
+//     12.5 uL iTaq Universal SYBR Green One-Step master mix
+//      0.5 uL forward + reverse primers for DENV-1 and DENV-3
+//      0.25 uL forward + reverse primers for DENV-2 and DENV-4
+//      0.5 uL iScript reverse transcriptase
+//      5.0 uL nuclease-free H2O
+//   Filter disc with RNA introduced after master mix assembly.
+//   Four primer sets amplify all four serotypes in single reactor.
+// ------------------------------------------------------------
+
+pcr_mix         = dispense 1 units of RT_PCR_MasterMix
+primers_d1_d3   = dispense 1 units of DENV1_Primers
+primers_d2_d4   = dispense 1 units of DENV2_Primers
+primers_d3      = dispense 1 units of DENV3_Primers
+primers_d4      = dispense 1 units of DENV4_Primers
+iscript_rt      = dispense 1 units of iScript_RT
+nf_water        = dispense 1 units of NucleaseFree_H2O
+
+// Combine all primer sets into master mix.
+primer_mix_1    = mix primers_d1_d3 with primers_d2_d4 for 5s
+primer_mix_2    = mix primer_mix_1 with primers_d3 for 5s
+primer_mix_all  = mix primer_mix_2 with primers_d4 for 5s
+
+rt_master_mix   = mix pcr_mix with iscript_rt for 5s
+full_mix        = mix rt_master_mix with primer_mix_all for 5s
+rxn_mix         = mix full_mix with nf_water for 5s
+
+// Introduce RNA-loaded filter disc into the PCR reaction mix.
+pcr_reaction    = mix rxn_mix with washed_disc for 10s
+
+// ------------------------------------------------------------
+// STEP 2B: Load assembled PCR reaction into on-chip chamber.
+//   Inlets and outlets sealed after loading. Lab-developed
+//   thermocouple plate provides calibrated thermal cycling.
+//   Chip dimensions: 10 x 4 x 0.1 cm3 polycarbonate, 25 uL
+//   on-chip PCR reactor. `mix` abstracts the chip-loading step.
+// ------------------------------------------------------------
+
+// No additional reagent mixing here; the loaded chip IS the
+// pcr_reaction droplet in BioScript abstraction.
+
+// ------------------------------------------------------------
+// STEP 2C: Reverse transcription (50 C, 30 min = 1800 s).
+//   DENV RNA -> cDNA. iScript reverse transcriptase active.
+// ------------------------------------------------------------
+
+heat pcr_reaction at 50c for 1800s
+
+// ------------------------------------------------------------
+// STEP 2D: RT inactivation (95 C, 2 min = 120 s).
+//   Inactivates reverse transcriptase; initial denaturation
+//   of cDNA:RNA hybrid and polymerase activation.
+// ------------------------------------------------------------
+
+heat pcr_reaction at 95c for 120s
+
+// ------------------------------------------------------------
+// STEP 2E: PCR cycling - denaturation phase.
+//   35 cycles x 15 s at 95 C = 525 s total denaturation time.
+//   BioScript does not support loop constructs; collapsed to
+//   single heat statement (see header NOTE ON RT-PCR THERMAL
+//   PROTOCOL).
+// ------------------------------------------------------------
+
+heat pcr_reaction at 95c for 525s
+
+// ------------------------------------------------------------
+// STEP 2F: PCR cycling - annealing/extension phase.
+//   35 cycles x 60 s at 55 C = 2100 s total anneal time.
+//   All four serotype amplicons generated in this phase.
+//   Expected amplicon sizes: 110 bp (D1), 98 bp (D2),
+//   78 bp (D3), 83 bp (D4).
+// ------------------------------------------------------------
+
+heat pcr_reaction at 55c for 2100s
+
+// ------------------------------------------------------------
+// STEP 2G: Post-PCR ssDNA generation (95 C, 5 min = 300 s).
+//   Amplicons heated to 95 C within the same PCR chamber to
+//   denature dsDNA amplicons into ssDNA required for
+//   hybridisation with AEM oligoprobes in STEP 3.
+//   Paper Section 2.4: "heated at 95 C for 5 min in the
+//   same chamber to get ssDNA for downstream detection."
+// ------------------------------------------------------------
+
+heat pcr_reaction at 95c for 300s
+
+// pcr_reaction now contains ssDNA amplicons of all four
+// DENV serotypes ready for IEM sensor detection.
+
+// Rename for clarity in downstream detection steps.
+ssdna_amplicons = mix pcr_reaction with nf_water for 5s
+
+// ------------------------------------------------------------
+// STEP 3A: IEM Sensor 1 - DENV-1 detection.
+//   AEM functionalized with DENV-1 specific oligoprobe.
+//   ssDNA amplicons incubated on sensor for 15 min (900 s).
+//   Wash with 4x PBS (removes non-specifically bound targets;
+//   hydrodynamic shear via flow enhances selectivity).
+//   CVC measured in 0.1x PBS at 0 -> 40 uA (step 1 uA/s).
+//   Signal >0.2 V shift from probe baseline = DENV-1 positive.
+//   Expected shift: ~0.55 V for DENV-1 target (paper Fig. 3B).
+// ------------------------------------------------------------
+
+aem_denv1       = dispense 1 units of DENV1_Oligoprobe_AEM
+sensor1_sample  = mix ssdna_amplicons with aem_denv1 for 15m
+
+// 4x PBS wash (removes non-targets and non-specific PCR products).
+pbs_wash_1      = dispense 1 units of PBS_4x
+sensor1_washed  = mix sensor1_sample with pbs_wash_1 for 5m
+
+// 0.1x PBS measurement buffer; CVC acquisition.
+pbs_meas_1      = dispense 1 units of PBS_0_1x
+sensor1_meas    = mix sensor1_washed with pbs_meas_1 for 1m
+
+denv1Signal     = detect denv1Detection on sensor1_meas for 30s
+
+// ============================================================
+// BB2 / BB3: DENV-1 detection QC gate
+// Pass (BB2): denv1Signal > 0 -> DENV-1 serotype detected;
+//             CVC shift exceeds 0.2 V cutoff; dispose.
+// Fail (BB3): denv1Signal <= 0 -> not detected; drain.
+// Both converge at BB4 (denv1Join).
+// ============================================================
+
+if (denv1Signal > 0) {
+    dispose sensor1_meas
+} else {
+    drain sensor1_meas
+}
+
+// ============================================================
+// BB4: denv1Join
+// Dispose DENV-1 detection signal. Control falls into
+// DENV-2 detection branch (BB5/BB6).
+// ============================================================
+
+dispose denv1Signal
+
+// ------------------------------------------------------------
+// STEP 3B: IEM Sensor 2 - DENV-2 detection.
+//   AEM functionalized with DENV-2 specific oligoprobe.
+//   Same wash and CVC measurement protocol as Sensor 1.
+//   Expected CVC shift: ~0.61 V for DENV-2 target (Fig. 3C).
+// ------------------------------------------------------------
+
+aem_denv2       = dispense 1 units of DENV2_Oligoprobe_AEM
+sensor2_sample  = mix ssdna_amplicons with aem_denv2 for 15m
+
+pbs_wash_2      = dispense 1 units of PBS_4x
+sensor2_washed  = mix sensor2_sample with pbs_wash_2 for 5m
+
+pbs_meas_2      = dispense 1 units of PBS_0_1x
+sensor2_meas    = mix sensor2_washed with pbs_meas_2 for 1m
+
+denv2Signal     = detect denv2Detection on sensor2_meas for 30s
+
+// ============================================================
+// BB5 / BB6: DENV-2 detection QC gate
+// Pass (BB5): denv2Signal > 0 -> DENV-2 detected; dispose.
+// Fail (BB6): denv2Signal <= 0 -> not detected; drain.
+// Both converge at BB7 (denv2Join).
+// ============================================================
+
+if (denv2Signal > 0) {
+    dispose sensor2_meas
+} else {
+    drain sensor2_meas
+}
+
+// ============================================================
+// BB7: denv2Join
+// Dispose DENV-2 detection signal. Control falls into
+// DENV-3 detection branch (BB8/BB9).
+// ============================================================
+
+dispose denv2Signal
+
+// ------------------------------------------------------------
+// STEP 3C: IEM Sensor 3 - DENV-3 detection.
+//   AEM functionalized with DENV-3 specific oligoprobe.
+//   Same wash and CVC measurement protocol as Sensor 1.
+//   Expected CVC shift: ~0.67 V for DENV-3 target (Fig. 3D).
+// ------------------------------------------------------------
+
+aem_denv3       = dispense 1 units of DENV3_Oligoprobe_AEM
+sensor3_sample  = mix ssdna_amplicons with aem_denv3 for 15m
+
+pbs_wash_3      = dispense 1 units of PBS_4x
+sensor3_washed  = mix sensor3_sample with pbs_wash_3 for 5m
+
+pbs_meas_3      = dispense 1 units of PBS_0_1x
+sensor3_meas    = mix sensor3_washed with pbs_meas_3 for 1m
+
+denv3Signal     = detect denv3Detection on sensor3_meas for 30s
+
+// ============================================================
+// BB8 / BB9: DENV-3 detection QC gate
+// Pass (BB8): denv3Signal > 0 -> DENV-3 detected; dispose.
+// Fail (BB9): denv3Signal <= 0 -> not detected; drain.
+// Both converge at BB10 (denv3Join).
+// ============================================================
+
+if (denv3Signal > 0) {
+    dispose sensor3_meas
+} else {
+    drain sensor3_meas
+}
+
+// ============================================================
+// BB10: denv3Join
+// Dispose DENV-3 detection signal. Control falls into
+// DENV-4 detection branch (BB11/BB12).
+// ============================================================
+
+dispose denv3Signal
+
+// ------------------------------------------------------------
+// STEP 3D: IEM Sensor 4 - DENV-4 detection.
+//   AEM functionalized with DENV-4 specific oligoprobe.
+//   Same wash and CVC measurement protocol as Sensor 1.
+//   Expected CVC shift: ~0.53 V for DENV-4 target (Fig. 3E).
+// ------------------------------------------------------------
+
+aem_denv4       = dispense 1 units of DENV4_Oligoprobe_AEM
+sensor4_sample  = mix ssdna_amplicons with aem_denv4 for 15m
+
+pbs_wash_4      = dispense 1 units of PBS_4x
+sensor4_washed  = mix sensor4_sample with pbs_wash_4 for 5m
+
+pbs_meas_4      = dispense 1 units of PBS_0_1x
+sensor4_meas    = mix sensor4_washed with pbs_meas_4 for 1m
+
+denv4Signal     = detect denv4Detection on sensor4_meas for 30s
+
+// ============================================================
+// BB11 / BB12: DENV-4 detection QC gate
+// Pass (BB11): denv4Signal > 0 -> DENV-4 detected; dispose.
+// Fail (BB12): denv4Signal <= 0 -> not detected; drain.
+// Both converge at BB13 (finalCleanup).
+// ============================================================
+
+if (denv4Signal > 0) {
+    dispose sensor4_meas
+} else {
+    drain sensor4_meas
+}
+
+// ============================================================
+// BB13: finalCleanup (terminal)
+// Dispose all four IEM detection signals.
+// Serotyping result is determined by which denvNSignal > 0
+// branches were taken. Experiment ends.
+// ============================================================
+
+dispose denv4Signal
+
+// [terminal -- no further instructions; exit node for CFG]

@@ -1,0 +1,289 @@
+module nfkbTranslocationDetection
+
+manifest BoneMarrowCells
+manifest mCSF_DifferentiationMedia
+manifest PBS
+manifest FibronectinSolution
+manifest CompleteRPMI
+manifest Hoechst33342
+manifest TNFalpha
+manifest LipidA
+manifest Pam2CSK4
+manifest R848_Resiquimod
+manifest CpG_ODN1668
+
+instructions:
+
+// ============================================================
+// Accurate Processing of Ultra-Short Immune Signals by Single
+// Macrophages
+// Mercado-Vasquez, Vizzard, Celiker, Xia, Wang, Padhi, Tay
+// bioRxiv 2025.10.26.684377
+// DOI: https://doi.org/10.1101/2025.10.26.684377
+//
+// Protocol: Primary bone-marrow-derived macrophage (BMDM)
+// isolation and differentiation from mVenus-RelA (RelA^V/V)
+// C57BL/6J transgenic mice, seeding into multilayer PDMS
+// microfluidic culture chambers, nuclear staining, and
+// short-pulse stimulation (1-second) with five NF-kB ligands
+// (TNF, Lipid A, Pam2CSK4, R848, CpG) delivered by pneumatic
+// valve control at 4 psi. NF-kB nuclear translocation of the
+// mVenus-RelA p65 reporter is tracked by time-lapse
+// epifluorescence microscopy (6-min intervals, 6 h total) and
+// quantified as nuclear/cytoplasmic ratio.
+//
+// LIGANDS AND DOSES (from paper Methods/Figure 1A):
+//   TNF alpha     10  ng/mL   -- cytokine (TNFR pathway)
+//   Lipid A       10  ng/mL   -- bacterial TLR4 ligand
+//   Pam2CSK4       3  ng/mL   -- bacterial TLR2/6 ligand
+//   R848 Resiquimod 300 ng/mL -- viral TLR7 ligand (endosomal)
+//   CpG ODN 1668  300 nM      -- DNA TLR9 ligand
+//
+// SCOPE NOTE: Each ligand stimulation arm is encoded as a
+// sequential independent sub-experiment (STEP 4a-e) within
+// a single main BB. In practice the five conditions are run
+// in parallel across separate microfluidic chambers on the
+// same chip; BioScript sequential encoding abstracts this.
+// Each 1-second pulse is modelled as a 1s `mix` of the
+// pre-loaded cell droplet with the ligand stimulus, which
+// represents pneumatic valve opening (4 psi, PEEK tubing)
+// for exactly 1 second to deliver the chemical pulse.
+// The paper validates 1-second pulse delivery with 6%
+// timing variability (CV = 0.06) across all analyzed cells.
+//
+// DURATION NOTES:
+//   7-9 day BMDM differentiation -> 9 days = 12960m
+//   4-6 h microfluidic attachment -> 6 h = 360m
+//   Imaging window = 6 h = 360m (6-min frames over 60 cycles)
+//   Overnight = 720m (not used here; explicit durations given)
+//   BioScript duration tokens: s and m only (no h token)
+//
+// CFG STRUCTURE:
+//   BB1  main             -- BMDM prep, device priming, cell
+//                           seeding, nuclear staining, five
+//                           1-second ligand pulse deliveries
+//   BB2  responsePass     -- nfkbSignal > 0: NF-kB nuclear
+//                           translocation detected; dispose
+//                           stimulated cell droplets
+//   BB3  responseFail     -- nfkbSignal <= 0: no detectable
+//                           NF-kB response; drain droplets
+//   BB4  finalCleanup     -- terminal: dispose QC signal,
+//                           experiment ends
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: BMDM isolation and differentiation.
+//   Bone marrow cells flushed from tibias and femurs of 6-12
+//   week-old male and female RelA^V/V C57BL/6J mice and
+//   resuspended in complete RPMI supplemented with 20 ng/mL
+//   m-CSF. Cells differentiated for 7-9 days (encoded as
+//   9 days = 12960 min) at 37 C / 5% CO2 before harvesting.
+//   m-CSF: Peprotech murine m-CSF, reconstituted in ultrapure
+//   water, stored at -80 C.
+// ------------------------------------------------------------
+
+rawBoneMarrow          = dispense 1 units of BoneMarrowCells
+mCSF_Media             = dispense 1 units of mCSF_DifferentiationMedia
+differentiatingBMDMs   = mix rawBoneMarrow with mCSF_Media for 5s
+
+// 9-day differentiation at 37 C / 5% CO2 (= 12960 min)
+heat differentiatingBMDMs at 37c for 12960m
+
+// ------------------------------------------------------------
+// STEP 2: Microfluidic device priming with fibronectin.
+//   Multilayer PDMS device fabricated from silicon wafer
+//   molds (10:1 PDMS monomer:catalyst; oxygen plasma bonding,
+//   overnight bake). Chambers pre-incubated with 0.2 mg/mL
+//   fibronectin in PBS to promote cell adhesion.
+//   `mix` abstracts the channel-flow fibronectin coating step.
+// ------------------------------------------------------------
+
+fibronectin            = dispense 1 units of FibronectinSolution
+pbsPrime               = dispense 1 units of PBS
+coatedChamber          = mix fibronectin with pbsPrime for 5m
+
+// ------------------------------------------------------------
+// STEP 3: BMDM seeding and equilibration.
+//   Harvested BMDMs on day 7-9, resuspended in complete RPMI
+//   (phenol red-free), and seeded at 10^6 cells/mL into
+//   fibronectin-coated microfluidic chambers. Cells left
+//   unperturbed for 4-6 h (encoded as 6 h = 360 min) at
+//   37 C / 5% CO2 until attached and equilibrated.
+// ------------------------------------------------------------
+
+harvestedBMDMs         = mix differentiatingBMDMs with coatedChamber for 1m
+
+// 6-hour attachment and equilibration at 37 C (= 360 min)
+heat harvestedBMDMs at 37c for 360m
+
+// ------------------------------------------------------------
+// STEP 4: Nuclear tracking stain.
+//   Cells stained with 1 uM Hoechst 33342 (Invitrogen) in
+//   phenol red-free RPMI per producer instructions to enable
+//   nuclear segmentation and cell tracking throughout the
+//   time-lapse imaging run.
+// ------------------------------------------------------------
+
+hoechstStain           = dispense 1 units of Hoechst33342
+completeRPMI_Stain     = dispense 1 units of CompleteRPMI
+stainedBMDMs           = mix harvestedBMDMs with hoechstStain for 1m
+equilibratedBMDMs      = mix stainedBMDMs with completeRPMI_Stain for 5m
+
+// ------------------------------------------------------------
+// STEP 5a: TNF alpha 1-second pulse stimulation.
+//   Proinflammatory cytokine TNF alpha (R&D Systems murine
+//   TNFalpha), 10 ng/mL in complete phenol red-free RPMI.
+//   Stored on ice during experiment; delivered at 4 psi via
+//   PEEK tubing (VICI). Pneumatic valve open for 1 second.
+//   Models intracellular (cell-cell) cytokine signaling
+//   via TNFR1 (CD120a) pathway.
+//   `mix for 1s` abstracts 1-second pneumatic valve pulse.
+// ------------------------------------------------------------
+
+tnfStimulus            = dispense 1 units of TNFalpha
+tnfStimulatedCells     = mix equilibratedBMDMs with tnfStimulus for 1s
+
+// ------------------------------------------------------------
+// STEP 5b: Lipid A 1-second pulse stimulation.
+//   Ultrapure Lipid A from E. coli O111:B4 (Invivogen),
+//   10 ng/mL. Bacterial TLR4 ligand. Analogous to LPS
+//   component targeting the extracellular receptor TLR4.
+//   Delivered at 4 psi for 1 second.
+// ------------------------------------------------------------
+
+lipidAStimulus         = dispense 1 units of LipidA
+lipidAStimulatedCells  = mix equilibratedBMDMs with lipidAStimulus for 1s
+
+// ------------------------------------------------------------
+// STEP 5c: Pam2CSK4 1-second pulse stimulation.
+//   PAM2CSK4 (Invivogen), 3 ng/mL. Diacylated lipopeptide
+//   analog of bacterial outer membrane components. Induces
+//   TLR2/TLR6 stable heterodimer formation (m-shape complex)
+//   activating MyD88/TIRAP downstream NF-kB via IKK module.
+//   Delivered at 4 psi for 1 second.
+//   NOTE: Pam2CSK4 shows highest NF-kB response amplitude
+//   and maximal channel capacity (CC_max ~0.82) under 1-second
+//   pulse, surpassing Lipid A which is most potent under
+//   persistent stimulation (key finding of the paper).
+// ------------------------------------------------------------
+
+pam2csk4Stimulus       = dispense 1 units of Pam2CSK4
+pamStimulatedCells     = mix equilibratedBMDMs with pam2csk4Stimulus for 1s
+
+// ------------------------------------------------------------
+// STEP 5d: R848 (Resiquimod) 1-second pulse stimulation.
+//   R848 Resiquimod (Invivogen), 300 ng/mL. Small molecule
+//   viral RNA mimic that binds TLR7 located in the endosome
+//   (intracellular receptor pathway). Induces TLR7 homodimer
+//   formation activating MyD88 downstream. Modelled here as
+//   endosomal receptor-mediated pathogen detection.
+//   Delivered at 4 psi for 1 second.
+// ------------------------------------------------------------
+
+r848Stimulus           = dispense 1 units of R848_Resiquimod
+r848StimulatedCells    = mix equilibratedBMDMs with r848Stimulus for 1s
+
+// ------------------------------------------------------------
+// STEP 5e: CpG ODN 1668 1-second pulse stimulation.
+//   ODN 1668 CpG (Invivogen), 300 nM. Single-stranded CpG
+//   DNA dinucleotide targeting TLR9. TLR9 is an endosomal
+//   receptor for foreign/pathogenic DNA. Lowest pairwise
+//   mutual information (MI = 0) vs CpG, indicating weakest
+//   distinguishability from TNF under 1-second pulse.
+//   Delivered at 4 psi for 1 second.
+// ------------------------------------------------------------
+
+cpgStimulus            = dispense 1 units of CpG_ODN1668
+cpgStimulatedCells     = mix equilibratedBMDMs with cpgStimulus for 1s
+
+// ------------------------------------------------------------
+// STEP 6: Time-lapse NF-kB live-cell imaging.
+//   Nikon Ti2 epifluorescence microscope; 20x magnification;
+//   Hamamatsu ORCA-Flash4.0 V2 camera. mVenus-RelA channel
+//   (508 nm excitation) and Hoechst channel (395 nm) acquired
+//   every 6 minutes for 6 hours = 60 imaging cycles = 360 min
+//   total. No photobleaching or phototoxicity observed.
+//   Custom MATLAB image processing software segments nuclei
+//   via Hoechst, extracts nuclear/cytoplasmic mVenus-RelA
+//   ratio per cell per frame. > 200 individual cells analyzed
+//   per stimulation condition.
+//
+//   QC gate: nfkbTranslocationDetection module abstracts the
+//   MATLAB image analysis pipeline and reports a positive
+//   signal when NF-kB nuclear translocation peak amplitude
+//   exceeds the activation threshold (2 s.d. above unstimulated
+//   mean nuclear/cytoplasmic ratio). The Pam2CSK4 condition
+//   is used as the QC reference (strongest responder under
+//   1-second pulse). All five stimulated cell populations
+//   (STEP 5a-e) are pooled into a single merged imaging
+//   droplet for the QC detect call.
+//
+//   NOTE ON COMPILER CONSTRAINT: The five stimulated cell
+//   populations (tnfStimulatedCells, lipidAStimulatedCells,
+//   pamStimulatedCells, r848StimulatedCells, cpgStimulatedCells)
+//   are merged sequentially via distinct intermediate variables
+//   (no variable reassignment) before the detect call.
+//   This abstracts the single Nikon Ti2 field-of-view that
+//   images all five stimulation chambers during the 6-hour
+//   time-lapse run. Detection duration = 360 min.
+// ------------------------------------------------------------
+
+// Sequential merging of all five stimulated cell populations
+// for the unified imaging and QC detect call.
+// Distinct intermediate variable names required (no reassignment).
+
+imagingPool_ab     = mix tnfStimulatedCells with lipidAStimulatedCells for 1m
+imagingPool_abc    = mix imagingPool_ab with pamStimulatedCells for 1m
+imagingPool_abcd   = mix imagingPool_abc with r848StimulatedCells for 1m
+imagingPool_all    = mix imagingPool_abcd with cpgStimulatedCells for 1m
+
+// 6-hour live imaging incubation at 37 C / 5% CO2 (= 360 min)
+// Microfluidic in-situ microbiome box maintains temperature,
+// humidity and CO2 conditions throughout the imaging run.
+heat imagingPool_all at 37c for 360m
+
+// NF-kB nuclear translocation QC detect (6-hour imaging window)
+// nfkbTranslocationDetection: custom MATLAB-based image analysis
+// module quantifying mVenus-RelA nuclear/cytoplasmic ratio.
+// Positive signal: activation threshold exceeded (peak > 2 s.d.
+// above unstimulated mean) in >= 1 detected cell.
+nfkbSignal = detect nfkbTranslocationDetection on imagingPool_all for 360m
+
+// ============================================================
+// BB2 / BB3: NF-kB translocation QC gate
+// Pass (BB2): nfkbSignal > 0 -> nuclear NF-kB translocation
+//             detected above activation threshold; ligand
+//             delivery and cell response confirmed; dispose
+//             stimulated cell imaging pool.
+// Fail (BB3): nfkbSignal <= 0 -> no detectable NF-kB response
+//             (cells non-viable, ligand delivery failure, or
+//             imaging artifact); drain imaging pool.
+// Both branches converge at BB4 (finalCleanup).
+// ============================================================
+
+if (nfkbSignal > 0) {
+    dispose imagingPool_all
+} else {
+    drain imagingPool_all
+}
+
+// ============================================================
+// BB4: finalCleanup (terminal)
+// Dispose NF-kB QC signal. Experiment ends.
+// Downstream quantitative analysis (8 dynamic NF-kB features:
+// early AUC, late AUC, amplitude, speed, duration, oscillations,
+// activation time, time to peak; plus k-means subpopulation
+// clustering into early responders, late responders, and
+// non-responders; plus channel capacity and mutual information
+// calculations) performed off-chip in MATLAB 2024a using
+// custom software (github.com/tay-lab/Accurate-processing-
+// of-ultra-short-immune-signals-by-single-macrophages).
+// ============================================================
+
+dispose nfkbSignal
+
+// [terminal -- no further instructions; exit node for CFG]

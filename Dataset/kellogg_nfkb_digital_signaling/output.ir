@@ -1,0 +1,89 @@
+bsbbif_2_t:
+	dispose(llHighChamber1[0])
+	dispose(llLowChamber1[0])
+bsbbif_3_f:
+	dispose(llHighChamber1[0])
+	dispose(llLowChamber1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(llHighSignal1[0])
+	dispose(llLowSignal1[0])
+	ssCells1[0] = dispense(NIH3T3_NFkB_Cells)
+	ssMedia1[0] = dispense(CompleteMedia)
+	ssChamber1[0] = mix(ssCells1[0], ssMedia1[0]) @ 2.0SECOND
+	heat(ssChamber1[0]) @ 37.0CELSIUS @ 86400.0SECOND
+	ssPulseHigh1[0] = dispense(LPS_PulseStock)
+	ssPulseLong401[0] = dispense(LPS_PulseStock)
+	mediaWashShort1[0] = dispense(CompleteMedia)
+	mediaWashLong1[0] = dispense(CompleteMedia)
+	ss1sPulsed1[0] = mix(ssChamber1[0], ssPulseHigh1[0]) @ 1.0SECOND
+	ss1sWashed1[0] = mix(ss1sPulsed1[0], mediaWashShort1[0]) @ 5.0SECOND
+	heat(ss1sWashed1[0]) @ 37.0CELSIUS @ 9000.0SECOND
+	ss1sSignal1[0] = detect(nfkbTranslocationDetection, ss1sWashed1[0]) @ 9000.0SECOND
+	ss40sPulsed1[0] = mix(ssChamber1[0], ssPulseLong401[0]) @ 40.0SECOND
+	ss40sWashed1[0] = mix(ss40sPulsed1[0], mediaWashLong1[0]) @ 5.0SECOND
+	heat(ss40sWashed1[0]) @ 37.0CELSIUS @ 9000.0SECOND
+	ss40sSignal1[0] = detect(nfkbTranslocationDetection, ss40sWashed1[0]) @ 9000.0SECOND
+	if ss40sSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	fibronectin1[0] = dispense(FibronectinSolution)
+	media_prime1[0] = dispense(CompleteMedia)
+	coatedChamber1[0] = mix(fibronectin1[0], media_prime1[0]) @ 300.0SECOND
+	seedCells1[0] = dispense(NIH3T3_NFkB_Cells)
+	loadedChamber1[0] = mix(seedCells1[0], coatedChamber1[0]) @ 2.0SECOND
+	heat(loadedChamber1[0]) @ 37.0CELSIUS @ 86400.0SECOND
+	lpsHighDose1[0] = dispense(LPS_Stock)
+	lpsLowDose1[0] = dispense(LPS_Stock)
+	llHighChamber1[0] = mix(loadedChamber1[0], lpsHighDose1[0]) @ 5.0SECOND
+	heat(llHighChamber1[0]) @ 37.0CELSIUS @ 15000.0SECOND
+	llHighSignal1[0] = detect(nfkbTranslocationDetection, llHighChamber1[0]) @ 15000.0SECOND
+	llLowChamber1[0] = mix(loadedChamber1[0], lpsLowDose1[0]) @ 5.0SECOND
+	heat(llLowChamber1[0]) @ 37.0CELSIUS @ 15000.0SECOND
+	llLowSignal1[0] = detect(nfkbTranslocationDetection, llLowChamber1[0]) @ 15000.0SECOND
+	if llHighSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(ss1sWashed1[0])
+	dispose(ss40sWashed1[0])
+bsbbif_6_f:
+	dispose(ss1sWashed1[0])
+	dispose(ss40sWashed1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(ss1sSignal1[0])
+	dispose(ss40sSignal1[0])
+	bulkCells1[0] = dispense(NIH3T3_NFkB_Cells)
+	bulkMedia1[0] = dispense(CompleteMedia)
+	bulkWell1[0] = mix(bulkCells1[0], bulkMedia1[0]) @ 60.0SECOND
+	heat(bulkWell1[0]) @ 37.0CELSIUS @ 86400.0SECOND
+	lpsGex5001[0] = dispense(LPS_Stock)
+	stimWell5001[0] = mix(bulkWell1[0], lpsGex5001[0]) @ 5.0SECOND
+	heat(stimWell5001[0]) @ 37.0CELSIUS @ 28800.0SECOND
+	lpsGex501[0] = dispense(LPS_Stock)
+	stimWell501[0] = mix(bulkWell1[0], lpsGex501[0]) @ 5.0SECOND
+	heat(stimWell501[0]) @ 37.0CELSIUS @ 28800.0SECOND
+	lysate5001[0] = dispense(RNALysisBuffer)
+	lysate501[0] = dispense(RNALysisBuffer)
+	primers5001[0] = dispense(cDNA_Primers)
+	primers501[0] = dispense(cDNA_Primers)
+	gapdh5001[0] = dispense(GAPDH_Primer)
+	gapdh501[0] = dispense(GAPDH_Primer)
+	rna5001[0] = mix(stimWell5001[0], lysate5001[0]) @ 300.0SECOND
+	cdna5001[0] = mix(rna5001[0], primers5001[0]) @ 1800.0SECOND
+	cdnaNorm5001[0] = mix(cdna5001[0], gapdh5001[0]) @ 5.0SECOND
+	rna501[0] = mix(stimWell501[0], lysate501[0]) @ 300.0SECOND
+	cdna501[0] = mix(rna501[0], primers501[0]) @ 1800.0SECOND
+	cdnaNorm501[0] = mix(cdna501[0], gapdh501[0]) @ 5.0SECOND
+	gexSignal5001[0] = detect(geneExpressionDetection, cdnaNorm5001[0]) @ 3600.0SECOND
+	gexSignal501[0] = detect(geneExpressionDetection, cdnaNorm501[0]) @ 3600.0SECOND
+	if gexSignal5001[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(cdnaNorm5001[0])
+	dispose(cdnaNorm501[0])
+bsbbif_9_f:
+	dispose(cdnaNorm5001[0])
+	dispose(cdnaNorm501[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(gexSignal5001[0])
+	dispose(gexSignal501[0])
+	NOP

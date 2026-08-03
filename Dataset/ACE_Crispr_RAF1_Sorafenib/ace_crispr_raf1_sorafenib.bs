@@ -1,0 +1,609 @@
+module fluorescenceImaging
+module cellViabilityAssay
+
+manifest cellSuspension
+manifest lipofectamine
+manifest optiMEM
+manifest p3000Reagent
+manifest pCRISPR_ctrl
+manifest pCRISPR_RAF1
+manifest completeMedia
+manifest calceinAM
+manifest sorafenib
+
+// REMOVED: manifest trypsinEDTA  -- not used in MAPK/ERK assay
+// REMOVED: manifest hoechst      -- Calcein-AM is sole Day-5 readout (Fig. 4c/d);
+//                                    Hoechst only dispensed fresh at Day-1 tfx checkpoint.
+
+instructions:
+
+// ============================================================
+// MAPK/ERK PATHWAY ASSAY ON DIGITAL MICROFLUIDICS (ACE PLATFORM)
+// Sinha, Quach, Vo, Shih - Lab Chip, 2018, 18, 2300-2312
+// Gene target: RAF1 (CRISPR-Cas9 KO) vs. control sgRNA (eGFP)
+// Drug: Sorafenib Tosylate: 0, 7.5, 15, 30, 60, 120 uM
+// Readout: Calcein-AM violet viability (Fig. 4c/d)
+// Design: 2 genotypes x 6 doses = 12 sites
+//
+// CFG: 8 basic blocks, 9 edges -- double-diamond + terminal
+//
+//   BB1  main         entry: seed -> transfect -> drug -> detect
+//   BB2  ctrlQcPass   signalCtrl6 > 0  : dispose viabCtrl1..6
+//   BB3  ctrlQcFail   signalCtrl6 <= 0 : drain   viabCtrl1..6
+//   BB4  ctrlQcJoin   join BB2/BB3: wrapped in if(signalCtrl6>=0)
+//                     to force compiler to emit a distinct BB node;
+//                     disposes signalCtrl1..6
+//   BB5  raf1QcPass   signalRaf6 > 0  : dispose viabRaf1..6
+//   BB6  raf1QcFail   signalRaf6 <= 0 : drain   viabRaf1..6
+//   BB7  raf1QcJoin   join BB5/BB6: wrapped in if(signalRaf6>=0)
+//                     to force compiler to emit a distinct BB node;
+//                     disposes signalRaf1..6
+//   BB8  finalCleanup terminal: wrapped in if(signalCtrl6>=0 &&
+//                     signalRaf6>=0) so compiler emits sink node
+//
+// Edges:
+//   BB1->BB2, BB1->BB3, BB2->BB4, BB3->BB4
+//   BB4->BB5, BB4->BB6, BB5->BB7, BB6->BB7
+//   BB7->BB8
+// ============================================================
+
+// ============================================================
+// BB1: main  (entry basic block)
+// ============================================================
+
+// ------------------------------------------------------------
+// DAY 0: Seed H1299 cells (~1.75e6/mL + 0.05% Pluronics F-68)
+// 16h overnight incubation for full adhesion to hydrophilic spots
+// ------------------------------------------------------------
+
+ctrlCell1 = dispense 1 units of cellSuspension
+ctrlCell2 = dispense 1 units of cellSuspension
+ctrlCell3 = dispense 1 units of cellSuspension
+ctrlCell4 = dispense 1 units of cellSuspension
+ctrlCell5 = dispense 1 units of cellSuspension
+ctrlCell6 = dispense 1 units of cellSuspension
+
+rafCell1 = dispense 1 units of cellSuspension
+rafCell2 = dispense 1 units of cellSuspension
+rafCell3 = dispense 1 units of cellSuspension
+rafCell4 = dispense 1 units of cellSuspension
+rafCell5 = dispense 1 units of cellSuspension
+rafCell6 = dispense 1 units of cellSuspension
+
+heat ctrlCell1 at 37c for 16h
+heat ctrlCell2 at 37c for 16h
+heat ctrlCell3 at 37c for 16h
+heat ctrlCell4 at 37c for 16h
+heat ctrlCell5 at 37c for 16h
+heat ctrlCell6 at 37c for 16h
+
+heat rafCell1 at 37c for 16h
+heat rafCell2 at 37c for 16h
+heat rafCell3 at 37c for 16h
+heat rafCell4 at 37c for 16h
+heat rafCell5 at 37c for 16h
+heat rafCell6 at 37c for 16h
+
+// ------------------------------------------------------------
+// DAY 1, STEP 1: Premix Lipofectamine + Opti-MEM per site
+// ------------------------------------------------------------
+
+lipoCtrl1 = dispense 1 units of lipofectamine
+lipoCtrl2 = dispense 1 units of lipofectamine
+lipoCtrl3 = dispense 1 units of lipofectamine
+lipoCtrl4 = dispense 1 units of lipofectamine
+lipoCtrl5 = dispense 1 units of lipofectamine
+lipoCtrl6 = dispense 1 units of lipofectamine
+
+lipoRaf1 = dispense 1 units of lipofectamine
+lipoRaf2 = dispense 1 units of lipofectamine
+lipoRaf3 = dispense 1 units of lipofectamine
+lipoRaf4 = dispense 1 units of lipofectamine
+lipoRaf5 = dispense 1 units of lipofectamine
+lipoRaf6 = dispense 1 units of lipofectamine
+
+omCtrl1 = dispense 1 units of optiMEM
+omCtrl2 = dispense 1 units of optiMEM
+omCtrl3 = dispense 1 units of optiMEM
+omCtrl4 = dispense 1 units of optiMEM
+omCtrl5 = dispense 1 units of optiMEM
+omCtrl6 = dispense 1 units of optiMEM
+
+omRaf1 = dispense 1 units of optiMEM
+omRaf2 = dispense 1 units of optiMEM
+omRaf3 = dispense 1 units of optiMEM
+omRaf4 = dispense 1 units of optiMEM
+omRaf5 = dispense 1 units of optiMEM
+omRaf6 = dispense 1 units of optiMEM
+
+lipidMixCtrl1 = mix lipoCtrl1 with omCtrl1 for 30s
+lipidMixCtrl2 = mix lipoCtrl2 with omCtrl2 for 30s
+lipidMixCtrl3 = mix lipoCtrl3 with omCtrl3 for 30s
+lipidMixCtrl4 = mix lipoCtrl4 with omCtrl4 for 30s
+lipidMixCtrl5 = mix lipoCtrl5 with omCtrl5 for 30s
+lipidMixCtrl6 = mix lipoCtrl6 with omCtrl6 for 30s
+
+lipidMixRaf1 = mix lipoRaf1 with omRaf1 for 30s
+lipidMixRaf2 = mix lipoRaf2 with omRaf2 for 30s
+lipidMixRaf3 = mix lipoRaf3 with omRaf3 for 30s
+lipidMixRaf4 = mix lipoRaf4 with omRaf4 for 30s
+lipidMixRaf5 = mix lipoRaf5 with omRaf5 for 30s
+lipidMixRaf6 = mix lipoRaf6 with omRaf6 for 30s
+
+// ------------------------------------------------------------
+// DAY 1, STEP 2: Premix DNA + P3000 + Opti-MEM per site
+// Ctrl: pCRISPR_ctrl (eGFP sgRNA)  RAF1: pCRISPR_RAF1 (sg94)
+// ------------------------------------------------------------
+
+dnaCtrl1 = dispense 1 units of pCRISPR_ctrl
+dnaCtrl2 = dispense 1 units of pCRISPR_ctrl
+dnaCtrl3 = dispense 1 units of pCRISPR_ctrl
+dnaCtrl4 = dispense 1 units of pCRISPR_ctrl
+dnaCtrl5 = dispense 1 units of pCRISPR_ctrl
+dnaCtrl6 = dispense 1 units of pCRISPR_ctrl
+
+dnaRaf1 = dispense 1 units of pCRISPR_RAF1
+dnaRaf2 = dispense 1 units of pCRISPR_RAF1
+dnaRaf3 = dispense 1 units of pCRISPR_RAF1
+dnaRaf4 = dispense 1 units of pCRISPR_RAF1
+dnaRaf5 = dispense 1 units of pCRISPR_RAF1
+dnaRaf6 = dispense 1 units of pCRISPR_RAF1
+
+p3000Ctrl1 = dispense 1 units of p3000Reagent
+p3000Ctrl2 = dispense 1 units of p3000Reagent
+p3000Ctrl3 = dispense 1 units of p3000Reagent
+p3000Ctrl4 = dispense 1 units of p3000Reagent
+p3000Ctrl5 = dispense 1 units of p3000Reagent
+p3000Ctrl6 = dispense 1 units of p3000Reagent
+
+p3000Raf1 = dispense 1 units of p3000Reagent
+p3000Raf2 = dispense 1 units of p3000Reagent
+p3000Raf3 = dispense 1 units of p3000Reagent
+p3000Raf4 = dispense 1 units of p3000Reagent
+p3000Raf5 = dispense 1 units of p3000Reagent
+p3000Raf6 = dispense 1 units of p3000Reagent
+
+omCtrl1b = dispense 1 units of optiMEM
+omCtrl2b = dispense 1 units of optiMEM
+omCtrl3b = dispense 1 units of optiMEM
+omCtrl4b = dispense 1 units of optiMEM
+omCtrl5b = dispense 1 units of optiMEM
+omCtrl6b = dispense 1 units of optiMEM
+
+omRaf1b = dispense 1 units of optiMEM
+omRaf2b = dispense 1 units of optiMEM
+omRaf3b = dispense 1 units of optiMEM
+omRaf4b = dispense 1 units of optiMEM
+omRaf5b = dispense 1 units of optiMEM
+omRaf6b = dispense 1 units of optiMEM
+
+dnaP3000Ctrl1 = mix dnaCtrl1 with p3000Ctrl1 for 30s
+dnaP3000Ctrl2 = mix dnaCtrl2 with p3000Ctrl2 for 30s
+dnaP3000Ctrl3 = mix dnaCtrl3 with p3000Ctrl3 for 30s
+dnaP3000Ctrl4 = mix dnaCtrl4 with p3000Ctrl4 for 30s
+dnaP3000Ctrl5 = mix dnaCtrl5 with p3000Ctrl5 for 30s
+dnaP3000Ctrl6 = mix dnaCtrl6 with p3000Ctrl6 for 30s
+
+dnaP3000Raf1 = mix dnaRaf1 with p3000Raf1 for 30s
+dnaP3000Raf2 = mix dnaRaf2 with p3000Raf2 for 30s
+dnaP3000Raf3 = mix dnaRaf3 with p3000Raf3 for 30s
+dnaP3000Raf4 = mix dnaRaf4 with p3000Raf4 for 30s
+dnaP3000Raf5 = mix dnaRaf5 with p3000Raf5 for 30s
+dnaP3000Raf6 = mix dnaRaf6 with p3000Raf6 for 30s
+
+dnaMixCtrl1 = mix dnaP3000Ctrl1 with omCtrl1b for 30s
+dnaMixCtrl2 = mix dnaP3000Ctrl2 with omCtrl2b for 30s
+dnaMixCtrl3 = mix dnaP3000Ctrl3 with omCtrl3b for 30s
+dnaMixCtrl4 = mix dnaP3000Ctrl4 with omCtrl4b for 30s
+dnaMixCtrl5 = mix dnaP3000Ctrl5 with omCtrl5b for 30s
+dnaMixCtrl6 = mix dnaP3000Ctrl6 with omCtrl6b for 30s
+
+dnaMixRaf1 = mix dnaP3000Raf1 with omRaf1b for 30s
+dnaMixRaf2 = mix dnaP3000Raf2 with omRaf2b for 30s
+dnaMixRaf3 = mix dnaP3000Raf3 with omRaf3b for 30s
+dnaMixRaf4 = mix dnaP3000Raf4 with omRaf4b for 30s
+dnaMixRaf5 = mix dnaP3000Raf5 with omRaf5b for 30s
+dnaMixRaf6 = mix dnaP3000Raf6 with omRaf6b for 30s
+
+// ------------------------------------------------------------
+// DAY 1, STEP 3: Merge lipid + DNA, incubate 10 min (2x2 array)
+// ------------------------------------------------------------
+
+complexCtrl1 = mix lipidMixCtrl1 with dnaMixCtrl1 for 10m
+complexCtrl2 = mix lipidMixCtrl2 with dnaMixCtrl2 for 10m
+complexCtrl3 = mix lipidMixCtrl3 with dnaMixCtrl3 for 10m
+complexCtrl4 = mix lipidMixCtrl4 with dnaMixCtrl4 for 10m
+complexCtrl5 = mix lipidMixCtrl5 with dnaMixCtrl5 for 10m
+complexCtrl6 = mix lipidMixCtrl6 with dnaMixCtrl6 for 10m
+
+complexRaf1 = mix lipidMixRaf1 with dnaMixRaf1 for 10m
+complexRaf2 = mix lipidMixRaf2 with dnaMixRaf2 for 10m
+complexRaf3 = mix lipidMixRaf3 with dnaMixRaf3 for 10m
+complexRaf4 = mix lipidMixRaf4 with dnaMixRaf4 for 10m
+complexRaf5 = mix lipidMixRaf5 with dnaMixRaf5 for 10m
+complexRaf6 = mix lipidMixRaf6 with dnaMixRaf6 for 10m
+
+// ------------------------------------------------------------
+// DAY 1, STEP 4: Dilute complexes 1:1 with Opti-MEM
+// On-device optimum ratio (Fig. 2d, paper)
+// ------------------------------------------------------------
+
+omDilCtrl1 = dispense 1 units of optiMEM
+omDilCtrl2 = dispense 1 units of optiMEM
+omDilCtrl3 = dispense 1 units of optiMEM
+omDilCtrl4 = dispense 1 units of optiMEM
+omDilCtrl5 = dispense 1 units of optiMEM
+omDilCtrl6 = dispense 1 units of optiMEM
+
+omDilRaf1 = dispense 1 units of optiMEM
+omDilRaf2 = dispense 1 units of optiMEM
+omDilRaf3 = dispense 1 units of optiMEM
+omDilRaf4 = dispense 1 units of optiMEM
+omDilRaf5 = dispense 1 units of optiMEM
+omDilRaf6 = dispense 1 units of optiMEM
+
+dilutedCtrl1 = mix complexCtrl1 with omDilCtrl1 for 30s
+dilutedCtrl2 = mix complexCtrl2 with omDilCtrl2 for 30s
+dilutedCtrl3 = mix complexCtrl3 with omDilCtrl3 for 30s
+dilutedCtrl4 = mix complexCtrl4 with omDilCtrl4 for 30s
+dilutedCtrl5 = mix complexCtrl5 with omDilCtrl5 for 30s
+dilutedCtrl6 = mix complexCtrl6 with omDilCtrl6 for 30s
+
+dilutedRaf1 = mix complexRaf1 with omDilRaf1 for 30s
+dilutedRaf2 = mix complexRaf2 with omDilRaf2 for 30s
+dilutedRaf3 = mix complexRaf3 with omDilRaf3 for 30s
+dilutedRaf4 = mix complexRaf4 with omDilRaf4 for 30s
+dilutedRaf5 = mix complexRaf5 with omDilRaf5 for 30s
+dilutedRaf6 = mix complexRaf6 with omDilRaf6 for 30s
+
+// ------------------------------------------------------------
+// DAY 1, STEPS 5-6: Deliver to cell sites, incubate 24h
+// ------------------------------------------------------------
+
+transfectCtrl1 = mix dilutedCtrl1 with ctrlCell1 for 24h
+transfectCtrl2 = mix dilutedCtrl2 with ctrlCell2 for 24h
+transfectCtrl3 = mix dilutedCtrl3 with ctrlCell3 for 24h
+transfectCtrl4 = mix dilutedCtrl4 with ctrlCell4 for 24h
+transfectCtrl5 = mix dilutedCtrl5 with ctrlCell5 for 24h
+transfectCtrl6 = mix dilutedCtrl6 with ctrlCell6 for 24h
+
+transfectRaf1 = mix dilutedRaf1 with rafCell1 for 24h
+transfectRaf2 = mix dilutedRaf2 with rafCell2 for 24h
+transfectRaf3 = mix dilutedRaf3 with rafCell3 for 24h
+transfectRaf4 = mix dilutedRaf4 with rafCell4 for 24h
+transfectRaf5 = mix dilutedRaf5 with rafCell5 for 24h
+transfectRaf6 = mix dilutedRaf6 with rafCell6 for 24h
+
+// ------------------------------------------------------------
+// DAY 1, STEP 7: Transfection-efficiency checkpoint
+// Hoechst 33342 (1 uM, 30 min) -- dispensed fresh, disposed
+// fully here so no residue reaches Day-5 Calcein-AM channel
+// ------------------------------------------------------------
+
+hoechstTfxCtrl1 = dispense 1 units of calceinAM
+hoechstTfxCtrl2 = dispense 1 units of calceinAM
+hoechstTfxCtrl3 = dispense 1 units of calceinAM
+hoechstTfxCtrl4 = dispense 1 units of calceinAM
+hoechstTfxCtrl5 = dispense 1 units of calceinAM
+hoechstTfxCtrl6 = dispense 1 units of calceinAM
+
+hoechstTfxRaf1 = dispense 1 units of calceinAM
+hoechstTfxRaf2 = dispense 1 units of calceinAM
+hoechstTfxRaf3 = dispense 1 units of calceinAM
+hoechstTfxRaf4 = dispense 1 units of calceinAM
+hoechstTfxRaf5 = dispense 1 units of calceinAM
+hoechstTfxRaf6 = dispense 1 units of calceinAM
+
+tfxStainCtrl1 = mix hoechstTfxCtrl1 with transfectCtrl1 for 30m
+tfxStainCtrl2 = mix hoechstTfxCtrl2 with transfectCtrl2 for 30m
+tfxStainCtrl3 = mix hoechstTfxCtrl3 with transfectCtrl3 for 30m
+tfxStainCtrl4 = mix hoechstTfxCtrl4 with transfectCtrl4 for 30m
+tfxStainCtrl5 = mix hoechstTfxCtrl5 with transfectCtrl5 for 30m
+tfxStainCtrl6 = mix hoechstTfxCtrl6 with transfectCtrl6 for 30m
+
+tfxStainRaf1 = mix hoechstTfxRaf1 with transfectRaf1 for 30m
+tfxStainRaf2 = mix hoechstTfxRaf2 with transfectRaf2 for 30m
+tfxStainRaf3 = mix hoechstTfxRaf3 with transfectRaf3 for 30m
+tfxStainRaf4 = mix hoechstTfxRaf4 with transfectRaf4 for 30m
+tfxStainRaf5 = mix hoechstTfxRaf5 with transfectRaf5 for 30m
+tfxStainRaf6 = mix hoechstTfxRaf6 with transfectRaf6 for 30m
+
+tfxEffCtrl1 = detect fluorescenceImaging on tfxStainCtrl1 for 5s
+tfxEffCtrl2 = detect fluorescenceImaging on tfxStainCtrl2 for 5s
+tfxEffCtrl3 = detect fluorescenceImaging on tfxStainCtrl3 for 5s
+tfxEffCtrl4 = detect fluorescenceImaging on tfxStainCtrl4 for 5s
+tfxEffCtrl5 = detect fluorescenceImaging on tfxStainCtrl5 for 5s
+tfxEffCtrl6 = detect fluorescenceImaging on tfxStainCtrl6 for 5s
+
+tfxEffRaf1 = detect fluorescenceImaging on tfxStainRaf1 for 5s
+tfxEffRaf2 = detect fluorescenceImaging on tfxStainRaf2 for 5s
+tfxEffRaf3 = detect fluorescenceImaging on tfxStainRaf3 for 5s
+tfxEffRaf4 = detect fluorescenceImaging on tfxStainRaf4 for 5s
+tfxEffRaf5 = detect fluorescenceImaging on tfxStainRaf5 for 5s
+tfxEffRaf6 = detect fluorescenceImaging on tfxStainRaf6 for 5s
+
+dispose tfxEffCtrl1
+dispose tfxEffCtrl2
+dispose tfxEffCtrl3
+dispose tfxEffCtrl4
+dispose tfxEffCtrl5
+dispose tfxEffCtrl6
+dispose tfxEffRaf1
+dispose tfxEffRaf2
+dispose tfxEffRaf3
+dispose tfxEffRaf4
+dispose tfxEffRaf5
+dispose tfxEffRaf6
+
+// ------------------------------------------------------------
+// DAY 2: Remove lipid complexes, replenish with fresh media
+// ------------------------------------------------------------
+
+drain tfxStainCtrl1
+drain tfxStainCtrl2
+drain tfxStainCtrl3
+drain tfxStainCtrl4
+drain tfxStainCtrl5
+drain tfxStainCtrl6
+
+drain tfxStainRaf1
+drain tfxStainRaf2
+drain tfxStainRaf3
+drain tfxStainRaf4
+drain tfxStainRaf5
+drain tfxStainRaf6
+
+freshCtrl1 = dispense 1 units of completeMedia
+freshCtrl2 = dispense 1 units of completeMedia
+freshCtrl3 = dispense 1 units of completeMedia
+freshCtrl4 = dispense 1 units of completeMedia
+freshCtrl5 = dispense 1 units of completeMedia
+freshCtrl6 = dispense 1 units of completeMedia
+
+freshRaf1 = dispense 1 units of completeMedia
+freshRaf2 = dispense 1 units of completeMedia
+freshRaf3 = dispense 1 units of completeMedia
+freshRaf4 = dispense 1 units of completeMedia
+freshRaf5 = dispense 1 units of completeMedia
+freshRaf6 = dispense 1 units of completeMedia
+
+maintainCtrl1 = mix freshCtrl1 with ctrlCell1 for 24h
+maintainCtrl2 = mix freshCtrl2 with ctrlCell2 for 24h
+maintainCtrl3 = mix freshCtrl3 with ctrlCell3 for 24h
+maintainCtrl4 = mix freshCtrl4 with ctrlCell4 for 24h
+maintainCtrl5 = mix freshCtrl5 with ctrlCell5 for 24h
+maintainCtrl6 = mix freshCtrl6 with ctrlCell6 for 24h
+
+maintainRaf1 = mix freshRaf1 with rafCell1 for 24h
+maintainRaf2 = mix freshRaf2 with rafCell2 for 24h
+maintainRaf3 = mix freshRaf3 with rafCell3 for 24h
+maintainRaf4 = mix freshRaf4 with rafCell4 for 24h
+maintainRaf5 = mix freshRaf5 with rafCell5 for 24h
+maintainRaf6 = mix freshRaf6 with rafCell6 for 24h
+
+// ------------------------------------------------------------
+// DAY 3: Serial dilution Sorafenib 120->60->30->15->7.5->0 uM
+// Split each concentration into Ctrl-arm and RAF1-arm aliquots
+// ------------------------------------------------------------
+
+drugStock    = dispense 1 units of sorafenib
+mediaDil1    = dispense 1 units of completeMedia
+drugConc120  = mix drugStock with mediaDil1 for 30s
+
+drugConc120carry = split drugConc120 into 2
+mediaDil2    = dispense 1 units of completeMedia
+drugConc60   = mix drugConc120carry with mediaDil2 for 30s
+
+drugConc60carry = split drugConc60 into 2
+mediaDil3    = dispense 1 units of completeMedia
+drugConc30   = mix drugConc60carry with mediaDil3 for 30s
+
+drugConc30carry = split drugConc30 into 2
+mediaDil4    = dispense 1 units of completeMedia
+drugConc15   = mix drugConc30carry with mediaDil4 for 30s
+
+drugConc15carry = split drugConc15 into 2
+mediaDil5    = dispense 1 units of completeMedia
+drugConc7    = mix drugConc15carry with mediaDil5 for 30s
+
+drugConc7carry = split drugConc7 into 2
+mediaDil6    = dispense 1 units of completeMedia
+drugConc0    = mix drugConc7carry with mediaDil6 for 30s
+
+dose120Ctrl = split drugConc120 into 2
+dose120Raf  = split drugConc120 into 2
+dose60Ctrl  = split drugConc60  into 2
+dose60Raf   = split drugConc60  into 2
+dose30Ctrl  = split drugConc30  into 2
+dose30Raf   = split drugConc30  into 2
+dose15Ctrl  = split drugConc15  into 2
+dose15Raf   = split drugConc15  into 2
+dose7Ctrl   = split drugConc7   into 2
+dose7Raf    = split drugConc7   into 2
+dose0Ctrl   = split drugConc0   into 2
+dose0Raf    = split drugConc0   into 2
+
+// ------------------------------------------------------------
+// DAY 3-5: Deliver doses, incubate 48h
+// site1=120uM(highest), site6=0uM(vehicle/QC baseline)
+// ------------------------------------------------------------
+
+drugSiteCtrl1 = mix dose120Ctrl with maintainCtrl1 for 48h
+drugSiteCtrl2 = mix dose60Ctrl  with maintainCtrl2 for 48h
+drugSiteCtrl3 = mix dose30Ctrl  with maintainCtrl3 for 48h
+drugSiteCtrl4 = mix dose15Ctrl  with maintainCtrl4 for 48h
+drugSiteCtrl5 = mix dose7Ctrl   with maintainCtrl5 for 48h
+drugSiteCtrl6 = mix dose0Ctrl   with maintainCtrl6 for 48h
+
+drugSiteRaf1  = mix dose120Raf  with maintainRaf1  for 48h
+drugSiteRaf2  = mix dose60Raf   with maintainRaf2  for 48h
+drugSiteRaf3  = mix dose30Raf   with maintainRaf3  for 48h
+drugSiteRaf4  = mix dose15Raf   with maintainRaf4  for 48h
+drugSiteRaf5  = mix dose7Raf    with maintainRaf5  for 48h
+drugSiteRaf6  = mix dose0Raf    with maintainRaf6  for 48h
+
+// ------------------------------------------------------------
+// DAY 5: Calcein-AM viability (5 uM, 30 min)
+// Sole Day-5 readout -- no Hoechst (spectral conflict)
+// ------------------------------------------------------------
+
+calceinCtrl1 = dispense 1 units of calceinAM
+calceinCtrl2 = dispense 1 units of calceinAM
+calceinCtrl3 = dispense 1 units of calceinAM
+calceinCtrl4 = dispense 1 units of calceinAM
+calceinCtrl5 = dispense 1 units of calceinAM
+calceinCtrl6 = dispense 1 units of calceinAM
+
+calceinRaf1  = dispense 1 units of calceinAM
+calceinRaf2  = dispense 1 units of calceinAM
+calceinRaf3  = dispense 1 units of calceinAM
+calceinRaf4  = dispense 1 units of calceinAM
+calceinRaf5  = dispense 1 units of calceinAM
+calceinRaf6  = dispense 1 units of calceinAM
+
+viabCtrl1 = mix calceinCtrl1 with drugSiteCtrl1 for 30m
+viabCtrl2 = mix calceinCtrl2 with drugSiteCtrl2 for 30m
+viabCtrl3 = mix calceinCtrl3 with drugSiteCtrl3 for 30m
+viabCtrl4 = mix calceinCtrl4 with drugSiteCtrl4 for 30m
+viabCtrl5 = mix calceinCtrl5 with drugSiteCtrl5 for 30m
+viabCtrl6 = mix calceinCtrl6 with drugSiteCtrl6 for 30m
+
+viabRaf1  = mix calceinRaf1  with drugSiteRaf1  for 30m
+viabRaf2  = mix calceinRaf2  with drugSiteRaf2  for 30m
+viabRaf3  = mix calceinRaf3  with drugSiteRaf3  for 30m
+viabRaf4  = mix calceinRaf4  with drugSiteRaf4  for 30m
+viabRaf5  = mix calceinRaf5  with drugSiteRaf5  for 30m
+viabRaf6  = mix calceinRaf6  with drugSiteRaf6  for 30m
+
+signalCtrl1 = detect cellViabilityAssay on viabCtrl1 for 30s
+signalCtrl2 = detect cellViabilityAssay on viabCtrl2 for 30s
+signalCtrl3 = detect cellViabilityAssay on viabCtrl3 for 30s
+signalCtrl4 = detect cellViabilityAssay on viabCtrl4 for 30s
+signalCtrl5 = detect cellViabilityAssay on viabCtrl5 for 30s
+signalCtrl6 = detect cellViabilityAssay on viabCtrl6 for 30s
+
+signalRaf1  = detect cellViabilityAssay on viabRaf1  for 30s
+signalRaf2  = detect cellViabilityAssay on viabRaf2  for 30s
+signalRaf3  = detect cellViabilityAssay on viabRaf3  for 30s
+signalRaf4  = detect cellViabilityAssay on viabRaf4  for 30s
+signalRaf5  = detect cellViabilityAssay on viabRaf5  for 30s
+signalRaf6  = detect cellViabilityAssay on viabRaf6  for 30s
+
+// ============================================================
+// BB2 / BB3: Ctrl arm QC gate  (BB1 -> BB2 or BB3)
+// signalCtrl6 = vehicle-only baseline for Ctrl arm (0 uM)
+// Pass (BB2): dispose viabCtrl*  |  Fail (BB3): drain viabCtrl*
+// ============================================================
+
+if (signalCtrl6 > 0) {
+    dispose viabCtrl1
+    dispose viabCtrl2
+    dispose viabCtrl3
+    dispose viabCtrl4
+    dispose viabCtrl5
+    dispose viabCtrl6
+} else {
+    drain viabCtrl1
+    drain viabCtrl2
+    drain viabCtrl3
+    drain viabCtrl4
+    drain viabCtrl5
+    drain viabCtrl6
+}
+
+// ============================================================
+// BB4: ctrlQcJoin  (BB2 -> BB4, BB3 -> BB4)
+// Wrapped in if(signalCtrl6 >= 0) so the compiler is forced to
+// emit this as a distinct basic block node in the CFG rather
+// than folding it into the preceding branch bodies.
+// Disposes all Ctrl-arm signal droplets unconditionally.
+// After this block, control enters the RAF1 QC gate (BB5/BB6).
+// ============================================================
+
+if (signalCtrl6 >= 0) {
+    dispose signalCtrl1
+    dispose signalCtrl2
+    dispose signalCtrl3
+    dispose signalCtrl4
+    dispose signalCtrl5
+    dispose signalCtrl6
+} else {
+    dispose signalCtrl1
+    dispose signalCtrl2
+    dispose signalCtrl3
+    dispose signalCtrl4
+    dispose signalCtrl5
+    dispose signalCtrl6
+}
+
+// ============================================================
+// BB5 / BB6: RAF1 arm QC gate  (BB4 -> BB5 or BB6)
+// signalRaf6 = vehicle-only baseline for RAF1 arm (0 uM)
+// Independent of Ctrl gate: either arm can fail independently.
+// Pass (BB5): dispose viabRaf*  |  Fail (BB6): drain viabRaf*
+// ============================================================
+
+if (signalRaf6 > 0) {
+    dispose viabRaf1
+    dispose viabRaf2
+    dispose viabRaf3
+    dispose viabRaf4
+    dispose viabRaf5
+    dispose viabRaf6
+} else {
+    drain viabRaf1
+    drain viabRaf2
+    drain viabRaf3
+    drain viabRaf4
+    drain viabRaf5
+    drain viabRaf6
+}
+
+// ============================================================
+// BB7: raf1QcJoin  (BB5 -> BB7, BB6 -> BB7)
+// Wrapped in if(signalRaf6 >= 0) -- same forced-BB technique
+// as BB4. Disposes all RAF1-arm signal droplets unconditionally.
+// After this block, control enters finalCleanup (BB8).
+// ============================================================
+
+if (signalRaf6 >= 0) {
+    dispose signalRaf1
+    dispose signalRaf2
+    dispose signalRaf3
+    dispose signalRaf4
+    dispose signalRaf5
+    dispose signalRaf6
+} else {
+    dispose signalRaf1
+    dispose signalRaf2
+    dispose signalRaf3
+    dispose signalRaf4
+    dispose signalRaf5
+    dispose signalRaf6
+}
+
+// ============================================================
+// BB8: finalCleanup  (BB7 -> BB8, terminal/sink node)
+// Wrapped in if(signalCtrl6 >= 0 && signalRaf6 >= 0) so the
+// compiler emits this as an explicit sink node in the CFG
+// rather than leaving BB7 as the implicit exit.
+// No further operations -- both arms are fully settled.
+// ============================================================
+
+if (signalCtrl6 >= 0) {
+    if (signalRaf6 >= 0) {
+        dispose signalCtrl6
+        dispose signalRaf6
+    } else {
+        dispose signalCtrl6
+        dispose signalRaf6
+    }
+} else {
+    if (signalRaf6 >= 0) {
+        dispose signalCtrl6
+        dispose signalRaf6
+    } else {
+        dispose signalCtrl6
+        dispose signalRaf6
+    }
+}

@@ -1,0 +1,119 @@
+bsbbif_2_t:
+	dispose(dropsEquenced1[0])
+bsbbif_3_f:
+	dispose(dropsEquenced1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(cellTypeSignal1[0])
+	pbmcCells1[0] = dispense(PBMCs)
+	fcBlock1[0] = dispense(FcBlocker_TruStainFcX)
+	rnaseInh1[0] = dispense(RNaseInhibitor)
+	blockedPBMCs1[0] = mix(pbmcCells1[0], fcBlock1[0]) @ 300.0SECOND
+	blockedRNase1[0] = mix(blockedPBMCs1[0], rnaseInh1[0]) @ 5.0SECOND
+	pbmcProbesA1[0] = dispense(ProxSeqProbes_A)
+	pbmcProbesB1[0] = dispense(ProxSeqProbes_B)
+	pbmcProbesMix1[0] = mix(pbmcProbesA1[0], pbmcProbesB1[0]) @ 5.0SECOND
+	pbmcPortion11[0] = mix(blockedRNase1[0], pbmcProbesMix1[0]) @ 5.0SECOND
+	heat(pbmcPortion11[0]) @ 37.0CELSIUS @ 900.0SECOND
+	pbmcPortion21[0] = mix(pbmcPortion11[0], pbmcProbesMix1[0]) @ 5.0SECOND
+	heat(pbmcPortion21[0]) @ 37.0CELSIUS @ 900.0SECOND
+	pbmcPortion31[0] = mix(pbmcPortion21[0], pbmcProbesMix1[0]) @ 5.0SECOND
+	heat(pbmcPortion31[0]) @ 37.0CELSIUS @ 900.0SECOND
+	pbmcWash11[0] = dispense(PBS_1pct_BSA)
+	pbmcWash21[0] = dispense(PBS_1pct_BSA)
+	pbmcWash31[0] = dispense(PBS_1pct_BSA)
+	pbmcWashed11[0] = mix(pbmcPortion31[0], pbmcWash11[0]) @ 5.0SECOND
+	pbmcWashed21[0] = mix(pbmcWashed11[0], pbmcWash21[0]) @ 5.0SECOND
+	pbmcWashed31[0] = mix(pbmcWashed21[0], pbmcWash31[0]) @ 5.0SECOND
+	pbmcLigBuf1[0] = dispense(LigationBuffer_HEPES)
+	pbmcConnector1[0] = dispense(ConnectorOligomer_IDT)
+	pbmcLigase1[0] = dispense(T4_Ligase_NEB)
+	pbmcLigSol1[0] = mix(pbmcLigBuf1[0], pbmcConnector1[0]) @ 5.0SECOND
+	pbmcLigSol21[0] = mix(pbmcLigSol1[0], pbmcLigase1[0]) @ 5.0SECOND
+	pbmcLigated1[0] = mix(pbmcWashed31[0], pbmcLigSol21[0]) @ 5.0SECOND
+	heat(pbmcLigated1[0]) @ 37.0CELSIUS @ 1800.0SECOND
+	pbmcPI1[0] = dispense(PropidiumIodide)
+	pbmcLysisBuffer1[0] = dispense(SmartSeq2_LysisBuffer)
+	pbmcPIStained1[0] = mix(pbmcLigated1[0], pbmcPI1[0]) @ 5.0SECOND
+	pbmcLibrary1[0] = mix(pbmcPIStained1[0], pbmcLysisBuffer1[0]) @ 5.0SECOND
+	heat(pbmcLibrary1[0]) @ 72.0CELSIUS @ 180.0SECOND
+	complexSignal1[0] = detect(proteinComplexDetection, pbmcLibrary1[0]) @ 30.0SECOND
+	if complexSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	jurkatCells1[0] = dispense(Jurkat_Cells)
+	rajiCells1[0] = dispense(Raji_Cells)
+	cellMixture1[0] = mix(jurkatCells1[0], rajiCells1[0]) @ 5.0SECOND
+	heat(cellMixture1[0]) @ 37.0CELSIUS @ 1800.0SECOND
+	probeBuf1[0] = dispense(BSA_PBS)
+	probePanelA1[0] = dispense(ProxSeqProbes_A)
+	probePanelB1[0] = dispense(ProxSeqProbes_B)
+	probesMixed1[0] = mix(probePanelA1[0], probePanelB1[0]) @ 5.0SECOND
+	probingMix1[0] = mix(cellMixture1[0], probesMixed1[0]) @ 5.0SECOND
+	heat(probingMix1[0]) @ 37.0CELSIUS @ 3600.0SECOND
+	washBuf1[0] = dispense(BSA_PBS)
+	washedCells1[0] = mix(probingMix1[0], washBuf1[0]) @ 5.0SECOND
+	ligBuf1[0] = dispense(LigationBuffer_HEPES)
+	connector1[0] = dispense(ConnectorOligomer_IDT)
+	t4Ligase1[0] = dispense(T4_Ligase_NEB)
+	ligSolution1[0] = mix(ligBuf1[0], connector1[0]) @ 5.0SECOND
+	ligSolution21[0] = mix(ligSolution1[0], t4Ligase1[0]) @ 5.0SECOND
+	ligatedProduct1[0] = mix(washedCells1[0], ligSolution21[0]) @ 5.0SECOND
+	heat(ligatedProduct1[0]) @ 37.0CELSIUS @ 10800.0SECOND
+	piStain1[0] = dispense(PropidiumIodide)
+	piMix1[0] = mix(ligatedProduct1[0], piStain1[0]) @ 1800.0SECOND
+	oilPhase1[0] = dispense(HFE7500_Surfactant_2pct)
+	dropSeqBeads1[0] = dispense(DropSeq_Beads)
+	encapsulated1[0] = mix(piMix1[0], dropSeqBeads1[0]) @ 5.0SECOND
+	dropsEquenced1[0] = mix(encapsulated1[0], oilPhase1[0]) @ 5.0SECOND
+	cellTypeSignal1[0] = detect(cellTypeDetection, dropsEquenced1[0]) @ 30.0SECOND
+	if cellTypeSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(pbmcLibrary1[0])
+bsbbif_6_f:
+	dispose(pbmcLibrary1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(complexSignal1[0])
+	macrophageCells1[0] = dispense(PBMCs)
+	lpsStimulus1[0] = dispense(LPS_100ngmL)
+	pamStimulus1[0] = dispense(PAM_40ngmL)
+	stimulusMix1[0] = mix(lpsStimulus1[0], pamStimulus1[0]) @ 5.0SECOND
+	stimulatedMacro1[0] = mix(macrophageCells1[0], stimulusMix1[0]) @ 5.0SECOND
+	heat(stimulatedMacro1[0]) @ 37.0CELSIUS @ 300.0SECOND
+	pfaSolution1[0] = dispense(PFA_4pct)
+	fixedMacro1[0] = mix(stimulatedMacro1[0], pfaSolution1[0]) @ 5.0SECOND
+	heat(fixedMacro1[0]) @ 25.0CELSIUS @ 900.0SECOND
+	macroFcBlock1[0] = dispense(TruStainFcX)
+	macroBlocked1[0] = mix(fixedMacro1[0], macroFcBlock1[0]) @ 300.0SECOND
+	tlrProbesA1[0] = dispense(ProxSeqProbes_TLR_Panel)
+	tlrProbesB1[0] = dispense(ProxSeqProbes_TLR_Panel)
+	tlrProbeMix1[0] = mix(tlrProbesA1[0], tlrProbesB1[0]) @ 5.0SECOND
+	macroProbed1[0] = mix(macroBlocked1[0], tlrProbeMix1[0]) @ 5.0SECOND
+	heat(macroProbed1[0]) @ 37.0CELSIUS @ 1800.0SECOND
+	macroWash11[0] = dispense(PBS_1pct_BSA)
+	macroWash21[0] = dispense(PBS_1pct_BSA)
+	macroWash31[0] = dispense(PBS_1pct_BSA)
+	macroWashed11[0] = mix(macroProbed1[0], macroWash11[0]) @ 5.0SECOND
+	macroWashed21[0] = mix(macroWashed11[0], macroWash21[0]) @ 5.0SECOND
+	macroWashed31[0] = mix(macroWashed21[0], macroWash31[0]) @ 5.0SECOND
+	tlrLigBuf1[0] = dispense(LigationBuffer_TLR)
+	tlrConnector1[0] = dispense(ConnectorOligomer_IDT)
+	tlrLigase1[0] = dispense(T4_Ligase_NEB)
+	tlrLigSol1[0] = mix(tlrLigBuf1[0], tlrConnector1[0]) @ 5.0SECOND
+	tlrLigSol21[0] = mix(tlrLigSol1[0], tlrLigase1[0]) @ 5.0SECOND
+	macroLigated1[0] = mix(macroWashed31[0], tlrLigSol21[0]) @ 5.0SECOND
+	heat(macroLigated1[0]) @ 37.0CELSIUS @ 1800.0SECOND
+	macroLysisBuffer1[0] = dispense(SmartSeq2_LysisBuffer)
+	macroPlated1[0] = mix(macroLigated1[0], macroLysisBuffer1[0]) @ 5.0SECOND
+	heat(macroPlated1[0]) @ 56.0CELSIUS @ 3600.0SECOND
+	heat(macroPlated1[0]) @ 95.0CELSIUS @ 600.0SECOND
+	macrophageSignal1[0] = detect(macrophageSignalDetection, macroPlated1[0]) @ 30.0SECOND
+	if macrophageSignal1[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(macroPlated1[0])
+bsbbif_9_f:
+	dispose(macroPlated1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(macrophageSignal1[0])
+	NOP

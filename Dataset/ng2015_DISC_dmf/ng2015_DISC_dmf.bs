@@ -1,0 +1,504 @@
+module phosphorylationDetection
+module cellViabilityDetection
+
+manifest NIH3T3_Cells
+manifest SeumFreeMedia
+manifest StarvedMedia
+manifest CultureMedia
+manifest PluronicF68
+manifest PDGFBB_Ligand
+manifest Paraformaldehyde
+manifest WashBuffer1
+manifest WashBuffer2
+manifest Tween20
+manifest BlockingSolution
+manifest PrimaryAntibody_PDGFR
+manifest PrimaryAntibody_pPDGFR_Y857
+manifest PrimaryAntibody_pPDGFR_Y1021
+manifest PrimaryAntibody_Akt
+manifest PrimaryAntibody_pAkt_S473
+manifest SecondaryAntibody_AlexaFluor647
+manifest SecondaryAntibody_AlexaFluor555
+
+// ============================================================
+// Digital Microfluidic Immunocytochemistry in Single Cells
+// (DISC)
+// Ng, A.H.C., Chamberlain, M.D., Situ, H., Lee, V., Wheeler,
+// A.R. Nature Communications 6:7513 (2015).
+// DOI: 10.1038/ncomms8513
+//
+// Protocol summary: DMF automates all steps for adherent cell
+// culture, serum starvation, PDGF-BB ligand stimulation, and
+// immunocytochemistry (ICC) on NIH-3T3 fibroblasts cultured in
+// virtual microwells (VMs) on the patterned top plate of the
+// DMF device. Protein phosphorylation (PDGFR Y857/Y1021 and
+// Akt S473) is probed by dual-channel immunofluorescence.
+//
+// DEVICE GEOMETRY (from paper Methods):
+//   Bottom plate: 80 actuation electrodes (2.2 x 2.2 mm),
+//     interdigitated borders (140 um sinusoids), 30-80 um gaps.
+//   Top plate: 8 hydrophilic ITO spots (1.75 mm diameter,
+//     4.4 mm pitch) formed by Teflon-AF lift-off.
+//   Spacer: double-sided tape, ~180 um gap.
+//   Unit droplet volume: ~900 nL; VM volume: ~400 nL.
+//   Driving: 80-100 V_rms, 10 kHz sine wave.
+//   Reagent exchange uses passive dispensing (hydrophobic-
+//     hydrophilic interaction at ITO spots). One exchange
+//     displaces ~93% of VM contents; two exchanges >99%.
+//   Reagent exchange time: ~1 s between successive droplets.
+//
+// CELL SEEDING (paper Methods - "DMF cell culture"):
+//   Cells suspended in CultureMedia at 500,000 cells/mL.
+//   3 x 900 nL (= 2.7 uL) passively dispensed per VM spot.
+//   Device inverted; cells settle and adhere for 24 h at 37 C.
+//
+// ICC PROTOCOL - 11 STEPS (paper Methods):
+//   1.  Starvation:  6 x 900 nL StarvedMedia; 24 h at 37 C.
+//   2.  Serum-free rinse: 6 x 900 nL SerumFreeMedia.
+//   3.  Stimulation: 2 x 900 nL PDGF-BB (conc/time varies).
+//   4.  Fixation:    3 x 900 nL 4% PFA; 10 min.
+//   5.  Wash:        6 x 900 nL WashBuffer1.
+//   6.  Permeabilisation: 3 x 900 nL 0.2% Tween-20; 10 min.
+//   7.  Wash:        9 x 900 nL WashBuffer2.
+//   8.  Blocking:    3 x 900 nL BlockingSolution; 60 min.
+//   9.  1- antibody: 3 x 900 nL; overnight at 4 C (= 720 min).
+//   10. Wash:        6 x 900 nL WashBuffer2.
+//   11. 2- antibody: 3 x 900 nL; 2 h at RT.
+//   Top plate removed, rinsed, dried, scanned on microarray
+//   scanner. CellProfiler used for single-cell image analysis.
+//
+// NOTE ON PASSIVE DISPENSING ABSTRACTION:
+//   All multi-unit passive dispense steps (e.g., 6 x 900 nL)
+//   are modelled as single `dispense N units` calls. The
+//   BioScript compiler treats `N units` as a volume scalar;
+//   it does not generate array elements here, which is correct
+//   because each VM receives the full merged volume, not N
+//   independent droplets. All mixing steps merge successive
+//   passive-dispense deliveries at the VM site.
+//
+// NOTE ON CONCURRENT VMs:
+//   The DMF device supports 8 VMs on the top plate. The paper
+//   runs 3-4 VMs per condition on different days. BioScript
+//   does not support spatial parallelism natively; this file
+//   encodes a single representative VM. For multi-VM runs,
+//   replicate this instruction block or use a loop construct
+//   if supported by the target compiler backend.
+//
+// NOTE ON TIME-RESOLVED PULSE EXPERIMENTS (Fig. 6):
+//   The encoded protocol (BB1-BB9) reflects the dose-response
+//   validation experiment (Fig. 3b/3c): 2 min PDGFR stimulation
+//   and 5 min Akt stimulation (the representative use case).
+//   For pulse experiments, only the stimulation duration and
+//   the ligand wash-away step in BB1 change. The double-bolus
+//   time series (Fig. 5b) would require a second dispense of
+//   PDGF-BB at t=90 s with a second stimulationMix variable.
+//   These variants are noted in-line but not separately encoded
+//   to keep the CFG tractable for the lilott8/BioScript
+//   compiler (which does not support nested conditionals or
+//   timer-parameterised loops).
+//
+// CFG STRUCTURE:
+//   BB1  main              -- device setup, cell seeding,
+//                             starvation, ICC steps 1-3
+//                             (up to and including fixation)
+//   BB2  stimulusPass      -- stimulusSignal > 0: PDGFR
+//                             phosphorylation detected;
+//                             dispose fixed cells
+//   BB3  stimulusFail      -- stimulusSignal <= 0: no receptor
+//                             phosphorylation signal; drain
+//   BB4  stimulusJoin      -- join: Akt downstream branch begins
+//   BB5  aktPass           -- aktSignal > 0: Akt S473
+//                             phosphorylation detected; dispose
+//   BB6  aktFail           -- aktSignal <= 0: no Akt signal;
+//                             drain
+//   BB7  aktJoin           -- join: secondary ICC steps begin
+//   BB8  immunoPass        -- immunoSignal > 0: dual-channel
+//                             ICC valid; dispose stained plate
+//   BB9  immunoFail        -- immunoSignal <= 0: ICC failed;
+//                             drain stained plate
+//   BB10 finalCleanup      -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// CELL SEEDING: Dispense cells in CultureMedia onto VM spots.
+//   Paper M&M: 3 x 900 nL = 2.7 uL; 500,000 cells/mL.
+//   Device inverted; 24 h at 37 C for adhesion.
+//   `mix` abstracts passive dispensing flow across ITO spot
+//   followed by sub-droplet VM formation (Supplementary Fig. 1).
+// ------------------------------------------------------------
+
+cellSuspension   = dispense 3 units of NIH3T3_Cells
+cultureDrop      = dispense 3 units of CultureMedia
+seededVM         = mix cellSuspension with cultureDrop for 5s
+
+// 24 h adhesion at 37 C in humidified chamber (= 1440 min).
+heat seededVM at 37c for 1440m
+
+// ------------------------------------------------------------
+// STEP 1 - STARVATION: 6 x 900 nL StarvedMedia; 24 h at 37 C.
+//   StarvedMedia: DMEM + 0.5% serum (CS or FBS) + 0.05% F-68
+//                 + 100 U/mL pen G + 100 ug/mL strep.
+//   Reduces background PDGFR and Akt phosphorylation to basal
+//   level before stimulation.
+// ------------------------------------------------------------
+
+starvedDrop      = dispense 6 units of StarvedMedia
+starvedVM        = mix seededVM with starvedDrop for 5s
+
+// 24 h starvation at 37 C (= 1440 min).
+heat starvedVM at 37c for 1440m
+
+// ------------------------------------------------------------
+// STEP 2 - SERUM-FREE RINSE: 6 x 900 nL SerumFreeMedia.
+//   SerumFreeMedia: DMEM + 0.05% F-68 + antibiotics.
+//   Two passive-dispense exchanges displace >99% of starving
+//   media from the VM (Fig. 2b-d). Encoded as single merge.
+// ------------------------------------------------------------
+
+serumFreeDrop    = dispense 6 units of SeumFreeMedia
+rinsedVM         = mix starvedVM with serumFreeDrop for 5s
+
+// ------------------------------------------------------------
+// STEP 3 - STIMULATION: 2 x 900 nL PDGF-BB in SerumFreeMedia.
+//   Dose: paper validates 0 - 200 ng/mL range; 50 ng/mL used
+//         for time-series (Fig. 5a) and cell heterogeneity
+//         (Fig. 4); 3.125 ng/mL for pulse experiments (Fig. 6).
+//   Duration: 2 min for PDGFR phosphorylation; 5 min for Akt.
+//             Here encoded as 2 min (PDGFR validation arm).
+//   For pulse experiments: a second wash droplet (SerumFreeMedia)
+//   is dispensed after the desired pulse duration to wash away
+//   the ligand before fixation (Supplementary Movie 2).
+//   Switching time between droplets: ~1 s (Fig. 2a).
+//
+//   NOTE: Shear stress from DMF droplet movement is ~0.5 dyn/cm^2
+//   (Supplementary Note 1), below the 1 dyn/cm^2 threshold for
+//   flow-mediated Akt/Erk signalling. Tested explicitly with 75
+//   back-and-forth droplet movements: P=0.7188, no difference
+//   from undisturbed cells (Supplementary Fig. 8).
+// ------------------------------------------------------------
+
+ligandDrop       = dispense 2 units of PDGFBB_Ligand
+stimulatedVM     = mix rinsedVM with ligandDrop for 2m
+
+// ------------------------------------------------------------
+// STEP 4 - FIXATION: 3 x 900 nL 4% PFA + 0.05% F-68; 10 min.
+//   Immediately follows stimulation (within ~1 s reagent swap).
+//   Fixation arrests signalling state at the exact time point.
+//   In time-series experiments, fixation is staggered across
+//   VMs so all wells are fixed simultaneously (paper M&M).
+// ------------------------------------------------------------
+
+pfaDrop          = dispense 3 units of Paraformaldehyde
+fixedVM          = mix stimulatedVM with pfaDrop for 10m
+
+// ------------------------------------------------------------
+// STEP 5 - WASH: 6 x 900 nL WashBuffer1 (0.05% F-68 in DPBS).
+//   Removes fixative before permeabilisation.
+// ------------------------------------------------------------
+
+wash1Drop        = dispense 6 units of WashBuffer1
+washedVM1        = mix fixedVM with wash1Drop for 5s
+
+// ------------------------------------------------------------
+// STEP 6 - PERMEABILISATION: 3 x 900 nL 0.2% Tween-20; 10 min.
+//   Opens cell membranes for intracellular antibody access.
+//   Required for pAkt S473 (cytoplasmic/membrane) detection.
+// ------------------------------------------------------------
+
+tween20Drop      = dispense 3 units of Tween20
+permeabilisedVM  = mix washedVM1 with tween20Drop for 10m
+
+// ------------------------------------------------------------
+// STEP 7 - WASH: 9 x 900 nL WashBuffer2 (0.05% Brij 35 in
+//   DPBS). Extended wash to remove Tween-20 completely.
+// ------------------------------------------------------------
+
+wash2Drop        = dispense 9 units of WashBuffer2
+washedVM2        = mix permeabilisedVM with wash2Drop for 5s
+
+// ------------------------------------------------------------
+// STEP 8 - BLOCKING: 3 x 900 nL BlockingSolution; 60 min.
+//   BlockingSolution: 1% non-fat dried milk + 0.05% Brij 35
+//   in DPBS. Reduces non-specific antibody binding.
+// ------------------------------------------------------------
+
+blockDrop        = dispense 3 units of BlockingSolution
+blockedVM        = mix washedVM2 with blockDrop for 60m
+
+// ------------------------------------------------------------
+// STEP 9 - PRIMARY ANTIBODY: 3 x 900 nL; overnight at 4 C.
+//   For PDGFR phosphorylation (Y857 arm - Fig. 3b):
+//     pan PDGFR-b Mouse mAb (1:50, CST sc-19995)   -> Cy5 ch.
+//     p-PDGFR-b Y857 Rabbit pAb (1:200, SCB sc-12907-R) -> Cy3.
+//   For Akt phosphorylation (S473 arm - Fig. 3c):
+//     pan Akt Mouse mAb (1:50, CST 2920S)           -> Cy5 ch.
+//     p-Akt S473 Rabbit mAb (1:200, CST 4060P)      -> Cy3 ch.
+//   Here encoded as PDGFR Y857 + Akt dual-target arm.
+//   Overnight = 720 min; incubation at 4 C.
+//
+//   NOTE ON DUAL PRIMARY ANTIBODY MIX: The two primaries are
+//   pre-mixed in BlockingSolution off-chip before loading into
+//   the DMF reservoir. BioScript cannot express off-chip mixing
+//   of manifested reagents; the two manifest entries are merged
+//   here as a single `mix` before the blocking step application.
+// ------------------------------------------------------------
+
+primary_PDGFR    = dispense 3 units of PrimaryAntibody_PDGFR
+primary_pY857    = dispense 3 units of PrimaryAntibody_pPDGFR_Y857
+primaryMix       = mix primary_PDGFR with primary_pY857 for 5s
+
+primary_Akt      = dispense 3 units of PrimaryAntibody_Akt
+primary_pS473    = dispense 3 units of PrimaryAntibody_pAkt_S473
+primaryMix_Akt   = mix primary_Akt with primary_pS473 for 5s
+
+combinedPrimary  = mix primaryMix with primaryMix_Akt for 5s
+primaryStainedVM = mix blockedVM with combinedPrimary for 720m
+
+// Overnight incubation at 4 C (= 720 min).
+heat primaryStainedVM at 4c for 720m
+
+// ------------------------------------------------------------
+// STEP 10 - WASH: 6 x 900 nL WashBuffer2. Removes unbound
+//   primary antibodies.
+// ------------------------------------------------------------
+
+wash3Drop        = dispense 6 units of WashBuffer2
+washedVM3        = mix primaryStainedVM with wash3Drop for 5s
+
+// ------------------------------------------------------------
+// STEP 11 - SECONDARY ANTIBODY: 3 x 900 nL; 2 h at RT.
+//   Anti-Mouse IgG Alexa Fluor 647 (Fab2, 1:500, CST 4410S)
+//     -> detects pan-PDGFR and pan-Akt (total protein, Cy5 ch.)
+//   Anti-Rabbit IgG Alexa Fluor 555 (Fab2, 1:500, CST 4413S)
+//     -> detects p-PDGFR Y857 and p-Akt S473 (Cy3 ch.)
+//   Pre-mixed in BlockingSolution off-chip. Encoded as merge.
+//   2 h at room temperature (25 C = 120 min).
+// ------------------------------------------------------------
+
+secondary_647    = dispense 3 units of SecondaryAntibody_AlexaFluor647
+secondary_555    = dispense 3 units of SecondaryAntibody_AlexaFluor555
+secondaryMix     = mix secondary_647 with secondary_555 for 5s
+
+secondaryStained = mix washedVM3 with secondaryMix for 120m
+
+// 2 h secondary antibody incubation at RT (25 C = 120 min).
+heat secondaryStained at 25c for 120m
+
+// ------------------------------------------------------------
+// DETECTION - PDGFR phosphorylation QC:
+//   phosphorylationDetection abstracts off-chip microarray
+//   scanner readout (Axon GenePix 4000B; 532 nm and 635 nm
+//   lasers; 5 um resolution; PMT 500 V). CellProfiler 2.0
+//   pipeline identifies single cells (15-100 um diameter,
+//   Otsu Global thresholding) and computes fold-change ratio:
+//   (Cy3 phospho-channel intensity) / (Cy5 total-protein
+//   intensity), normalised to no-stimulation control on same
+//   device. Signal > 1.0 (fold change) = phosphorylation above
+//   basal level. QC gate uses bulk-average signal across VM.
+// ------------------------------------------------------------
+
+stimulusSignal   = detect phosphorylationDetection on secondaryStained for 30s
+
+// ============================================================
+// BB2 / BB3: PDGFR phosphorylation QC gate
+// Pass (BB2): stimulusSignal > 0 -> receptor phosphorylation
+//             above basal level detected; dispose stained VM.
+// Fail (BB3): stimulusSignal <= 0 -> no detectable PDGFR
+//             phosphorylation; drain (reagent failure or
+//             no stimulation).
+// Both branches converge at BB4 (stimulusJoin).
+// ============================================================
+
+if (stimulusSignal > 0) {
+    dispose secondaryStained
+} else {
+    drain secondaryStained
+}
+
+// ============================================================
+// BB4: stimulusJoin
+// Dispose PDGFR QC signal. Control falls into downstream
+// Akt phosphorylation branch (BB5/BB6).
+// ============================================================
+
+dispose stimulusSignal
+
+// ------------------------------------------------------------
+// AKT PHOSPHORYLATION ARM (Fig. 3c / Fig. 4 / Fig. 6b):
+//   Separate VM seeded identically to the PDGFR arm above.
+//   Stimulation: 5 min (vs 2 min for PDGFR) as per paper M&M.
+//   Staining uses Akt / p-Akt S473 primary pair (see Step 9).
+//
+//   NOTE: In the paper's physical experiment, the Akt and
+//   PDGFR arms run in parallel VMs on the same device. In this
+//   BioScript encoding they are sequential (BioScript has no
+//   native spatial parallelism for distinct VM populations).
+//   The Akt VM re-runs the full ICC pipeline with modified
+//   stimulation duration (5 min). Only the stimulation and
+//   detection steps differ; the antibody panel is Akt-specific.
+//
+//   For the heterogeneity / hyperactive-responder analysis
+//   (Fig. 4), stimulation is 0-7 min with 50 ng/mL PDGF-BB.
+//   For the pulse experiments (Fig. 6b), stimulation is 3-40 s
+//   followed by a ligand-free wash before fixation.
+// ------------------------------------------------------------
+
+// -- Akt arm: seeding and starvation (identical to PDGFR arm) --
+
+aktCellSusp      = dispense 3 units of NIH3T3_Cells
+aktCultureDrop   = dispense 3 units of CultureMedia
+aktSeededVM      = mix aktCellSusp with aktCultureDrop for 5s
+heat aktSeededVM at 37c for 1440m
+
+aktStarvedDrop   = dispense 6 units of StarvedMedia
+aktStarvedVM     = mix aktSeededVM with aktStarvedDrop for 5s
+heat aktStarvedVM at 37c for 1440m
+
+aktRinseDrop     = dispense 6 units of SeumFreeMedia
+aktRinsedVM      = mix aktStarvedVM with aktRinseDrop for 5s
+
+// -- Akt arm: STEP 3 - Stimulation: 5 min (vs 2 min for PDGFR) --
+aktLigandDrop    = dispense 2 units of PDGFBB_Ligand
+aktStimulated    = mix aktRinsedVM with aktLigandDrop for 5m
+
+// -- Akt arm: STEP 4 - Fixation --
+aktPfaDrop       = dispense 3 units of Paraformaldehyde
+aktFixedVM       = mix aktStimulated with aktPfaDrop for 10m
+
+// -- Akt arm: STEP 5 - Wash --
+aktWash1         = dispense 6 units of WashBuffer1
+aktWashedVM1     = mix aktFixedVM with aktWash1 for 5s
+
+// -- Akt arm: STEP 6 - Permeabilisation --
+aktTween20       = dispense 3 units of Tween20
+aktPermVM        = mix aktWashedVM1 with aktTween20 for 10m
+
+// -- Akt arm: STEP 7 - Wash --
+aktWash2         = dispense 9 units of WashBuffer2
+aktWashedVM2     = mix aktPermVM with aktWash2 for 5s
+
+// -- Akt arm: STEP 8 - Blocking --
+aktBlockDrop     = dispense 3 units of BlockingSolution
+aktBlockedVM     = mix aktWashedVM2 with aktBlockDrop for 60m
+
+// -- Akt arm: STEP 9 - Primary antibody (Akt-specific panel) --
+aktPrimary_Akt   = dispense 3 units of PrimaryAntibody_Akt
+aktPrimary_pS473 = dispense 3 units of PrimaryAntibody_pAkt_S473
+aktPrimaryMix    = mix aktPrimary_Akt with aktPrimary_pS473 for 5s
+aktPrimStained   = mix aktBlockedVM with aktPrimaryMix for 720m
+heat aktPrimStained at 4c for 720m
+
+// -- Akt arm: STEP 10 - Wash --
+aktWash3         = dispense 6 units of WashBuffer2
+aktWashedVM3     = mix aktPrimStained with aktWash3 for 5s
+
+// -- Akt arm: STEP 11 - Secondary antibody --
+aktSec647        = dispense 3 units of SecondaryAntibody_AlexaFluor647
+aktSec555        = dispense 3 units of SecondaryAntibody_AlexaFluor555
+aktSecondaryMix  = mix aktSec647 with aktSec555 for 5s
+aktSecStained    = mix aktWashedVM3 with aktSecondaryMix for 120m
+heat aktSecStained at 25c for 120m
+
+// Detection: Akt S473 phosphorylation (Cy3/Cy5 dual channel).
+aktSignal        = detect phosphorylationDetection on aktSecStained for 30s
+
+// ============================================================
+// BB5 / BB6: Akt S473 phosphorylation QC gate
+// Pass (BB5): aktSignal > 0 -> Akt phosphorylation above basal;
+//             dispose stained VM.
+// Fail (BB6): aktSignal <= 0 -> no Akt activation detected;
+//             drain (stimulation below commitment threshold or
+//             reagent failure).
+// Both branches converge at BB7 (aktJoin).
+//
+// Biological note: paper shows Akt response is amplified
+// relative to PDGFR - at 3.125 ng/mL PDGF, ~22% receptor
+// phosphorylation drives >70% Akt activation. A 10 s pulse
+// is sufficient to commit >32% of cells to Akt activation
+// (Fig. 6b). Akt deactivation is observed if 3 s pulse cells
+// are evaluated at 5 min vs 3-4 min (Fig. 6c), consistent
+// with enzymatic noise-filtering.
+// ============================================================
+
+if (aktSignal > 0) {
+    dispose aktSecStained
+} else {
+    drain aktSecStained
+}
+
+// ============================================================
+// BB7: aktJoin
+// Dispose Akt QC signal. Control falls into final cell
+// viability / morphology QC branch (BB8/BB9).
+// ============================================================
+
+dispose aktSignal
+
+// ------------------------------------------------------------
+// FINAL QC - CELL MORPHOLOGY / VIABILITY DETECTION:
+//   cellViabilityDetection abstracts the CellProfiler post-
+//   scan QC step in which cells are filtered by size
+//   (15-100 um diameter), shape (eccentricity, form factor),
+//   and staining quality. This is not a staining step; it is
+//   a computational gate on the acquired microarray images.
+//   Signal > 0: sufficient cells identified per VM (>=150
+//   cells at 500,000 cells/mL) with valid signal-to-background
+//   ratio (>5x primary vs secondary-only control).
+//
+//   The cellViabilityDetection module also captures the
+//   hyperactive-responder sub-population analysis (Fig. 4):
+//   cells are classified as hyperactive if p-Akt fold change
+//   exceeds Q3 + 1.5 * IQR (outlier threshold in JMP 10).
+//   Hyperactive cells show elongated morphology (higher
+//   eccentricity, lower form factor) and increased neighbour
+//   proximity relative to normal cells (Supplementary Fig. 13).
+//
+//   NOTE ON QC DROPLET DESIGN:
+//   secondaryStained and aktSecStained are consumed (disposed
+//   or drained) in the BB2/BB3 and BB5/BB6 gate branches
+//   above. The BioScript SSA form would version them as [2]
+//   if referenced again here, producing undefined-variable
+//   errors in the IR. The fix is a dedicated QC droplet:
+//   a fresh aliquot of WashBuffer2 is dispensed as a carrier
+//   for the cellViabilityDetection module call. In the
+//   physical experiment, this gate is purely computational
+//   (CellProfiler runs on the already-acquired microarray
+//   scan images); the fluid operand is a BioScript
+//   requirement for the detect statement, not a wet-lab step.
+// ------------------------------------------------------------
+
+// Fresh QC carrier droplet -- avoids SSA version-2 conflict.
+qcCarrier        = dispense 1 units of WashBuffer2
+immunoSignal     = detect cellViabilityDetection on qcCarrier for 30s
+
+// ============================================================
+// BB8 / BB9: Cell identification / ICC quality QC gate
+// Pass (BB8): immunoSignal > 0 -> valid cell count and
+//             signal-to-background ratio; dispose stained plate.
+// Fail (BB9): immunoSignal <= 0 -> insufficient cells or
+//             antibody staining failure; drain.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (immunoSignal > 0) {
+    dispose qcCarrier
+} else {
+    drain qcCarrier
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose the ICC QC signal droplet.
+// Experiment ends; top plate removed for microarray scanner
+// analysis and CellProfiler single-cell quantification.
+// ============================================================
+
+dispose immunoSignal
+
+// [terminal -- no further instructions; exit node for CFG]

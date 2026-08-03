@@ -1,0 +1,269 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : NF-kappaB Signaling, Dynamic Range and Stochastic Switching under TNF-alpha and LPS Stimulation
+Source Link  : https://q-bio.org/w/images/c/c3/038_Tay.pdf
+Paper DOI    : N/A
+Journal      : IEEE EMBS (conference abstract), Stanford University
+Authors      : Savas Tay, Tim K. Lee, Jake Hughey, Anne Leyrat, Markus Covert, Stephen R. Quake
+Affiliations : Department of Bioengineering, Stanford University;
+               Howard Hughes Medical Institute, Stanford University
+Platform     : Fully automated microfluidic cell culture system
+               (Gomez-Sjoberg et al., Anal. Chem. 2007, 10:1021-1028)
+
+
+OVERVIEW
+--------
+This protocol encodes a high-throughput microfluidic cell culture experiment for quantitative
+single-cell analysis of NF-kappaB nuclear localisation dynamics under TNF-alpha and LPS
+stimulation. Using a fully automated microfluidic platform, more than 3000 NIH-3T3 cells
+stably expressing a p65-GFP reporter are measured simultaneously under 8 doses of each
+ligand spanning 4 orders of magnitude, with 6-minute temporal resolution over 12 hours.
+
+The protocol addresses four key biological questions:
+
+  A. Oscillation continuity: Are NF-kappaB nuclear localisation oscillations under TNF-alpha
+     damped or continuous at the single-cell level? Extended 12-hour time-lapse confirms
+     they are continuous (not damped).
+
+  B. Dynamic range: How do response threshold, activation fraction, and response time
+     scale with dose? Response time decreases from hundreds of minutes near threshold to
+     <30 min at saturating doses. The standard NF-kappaB ODE model (Kearns/Hoffman 2009)
+     was modified to explain this kinetic dose-response relationship.
+
+  C. Stochastic switching and cell-to-cell variability: High-dose responses are
+     stereotyped. Near-threshold doses produce stochastic switching driven by small
+     fluctuations in key protein levels (IkBa, IKK), reproduced by the modified
+     stochastic NF-kappaB model.
+
+  D. Analog vs. digital signaling: TNF-alpha produces analog signaling (graded nuclear
+     localisation intensity proportional to dose). LPS produces digital signaling (full
+     all-or-nothing nuclear translocation even at the lowest doses). This distinction
+     reflects the biological context: cell-cell communication (TNF-alpha) vs. bacterial
+     infection detection (LPS).
+
+
+CELL LINE AND REPORTER
+----------------------
+Cell line   : NIH-3T3 mouse fibroblasts stably expressing p65-GFP
+Reporter    : p65-GFP (NF-kappaB subunit fused to GFP; nuclear localisation = activation)
+Nuclear marker: Co-stain for automated single-cell segmentation and nuclear tracking
+Software    : Custom image analysis software for nuclear localisation intensity extraction
+              at each 6-min timepoint across >3000 cells per experiment
+Microscopy  : Fluorescent time-lapse microscopy; 6-min imaging interval; 12 h total
+
+
+REAGENTS
+--------
+- PBS (Ca2+/Mg2+ free)
+- Pluronics F-127 (2% in PBS; device priming)
+- Complete growth media (DMEM + serum)
+- NIH-3T3 p65-GFP cells
+- TNFalpha_Stock: TNF-alpha cytokine solution (near-saturating, intermediate, and near-
+  threshold doses encoded as 1:1, 1:10, and 1:100 serial dilutions from stock)
+- LPS_Stock: Lipopolysaccharide bacterial product solution (same three dose tiers)
+- NuclearMarkerDye: Nuclear co-stain for segmentation
+- ImagingBuffer: Isotonic buffer for time-lapse imaging
+
+Dose encoding in BioScript:
+  Dose 1 (near-saturating) : 1:1 dilution (1 unit stock + 1 unit PBS)
+  Dose 2 (intermediate)    : 1:10 dilution (1 unit stock + 9 units PBS, chained dispense)
+  Dose 3 (near-threshold)  : 1:100 dilution (two serial 1:10 steps; 18 PBS units total)
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Device Priming
+  Reagents  : PBS, Pluronics F-127
+  Operation : mix (300 s = 5 min)
+  Purpose   : 2% Pluronics F-127 in PBS passivates microfluidic channel surfaces
+              to reduce non-specific cell adhesion before cell loading.
+  IR        : primingMix1[0] = mix(primingPBS1[0], primingPluronic1[0]) @ 300.0SECOND
+
+Step 2 | Cell Seeding and Adhesion
+  Cell line : NIH-3T3 p65-GFP
+  Reagents  : NIH3T3_p65GFP_Cells, CompleteMedia
+  Operation : mix then heat at 37 C for 120 min (7200 s)
+  Purpose   : Cells loaded into microfluidic culture chambers and allowed to adhere
+              for 2 h at 37 C before staining and stimulation.
+  IR        : seededChamber1[0] = mix(...) @ 5.0SECOND
+              heat(seededChamber1[0]) @ 37.0CELSIUS @ 7200.0SECOND
+
+Step 3 | Nuclear Marker Staining
+  Reagents  : NuclearMarkerDye, ImagingBuffer
+  Operation : mix then heat at 37 C for 30 min (1800 s)
+  Purpose   : Nuclear co-stain enables automated cell segmentation and p65-GFP
+              nuclear/cytoplasmic ratio extraction at each 6-min imaging timepoint.
+  IR        : stainedChamber1[0] = mix(stained1[0], imagingBuf1[0]) @ 5.0SECOND
+              heat(stainedChamber1[0]) @ 37.0CELSIUS @ 1800.0SECOND
+
+Step 4 | TNF-alpha Stimulation -- Near-Saturating Dose (Dose 1, 1:1 dilution)
+  Ligand    : TNF-alpha
+  Dilution  : 1:1 (1 unit TNFalpha_Stock + 1 unit PBS)
+  Operation : mix then 12 h time-lapse at 37 C then detect
+  Duration  : 720 min = 43200 s (time-lapse + detection)
+  Detection : nfkbNuclearLocalizationDetection module; 720 min window; 6-min interval
+  Expected response:
+    - Activation fraction  : ~1.0 (all cells respond)
+    - Response character   : stereotyped continuous oscillations (non-damped over 12 h)
+    - Response time        : <30 min to first NF-kappaB nuclear peak
+    - Signaling mode       : analog (nuclear localisation intensity proportional to dose)
+  IR gate   : if tnfHighSignal1[0] > 0 -> bsbbif_2_t (dispose) | false -> bsbbif_3_f (drain)
+
+Step 5 | TNF-alpha Stimulation -- Intermediate Dose (Dose 2, 1:10 dilution)
+  Ligand    : TNF-alpha
+  Dilution  : 1:10 (1 unit stock + 9 units PBS; chained as p1-p9 -> pbsMix91)
+  Operation : serial dilution then fresh cell seeding (120 min) + staining (30 min)
+              then mix then 12 h time-lapse at 37 C then detect
+  Duration  : 720 min = 43200 s
+  Detection : nfkbNuclearLocalizationDetection
+  Expected response:
+    - Activation fraction  : partial (between threshold and saturation)
+    - Response character   : heterogeneous; stochastic switching; some cells oscillate,
+                             others remain silent; behaviour varies cell-to-cell
+    - Response time        : tens to low hundreds of minutes
+    - Signaling mode       : analog (graded)
+    - Model                : stochastic ODE (modified Kearns/Hoffman) recapitulates
+                             observed switching statistics from IkBa/IKK fluctuations
+  IR gate   : if tnfMidSignal1[0] > 0 -> bsbbif_5_t (dispose) | false -> bsbbif_6_f (drain)
+
+Step 6 | TNF-alpha Stimulation -- Near-Threshold Dose (Dose 3, 1:100 dilution)
+  Ligand    : TNF-alpha
+  Dilution  : 1:100 via two serial 1:10 steps
+              Step 1: tnfMidDoseSerial + q1-q9 -> tnfSerial1 (1:10)
+              Step 2: tnfSerial1 + r1-r9 -> tnfLowDose (1:100 total)
+  Operation : two-step serial dilution then cell prep then 12 h time-lapse then detect
+  Duration  : 720 min = 43200 s
+  Detection : nfkbNuclearLocalizationDetection
+  Expected response:
+    - Activation fraction  : very low (near activation threshold)
+    - Response character   : rare stochastic switching events; majority of cells silent;
+                             on/off switching irregular and unpredictable
+    - Response time        : hundreds of minutes for cells that do respond
+    - Model                : stochastic NF-kappaB model explains switching from small
+                             protein-level fluctuations at low ligand concentrations
+  IR gate   : if tnfLowSignal1[0] > 0 -> bsbbif_8_t (dispose) | false -> bsbbif_9_f (drain)
+
+Step 7 | LPS Stimulation -- Near-Saturating Dose (Dose 1, 1:1 dilution)
+  Ligand    : LPS (lipopolysaccharide; bacterial product)
+  Dilution  : 1:1 (1 unit LPS_Stock + 1 unit PBS)
+  Operation : mix then fresh cell prep then 12 h time-lapse at 37 C then detect
+  Duration  : 720 min = 43200 s
+  Detection : nfkbNuclearLocalizationDetection
+  Expected response:
+    - Activation fraction  : majority of cells
+    - Response character   : digital ON (full nuclear p65-GFP translocation; all-or-nothing)
+    - Signaling mode       : digital (complete localisation regardless of dose intensity)
+    - Biological context   : LPS detected via TLR4/MyD88 pathway producing switch-like
+                             IKK activation; bacterial infection vs. cell-cell communication
+  IR gate   : if lpsHighSignal1[0] > 0 -> bsbbif_11_t (dispose) | false -> bsbbif_12_f (drain)
+
+Step 8 | LPS Stimulation -- Intermediate Dose (Dose 2, 1:10 dilution)
+  Ligand    : LPS
+  Dilution  : 1:10 (1 unit stock + 9 units PBS; chained as s1-s9 -> sbsMix91)
+  Operation : serial dilution then cell prep then 12 h time-lapse then detect
+  Duration  : 720 min = 43200 s
+  Detection : nfkbNuclearLocalizationDetection
+  Expected response:
+    - Activation fraction  : lower than high dose but still digital in responding cells
+    - Response character   : full nuclear localisation in responding fraction (not graded)
+    - Key contrast         : TNF-alpha at 1:10 gives graded partial response;
+                             LPS at 1:10 gives full ON response in fewer cells
+  IR gate   : if lpsMidSignal1[0] > 0 -> bsbbif_14_t (dispose) | false -> bsbbif_15_f (drain)
+
+Step 9 | LPS Stimulation -- Near-Threshold Dose (Dose 3, 1:100 dilution)
+  Ligand    : LPS
+  Dilution  : 1:100 via two serial 1:10 steps
+              Step 1: lpsStock3 + t1-t9 -> lpsSerial1 (1:10)
+              Step 2: lpsSerial1 + u1-u9 -> lpsLowDose (1:100 total)
+  Operation : two-step serial dilution then cell prep then 12 h time-lapse then detect
+  Duration  : 720 min = 43200 s
+  Detection : nfkbNuclearLocalizationDetection
+  Expected response:
+    - Activation fraction  : very low (near threshold)
+    - Response character   : DIGITAL ON even at near-threshold dose; responding cells
+                             show COMPLETE nuclear translocation (not partial/graded)
+    - KEY FINDING          : This is the core analog-vs-digital result. At equivalent
+                             sub-threshold doses, TNF-alpha gives weak graded responses
+                             while LPS gives full all-or-nothing activation in a small
+                             responding fraction. The digital mode is invariant with dose.
+  IR gate   : if lpsLowSignal1[0] > 0 -> bsbbif_17_t (dispose) | false -> bsbbif_18_f (drain)
+
+
+CFG STRUCTURE
+-------------
+19 basic blocks (BB1-BB19); 6 if/else QC gates; 24 CFG edges; terminal = NOP.
+
+BB1  (main)         -- Entry: priming, cell seeding, nuclear staining, TNF-alpha high dose
+BB2  (bsbbif_2_t)  -- TNF-alpha high PASS  : dispose(tnfHighStim)
+BB3  (bsbbif_3_f)  -- TNF-alpha high FAIL  : drain(tnfHighStim)
+BB4  (bsbbif_4_j)  -- Join: TNF-alpha mid dose dilution + cell prep + stimulation + detect
+BB5  (bsbbif_5_t)  -- TNF-alpha mid PASS   : dispose(tnfMidStim)
+BB6  (bsbbif_6_f)  -- TNF-alpha mid FAIL   : drain(tnfMidStim)
+BB7  (bsbbif_7_j)  -- Join: TNF-alpha low dose 2x serial dilution + cell prep + detect
+BB8  (bsbbif_8_t)  -- TNF-alpha low PASS   : dispose(tnfLowStim)
+BB9  (bsbbif_9_f)  -- TNF-alpha low FAIL   : drain(tnfLowStim)
+BB10 (bsbbif_10_j) -- Join: LPS high dose dilution + cell prep + stimulation + detect
+BB11 (bsbbif_11_t) -- LPS high PASS        : dispose(lpsHighStim)
+BB12 (bsbbif_12_f) -- LPS high FAIL        : drain(lpsHighStim)
+BB13 (bsbbif_13_j) -- Join: LPS mid dose dilution + cell prep + stimulation + detect
+BB14 (bsbbif_14_t) -- LPS mid PASS         : dispose(lpsMidStim)
+BB15 (bsbbif_15_f) -- LPS mid FAIL         : drain(lpsMidStim)
+BB16 (bsbbif_16_j) -- Join: LPS low dose 2x serial dilution + cell prep + detect
+BB17 (bsbbif_17_t) -- LPS low PASS         : dispose(lpsLowStim)
+BB18 (bsbbif_18_f) -- LPS low FAIL         : drain(lpsLowStim)
+BB19 (bsbbif_19_j) -- Terminal             : dispose(lpsLowSignal); NOP
+
+CFG topology: linear chain of 6 diamond patterns (pass/fail -> join), one per dose tier.
+Each diamond: BBn -> BBn+1_t and BBn+2_f -> BBn+3_j (join carries next arm's content).
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : tay_nfkb_signaling_dynamic_range.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : tay_nfkb_signaling_dynamic_range.ir
+DAG output     : tay_nfkb_signaling_dynamic_range_main_dag.dot
+Basic blocks   : 19 (BB1-BB19)
+if/else gates  : 6
+CFG edges      : 24
+Terminal       : NOP in BB19
+
+Duration unit conversions (BioScript supports s and m only; h not supported):
+  5 min   priming             ->  5m   -> 300.0 SECOND in IR
+  1 min   stain mix           ->  1m   -> 60.0 SECOND in IR
+  30 min  nuclear staining    -> 30m   -> 1800.0 SECOND in IR
+  120 min cell adhesion       -> 120m  -> 7200.0 SECOND in IR
+  720 min 12h time-lapse      -> 720m  -> 43200.0 SECOND in IR
+  5 s     reagent mixing      ->  5s   -> 5.0 SECOND in IR
+
+Serial dilution encoding:
+  BioScript does not support numeric looping. 1:10 dilutions are encoded as 9 chained
+  PBS dispenses (p1-p9, q1-q9, s1-s9, t1-t9, etc.) merged sequentially into pbsMix91,
+  qbsMix91, etc. (pattern from moazami_world_to_chip_dmf.bs). 1:100 achieved by two
+  successive 1:10 serial steps with separate PBS chains.
+
+ASCII constraint:
+  ANTLR4 FileStream defaults to ASCII; any byte > 0x7F causes UnicodeDecodeError.
+  All Greek characters replaced: alpha -> alpha, kappa -> kappa, em-dash -> --.
+
+Modules declared:
+  nfkbNuclearLocalizationDetection
+  cellTrackingAnalysis
+  doseResponseDetection
+
+Manifests declared:
+  NIH3T3_p65GFP_Cells, PBS, CompleteMedia, PluronicF127,
+  TNFalpha_Stock, LPS_Stock, NuclearMarkerDye, ImagingBuffer, FC40_Oil
+
+
+REFERENCES
+----------
+[1] Hayden MS, Ghosh S (2004) Signaling to NF-kappaB. Genes Dev. 18, 2195-2224.
+[2] Gomez-Sjoberg R, Leyrat A, Pirone DM, Chen CS, Quake SR (2007) Versatile, fully
+    automated, microfluidic cell culture system. Anal. Chem. 10, 1021-1028.
+[3] Tay S, Lee TK, Hughey J, Leyrat A, Covert M, Quake SR. NF-kappaB signaling dynamic
+    range in response to TNF and LPS (in preparation at time of abstract).
+[4] Kearns JD, Hoffman A (2009) Integrating computational and biochemical studies to
+    explore mechanisms in NF-kappaB signaling. J. Biol. Chem. 284, 5439-5443.

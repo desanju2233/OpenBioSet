@@ -1,0 +1,475 @@
+module nfkbIrfDetection
+module cytokineDetection
+module viabilityDetection
+module vaccinationQC
+
+manifest RAWDual_Macrophages
+manifest THP1_Monocytes
+manifest BMDC_Cells
+manifest PRR_Agonist_Pam3CSK4
+manifest PRR_Agonist_LPS
+manifest PRR_Agonist_R848
+manifest PRR_Agonist_CpG1826
+manifest Immunomodulator_DMSO_Stock
+manifest AlphaLISA_Reagent
+manifest FDA_PI_Stain
+manifest OVA_Antigen
+manifest Fluzone_Vaccine
+manifest TyphimVi_Vaccine
+manifest DMSO_Vehicle
+manifest CellCultureMedia
+
+instructions:
+
+// ============================================================
+// Discovery of New States of Immunomodulation for Vaccine
+// Adjuvants via High Throughput Screening: Expanding Innate
+// Responses to PRRs.
+// Kim, Rosenberger et al., ACS Cent. Sci. 2023, 9, 427-439.
+// DOI: 10.1021/acscentsci.2c01351
+//
+// This BioScript file encodes the HIGH-THROUGHPUT SCREENING
+// PIPELINE described in the paper. The pipeline consists of
+// three sequential phases:
+//
+//   PHASE 1: Primary Screen (NF-kB / IRF transcription factor
+//            activity). RAW-Dual macrophages seeded in 384-well
+//            plates. ~3,147 immunomodulator compounds (10 uM
+//            via pin-drop, <0.05% DMSO v/v) combined with
+//            one of 13 PRR agonists at EC50. 24 h incubation
+//            at 37 C / 5% CO2. Dual NF-kB (absorbance 620 nm)
+//            and IRF (luminescence) readout.
+//
+//   PHASE 2: Secondary Screen (AlphaLISA multiplexed cytokine
+//            panel). THP-1 monocytes. 720 downselected
+//            modulators x 7 PRR agonists. Six cytokines
+//            measured in triplicate duplexed AlphaLISA: IL-1b,
+//            IL-12p40, IP-10 (CXCL10), CCL4, TNF-a, IFN-b.
+//            Incubation 24 h at 37 C.
+//
+//   PHASE 3: In vivo validation. Murine (C57/B6) prime-boost
+//            vaccination model. Lead modulators (PME-564,
+//            PME-397, PME-1226, etc.) administered i.m. with
+//            commercial vaccines (Fluzone 2021-2022 and
+//            Typhim-Vi). Systemic TNF-a read at 1 h post-
+//            injection; antigen-specific serum IgG at Day 49.
+//
+// NOTE ON SCOPE: All on-chip operations (dispense, mix, heat,
+//   detect) model the liquid-handling steps performed by high-
+//   throughput robotics (384-well pin-drop dispensing, plate
+//   incubator, plate reader). The `mix` primitive here
+//   abstracts electrode-free well-based mixing (pipette
+//   aspirate/dispense cycle), not DMF electrode actuation.
+//   Heat steps model incubator TEC control (37 C target).
+//   All durations are in BioScript-valid tokens (s or m only;
+//   24 h = 1440m, 7 days = 10080m).
+//
+// NOTE ON PRR AGONIST REPRESENTATION: The paper screens 13
+//   PRR agonists (Table S2). Four representative agonists
+//   (Pam3CSK4 TLR2/1, LPS TLR4, R848 TLR7/8, CpG1826 TLR9)
+//   are instantiated as separate reagent droplets and
+//   processed in parallel lanes to reflect the experimental
+//   design. Adding all 13 would not change the CFG structure.
+//
+// NOTE ON DOWNSELECTION LOGIC: PCA-based downselection
+//   (3,147 -> 720 compounds) and vaccine score computation
+//   are off-chip data analysis steps. The QC gates in the
+//   CFG below (primaryQC, secondaryQC) model the binary
+//   pass/fail outcome of those analyses for each modulator.
+//
+// CFG STRUCTURE:
+//   BB1  main              -- entry: cell seeding, modulator
+//                             addition, agonist addition,
+//                             primary screen incubation & readout
+//   BB2  primaryPass       -- primarySignal > 0: modulator active
+//                             (outside PCA radius 1.75); continue
+//   BB3  primaryFail       -- primarySignal <= 0: inactive/toxic;
+//                             drain and abort
+//   BB4  primaryJoin       -- join: secondary screen begins
+//   BB5  secondaryPass     -- secondarySignal > 0: cytokine
+//                             profile suitable; continue to in vivo
+//   BB6  secondaryFail     -- secondarySignal <= 0: cytokine
+//                             profile unsuitable; drain
+//   BB7  secondaryJoin     -- join: in vivo validation begins
+//   BB8  vaccinationPass   -- vaccinationSignal > 0: modulator
+//                             improves IgG or reduces TNF-a; dispose
+//   BB9  vaccinationFail   -- vaccinationSignal <= 0: no in vivo
+//                             benefit; drain
+//   BB10 finalCleanup      -- terminal: dispose all QC signals
+// ============================================================
+
+// ============================================================
+// BB1: main
+// PRIMARY SCREEN
+// ============================================================
+
+// ------------------------------------------------------------
+// PRIMARY STEP 1: Seed RAW-Dual macrophages in 384-well plate.
+//   Cell density optimised for consistent NF-kB / IRF dynamic
+//   range (SI Appendix, Figure S1). Cells pre-incubated for
+//   24 h before compound addition to allow adherence.
+//   `mix` abstracts the robotic seeding and settlement step.
+// ------------------------------------------------------------
+
+rawCells        = dispense 1 units of RAWDual_Macrophages
+seedingMedia    = dispense 1 units of CellCultureMedia
+seededPlate     = mix rawCells with seedingMedia for 5s
+
+// 24 h pre-incubation at 37 C for cell adherence (= 1440 min).
+heat seededPlate at 37c for 1440m
+
+// ------------------------------------------------------------
+// PRIMARY STEP 2: Pin-drop dispense immunomodulator compound
+//   to final concentration 10 uM (<0.05% DMSO v/v). Pin-drop
+//   robotics add ~23 nL of 10 mM DMSO stock to 230 uL well
+//   volume. Modulator is pre-incubated with cells for 1 h
+//   before agonist addition to allow uptake / equilibration.
+//   This step models a single representative modulator droplet.
+// ------------------------------------------------------------
+
+modDroplet      = dispense 1 units of Immunomodulator_DMSO_Stock
+modCells        = mix seededPlate with modDroplet for 5s
+
+// 1 h pre-incubation at 37 C before agonist addition.
+heat modCells at 37c for 60m
+
+// ------------------------------------------------------------
+// PRIMARY STEP 3: Dispense four representative PRR agonists
+//   at their respective EC50 concentrations (SI Appendix,
+//   Table S2). In the paper, one of 13 agonists is added per
+//   well per modulator. Four parallel lanes are modelled here.
+//   Agonist added after modulator pre-incubation (not co-added).
+// ------------------------------------------------------------
+
+agonistPam3CSK4  = dispense 1 units of PRR_Agonist_Pam3CSK4
+agonistLPS       = dispense 1 units of PRR_Agonist_LPS
+agonistR848      = dispense 1 units of PRR_Agonist_R848
+agonistCpG       = dispense 1 units of PRR_Agonist_CpG1826
+
+// Merge agonist lanes into modulator-containing cell wells.
+wellPam3CSK4     = mix modCells with agonistPam3CSK4 for 5s
+wellLPS          = mix modCells with agonistLPS for 5s
+wellR848         = mix modCells with agonistR848 for 5s
+wellCpG          = mix modCells with agonistCpG for 5s
+
+// ------------------------------------------------------------
+// PRIMARY STEP 4: 24 h co-incubation of cells with modulator
+//   and agonist at 37 C / 5% CO2. Transcription factor
+//   activity develops over this window. Supernatant drawn
+//   after 24 h for dual NF-kB (absorbance) and IRF
+//   (luminescence) readout on the RAW-Dual reporter system.
+// ------------------------------------------------------------
+
+heat wellPam3CSK4 at 37c for 1440m
+heat wellLPS      at 37c for 1440m
+heat wellR848     at 37c for 1440m
+heat wellCpG      at 37c for 1440m
+
+// ------------------------------------------------------------
+// PRIMARY STEP 5: Cell viability QC (confluency imaging).
+//   Live cell imaging + digital confluency mask applied to
+//   remove toxic modulator/agonist combinations before
+//   transcription factor readout (SI Appendix, Figure S3).
+//   Modelled as a viability detect on LPS well (representative).
+// ------------------------------------------------------------
+
+viabilityCheckLPS = detect viabilityDetection on wellLPS for 30s
+
+// ------------------------------------------------------------
+// PRIMARY STEP 6: Dual NF-kB / IRF transcription factor
+//   readout. nfkbIrfDetection module abstracts:
+//     - NF-kB: SEAP reporter, absorbance 620 nm (Quanti-Blue)
+//     - IRF: luciferase reporter, luminescence (QUANTI-Luc)
+//   Both measured from the same supernatant well.
+//   Report as fold change vs agonist-alone control.
+//   PCA over all 13 agonists: retain if outside radius 1.75
+//   (SI Appendix, Figure S4). primarySignal encodes the
+//   pass/fail outcome of PCA downselection (3,147 -> 720).
+// ------------------------------------------------------------
+
+primarySignalPam3 = detect nfkbIrfDetection on wellPam3CSK4 for 60s
+primarySignalLPS  = detect nfkbIrfDetection on wellLPS for 60s
+primarySignalR848 = detect nfkbIrfDetection on wellR848 for 60s
+primarySignalCpG  = detect nfkbIrfDetection on wellCpG for 60s
+
+// ============================================================
+// BB2 / BB3: Primary screen QC gate (keyed on LPS well).
+// Pass (BB2): primarySignalLPS > 0 -> modulator shows
+//             significant NF-kB/IRF modulation (PCA outside
+//             radius 1.75); proceed to secondary screen.
+// Fail (BB3): primarySignalLPS <= 0 -> inactive or toxic;
+//             drain all wells, abort pipeline.
+// Both branches converge at BB4 (primaryJoin).
+// ============================================================
+
+if (primarySignalLPS > 0) {
+    dispose wellPam3CSK4
+    dispose wellLPS
+    dispose wellR848
+    dispose wellCpG
+} else {
+    drain wellPam3CSK4
+    drain wellLPS
+    drain wellR848
+    drain wellCpG
+}
+
+// ============================================================
+// BB4: primaryJoin
+// Dispose viability and primary transcription factor QC
+// signals. Control falls into secondary screen (BB5/BB6).
+// ============================================================
+
+dispose viabilityCheckLPS
+dispose primarySignalPam3
+dispose primarySignalLPS
+dispose primarySignalR848
+dispose primarySignalCpG
+
+// ============================================================
+// BB4 -> PHASE 2: SECONDARY SCREEN (AlphaLISA cytokine panel)
+// ============================================================
+
+// ------------------------------------------------------------
+// SECONDARY STEP 1: Seed THP-1 monocytes for cytokine panel.
+//   Paper switches from RAW-Dual (murine macrophage, used for
+//   TF activity) to THP-1 (human monocyte) because human
+//   AlphaLISA reagents provide higher multiplexing capacity.
+//   Same 384-well plate format; robotic seeding as before.
+// ------------------------------------------------------------
+
+thp1Cells        = dispense 1 units of THP1_Monocytes
+thp1Media        = dispense 1 units of CellCultureMedia
+thp1Seeded       = mix thp1Cells with thp1Media for 5s
+
+// 24 h pre-incubation at 37 C (= 1440 min).
+heat thp1Seeded at 37c for 1440m
+
+// ------------------------------------------------------------
+// SECONDARY STEP 2: Re-apply lead modulator (same compound,
+//   same 10 uM pin-drop protocol). 720 downselected modulators
+//   are re-screened against 7 PRR agonists from the primary
+//   set. Modulator pre-incubated 1 h before agonist addition.
+// ------------------------------------------------------------
+
+modDroplet2      = dispense 1 units of Immunomodulator_DMSO_Stock
+thp1ModCells     = mix thp1Seeded with modDroplet2 for 5s
+
+heat thp1ModCells at 37c for 60m
+
+// ------------------------------------------------------------
+// SECONDARY STEP 3: Add representative agonist (R848 as
+//   representative TLR7/8 agonist used in in vivo validation).
+//   In the paper, 7 agonists are run in parallel per modulator
+//   (subset of the primary 13). Modelled here as single lane.
+// ------------------------------------------------------------
+
+agonistR848_2    = dispense 1 units of PRR_Agonist_R848
+thp1Well         = mix thp1ModCells with agonistR848_2 for 5s
+
+// ------------------------------------------------------------
+// SECONDARY STEP 4: 24 h co-incubation at 37 C.
+//   Supernatant collected for AlphaLISA multiplexed cytokine
+//   measurement. Six cytokines measured in triplicate
+//   duplexed AlphaLISA reactions (SI Appendix, Figure S5):
+//     IL-1b, IL-12p40, IP-10 (CXCL10), CCL4, TNF-a, IFN-b.
+//   Standard curves applied; fold change vs agonist-alone.
+//   AlphaLISA reagent merged with supernatant for detection.
+// ------------------------------------------------------------
+
+heat thp1Well at 37c for 1440m
+
+alphaLISAReagent = dispense 1 units of AlphaLISA_Reagent
+detectionWell    = mix thp1Well with alphaLISAReagent for 10s
+
+// AlphaLISA bead equilibration (paper: 60 min incubation
+// in subdued light before plate-reader readout). 60 min = 60m.
+heat detectionWell at 25c for 60m
+
+// ------------------------------------------------------------
+// SECONDARY STEP 5: Six-plex cytokine detection.
+//   cytokineDetection module abstracts AlphaLISA plate-reader
+//   readout (AlphaLISA singlet excitation 680 nm, emission
+//   615 nm channel switching for each bead pair).
+//   secondarySignal encodes the vaccine score gate outcome:
+//   positive = compound preserves or enhances IFN-b/IP-10/
+//   CCL4/IL-12 and suppresses TNF-a/IL-1b (high vaccine
+//   score >= 6); negative = low or negative vaccine score.
+// ------------------------------------------------------------
+
+secondarySignal  = detect cytokineDetection on detectionWell for 60s
+
+// ============================================================
+// BB5 / BB6: Secondary screen QC gate (vaccine score).
+// Pass (BB5): secondarySignal > 0 -> modulator has favourable
+//             cytokine profile (vaccine score >= 6); proceed
+//             to BMDC validation and in vivo testing.
+// Fail (BB6): secondarySignal <= 0 -> unfavourable cytokine
+//             profile; drain, do not advance to in vivo.
+// Both branches converge at BB7 (secondaryJoin).
+// ============================================================
+
+if (secondarySignal > 0) {
+    // BMDC validation (SI Appendix, Figure S10): lead modulators
+    // confirmed in murine bone-marrow-derived dendritic cells
+    // (BMDC) for cytokine production and cell surface markers
+    // before in vivo dosing. Modelled as a dispose of the
+    // validated detection well (off-chip transfer to BMDC plate).
+    dispose detectionWell
+} else {
+    drain detectionWell
+}
+
+// ============================================================
+// BB7: secondaryJoin
+// Dispose secondary screen cytokine QC signal. Control falls
+// into in vivo validation branch (BB8/BB9).
+// ============================================================
+
+dispose secondarySignal
+
+// ============================================================
+// BB7 -> PHASE 3: IN VIVO VACCINATION VALIDATION
+// ============================================================
+
+// ------------------------------------------------------------
+// IN VIVO STEP 1: Prime injection (Day 0).
+//   C57/B6 mice injected i.m. with commercial vaccine +
+//   lead modulator. DMSO:Addavax (1:1 v/v) vehicle used for
+//   hydrophobic modulator formulation (1.5 umol/mouse).
+//   Two commercial vaccine arms run in parallel:
+//     (A) Fluzone 2021-2022 (inactivated quadrivalent flu)
+//         + modulator -> IgG antibody titer readout at Day 49.
+//     (B) Typhim-Vi (carbohydrate typhoid vaccine)
+//         + modulator -> systemic TNF-a at 1 h post-injection.
+//   Modelled as two parallel dispense-mix-heat sequences.
+//   NOTE: in vivo `mix` abstracts i.m. injection co-formulation
+//   (syringe admixture), not DMF electrode mixing.
+//   NOTE: `heat` abstracts mouse body temperature (37 C) over
+//   the prime-to-boost interval and antibody development window.
+// ------------------------------------------------------------
+
+vehicle          = dispense 1 units of DMSO_Vehicle
+modFormulation   = dispense 1 units of Immunomodulator_DMSO_Stock
+formulated       = mix modFormulation with vehicle for 5s
+
+// Flu vaccine arm (Arm A): Fluzone + modulator formulation.
+fluzoneVaccine   = dispense 1 units of Fluzone_Vaccine
+fluzoneInjection = mix fluzoneVaccine with formulated for 5s
+
+// Typhoid vaccine arm (Arm B): Typhim-Vi + modulator formulation.
+typhimVaccine    = dispense 1 units of TyphimVi_Vaccine
+typhimInjection  = mix typhimVaccine with formulated for 5s
+
+// OVA subunit model arm: used for PME-564 initial in vivo
+// characterisation (Fig. 5). OVA + R848/CpG/Flagellin +
+// modulator. Provides mechanistic data before commercial
+// vaccine experiments.
+ovaAntigen       = dispense 1 units of OVA_Antigen
+ovaAdjuvant      = dispense 1 units of PRR_Agonist_R848
+ovaModMix        = mix ovaAntigen with ovaAdjuvant for 5s
+ovaInjection     = mix ovaModMix with formulated for 5s
+
+// ------------------------------------------------------------
+// IN VIVO STEP 2: Early cytokine window (1 h post-prime).
+//   Serum collected at 1 h post-injection for systemic
+//   pro-inflammatory cytokines (TNF-a as primary readout;
+//   correlates with reactogenicity and clinical tolerability).
+//   Modelled as a detect on Typhim arm (primary readout arm
+//   for cytokine reduction, paper Fig. 6C).
+//   TNF-a measured by AlphaLISA or ELISA on serum samples.
+// ------------------------------------------------------------
+
+// 1 h post-injection blood collection (= 60 min at 37 C body
+// temperature modelling murine in vivo distribution).
+heat typhimInjection at 37c for 60m
+
+earlyTNF         = detect cytokineDetection on typhimInjection for 30s
+
+// ------------------------------------------------------------
+// IN VIVO STEP 3: Boost injection (Day 21).
+//   Identical formulation to prime. Paper: traditional
+//   prime-boost schedule (Day 0 prime, Day 21 boost).
+//   Boost is modelled as re-heat at 37 C for the Day 0 to
+//   Day 21 interval (= 21 days = 30240 min) followed by
+//   re-mix to represent the boost injection formulation.
+// ------------------------------------------------------------
+
+// Day 0 to Day 21 interval (= 30240 min).
+heat fluzoneInjection at 37c for 30240m
+heat ovaInjection     at 37c for 30240m
+
+// Boost injection formulation (re-apply same modulator dose).
+boostFormulation = dispense 1 units of Immunomodulator_DMSO_Stock
+boostVehicle     = dispense 1 units of DMSO_Vehicle
+boostFormMix     = mix boostFormulation with boostVehicle for 5s
+
+fluzoneVaccine2  = dispense 1 units of Fluzone_Vaccine
+fluzoneBoost     = mix fluzoneInjection with boostFormMix for 5s
+
+ovaAdjuvant2     = dispense 1 units of PRR_Agonist_R848
+ovaBoost         = mix ovaInjection with ovaAdjuvant2 for 5s
+
+// ------------------------------------------------------------
+// IN VIVO STEP 4: Antibody titer window (Day 35 and Day 49).
+//   Serum collected for antigen-specific IgG measurement.
+//   Paper: anti-OVA IgG (Fig 5C) and anti-HA IgG against
+//   A/Victoria/2570/2019 and B/Phuket/3073/2013 strains
+//   (Fig 6D) measured by ELISA, log AUC reported.
+//   Day 35 = 14 days post-boost (= 20160 min from boost).
+//   Day 49 = 28 days post-boost (= 40320 min from boost).
+//   Modelled as 28-day post-boost incubation then final
+//   antibody detection at Day 49 (primary endpoint, paper).
+// ------------------------------------------------------------
+
+// Day 21 to Day 49 interval (= 28 days = 40320 min).
+heat fluzoneBoost at 37c for 40320m
+heat ovaBoost     at 37c for 40320m
+
+// Antibody titer detection (anti-HA IgG for Fluzone arm;
+// anti-OVA IgG for OVA arm). vaccinationQC abstracts
+// ELISA AUC quantification. Positive = significant titer
+// increase vs Fluzone/OVA+adjuvant without modulator.
+// Paper: PME-564 + Fluzone -> ~4-fold log AUC increase
+// vs Fluzone alone (Fig 6D, ****P<0.0001).
+iggFluzone       = detect vaccinationQC on fluzoneBoost for 60s
+iggOVA           = detect vaccinationQC on ovaBoost for 60s
+
+// Combine vaccinationSignal: positive if either antibody arm
+// shows improvement (modeller's union; keyed on Fluzone arm
+// as primary commercial-vaccine endpoint).
+vaccinationSignal = detect vaccinationQC on iggFluzone for 30s
+
+// ============================================================
+// BB8 / BB9: In vivo vaccination QC gate.
+// Pass (BB8): vaccinationSignal > 0 -> modulator improves
+//             antigen-specific IgG titer AND/OR reduces
+//             systemic TNF-a; compound validated as lead.
+//             Dispose all vaccination samples.
+// Fail (BB9): vaccinationSignal <= 0 -> no in vivo benefit;
+//             drain all vaccination samples.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (vaccinationSignal > 0) {
+    dispose fluzoneBoost
+    dispose ovaBoost
+    dispose typhimInjection
+    dispose earlyTNF
+    dispose iggFluzone
+    dispose iggOVA
+} else {
+    drain fluzoneBoost
+    drain ovaBoost
+    drain typhimInjection
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose all remaining QC signal droplets.
+// Experiment ends. Lead modulator identified and validated.
+// ============================================================
+
+dispose vaccinationSignal
+
+// [terminal -- no further instructions; exit node for CFG]

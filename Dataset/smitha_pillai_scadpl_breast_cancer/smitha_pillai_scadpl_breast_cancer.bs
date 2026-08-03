@@ -1,0 +1,738 @@
+module scADPLSignalDetection
+module ddPCRQuantification
+module qPCRQuantification
+module fluorescenceImaging
+
+manifest PBS
+manifest PluronicF127
+manifest MCPLysisBuffer
+manifest MCF7_Cells
+manifest SKOV3_Cells
+manifest OVCAR3_Cells
+manifest HEK293T_Cells
+manifest MDA_MB_231_Cells
+manifest PatientDerivedOrganoids
+manifest CatBio_Probe
+manifest FPBio_Probe
+manifest StrepAvidin_OligoConjugate
+manifest AntiBody_OligoConjugate
+manifest SplintOligonucleotide
+manifest LigationBuffer
+manifest PreamplificationMix
+manifest qPCR_MasterMix
+manifest JW480_Inhibitor
+manifest FITC_AntiCD45_Antibody
+manifest RPhycoerythrin_Spike
+
+// ============================================================
+// Single-Cell Chemoproteomics Identifies Metastatic Activity
+// Signatures in Breast Cancer
+// Smitha Pillai, Laxton, Li, Lin, Karginova, Nanda, Olopade,
+// Tay, Moellering - Sci. Adv. 10, eadp2622 (2024)
+// DOI: 10.1126/sciadv.adp2622
+//
+// Platform: Single-Cell Activity-Dependent Proximity Ligation
+// (scADPL) coupled to a valve-based push-up PDMS microfluidic
+// chip with five chamber zones per assay unit:
+//   I   Input fluid artery
+//   II  Single-cell trapping chamber (8 um constriction)
+//   III Cell lysis chamber (MCP lysis buffer)
+//   IV  Proximity barcoding element incubation (whole proteome)
+//   V   Proximity barcode ligation
+// Output: barcoded amplicons retrieved off-chip by qPCR/ddPCR.
+//
+// This file encodes the full experimental pipeline:
+//   PHASE 1  Single-plex validation (CTSL via ddPCR, NCEH1 via
+//            qPCR) in SKOV3 cells.
+//   PHASE 2  Multiplexed Ag-6 panel (NCEH1, MGLL, CTSL, FAAH,
+//            CTSB, uPA) profiling with inhibitor specificity QC.
+//   PHASE 3  Heterogeneity profiling across cell lines (HEK293T
+//            vs SKOV3; SKOV3 vs OVCAR3).
+//   PHASE 4  Patient-derived organoid (PDO) profiling from TNBC
+//            primary and metastatic tumors, including ER+ within-
+//            patient pleural effusion vs lymph node samples.
+//
+// CHEMICAL PROBES:
+//   Cat-Bio (5 uM, 2 h, 37 C): cathepsin family-wide probe
+//            targeting CTSL, CTSB (cysteine protease family).
+//   FP-Bio (2 uM, 30 min, 37 C): serine hydrolase family-wide
+//            probe targeting NCEH1, MGLL, FAAH, uPA.
+//   Both probes applied simultaneously in multiplexed runs.
+//
+// DETECTION CHEMISTRY:
+//   On-chip: streptavidin-oligo (SA-oligo) recognises biotin
+//   tag on FP-Bio / Cat-Bio probe-protein complexes; antibody-
+//   oligo conjugate (ab-oligo) recognises the target protein.
+//   Proximity ligation: splint oligo bridges SA-oligo and
+//   ab-oligo when probe-protein complex is formed; Ampligase
+//   seals the nick (40 C, 45 min). Preamplification (18 cycles)
+//   feeds into qPCR (Taqman, target-specific barcode channels)
+//   or ddPCR (CTSL single-plex validation).
+//   Spike-in control: R-phycoerythrin (RPE) added at lysis step
+//   for inter-cell normalisation.
+//
+// KEY QUANTITATIVE PARAMETERS:
+//   - sADPL sensitivity threshold: 10 pg whole proteome (36).
+//   - Single HeLa cell protein content: ~2 ng (37).
+//   - Average scADPL CTSL signal: 54-fold over vehicle control.
+//   - Average scADPL NCEH1 signal: ~64-fold over vehicle control.
+//   - Multiplexed reproducibility: Pearson r = 0.9981 (day1/day2).
+//   - scADPL vs bulk sADPL correlation: Pearson r = 0.9288.
+//   - JW480 (NCEH1 inhibitor, 2 uM): >90% NCEH1 signal inhibition;
+//     no significant effect on other five targets.
+//
+// CFG STRUCTURE:
+//   BB1  main               -- device priming, probe labelling,
+//                              single-plex CTSL validation (ddPCR),
+//                              NCEH1 inhibitor specificity QC
+//   BB2  ctslPass           -- ctslSignal > 0: probe-dependent CTSL
+//                              barcodes detected; dispose
+//   BB3  ctslFail           -- ctslSignal <= 0: no signal; drain
+//   BB4  ctslJoin           -- join: NCEH1 branch begins
+//   BB5  nceh1Pass          -- nceh1Signal > 0: valid NCEH1 signal
+//                              and JW480 inhibition confirmed; dispose
+//   BB6  nceh1Fail          -- nceh1Signal <= 0: no NCEH1 signal; drain
+//   BB7  nceh1Join          -- join: Ag-6 multiplexed panel begins
+//   BB8  multiplexPass      -- ag6Signal > 0: all six targets detected
+//                              above background; dispose
+//   BB9  multiplexFail      -- ag6Signal <= 0: multiplex failure; drain
+//   BB10 multiplexJoin      -- join: cell-line heterogeneity profiling
+//   BB11 heterogeneityPass  -- heteroSignal > 0: PCA clustering
+//                              resolves SKOV3 vs OVCAR3; dispose
+//   BB12 heterogeneityFail  -- heteroSignal <= 0: no separation; drain
+//   BB13 heterogeneityJoin  -- join: PDO patient sample branch
+//   BB14 pdoPass            -- pdoSignal > 0: metastatic Ag-6
+//                              signature detected in PDOs; dispose
+//   BB15 pdoFail            -- pdoSignal <= 0: no PDO signal; drain
+//   BB16 finalCleanup       -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// PHASE 1 - STEP 1: Prime microfluidic device.
+//   2% Pluronics F-127 in PBS flowed through all channels
+//   for 5 min to passivate PDMS surfaces and reduce non-
+//   specific cell adhesion before cell loading.
+//   Chip is a three-layer push-up PDMS valve device bonded
+//   to glass (127.76 x 85.48 x 1 mm). Five chamber zones
+//   per assay unit. SU-8-3025 photoresist features at 22 mm
+//   and 70 mm heights; AZ40XT dome valve layer at 18 mm.
+// ------------------------------------------------------------
+
+primingPBS       = dispense 1 units of PBS
+primingPluronic  = dispense 1 units of PluronicF127
+primingMix       = mix primingPBS with primingPluronic for 5m
+
+// ------------------------------------------------------------
+// PHASE 1 - STEP 2: Pulse-label SKOV3 cells with activity probes
+//   off-chip prior to on-chip loading.
+//   Cat-Bio: 5 uM, 2 h, 37 C in DMEM-F12 + 10% FBS.
+//   FP-Bio:  2 uM, 30 min, 37 C in DMEM-F12 + 10% FBS.
+//   Cells washed with PBS after labelling; resuspended in PBS
+//   at 50,000-100,000 cells/mL for microfluidic loading.
+//   NOTE: In PHASE 1, CTSL single-plex uses Cat-Bio only;
+//         NCEH1 single-plex uses FP-Bio only. Both probes are
+//         combined in PHASE 2 multiplexed runs.
+// ------------------------------------------------------------
+
+skov3Cells      = dispense 1 units of SKOV3_Cells
+catBioProbe     = dispense 1 units of CatBio_Probe
+fpBioProbe      = dispense 1 units of FPBio_Probe
+
+// Cat-Bio labelling: 2 h at 37 C (= 120 min)
+labelledCatBio  = mix skov3Cells with catBioProbe for 5s
+heat labelledCatBio at 37c for 120m
+
+// FP-Bio labelling: 30 min at 37 C
+labelledFPBio   = mix skov3Cells with fpBioProbe for 5s
+heat labelledFPBio at 37c for 30m
+
+// ------------------------------------------------------------
+// PHASE 1 - STEP 3: Load probe-labelled SKOV3 cells on-chip.
+//   Cells flow through input artery (I) into single-cell
+//   trapping chamber (II) via hydrodynamic trapping.
+//   NOTE: `mix` here abstracts a pressure-driven channel flow
+//   event (single-cell capture), not DMF electrode mixing.
+//   Each assay chamber captures exactly one cell per run.
+// ------------------------------------------------------------
+
+rpeSpike             = dispense 1 units of RPhycoerythrin_Spike
+trappedCatBioCell    = mix labelledCatBio with primingMix for 2s
+trappedFPBioCell     = mix labelledFPBio with primingMix for 2s
+
+// ------------------------------------------------------------
+// PHASE 1 - STEP 4: On-chip cell lysis (Chamber III).
+//   Cells lysed in MCP lysis buffer:
+//   25 mM Tris pH 7.5, 150 mM NaCl, 1 mM EDTA, 1 mM EGTA,
+//   0.5% Triton X-100, 0.5% sodium deoxycholate.
+//   RPE spike-in control added at lysis step for each cell.
+//   Whole-proteome lysate fills nanoliter dead volume of
+//   chamber III; volume reduced vs bulk sADPL to maximise
+//   sensitivity (working proteome concentration optimised
+//   to match bulk sADPL window; fig. S2 in paper).
+// ------------------------------------------------------------
+
+lysisBuffer          = dispense 1 units of MCPLysisBuffer
+lysateCatBio         = mix trappedCatBioCell with lysisBuffer for 1m
+lysateCatBio2        = mix lysateCatBio with rpeSpike for 5s
+
+rpeSpike2            = dispense 1 units of RPhycoerythrin_Spike
+lysateFPBio          = mix trappedFPBioCell with lysisBuffer for 1m
+lysateFPBio2         = mix lysateFPBio with rpeSpike2 for 5s
+
+// ------------------------------------------------------------
+// PHASE 1 - STEP 5: On-chip proximity barcoding (Chamber IV).
+//   SA-oligo (4000 pM) recognises biotin tag on probe-protein
+//   complex; ab-oligo (200 pM, target-specific) recognises
+//   the protein epitope. Both recognition elements bind the
+//   same probe-protein complex in nanoliter volume, bringing
+//   the two oligos into proximity.
+//   Incubation: 2 h at room temperature (25 C) on-chip.
+//   Final concentrations mirror validated bulk sADPL window
+//   (36) scaled to chip dead volume.
+// ------------------------------------------------------------
+
+saOligo              = dispense 1 units of StrepAvidin_OligoConjugate
+abOligo              = dispense 1 units of AntiBody_OligoConjugate
+
+barcodingReagents    = mix saOligo with abOligo for 5s
+barcodedCatBio       = mix lysateCatBio2 with barcodingReagents for 2m
+heat barcodedCatBio at 25c for 120m
+
+saOligo2             = dispense 1 units of StrepAvidin_OligoConjugate
+abOligo2             = dispense 1 units of AntiBody_OligoConjugate
+
+barcodingReagents2   = mix saOligo2 with abOligo2 for 5s
+barcodedFPBio        = mix lysateFPBio2 with barcodingReagents2 for 2m
+heat barcodedFPBio at 25c for 120m
+
+// ------------------------------------------------------------
+// PHASE 1 - STEP 6: On-chip proximity ligation (Chamber V).
+//   Splint oligonucleotide bridges SA-oligo and ab-oligo when
+//   both are bound to the same probe-protein complex.
+//   Ampligase (0.05 U) seals the nick under:
+//     100 nM splint oligo, 0.3 mM NAD+, 10 mM DTT,
+//     20 mM Tris-HCl pH 8.3, 50 mM KCl, 1.5 mM MgCl2.
+//   Ligation: 40 C for 45 min (= 45 min).
+//   Ligated barcoded amplicons are the quantifiable readout.
+// ------------------------------------------------------------
+
+splintOligo          = dispense 1 units of SplintOligonucleotide
+ligBuf               = dispense 1 units of LigationBuffer
+
+ligationMixCat       = mix barcodedCatBio with splintOligo for 2s
+ligationMixCat2      = mix ligationMixCat with ligBuf for 2s
+heat ligationMixCat2 at 40c for 45m
+
+splintOligo2         = dispense 1 units of SplintOligonucleotide
+ligBuf2              = dispense 1 units of LigationBuffer
+
+ligationMixFP        = mix barcodedFPBio with splintOligo2 for 2s
+ligationMixFP2       = mix ligationMixFP with ligBuf2 for 2s
+heat ligationMixFP2 at 40c for 45m
+
+// ------------------------------------------------------------
+// PHASE 1 - STEP 7: Amplicon retrieval and preamplification.
+//   Ligated product flushed out using 9 uL water off-chip.
+//   Preamplification PCR (18 cycles):
+//     2.5x buffer, 100 nM primers, 200 uM dNTPs,
+//     9 U Phusion high-fidelity DNA polymerase.
+//   NOTE: `mix` abstracts the off-chip flush and preamplification
+//   step; the BioScript variable holds the preamplified product
+//   ready for downstream quantification.
+// ------------------------------------------------------------
+
+preampMix            = dispense 1 units of PreamplificationMix
+preamplifiedCatBio   = mix ligationMixCat2 with preampMix for 18m
+
+preampMix2           = dispense 1 units of PreamplificationMix
+preamplifiedFPBio    = mix ligationMixFP2 with preampMix2 for 18m
+
+// ------------------------------------------------------------
+// PHASE 1 - STEP 8: CTSL quantification by ddPCR.
+//   ddPCR: 5 uL preamplified product into ddPCR reaction;
+//   absolute quantification of barcoded amplicons (amplicons/uL).
+//   Average signal: 54-fold above vehicle-only control.
+//   (Fig. 1B in paper; n=2 independent biological replicates)
+//   DETECTION: scADPLSignalDetection abstracts the ddPCR
+//   instrument readout; ddPCRQuantification validates amplicon
+//   count above noise threshold.
+// ------------------------------------------------------------
+
+ctslSignal = detect ddPCRQuantification on preamplifiedCatBio for 30s
+
+// ============================================================
+// BB2 / BB3: CTSL single-plex QC gate
+// Pass (BB2): ctslSignal > 0 -> probe-dependent CTSL barcodes
+//             detected above background (>54-fold expected).
+// Fail (BB3): ctslSignal <= 0 -> no detectable amplicons;
+//             likely probe labelling or ligation failure.
+// Both branches converge at BB4 (ctslJoin).
+// ============================================================
+
+if (ctslSignal > 0) {
+    dispose preamplifiedCatBio
+} else {
+    drain preamplifiedCatBio
+}
+
+// ============================================================
+// BB4: ctslJoin
+// Dispose CTSL QC signal. Control falls into NCEH1 branch.
+// ============================================================
+
+dispose ctslSignal
+
+// ------------------------------------------------------------
+// PHASE 1 - STEP 9: NCEH1 specificity validation with JW480.
+//   Parallel experiment: SKOV3 cells labelled with FP-Bio
+//   then pre-treated with JW480 (2 uM, selective NCEH1
+//   inhibitor) before on-chip processing.
+//   Expected: JW480 inhibits NCEH1-specific scADPL signal
+//   by >90% with no significant effect on other Ag-6 targets.
+//   qPCR readout selected over ddPCR from this step forward:
+//   higher SNR, amenable to multiplexing across target channels.
+//   (Fig. 1C, Fig. 2B in paper)
+// ------------------------------------------------------------
+
+skov3CellsQC    = dispense 1 units of SKOV3_Cells
+fpBioProbeQC    = dispense 1 units of FPBio_Probe
+jw480           = dispense 1 units of JW480_Inhibitor
+
+// Pre-treat with JW480 before FP-Bio labelling to confirm
+// target-selective inhibition (2 uM JW480, 30 min, 37 C)
+jw480Treated    = mix skov3CellsQC with jw480 for 5s
+heat jw480Treated at 37c for 30m
+
+// FP-Bio labelling post-inhibitor treatment
+labelledQC      = mix jw480Treated with fpBioProbeQC for 5s
+heat labelledQC at 37c for 30m
+
+// On-chip: trap, lyse, barcode, ligate (same as STEP 3-6)
+rpeSpike3       = dispense 1 units of RPhycoerythrin_Spike
+primingMix2     = dispense 1 units of PBS
+trappedQCCell   = mix labelledQC with primingMix2 for 2s
+
+lysisBuffer2    = dispense 1 units of MCPLysisBuffer
+lysateQC        = mix trappedQCCell with lysisBuffer2 for 1m
+lysateQC2       = mix lysateQC with rpeSpike3 for 5s
+
+saOligoQC       = dispense 1 units of StrepAvidin_OligoConjugate
+abOligoQC       = dispense 1 units of AntiBody_OligoConjugate
+barcodingQC     = mix saOligoQC with abOligoQC for 5s
+barcodedQC      = mix lysateQC2 with barcodingQC for 2m
+heat barcodedQC at 25c for 120m
+
+splintQC        = dispense 1 units of SplintOligonucleotide
+ligBufQC        = dispense 1 units of LigationBuffer
+ligationQC      = mix barcodedQC with splintQC for 2s
+ligationQC2     = mix ligationQC with ligBufQC for 2s
+heat ligationQC2 at 40c for 45m
+
+preampQC        = dispense 1 units of PreamplificationMix
+preamplifiedQC  = mix ligationQC2 with preampQC for 18m
+
+// qPCR detection on NCEH1-specific barcode channel
+// Expected: signal suppressed >90% vs no-inhibitor control
+nceh1Signal = detect qPCRQuantification on preamplifiedQC for 30s
+
+// ============================================================
+// BB5 / BB6: NCEH1 inhibitor specificity QC gate
+// Pass (BB5): nceh1Signal > 0 -> residual signal present
+//             (confirms partial probe labelling competed by
+//             JW480); target specificity validated when compared
+//             to uninhibited control. Dispose.
+// Fail (BB6): nceh1Signal <= 0 -> no signal at all; drain.
+// Both branches converge at BB7 (nceh1Join).
+// NOTE: A valid experiment expects nceh1Signal to be >90% lower
+// than the uninhibited preamplifiedFPBio signal. The binary QC
+// gate here checks for the presence of a processed product;
+// the >90% inhibition fold-change comparison is performed
+// off-chip by the qPCR instrument software.
+// ============================================================
+
+if (nceh1Signal > 0) {
+    dispose preamplifiedQC
+} else {
+    drain preamplifiedQC
+}
+
+// ============================================================
+// BB7: nceh1Join
+// Dispose NCEH1 QC signal. Control falls into Ag-6 multiplexed
+// panel branch (BB8/BB9).
+// ============================================================
+
+dispose nceh1Signal
+
+// ============================================================
+// PHASE 2: Multiplexed Ag-6 Panel in SKOV3 Single Cells
+// ============================================================
+
+// ------------------------------------------------------------
+// PHASE 2 - STEP 1: Pulse-label SKOV3 cells with both probes
+//   simultaneously.
+//   Cat-Bio 5 uM (2 h, 37 C) + FP-Bio 2 uM (30 min, 37 C)
+//   applied to same cells for dual-probe multiplexing.
+//   FP-Bio labels NCEH1, MGLL, FAAH, uPA (serine hydrolases).
+//   Cat-Bio labels CTSL, CTSB (cathepsin family).
+//   Six orthogonal barcode channels enable simultaneous
+//   qPCR quantification from the same single-cell lysate.
+// ------------------------------------------------------------
+
+skov3Ag6        = dispense 1 units of SKOV3_Cells
+catBioAg6       = dispense 1 units of CatBio_Probe
+fpBioAg6        = dispense 1 units of FPBio_Probe
+
+// Sequential labelling: FP-Bio first (30 min), then Cat-Bio
+// added to ongoing FP-Bio incubation for remaining 90 min
+// such that both probes are present for the final 30 min.
+// Simplified here as sequential mix operations.
+labelledFP_Ag6  = mix skov3Ag6 with fpBioAg6 for 5s
+heat labelledFP_Ag6 at 37c for 30m
+
+labelledDual    = mix labelledFP_Ag6 with catBioAg6 for 5s
+heat labelledDual at 37c for 90m
+
+// ------------------------------------------------------------
+// PHASE 2 - STEP 2: Single-cell capture, lysis, and barcoding.
+//   Cells resuspended to 50,000-100,000 cells/mL in PBS.
+//   Loaded onto chip; single cells trapped per assay chamber.
+//   MCP lysis buffer + RPE spike-in at Chamber III.
+//   SA-oligo (4000 pM) and ab-oligo cocktail (200 pM each,
+//   six antibody-oligo conjugates for six Ag-6 targets)
+//   added to whole-proteome lysate in Chamber IV.
+//   Incubation 2 h at 25 C; ligation 45 min at 40 C.
+//   NOTE: n = 8 single cells profiled per condition (Fig. 2A).
+// ------------------------------------------------------------
+
+rpeAg6          = dispense 1 units of RPhycoerythrin_Spike
+primingAg6      = dispense 1 units of PBS
+trappedAg6Cell  = mix labelledDual with primingAg6 for 2s
+
+lysisAg6        = dispense 1 units of MCPLysisBuffer
+lysateAg6       = mix trappedAg6Cell with lysisAg6 for 1m
+lysateAg6b      = mix lysateAg6 with rpeAg6 for 5s
+
+saAg6           = dispense 1 units of StrepAvidin_OligoConjugate
+abAg6           = dispense 1 units of AntiBody_OligoConjugate
+barcodingAg6    = mix saAg6 with abAg6 for 5s
+barcodedAg6     = mix lysateAg6b with barcodingAg6 for 2m
+heat barcodedAg6 at 25c for 120m
+
+splintAg6       = dispense 1 units of SplintOligonucleotide
+ligAg6          = dispense 1 units of LigationBuffer
+ligMixAg6       = mix barcodedAg6 with splintAg6 for 2s
+ligMixAg6b      = mix ligMixAg6 with ligAg6 for 2s
+heat ligMixAg6b at 40c for 45m
+
+preampAg6       = dispense 1 units of PreamplificationMix
+preamplifiedAg6 = mix ligMixAg6b with preampAg6 for 18m
+
+// ------------------------------------------------------------
+// PHASE 2 - STEP 3: Multiplexed qPCR quantification (Ag-6).
+//   Six orthogonal Taqman barcode channels simultaneously
+//   quantified on CFX384 Real-Time System (384-well plates).
+//   0.9 uM primers + 0.45 uM Taqman probe per channel in
+//   Luna Universal Probe qPCR Master Mix.
+//   Values normalised to RPE spike-in control per cell.
+//   Expected fold-changes vs no-probe DMSO control (Fig. 2A):
+//     NCEH1: >20-fold, MGLL: >20-fold, CTSL: >20-fold
+//     FAAH: detectable, CTSB: detectable, uPA: detectable
+// ------------------------------------------------------------
+
+qpcrMix         = dispense 1 units of qPCR_MasterMix
+ag6WithQPCR     = mix preamplifiedAg6 with qpcrMix for 2s
+ag6Signal       = detect qPCRQuantification on ag6WithQPCR for 30s
+
+// ============================================================
+// BB8 / BB9: Ag-6 multiplexed panel QC gate
+// Pass (BB8): ag6Signal > 0 -> all six target barcode channels
+//             detected above no-probe background; dispose.
+// Fail (BB9): ag6Signal <= 0 -> multiplex failure (ligation
+//             or preamplification failure); drain.
+// Both branches converge at BB10 (multiplexJoin).
+// ============================================================
+
+if (ag6Signal > 0) {
+    dispose ag6WithQPCR
+} else {
+    drain ag6WithQPCR
+}
+
+// ============================================================
+// BB10: multiplexJoin
+// Dispose Ag-6 QC signal. Control falls into heterogeneity
+// profiling branch (BB11/BB12).
+// ============================================================
+
+dispose ag6Signal
+
+// ============================================================
+// PHASE 3: Heterogeneity Profiling Across Cell Lines
+// (HEK293T vs SKOV3; SKOV3 vs OVCAR3)
+// ============================================================
+
+// ------------------------------------------------------------
+// PHASE 3 - STEP 1: Prepare and label HEK293T and OVCAR3 cells.
+//   HEK293T: non-cancer kidney control (tissue-type mismatch
+//            comparison vs SKOV3 ovarian cancer; Fig. 3A).
+//   OVCAR3:  low-aggressiveness ovarian cancer (tissue-matched
+//            comparison vs SKOV3 high-aggressiveness; Fig. 3B).
+//   Both cell lines dual-probe labelled identically to PHASE 2.
+//   n > 10 isolated single cells per target per cell line.
+//   Activity normalised to HEK293T (Fig. 3A) or OVCAR3 (Fig. 3B)
+//   as respective internal reference populations.
+// ------------------------------------------------------------
+
+hek293t         = dispense 1 units of HEK293T_Cells
+ovcar3          = dispense 1 units of OVCAR3_Cells
+
+catBioHetero    = dispense 1 units of CatBio_Probe
+fpBioHetero     = dispense 1 units of FPBio_Probe
+
+// Label HEK293T cells
+labelledHEK_FP  = mix hek293t with fpBioHetero for 5s
+heat labelledHEK_FP at 37c for 30m
+
+catBioH2        = dispense 1 units of CatBio_Probe
+labelledHEK     = mix labelledHEK_FP with catBioH2 for 5s
+heat labelledHEK at 37c for 90m
+
+// Label OVCAR3 cells
+fpBioO          = dispense 1 units of FPBio_Probe
+labelledOVC_FP  = mix ovcar3 with fpBioO for 5s
+heat labelledOVC_FP at 37c for 30m
+
+catBioO         = dispense 1 units of CatBio_Probe
+labelledOVC     = mix labelledOVC_FP with catBioO for 5s
+heat labelledOVC at 37c for 90m
+
+// ------------------------------------------------------------
+// PHASE 3 - STEP 2: On-chip scADPL for both control cell lines.
+//   Same chamber-by-chamber workflow as PHASE 2.
+//   HEK293T and OVCAR3 processed on separate chip runs.
+//   Each cell trapped, lysed, barcoded, and ligated individually.
+// ------------------------------------------------------------
+
+// HEK293T on-chip processing
+rpeHEK          = dispense 1 units of RPhycoerythrin_Spike
+primHEK         = dispense 1 units of PBS
+trappedHEK      = mix labelledHEK with primHEK for 2s
+
+lysHEK          = dispense 1 units of MCPLysisBuffer
+lysateHEK       = mix trappedHEK with lysHEK for 1m
+lysateHEKb      = mix lysateHEK with rpeHEK for 5s
+
+saHEK           = dispense 1 units of StrepAvidin_OligoConjugate
+abHEK           = dispense 1 units of AntiBody_OligoConjugate
+barcodeHEK      = mix saHEK with abHEK for 5s
+barcodedHEK     = mix lysateHEKb with barcodeHEK for 2m
+heat barcodedHEK at 25c for 120m
+
+splintHEK       = dispense 1 units of SplintOligonucleotide
+ligHEK          = dispense 1 units of LigationBuffer
+ligMixHEK       = mix barcodedHEK with splintHEK for 2s
+ligMixHEKb      = mix ligMixHEK with ligHEK for 2s
+heat ligMixHEKb at 40c for 45m
+
+preampHEK       = dispense 1 units of PreamplificationMix
+preamplHEK      = mix ligMixHEKb with preampHEK for 18m
+
+// OVCAR3 on-chip processing
+rpeOVC          = dispense 1 units of RPhycoerythrin_Spike
+primOVC         = dispense 1 units of PBS
+trappedOVC      = mix labelledOVC with primOVC for 2s
+
+lysOVC          = dispense 1 units of MCPLysisBuffer
+lysateOVC       = mix trappedOVC with lysOVC for 1m
+lysateOVCb      = mix lysateOVC with rpeOVC for 5s
+
+saOVC           = dispense 1 units of StrepAvidin_OligoConjugate
+abOVC           = dispense 1 units of AntiBody_OligoConjugate
+barcodeOVC      = mix saOVC with abOVC for 5s
+barcodedOVC     = mix lysateOVCb with barcodeOVC for 2m
+heat barcodedOVC at 25c for 120m
+
+splintOVC       = dispense 1 units of SplintOligonucleotide
+ligOVC          = dispense 1 units of LigationBuffer
+ligMixOVC       = mix barcodedOVC with splintOVC for 2s
+ligMixOVCb      = mix ligMixOVC with ligOVC for 2s
+heat ligMixOVCb at 40c for 45m
+
+preampOVC       = dispense 1 units of PreamplificationMix
+preamplOVC      = mix ligMixOVCb with preampOVC for 18m
+
+// ------------------------------------------------------------
+// PHASE 3 - STEP 3: qPCR and fluorescence imaging readout.
+//   qPCRQuantification: six-channel Ag-6 qPCR on each cell line.
+//   fluorescenceImaging: abstracts PCA dimensional reduction
+//   and heatmap visualisation of Z-score activity profiles
+//   across single cells (Fig. 3D/E/F in paper).
+//   Key finding: SKOV3 significantly higher Ag-6 activity vs
+//   both HEK293T (all six targets, p <= 0.0001-0.03) and
+//   OVCAR3 (five of six targets significant, Fig. 3B).
+//   PCA separates SKOV3 vs OVCAR3 at PC1 = 84.67%.
+// ------------------------------------------------------------
+
+qpcrHEK         = dispense 1 units of qPCR_MasterMix
+hekWithQPCR     = mix preamplHEK with qpcrHEK for 2s
+
+qpcrOVC         = dispense 1 units of qPCR_MasterMix
+ovcWithQPCR     = mix preamplOVC with qpcrOVC for 2s
+
+heteroSignal    = detect fluorescenceImaging on hekWithQPCR for 30s
+
+// ============================================================
+// BB11 / BB12: Cell-line heterogeneity QC gate
+// Pass (BB11): heteroSignal > 0 -> significant Ag-6 activity
+//              difference between SKOV3 and control lines
+//              resolved; PCA clustering validates; dispose.
+// Fail (BB12): heteroSignal <= 0 -> no measurable difference;
+//              drain.
+// Both branches converge at BB13 (heterogeneityJoin).
+// ============================================================
+
+if (heteroSignal > 0) {
+    dispose hekWithQPCR
+    dispose ovcWithQPCR
+} else {
+    drain hekWithQPCR
+    drain ovcWithQPCR
+}
+
+// ============================================================
+// BB13: heterogeneityJoin
+// Dispose heterogeneity QC signal. Control falls into PDO
+// patient sample branch (BB14/BB15).
+// ============================================================
+
+dispose heteroSignal
+
+// ============================================================
+// PHASE 4: Patient-Derived Organoid (PDO) Profiling
+// Samples: TNBC between-patient (PDO1-PDO6) and ER+ within-
+// patient (pleural effusion L/R, lymph node metastasis).
+// ============================================================
+
+// ------------------------------------------------------------
+// PHASE 4 - STEP 1: PDO preparation.
+//   Fresh core needle biopsies enzymatically digested 1 h to
+//   generate cell suspension. Pleural effusion cells collected
+//   by centrifugation at 450g for 10 min.
+//   Cells mixed with Matrigel (MG), plated in 24-well plates,
+//   solidified at 37 C. BC PDO media supplemented.
+//   PDOs cultured to 50-100 mm diameter before dissociation.
+//   Dissociation: Dispase 37 C 20 min; TrypLE 37 C 5-10 min.
+//   Final suspension: 500 uL BC PDO media, kept on ice.
+//   ANTI-CD45 staining: cells labelled with FITC-anti-CD45
+//   (30 min on ice) to identify and exclude immune cells
+//   during on-chip imaging, preventing contamination of
+//   tumour-cell activity signatures. (fig. S6 in paper)
+// ------------------------------------------------------------
+
+pdoSuspension   = dispense 1 units of PatientDerivedOrganoids
+fitcAntiCD45    = dispense 1 units of FITC_AntiCD45_Antibody
+stainedPDO      = mix pdoSuspension with fitcAntiCD45 for 30m
+
+// CD45 staining on ice (4 C = cold approximation at 4c)
+heat stainedPDO at 4c for 30m
+
+// Probe labelling of PDO single-cell suspension
+catBioPDO       = dispense 1 units of CatBio_Probe
+fpBioPDO        = dispense 1 units of FPBio_Probe
+
+labelledPDO_FP  = mix stainedPDO with fpBioPDO for 5s
+heat labelledPDO_FP at 37c for 30m
+
+labelledPDO     = mix labelledPDO_FP with catBioPDO for 5s
+heat labelledPDO at 37c for 90m
+
+// ------------------------------------------------------------
+// PHASE 4 - STEP 2: On-chip scADPL for PDO single cells.
+//   CD45+ immune cells identified by on-chip fluorescence
+//   imaging (FITC channel) and excluded from scADPL analysis.
+//   Only CD45- tumour cells proceed through lysis and barcoding.
+//   NOTE: `detect fluorescenceImaging` at trapping step
+//   abstracts the brightfield + FITC fluorescence screen used
+//   to confirm single tumour cell capture per chamber.
+// ------------------------------------------------------------
+
+rpePDO          = dispense 1 units of RPhycoerythrin_Spike
+primPDO         = dispense 1 units of PBS
+trappedPDO      = mix labelledPDO with primPDO for 2s
+
+// On-chip CD45 imaging QC: confirm FITC-negative (tumour) cell
+pdoTumourSignal = detect fluorescenceImaging on trappedPDO for 10s
+
+lysPDO          = dispense 1 units of MCPLysisBuffer
+lysatePDO       = mix trappedPDO with lysPDO for 1m
+lysatePDOb      = mix lysatePDO with rpePDO for 5s
+
+saPDO           = dispense 1 units of StrepAvidin_OligoConjugate
+abPDO           = dispense 1 units of AntiBody_OligoConjugate
+barcodePDO      = mix saPDO with abPDO for 5s
+barcodedPDO     = mix lysatePDOb with barcodePDO for 2m
+heat barcodedPDO at 25c for 120m
+
+splintPDO       = dispense 1 units of SplintOligonucleotide
+ligPDO          = dispense 1 units of LigationBuffer
+ligMixPDO       = mix barcodedPDO with splintPDO for 2s
+ligMixPDOb      = mix ligMixPDO with ligPDO for 2s
+heat ligMixPDOb at 40c for 45m
+
+preampPDO       = dispense 1 units of PreamplificationMix
+preamplPDO      = mix ligMixPDOb with preampPDO for 18m
+
+// ------------------------------------------------------------
+// PHASE 4 - STEP 3: qPCR Ag-6 quantification on PDO cells.
+//   Values normalised to RPE spike-in and within each target
+//   to PDO1 (primary tumour reference) for TNBC samples, or
+//   to Lymph met for ER+ within-patient samples.
+//   Key finding: Ag-6 activity highest in metastatic vs
+//   primary tumour PDOs; peak in liver metastases (PDO3/PDO4).
+//   scADPL vs bulk sADPL concordance confirmed in ER+ patient
+//   pleural effusion and lymph node samples (Fig. 4D/E).
+//   scADPL resolves intra-tumour single-cell heterogeneity
+//   not visible in bulk organoid measurements.
+// ------------------------------------------------------------
+
+qpcrPDO         = dispense 1 units of qPCR_MasterMix
+pdoWithQPCR     = mix preamplPDO with qpcrPDO for 2s
+pdoSignal       = detect qPCRQuantification on pdoWithQPCR for 30s
+
+// ============================================================
+// BB14 / BB15: PDO patient sample QC gate
+// Pass (BB14): pdoSignal > 0 -> Ag-6 barcoded amplicons
+//              detected in PDO single cells; metastatic activity
+//              signature confirmed; dispose.
+// Fail (BB15): pdoSignal <= 0 -> no amplicons (PDO preparation
+//              or probe labelling failure); drain.
+// Both branches converge at BB16 (finalCleanup).
+// ============================================================
+
+if (pdoSignal > 0) {
+    dispose pdoWithQPCR
+    dispose pdoTumourSignal
+} else {
+    drain pdoWithQPCR
+    drain pdoTumourSignal
+}
+
+// ============================================================
+// BB16: finalCleanup (terminal)
+// Dispose all remaining QC signal droplets.
+// Experiment ends. Results: Ag-6 enzyme panel activity
+// increases with metastatic potential across BC cell lines
+// and patient-derived organoids; scADPL resolves single-cell
+// heterogeneity invisible to bulk proteomic methods.
+// ============================================================
+
+dispose pdoSignal
+
+// [terminal -- no further instructions; exit node for CFG]

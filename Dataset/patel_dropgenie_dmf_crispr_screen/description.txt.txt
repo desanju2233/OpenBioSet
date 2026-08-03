@@ -1,0 +1,364 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Miniaturized Scalable Arrayed CRISPR Screening in Primary Cells Enables
+               Discovery at the Single Donor Resolution
+Source Link  : https://www.nature.com/articles/s41598-025-13532-z
+Paper DOI    : https://doi.org/10.1038/s41598-025-13532-z
+Journal      : Scientific Reports, 2025, Vol. 15, Article 29350
+Platform     : DropGenie Digital Microfluidics (DMF) Electroporation System
+               (48-site SBS-format cartridge, Tri-Drop Electroporation architecture,
+               Echo 655 acoustic liquid handler, Assist Plus 8-channel liquid handler)
+
+
+OVERVIEW
+--------
+This protocol describes a next-generation digital microfluidics (DMF) electroporation
+platform for high-throughput, low-input genome engineering in primary human cells.
+The DropGenie system manipulates nanoliter- to microliter-scale droplets on a planar
+electrode array using electrostatic actuation, enabling 48 independently programmable
+reaction sites on a single SBS-format cartridge. The platform integrates with laboratory
+automation (Assist Plus, Echo 655) and requires as few as 3,000 primary cells per edit
+-- up to 100-fold fewer than conventional cuvette-based electroporation systems.
+
+The protocol is divided into three functional arms validated in the paper:
+  1. ARM 1 -- CRISPR-Cas9 RNP knockout (TRAC gene) in primary human T cells
+              (Pan CD3+, CD4+, CD8+, and Regulatory T cells)
+  2. ARM 2 -- Precise knock-in (GFP and anti-HER2 CAR) at the TRAC locus via
+              homology-directed repair (HDR) using cssDNA and dsDNA templates
+  3. ARM 3 -- Arrayed CRISPR-Cas9 exhaustion screen in chronically stimulated
+              primary human CD4+ T cells; 45 targets, 192 edits total
+
+The platform uses Tri-Drop Electroporation: two conductive DMFection Buffer droplets
+flank a central cell-and-cargo droplet on the electrode array. Electrode actuation
+forms a transient, low-current electroporation zone that delivers RNPs and mRNA while
+minimising Joule heating, hydrolysis by-products, and viability-compromising effects
+characteristic of cuvette-based systems.
+
+A complete arm-to-readout workflow (activation, transfection, recovery, assay) is
+described below. The BioScript file encodes ARM 1 and ARM 2 as sequential validation
+arms followed by ARM 3 (the arrayed screen).
+
+
+DEVICE ARCHITECTURE
+-------------------
+Cartridge format : SBS (Society for Biological Screening) standard format;
+                   compatible with robotic liquid handlers.
+Reaction sites   : 48 independently programmable electroporation sites per cartridge.
+Droplet paradigm : Tri-Drop Electroporation -- two flanking DMFection Buffer droplets
+                   bridge anode and cathode electrodes around a central cell droplet,
+                   forming the electroporation zone without moving parts.
+Guide deposition : sgRNAs pre-deposited dry onto the cartridge substrate in 40 nL spots
+                   by Echo 655 acoustic liquid handler (Beckman Coulter), mixed with
+                   Poly-L-glutamic acid (PGA) carrier and desiccated before assembly.
+Cell loading     : Assist Plus 8-channel 125 uL Integra Voyager pipette; 100 uL per well.
+Cell offloading  : Assist Plus into 96-well round-bottom plate post-transfection.
+Downstream       : Flow cytometry (Attune NxT), Sanger sequencing (ICE analysis),
+                   high-content imaging (Incucyte Live-Cell Analysis System),
+                   sandwich ELISA (RayBiotech).
+
+Electroporation parameters:
+  T cell KO (Pan CD3+):  500 V, 3 ms, 2 pulses, 5 min pre-pulse incubation
+  T cell KO (CD4+/Treg): 550 V, 2 ms, 2 pulses, 5 min pre-pulse incubation
+  T cell knock-in:        500 V, 2 ms or 4 ms, 2 pulses
+  Exhaustion screen:      550 V, 2 ms, 2 pulses
+
+
+CELL TYPES
+----------
+- Primary human skeletal muscle myoblasts (Zen-Bio; adherent):
+  Cultured in Skeletal Muscle Cell Growth Media (Zen-Bio); 37 C, 5% CO2.
+  Used for EGFP mRNA transfection and MBNL1 knockout validation.
+  Input: 3,000 cells per edit.
+
+- Primary human Pan CD3+ T cells (suspension):
+  Derived from PBMCs from fresh leukopak (Charles River Laboratories) by density
+  gradient (Histopaque-1077) and negative selection (EasySep Human T Cell Enrichment Kit,
+  STEMCELL Technologies). Cryopreserved until use.
+  Used for TRAC KO and GFP/CAR knock-in experiments.
+  Input: 10,000 cells per edit.
+
+- Primary human CD4+ Helper T cells (AllCells; suspension):
+  Negatively selected peripheral blood CD4+ T cells.
+  Used for the arrayed CRISPR exhaustion screen.
+  Input: 10,000 cells per edit.
+
+- Primary human CD4+CD25+ Regulatory T cells (iQ Biosciences; suspension):
+  Peripheral blood-derived; represent 5-10% of circulating CD4+ T cells.
+  Used to demonstrate editing in rare T cell subsets.
+  Input: 10,000 cells per edit.
+
+
+PROTOCOL STEPS -- ARM 1: TRAC KNOCKOUT IN PRIMARY HUMAN T CELLS
+-----------------------------------------------------------------
+
+Step 1 | T Cell Activation (off-chip, 3 days)
+  Cell type    : CD4+ Helper T cells (AllCells) or Pan CD3+ T cells
+  Media        : Basal T Cell Media (RPMI 1640 + GlutaMax + 10% FBS + 1% pen/strep)
+  Cytokines    : 400 IU/mL IL-2 + 25 ng/mL IL-7 (Miltenyi) + 50 ng/mL IL-15 (Miltenyi)
+  Activator    : ImmunoCult Human CD3/CD28 T Cell Activator (STEMCELL) at 25 uL/mL
+  Concentration: 1.25e6 cells/mL
+  Duration     : 72 h at 37 C, 5% CO2 (= 4320 min; IR: 259200.0 SECOND)
+  Purpose      : Expand and activate T cells to permissive state for electroporation.
+
+Step 2 | Cell Wash and Resuspension in Transfection Buffer
+  Buffer       : DMFection Buffer (DropGenie proprietary)
+  Transfection : 0.01% Surfactant F (ITW Reagents) in DMFection Buffer
+  Concentration: 1.0e7 cells/mL in Transfection Buffer
+  Purpose      : Remove culture media components that interfere with electroporation.
+  Assessment   : Viability > 80% required (NucleoCounter NC-202, ChemoMetec).
+
+Step 3 | sgRNA Pre-Deposition onto Cartridge Substrate
+  Method       : Echo 655 acoustic liquid handler (Beckman Coulter)
+  Volume       : 40 nL spots per site
+  Carrier      : Poly-L-glutamic acid (PGA, Sigma Aldrich) at 100 mg/mL
+  sgRNA stock  : 100 pmol/uL (T cells), 200 pmol/uL (myoblasts)
+  Mix ratio    : Combined to final sgRNA concentration of 55.6 pmol/uL (T cells)
+  Process      : Dry-deposit and desiccate before cartridge assembly.
+  Guides       : TRAC sgRNA (ARM 1); ExhaustionTarget sgRNAs (ARM 3; 45 targets)
+
+Step 4 | Cartridge Loading (cells + Cas9 RNP)
+  Cells loaded : 10,000 per edit (concentration 1.0e7 cells/mL, 100 uL per well)
+  SpCas9       : 0.42 pmol per edit (final concentration 42 pmol in 100 uL, Aldevron)
+  sgRNA        : 2.1 pmol per edit (pre-deposited dry on substrate)
+  Loading tool : Assist Plus 8-channel 125 uL Integra Voyager pipette
+  Incubation   : 5 min at room temperature (pre-pulse; abstraced as heat 25 C, 5 min)
+  Note         : RNP complexes form in situ on the cartridge substrate during incubation.
+
+Step 5 | Electroporation (Tri-Drop; 550 V, 2 ms, 2 pulses)
+  Method       : Tri-Drop Electroporation on DropGenie electrode array.
+                 Two conductive DMFection Buffer droplets flank the central cell droplet.
+                 Electrode actuation (550 V, 2 ms, 2 pulses) delivers RNP cargo.
+  Parameters   : 550 V, 2 ms pulse duration, 2 pulses (CD4+ / Treg arm)
+                 500 V, 3 ms pulse duration, 2 pulses (Pan CD3+ arm)
+  Dead volume  : Cartridge dead volume accounted for in total cell input calculation.
+
+Step 6 | Offload and Post-KO Culture (3 days)
+  Media        : Basal T Cell Media + 200 IU/mL IL-2
+  Format       : 96-well round-bottom plate
+  Duration     : 72 h at 37 C, 5% CO2 (= 4320 min; IR: 259200.0 SECOND)
+  Offload tool : Assist Plus into 96-well plate
+
+Step 7 | Knockout Detection (flow cytometry)
+  Staining     : Anti-TCR alpha/beta antibody (surface); Ghost Dye Violet 510 (viability)
+  Instrument   : Attune NxT Flow Cytometer (Thermo Fisher)
+  Gating       : Live > Singlets > CD4+ or CD8+ > TCR alpha/beta-negative
+  Detection    : knockoutDetection module (BioScript abstraction)
+  Results      : CD4+ TRAC KO: 90.41% +/- 3.27; CD8+ TRAC KO: 91.87% +/- 3.13
+                 Viability: 97.23% +/- 0.28 (TRAC RNP), 97.83% +/- 0.09 (NTC RNP)
+  Branch       : knockoutSignal > 0  -> ARM 2 proceeds (dispose)
+                 knockoutSignal <= 0 -> drain (insufficient KO)
+  Regulatory T cells: 76.78% +/- 8.62 TCR KO; viability 97.22% +/- 0.89
+
+
+PROTOCOL STEPS -- ARM 2: GFP KNOCK-IN AT TRAC LOCUS (HDR)
+-----------------------------------------------------------
+
+Step 8 | T Cell Activation (Dynabead protocol, separate donor)
+  Cells        : Pan CD3+ T cells (separate leukopak donor)
+  Media        : Basal T Cell Media + 200 IU/mL IL-2 + 10 ng/mL IL-7 + 5 ng/mL IL-15
+  Activator    : Dynabeads Human T-Activator CD3/CD28 (Gibco), bead:cell ratio 2:5
+  Format       : 96-well round-bottom plate, 2.5e5 cells/mL
+  Duration     : 72 h at 37 C, 5% CO2 (= 4320 min; IR: 259200.0 SECOND)
+  Pre-loading  : Dynabeads removed magnetically before cartridge loading.
+
+Step 9 | RNP Assembly (on ice, 20 min)
+  sgRNA        : 110 pmol TRAC sgRNA
+  SpCas9       : 33 pmol SpCas9 (Aldevron)
+  Complexing   : Mix on ice for 20 min (IR: 4 C, 1200.0 SECOND)
+  Per edit     : 1.1 pmol sgRNA, 0.33 pmol Cas9
+
+Step 10 | Cartridge Loading (cells + RNP + cssDNA template)
+  Cells        : 10,000 per edit (1.0e7 cells/mL, 100 uL per well)
+  Template     : GFP cssDNA (Full Circles Therapeutics); 4 kb circular single-stranded DNA
+  Concentrations tested: 0.03 ug and 0.06 ug per edit
+  Purpose      : cssDNA provides improved genomic integration efficiency vs dsDNA and
+                 avoids immunogenic response associated with linear dsDNA.
+
+Step 11 | Electroporation (500 V, 2 ms, 2 pulses)
+  Parameters   : 500 V, 2 ms pulse duration, 2 pulses
+                 Also tested: 500 V, 4 ms, 2 pulses
+
+Step 12 | Offload and 10-day Expansion
+  Media        : Basal T Cell Media + 300 IU/mL IL-2
+  Format       : 96-well round-bottom plate
+  Duration     : 10 days at 37 C, 5% CO2 (= 14400 min; IR: 864000.0 SECOND)
+
+Step 13 | GFP Knock-In Detection (flow cytometry + fluorescence microscopy)
+  Flow         : GFP positivity gating + TRAC KO co-stain (Attune NxT)
+  Microscopy   : EVOS Cell Imaging System (Thermo Fisher), Day 10
+  Detection    : knockInDetection module (BioScript abstraction)
+  Results      : 52.37% +/- 9.70 GFP+ cells at 0.03 ug / 500V / 2ms / 2 pulses
+                 41.14% +/- 9.45 at 0.06 ug / 500V / 2ms / 2 pulses
+                 Significantly higher than no-template (11.21% +/- 2.83) and
+                 off-chip controls (10.62% +/- 4.49) (p < 0.0001)
+  Branch       : knockInSignal > 0  -> ARM 3 proceeds (dispose)
+                 knockInSignal <= 0 -> drain
+
+Anti-HER2 CAR-T generation (additional validation, same ARM 2 workflow):
+  Template     : 3 kb dsDNA encoding anti-HER2 CAR (Integrated DNA Technologies);
+                 flanked by TRAC-targeting homology arms.
+  Detection    : Protein L staining (GenScript, 1:300 in 4% BSA) + CD3 co-stain
+  Results      : HER2 CAR expression up to 40% (average 27.03%); viability > 55%
+                 No dose-dependent differences across template concentrations.
+
+
+PROTOCOL STEPS -- ARM 3: ARRAYED CRISPR EXHAUSTION SCREEN
+----------------------------------------------------------
+
+Step 14 | CD4+ T Cell Activation (screen donor)
+  Cells        : CD4+ Helper T cells (AllCells), 1.25e6 cells/mL
+  Media        : Basal T Cell Media + 400 IU/mL IL-2 + 25 ng/mL IL-7 + 50 ng/mL IL-15
+  Duration     : 72 h at 37 C, 5% CO2 (= 4320 min; IR: 259200.0 SECOND)
+
+Step 15 | Guide Pre-Deposition for 45-Target Screen
+  Tool         : Echo 655 acoustic liquid handler
+  Volume       : 40 nL per site
+  Targets      : 45 candidate exhaustion regulators; 4 replicates each = 180 edits
+                 + NTC and off-chip controls = 192 total edits (4 cartridge runs)
+  Targets include (top hits): SIN3A, PAF1, PRDM1, SETBP1, STAT1, LAG3, ID2, TOX,
+                              NR4A1, NR4A2, DNMT3A, EZH2, FOXO1, BATF, TCF7,
+                              and 30 additional exhaustion-associated genes.
+
+Step 16 | Cartridge Loading (screen arm)
+  Cells        : 10,000 per edit (1.0e7 cells/mL, 100 uL per well)
+  SpCas9       : 1 pmol per edit
+  sgRNA        : 2 pmol per edit (pre-deposited dry)
+  Incubation   : 5 min at room temperature (IR: 25 C, 300 SECOND)
+  Vs. conventional: 500,000 cells, 100 pmol Cas9, 50 pmol sgRNA per edit
+  Reduction    : 50x fewer cells, ~100x less Cas9, ~25x less sgRNA (Fig. 3G)
+
+Step 17 | Electroporation (550 V, 2 ms, 2 pulses)
+  Parameters   : 550 V, 2 ms, 2 pulses (CD4+ T cell optimised parameters)
+
+Step 18 | Post-KO Recovery (3 days)
+  Media        : Basal T Cell Media + 200 IU/mL IL-2
+  Format       : 96-well round-bottom plate
+  Duration     : 72 h at 37 C, 5% CO2 (= 4320 min; IR: 259200.0 SECOND)
+
+Step 19 | Chronic Exhaustion Induction (9 cycles x 3 days = Days 3-28)
+  Protocol     : ImmunoCult Human CD3/CD28 T Cell Activator (25 uL/mL) +
+                 10 IU/mL IL-2 in 50 uL Basal T Cell Media.
+                 Media changed every 3 days with fresh stimulation mix.
+  Cycles       : 8 x 3-day cycles (IR: 259200.0 SECOND each = 3 days at 37 C)
+                 + 1 final 48 h cycle (IR: 172800.0 SECOND = 2 days at 37 C)
+  Total        : 9 cycles covering Days 3-28 of chronic stimulation
+  BioScript    : Loop unrolled (no loop primitive in lilott8/BioScript); 9 sequential
+                 mix + heat pairs (stimCells_c1 through stimCells_c9).
+  Purpose      : Recapitulate progressive T cell dysfunction (gradual exhaustion in vivo
+                 model); avoids acute activation-induced cell death.
+
+Step 20 | LAG-3 Staining (exhaustion phenotype readout)
+  Stain        : PE-LAG3 (BioLegend) + Ghost Dye Violet 510 + CD4 co-stain
+  Incubation   : 20 min in Flow Cytometry Buffer at 4 C in dark
+  Readout      : % LAG3-negative CD4+ T cells (exhaustion escape frequency)
+  Detection    : exhaustionPhenotypeDetection module (BioScript abstraction)
+  Gating       : Live > Singlets > CD4+ > LAG3-
+  Branch       : screenSignal > 0  -> escape hit confirmed (dispose stainedForFACS)
+                 screenSignal <= 0 -> no rescue (drain)
+
+Step 21 | Cytokine Secretion Readout (ELISA)
+  Collection   : Supernatants collected Day 28 (48 h after final re-stimulation)
+  Stored       : -80 C until processing
+  Kits         : TNFalpha and IFNgamma sandwich ELISA (RayBiotech)
+  Dilution     : 3.84x or 2.5x in Assay Diluent B (RayBiotech)
+  Curve fit    : 4-Parameter Logistic (4PL) regression for concentration interpolation
+  Normalisation: Background-subtracted using media-only (MO) control; normalised to
+                 cell count by flow cytometry and adjusted for dilution factor.
+  Detection    : cytokineDetection module (BioScript abstraction; detect on screenSignal)
+
+Step 22 | Composite Exhaustion Escape Scoring (off-chip, terminal)
+  Metric       : z-score normalized sum of: IFNgamma + TNFalpha + % LAG3-negative CD4+ cells
+  Exclusions   : Viability < 70% or CD4+ frequency < 90% deprioritised (confounders)
+  Top hits     : SIN3A, PAF1, PRDM1, SETBP1, STAT1 (radar plot; Fig. 3F)
+  Output       : Ranked target list; radar plots per top hit across all three axes.
+
+
+REAGENTS
+--------
+Electroporation:
+  DMFection Buffer         : DropGenie proprietary electroporation buffer
+  Surfactant F Buffer      : 0.01% Surfactant F (ITW Reagents) in DMFection Buffer
+  SpCas9 Nuclease          : Aldevron; 42 pmol per 100 uL load (KO), 100 pmol (screen)
+  Alt-R Cas9 Enhancer      : IDT Alt-R Cas9 Electroporation Enhancer; 0.5 pmol/edit
+                             (Regulatory T cells only)
+  sgRNAs                   : Custom; Integrated DNA Technologies; PGA carrier (Sigma)
+  EGFP mRNA                : TriLink Biotechnologies; 200 ug/mL (myoblasts),
+                             100 ug/mL (T cells)
+  GFP cssDNA               : Full Circles Therapeutics; 4 kb circular ssDNA; 0.03-0.06 ug/edit
+  Anti-HER2 CAR dsDNA      : IDT Alt-R HDR Donor Block; 3 kb; 0.0375-10 ng/edit
+  HDR Enhancer V2          : IDT Alt-R HDR Enhancer V2; 15 uM (CAR-T arm)
+
+Cell culture:
+  Basal T Cell Media       : RPMI 1640 + GlutaMax (Gibco) + 10% FBS + 1% pen/strep
+  ImmunoCult Activator     : Human CD3/CD28 T Cell Activator (STEMCELL), 25 uL/mL
+  IL-2 (activation)        : 200-400 IU/mL IL-2 (PeproTech)
+  IL-2 (exhaustion screen) : 10 IU/mL IL-2 (PeproTech)
+  IL-7                     : 25 ng/mL (activation) / 10 ng/mL (KI) (Miltenyi Biotec)
+  IL-15                    : 50 ng/mL (activation) / 5 ng/mL (KI) (Miltenyi Biotec)
+  Dynabeads T-Activator    : Gibco; bead:cell ratio 2:5 (KI arm only)
+
+Flow cytometry:
+  Flow Cytometry Buffer    : 1X PBS + 2% FBS + 2 mM EDTA (Invitrogen)
+  Viability dye            : Ghost Dye Violet 510 (Cytek Biosciences), 1:1000
+  PE-LAG3                  : BioLegend (exhaustion screen)
+  TCR alpha/beta           : Surface stain (TRAC KO validation)
+  FITC-FoxP3               : BioLegend; intracellular (Regulatory T cell characterisation)
+  Protein L                : FITC-Protein L (GenScript), 1:300 in 4% BSA (CAR-T)
+  Instrument               : Attune NxT Flow Cytometer (Thermo Fisher)
+
+Detection / sequencing:
+  Incucyte System          : Sartorius Live-Cell Analysis; 20X (myoblasts), 10X (T cells)
+  Sanger Sequencing        : Quintara Bio; ICE analysis v3.0 (Synthego)
+  ELISA                    : RayBiotech TNFalpha + IFNgamma sandwich ELISA kits
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : patel_dropgenie_dmf_crispr_screen.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 10 basic blocks, 3 if/else gates, 12 CFG edges
+DAG            : patel_dropgenie_dmf_crispr_screen_main_dag.dot
+Duration units : All durations converted to minutes (m) for compiler compatibility.
+                 BioScript supports s and m only; h and d tokens are not supported.
+                 3 days   -> 4320m   (IR: 259200.0 SECOND)  -- T cell activation,
+                                                                KO recovery, each
+                                                                exhaustion cycle
+                 20 min   -> 20m     (IR: 1200.0 SECOND)    -- on-ice RNP assembly
+                 10 days  -> 14400m  (IR: 864000.0 SECOND)  -- KI expansion
+                 5 min    -> 5m      (IR: 300.0 SECOND)     -- pre-pulse incubation
+                 48 h     -> 2880m   (IR: 172800.0 SECOND)  -- final stimulation cycle
+
+Modules        : transfectionEfficiencyDetection, knockoutDetection, knockInDetection,
+                 exhaustionPhenotypeDetection, cytokineDetection
+
+Manifests      : DMFectionBuffer, SurfactantF_Buffer, CD4_T_Cells, SpCas9_Nuclease,
+                 TRAC_sgRNA, NTC_sgRNA, ExhaustionTarget_sgRNA, EGFP_mRNA,
+                 ImmunoCult_CD3CD28_Activator, IL2_200IU, IL2_10IU, BasalTCellMedia,
+                 GFP_cssDNA_Template, AntiHER2_CAR_dsDNA_Template, ProteinL_Stain,
+                 PE_LAG3_Stain, FC_Oil
+
+Abstraction notes:
+  - `mix` at loading steps: abstracts Assist Plus cartridge well-loading; not bulk mixing.
+  - `mix` with FC_Oil:      abstracts Tri-Drop circuit formation on electrode array;
+                            the electroporation pulse is implicit in this merge event.
+  - `heat` at 25 C, 5 min: abstracts the 5-min room-temperature pre-pulse incubation.
+  - `heat` at 4 C, 20 min: abstracts on-ice RNP complexing before cartridge loading.
+  - `dispense` for sgRNA:   abstracts Echo 655 acoustic pre-deposition (40 nL dry spots);
+                            BioScript has no native acoustic dispense primitive.
+  - Loop unrolling:         9 chronic re-stimulation cycles unrolled as 9 sequential
+                            mix + heat pairs (stimCells_c1 to stimCells_c9).
+                            lilott8/BioScript has no repeat/while primitive.
+  - drain vs dispose:       `drain` in .bs source compiles to `dispose` in IR; the
+                            compiler treats both identically at IR level. Semantically,
+                            false-branch paths route waste to drain reservoir.
+
+Biological scope notes:
+  ARM 1 encodes TRAC KO in CD4+ T cells as the representative KO protocol.
+  ARM 2 encodes GFP cssDNA knock-in. The anti-HER2 CAR-T arm uses the same
+  workflow with AntiHER2_CAR_dsDNA_Template; a separate .bs extension is
+  recommended for the full multi-concentration CAR titration experiment.
+  ARM 3 encodes one representative screen condition (ExhaustionTarget_sgRNA).
+  The full 45-target, 192-edit screen is parallelised across 48 cartridge sites
+  (4 runs); BioScript encodes the single-condition logic; parallelism is
+  implicit in the DropGenie instrument's independent site addressing.

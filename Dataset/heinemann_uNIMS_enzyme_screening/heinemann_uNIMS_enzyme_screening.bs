@@ -1,0 +1,427 @@
+module dropletDepositionDetection
+module nimsImagingDetection
+
+manifest CelE_CBM3a_Enzyme
+manifest G4_Substrate_Probe
+manifest PhosphateBuffer_pH6
+manifest AcetateBuffer_pH5
+manifest HFE7500_Surfactant
+manifest DextromethorphanStandard
+manifest UniversalMALDI_Matrix
+
+// ============================================================
+// On-chip Integration of Droplet Microfluidics and
+// Nanostructure-Initiator Mass Spectrometry for Enzyme
+// Screening. Heinemann et al., Lab on a Chip, 2016.
+// DOI: 10.1039/c6lc01182a
+//
+// Platform: uNIMS -- integrates a digital microfluidics (DMF)
+// chip (electrowetting-on-dielectric, EWOD) with a patterned
+// NIMS array (640 pads, 5x5 cm silicon wafer) for time-resolved
+// enzyme kinetics via mass spectrometry imaging.
+//
+// PROTOCOL OVERVIEW:
+//   PART 1: Dextromethorphan (DXM) standard deposition to
+//           validate microfluidic droplet actuation onto NIMS
+//           pads. 150 nL droplets actuated over NIMS pads;
+//           MS imaging confirms analyte sorption at m/z 272.
+//
+//   PART 2A: CelE kinetics at pH 6 (phosphate buffer, 50 mM).
+//            G4 substrate-probe reacted with CelE-CBM3a.
+//            Droplets incubated at 10, 20, 30, 40, 50 min
+//            (parallel loading, 6 pads per time point).
+//            Degradation products G3, G2, G1 monitored by
+//            MS imaging. Fractional conversion readout.
+//
+//   PART 2B: CelE kinetics at pH 5 (acetate buffer, 100 mM).
+//            Same enzyme/substrate; continuous series loading.
+//            Time points: 10, 20, 40 min.
+//            Result: similar product distribution to pH 6;
+//            CelE is robust across both pH conditions.
+//
+// DEVICE DETAILS:
+//   - Microfluidics chip: glass substrate, 128 chrome electrodes
+//     (5 cm L x 500 um W x 375 um H), 5 um SU-8-5 dielectric,
+//     PDMS fluidics channel (500 um W x 225 um H), 31 digital
+//     arrayers aligned to NIMS pads.
+//   - T-junction for droplet generation: pressure-driven flow,
+//     ~150 nL droplets in HFE-7500 immiscible oil phase.
+//   - Dropbot control: 20 V hold, 90 V / 10 kHz fast actuation
+//     (250 ms bursts) for droplet movement in/out of pockets.
+//   - NIMS array: ICP-RIE etched silicon nanostructures
+//     (DRIE, SF6/O2 30/20 ratio, -80 C, 6 mTorr), patterned
+//     with photopatternable PDMS (3% benzophenone, 10:1 ratio).
+//   - Reversible PDMS seal between DMF chip and NIMS array
+//     allows removal for MS imaging on ABSciex 5800 MALDI-TOF
+//     (positive mode, laser intensity 4150, focus m/z 1200,
+//     50 um laser step, universal MALDI matrix 20 mg/mL MeOH).
+//   - Analysis: OpenMSI spot set analysis.
+//
+// DROPLET VOLUMES:
+//   All droplets ~150 nL (unit). 6 uL plugs broken into
+//   droplets at t-junction (0.05 uL/s reaction cocktail,
+//   0.2 uL/s HFE-7500 oil phase). BioScript `dispense 1 units`
+//   abstracts the 150 nL droplet throughout.
+//
+// TEMPERATURE: All reactions at room temperature (25 C).
+//   `heat` statements model incubation timing on NIMS pads.
+//
+// FRACTIONAL CONVERSION QUANTIFICATION:
+//   Signal normalised as [G1]/([G4]+[G3]+[G2]+[G1]) etc.
+//   This internal normalisation eliminates sensitivity to
+//   droplet volume variation (device maintains +/-10% SD in
+//   droplet size; turbulent mixing at t-junction causes
+//   initial larger droplets).
+//
+// NOTE ON SURFACTANT INTERFERENCE:
+//   HFE-7500 + surfactant stabilises droplets but suppresses
+//   NIMS ionisation; MS imaging (not spot analysis) was used
+//   to detect all degradation products. NIMS surface acts as
+//   capture substrate; probe (fluorous-tagged) and products
+//   remain adsorbed after droplet removal. Surfactant
+//   adherence to NIMS surface negatively impacts sensitivity.
+//   Future directions: NIMS-compatible surfactants.
+//
+// CFG STRUCTURE:
+//   BB1  main              -- DXM validation + pH6 kinetics +
+//                             pH5 kinetics (all dispense/mix/heat)
+//   BB2  validationPass    -- depositionSignal > 0: DXM confirmed
+//                             on NIMS pads; dispose and continue
+//   BB3  validationFail    -- depositionSignal <= 0: no analyte
+//                             sorption; drain DXM droplets
+//   BB4  validationJoin    -- join: pH6 kinetics branch begins
+//   BB5  pH6Pass           -- pH6Signal > 0: valid kinetics
+//                             detected; dispose all pH6 droplets
+//   BB6  pH6Fail           -- pH6Signal <= 0: no product signal;
+//                             drain all pH6 droplets
+//   BB7  pH6Join           -- join: pH5 kinetics branch begins
+//   BB8  pH5Pass           -- pH5Signal > 0: valid kinetics;
+//                             dispose all pH5 droplets
+//   BB9  pH5Fail           -- pH5Signal <= 0: no product signal;
+//                             drain all pH5 droplets
+//   BB10 finalCleanup      -- terminal: dispose all QC signals;
+//                             NIMS array removed for MS imaging
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// PART 1 - STEP 1: Prepare HFE-7500 oil phase.
+//   Novec HFE-7500 (3M, US) with 100 uL Picoglide surfactant
+//   pumped through channel for 30 min to coat PDMS surface.
+//   Oil phase separates aqueous droplets at t-junction and
+//   maintains droplet integrity during EWOD actuation.
+// ------------------------------------------------------------
+
+oilPhase = dispense 1 units of HFE7500_Surfactant
+
+// ------------------------------------------------------------
+// PART 1 - STEP 2: Dispense dextromethorphan standard.
+//   1 mg/mL DXM in H2O. Used for rudimentary testing of
+//   microfluidic functions and NIMS array evaluation.
+//   150 nL droplet dispensed from syringe (prefilled 5 uL plug).
+//   DXM detects at m/z 272 (H+) -- matrix-free ionisation
+//   confirmed; no ionisation on surrounding structures.
+// ------------------------------------------------------------
+
+dxmDroplet = dispense 1 units of DextromethorphanStandard
+
+// ------------------------------------------------------------
+// PART 1 - STEP 3: Generate DXM droplets at t-junction.
+//   Aqueous DXM plug broken into ~150 nL droplets by
+//   immiscible HFE-7500 oil phase at t-junction.
+//   Droplet synchronisation matches droplet formation with
+//   electrode actuation for uniform spacing.
+//   `mix` abstracts the t-junction droplet generation event.
+// ------------------------------------------------------------
+
+dxmDropletInOil = mix dxmDroplet with oilPhase for 5s
+
+// ------------------------------------------------------------
+// PART 1 - STEP 4: Load DXM droplets onto NIMS pads.
+//   Flow stopped; 20 V hold on electrodes. Droplets actuated
+//   onto uNIMS pads (90 V, 10 kHz, 250 ms bursts) and
+//   incubated to allow DXM to sorb onto NIMS surface.
+//   `heat` at 25 C models room-temperature sorption contact.
+//   After sorption, droplets ejected from pocket.
+// ------------------------------------------------------------
+
+heat dxmDropletInOil at 25c for 10m
+
+// ------------------------------------------------------------
+// PART 1 - STEP 5: Coat NIMS array with universal MALDI matrix.
+//   20 mg/mL MeOH universal MALDI matrix applied to NIMS
+//   array after removal from uNIMS system. Required for
+//   ABSciex 5800 MALDI-TOF MS imaging.
+//   `mix` abstracts matrix co-crystallisation step.
+// ------------------------------------------------------------
+
+maldiMatrix = dispense 1 units of UniversalMALDI_Matrix
+dxmNimsArray = mix dxmDropletInOil with maldiMatrix for 1m
+
+// ------------------------------------------------------------
+// PART 1 - STEP 6: MS imaging QC -- DXM deposition detection.
+//   nimsImagingDetection module abstracts ABSciex 5800
+//   MALDI-TOF MS imaging (50 um laser step, m/z 272 ion map).
+//   OpenMSI spot set analysis confirms DXM deposition pattern.
+//   QC gate: signal > 0 confirms successful analyte sorption
+//   onto uNIMS pads (not surrounding structures).
+// ------------------------------------------------------------
+
+depositionSignal = detect nimsImagingDetection on dxmNimsArray for 30s
+
+// ============================================================
+// BB2 / BB3: DXM validation QC gate
+// Pass (BB2): depositionSignal > 0 -> DXM detected on NIMS
+//             pads; dispose and proceed to kinetics branch.
+// Fail (BB3): depositionSignal <= 0 -> no sorption (surfactant
+//             suppression or actuation failure); drain.
+// Both branches converge at BB4 (validationJoin).
+// ============================================================
+
+if (depositionSignal > 0) {
+    dispose dxmNimsArray
+} else {
+    drain dxmNimsArray
+}
+
+// ============================================================
+// BB4: validationJoin
+// Dispose DXM deposition QC signal. Control falls into
+// pH 6 kinetics branch (BB5/BB6).
+// ============================================================
+
+dispose depositionSignal
+
+// ============================================================
+// PART 2A: CelE Kinetics at pH 6 (phosphate buffer, 50 mM)
+// ============================================================
+
+// ------------------------------------------------------------
+// PART 2A - STEP 1: Prepare enzyme/substrate reaction mix.
+//   Reaction premixed off-chip in 0.5 mL eppendorf tube:
+//     4 uL phosphate buffer (50 mM, pH 6) +
+//     1 uL G4 substrate-probe (1,4-beta-D-cellotetraose-probe,
+//       MW 1515.48, formula C55H78F17N5O24, detected at m/z
+//       1516.43 H+) +
+//     1 uL CelE-CBM3a (240 ug/mL endoglucanase, GH5 domain
+//       from C. thermocellum Cthe_0797 fused to CBM3a).
+//   Final volume: 6 uL plug drawn into syringe tubing.
+//   BioScript: each component dispensed as 1 unit; merged to
+//   form reaction cocktail. Buffer is the major volume component.
+// ------------------------------------------------------------
+
+// Three buffer units to approximate 4:1:1 volume ratio
+// (4 uL buffer : 1 uL substrate : 1 uL enzyme).
+// Compiler requires explicit sequential merging of multi-unit
+// buffer volumes; chained mix accumulates 3+1=4 buffer units.
+
+ph6_buf1 = dispense 1 units of PhosphateBuffer_pH6
+ph6_buf2 = dispense 1 units of PhosphateBuffer_pH6
+ph6_buf3 = dispense 1 units of PhosphateBuffer_pH6
+ph6_buf4 = dispense 1 units of PhosphateBuffer_pH6
+
+ph6_buf_12   = mix ph6_buf1 with ph6_buf2 for 5s
+ph6_buf_34   = mix ph6_buf3 with ph6_buf4 for 5s
+ph6_bufBulk  = mix ph6_buf_12 with ph6_buf_34 for 5s
+
+ph6_substrate = dispense 1 units of G4_Substrate_Probe
+ph6_enzyme    = dispense 1 units of CelE_CBM3a_Enzyme
+
+ph6_subBuf   = mix ph6_substrate with ph6_bufBulk for 10s
+ph6_reactionCocktail = mix ph6_subBuf with ph6_enzyme for 10s
+
+// ------------------------------------------------------------
+// PART 2A - STEP 2: Generate reaction droplets at t-junction.
+//   6 uL plug injected at 0.05 uL/s reaction cocktail,
+//   0.2 uL/s HFE-7500 oil to generate ~150 nL droplets.
+//   Central fluidics chamber filled with droplet train.
+//   Flow stopped (syringe pump halted); 20 V electrode hold.
+// ------------------------------------------------------------
+
+oilPhase_pH6 = dispense 1 units of HFE7500_Surfactant
+ph6_dropletsInOil = mix ph6_reactionCocktail with oilPhase_pH6 for 5s
+
+// ------------------------------------------------------------
+// PART 2A - STEP 3: Parallel loading onto uNIMS pads.
+//   All 31 arrayer electrodes actuated simultaneously.
+//   Droplets loaded in parallel onto NIMS pads (Fig. 4A).
+//   Incubation times: 10, 20, 30, 40, 50 min over six
+//   successive pad positions (6 pads per time point).
+//   At each interval, 6 droplets synchronously ejected from
+//   pocket into central chamber and evacuated.
+//   G4 substrate (m/z 1516) degraded to:
+//     G3 cellotriose-probe   (m/z 1354, C49H68F17N5O19)
+//     G2 cellobiose-probe    (m/z 1192, C43H58F17N5O14)
+//     G1 glucose-probe       (m/z 1030, C37H48F17N5O9)
+//   `heat` blocks model the sequential incubation time points.
+//   Room temperature (25 C) throughout.
+// ------------------------------------------------------------
+
+// Time point 1: 10 min incubation
+heat ph6_dropletsInOil at 25c for 10m
+
+// Time point 2: 20 min incubation (cumulative)
+heat ph6_dropletsInOil at 25c for 10m
+
+// Time point 3: 30 min incubation (cumulative)
+heat ph6_dropletsInOil at 25c for 10m
+
+// Time point 4: 40 min incubation (cumulative)
+heat ph6_dropletsInOil at 25c for 10m
+
+// Time point 5: 50 min incubation (cumulative; final time point)
+heat ph6_dropletsInOil at 25c for 10m
+
+// ------------------------------------------------------------
+// PART 2A - STEP 4: Coat NIMS array with MALDI matrix.
+//   After all time points completed, uNIMS chip removed from
+//   system. NIMS array coated with universal MALDI matrix
+//   (20 mg/mL MeOH). Mounted in ABSciex 5800 MALDI-TOF.
+// ------------------------------------------------------------
+
+maldiMatrix_pH6  = dispense 1 units of UniversalMALDI_Matrix
+ph6_nimsArray    = mix ph6_dropletsInOil with maldiMatrix_pH6 for 1m
+
+// ------------------------------------------------------------
+// PART 2A - STEP 5: MS imaging and kinetics detection.
+//   ABSciex 5800 MALDI-TOF; positive ionisation; 50 um step.
+//   OpenMSI spot set analysis; fractional conversion:
+//   [G1]/([G4]+[G3]+[G2]+[G1]) for each time point pad.
+//   nimsImagingDetection abstracts the full MS imaging scan
+//   and OpenMSI analysis of G4, G3, G2, G1 product map.
+// ------------------------------------------------------------
+
+ph6Signal = detect nimsImagingDetection on ph6_nimsArray for 30s
+
+// ============================================================
+// BB5 / BB6: pH 6 kinetics QC gate
+// Pass (BB5): ph6Signal > 0 -> G3/G2/G1 hydrolysis products
+//             detected by MS imaging; dispose all pH6 droplets.
+// Fail (BB6): ph6Signal <= 0 -> no product signal (surfactant
+//             suppression or enzyme inactivity); drain.
+// Both branches converge at BB7 (pH6Join).
+// ============================================================
+
+if (ph6Signal > 0) {
+    dispose ph6_nimsArray
+} else {
+    drain ph6_nimsArray
+}
+
+// ============================================================
+// BB7: pH6Join
+// Dispose pH 6 kinetics QC signal. Control falls into
+// pH 5 kinetics branch (BB8/BB9).
+// ============================================================
+
+dispose ph6Signal
+
+// ============================================================
+// PART 2B: CelE Kinetics at pH 5 (acetate buffer, 100 mM)
+// ============================================================
+
+// ------------------------------------------------------------
+// PART 2B - STEP 1: Prepare enzyme/substrate reaction mix.
+//   Same as PART 2A but with 100 mM acetate buffer (pH 5).
+//   Reaction premixed off-chip: 4 uL acetate buffer +
+//   1 uL G4 substrate-probe + 1 uL CelE-CBM3a (240 ug/mL).
+//   Result: CelE produces similar product distributions at
+//   pH 5 and pH 6, demonstrating robustness to process
+//   conditions (reaction profile consistent with Deng, 2015).
+//   pH 5 run loaded continuously in series (Fig. 4B).
+// ------------------------------------------------------------
+
+ph5_buf1 = dispense 1 units of AcetateBuffer_pH5
+ph5_buf2 = dispense 1 units of AcetateBuffer_pH5
+ph5_buf3 = dispense 1 units of AcetateBuffer_pH5
+ph5_buf4 = dispense 1 units of AcetateBuffer_pH5
+
+ph5_buf_12  = mix ph5_buf1 with ph5_buf2 for 5s
+ph5_buf_34  = mix ph5_buf3 with ph5_buf4 for 5s
+ph5_bufBulk = mix ph5_buf_12 with ph5_buf_34 for 5s
+
+ph5_substrate = dispense 1 units of G4_Substrate_Probe
+ph5_enzyme    = dispense 1 units of CelE_CBM3a_Enzyme
+
+ph5_subBuf          = mix ph5_substrate with ph5_bufBulk for 10s
+ph5_reactionCocktail = mix ph5_subBuf with ph5_enzyme for 10s
+
+// ------------------------------------------------------------
+// PART 2B - STEP 2: Generate reaction droplets at t-junction.
+//   Continuous series loading used for pH 5 run (Fig. 4B).
+//   6 uL plug injected; droplets removed from pad directly
+//   from flow (Supplementary Video). HFE-7500 oil phase
+//   separates droplets during continuous series actuation.
+// ------------------------------------------------------------
+
+oilPhase_pH5      = dispense 1 units of HFE7500_Surfactant
+ph5_dropletsInOil = mix ph5_reactionCocktail with oilPhase_pH5 for 5s
+
+// ------------------------------------------------------------
+// PART 2B - STEP 3: Series loading; incubation time points.
+//   Droplets loaded continuously in series onto NIMS pads.
+//   Time points: 10, 20, 40 min (three time points for pH 5).
+//   At each time point, droplets ejected and fresh droplets
+//   actuated into pocket for next incubation interval.
+//   G4 degradation to G3, G2, G1 monitored as for pH 6.
+// ------------------------------------------------------------
+
+// Time point 1: 10 min incubation
+heat ph5_dropletsInOil at 25c for 10m
+
+// Time point 2: 20 min incubation (cumulative)
+heat ph5_dropletsInOil at 25c for 10m
+
+// Time point 3: 40 min incubation (cumulative)
+heat ph5_dropletsInOil at 25c for 20m
+
+// ------------------------------------------------------------
+// PART 2B - STEP 4: Coat NIMS array with MALDI matrix.
+//   uNIMS chip removed; NIMS array coated with universal
+//   MALDI matrix. Re-mounted in ABSciex 5800 MALDI-TOF.
+// ------------------------------------------------------------
+
+maldiMatrix_pH5 = dispense 1 units of UniversalMALDI_Matrix
+ph5_nimsArray   = mix ph5_dropletsInOil with maldiMatrix_pH5 for 1m
+
+// ------------------------------------------------------------
+// PART 2B - STEP 5: MS imaging and kinetics detection.
+//   Same MS imaging and OpenMSI analysis as PART 2A.
+//   Fractional conversion at each time point compared to pH 6.
+//   nimsImagingDetection abstracts full MALDI-TOF scan.
+// ------------------------------------------------------------
+
+ph5Signal = detect nimsImagingDetection on ph5_nimsArray for 30s
+
+// ============================================================
+// BB8 / BB9: pH 5 kinetics QC gate
+// Pass (BB8): ph5Signal > 0 -> G3/G2/G1 hydrolysis products
+//             detected by MS imaging; dispose all pH5 droplets.
+// Fail (BB9): ph5Signal <= 0 -> no product signal; drain.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (ph5Signal > 0) {
+    dispose ph5_nimsArray
+} else {
+    drain ph5_nimsArray
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose pH 5 kinetics QC signal. Experiment complete.
+// NIMS array removed from uNIMS system and placed in
+// ABSciex 5800 MALDI-TOF for final MS imaging.
+// Each NIMS array supports up to 20 enzyme/condition assays
+// (31 pads per run; 640 pads total; scalable to 620 assays
+// at 1 pad/enzyme with modified protocol).
+// ============================================================
+
+dispose ph5Signal
+
+// [terminal -- no further instructions; exit node for CFG]

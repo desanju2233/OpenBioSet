@@ -1,0 +1,376 @@
+module spermCountDetection
+module libraryQCDetection
+
+manifest SpermAliquot
+manifest SpermCountAliquot_Decondensed
+manifest PBS
+manifest BufferSMT
+manifest BufferDB_Base
+manifest Heparin_10mM
+manifest BME_100mM
+manifest Heparinase
+manifest SYBRGreenI_10X
+manifest GemCodeReagentMix
+manifest GemCodePolymerase
+manifest PrimerReleaseAgent
+manifest GemCodeBeads
+manifest UltrapureWater
+manifest DropletGenerationOil
+
+// ============================================================
+// Sperm-seq wet lab protocol: sperm preparation and
+// droplet-based sequencing library generation.
+// Bell, Mello, McCarroll. Research Square (preprint), 2020.
+// DOI: https://doi.org/10.21203/rs.3.pex-823/v1
+//
+// Technology: High-throughput droplet-based single-sperm
+// sequencing (Sperm-seq). Capable of generating thousands
+// of cell-barcoded single-sperm libraries in one run.
+// Droplet platform: 10X Genomics GemCode (Option 1).
+//
+// PROTOCOL OVERVIEW:
+//   Phase 1 (Steps 1-8):   Sperm preparation (~3.5 h)
+//     - PBS wash x2 (400g, 4C, 10 min)
+//     - Resuspend in Buffer SMT
+//     - 3x freeze-thaw cycles (liquid nitrogen / fist-thaw)
+//     - Buffer DB decondensation (37C, 45 min, heparin + BME)
+//     - Heparinase treatment (RT, 2 h)
+//   Phase 2 (Steps 9-10):  Sperm quantification (~15 min)
+//     - SYBR Green I fluorescent staining (1:100 dilution)
+//     - Hemocytometer count under green fluorescent light
+//   Phase 3 (Steps 11-17): Library generation (1-3 days)
+//     - Dilute sperm to 10,833 cells in 5 uL
+//     - GemCode master mix assembly
+//     - Droplet generation on GemCode Chip
+//
+// COMPILER CONSTRAINTS APPLIED:
+//   - Duration tokens: `s` and `m` only (no `h`).
+//     All durations converted: 45 min = 45m; 120 min = 120m.
+//   - `heat` is in-place; result is NOT assigned to a variable.
+//   - `detect` results are assigned once and never reassigned.
+//   - No loop constructs; freeze-thaw cycles unrolled explicitly
+//     as 3 independent heat/thaw pairs (3x liquid N2 / thaw).
+//   - Variables consumed by `mix` (gate-consumed) are not reused.
+//   - `drain` used for failed QC paths; `dispose` for pass paths.
+//   - No variable alias assignments for gate-consumed variables.
+//
+// DATAFLOW DESIGN -- COUNTING ALIQUOT ABSTRACTION:
+//   BioScript has no `split` operation. The manuscript (Step 13)
+//   physically pipettes 1 uL from the decondensed tube into the
+//   SYBR stain before the bulk stock is used for library prep.
+//   This partial-volume sub-sample cannot be modelled as a fork
+//   of spermDecondensed under the use-once type system.
+//
+//   Resolution: spermDecondensed flows unbroken into the library
+//   path (the primary, continuing dataflow -- Steps 11 onward).
+//   The 1 uL counting sub-sample is represented by a single
+//   dispense of SpermCountAliquot_Decondensed, a manifest that
+//   explicitly names the physical source (post-heparinase
+//   decondensed stock) while satisfying use-once. The prep chain
+//   (Steps 1-8) is NOT a dead end: spermDecondensed is consumed
+//   by Step 11 (dilution), preserving end-to-end dataflow.
+//
+// CFG STRUCTURE:
+//   BB1  main              -- sperm prep, quantification,
+//                             master mix assembly
+//   BB2  countPass         -- spermCountSignal > 0: sufficient
+//                             cells counted; proceed to library
+//   BB3  countFail         -- spermCountSignal <= 0: insufficient
+//                             cell count; drain stain aliquot
+//   BB4  countJoin         -- join: library generation branch
+//   BB5  libraryPass       -- libraryQCSignal > 0: valid library;
+//                             dispose
+//   BB6  libraryFail       -- libraryQCSignal <= 0: failed; drain
+//   BB7  finalCleanup      -- terminal: dispose QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Thaw sperm aliquot (>=250,000 cells, typically 10 uL)
+//   at room temperature. Quick spin and transfer to nonstick
+//   1.5 mL tube.
+// ------------------------------------------------------------
+
+spermRaw       = dispense 1 units of SpermAliquot
+
+// ------------------------------------------------------------
+// STEP 2: First PBS wash.
+//   Spin 400g, 4C, 10 min. Remove supernatant. Resuspend in
+//   10 uL PBS. Modelled as mix (resuspension) followed by
+//   heat at 4c for 10m (centrifugation at 4C).
+//   NOTE: `heat at 4c` abstracts cold centrifugation; in-place
+//   on spermPellet1, no new variable produced.
+// ------------------------------------------------------------
+
+pbsWash1       = dispense 1 units of PBS
+spermPellet1   = mix spermRaw with pbsWash1 for 30s
+
+heat spermPellet1 at 4c for 10m
+
+// ------------------------------------------------------------
+// STEP 3: Second PBS wash.
+//   Remove supernatant from first wash. Resuspend pellet in
+//   10 uL PBS. Spin again at 400g, 4C, 10 min.
+//   Remove supernatant.
+// ------------------------------------------------------------
+
+pbsWash2       = dispense 1 units of PBS
+spermPellet2   = mix spermPellet1 with pbsWash2 for 30s
+
+heat spermPellet2 at 4c for 10m
+
+// ------------------------------------------------------------
+// STEP 4: Resuspend sperm pellet in Buffer SMT (2.5 uL).
+//   Buffer SMT (freeze-thaw buffer): 250 mM sucrose, 5 mM
+//   MgCl2, 10 mM Tris pH 7.5. Protects sperm during freeze-
+//   thaw cycles by stabilising membrane osmolarity.
+// ------------------------------------------------------------
+
+bufferSMT      = dispense 1 units of BufferSMT
+spermInSMT     = mix spermPellet2 with bufferSMT for 30s
+
+// ------------------------------------------------------------
+// STEP 5: Freeze-thaw cycles x3 (liquid nitrogen / fist-thaw).
+//   Protocol: submerge tube in liquid nitrogen 5-10 s, uncap
+//   to de-pressurise, hold in fist until thawed. Repeat 3x.
+//   Modelled as alternating heat at 4c (freeze) / 37c (thaw)
+//   pairs. Each cycle = 10s freeze + 30s thaw.
+//   NOTE: `heat` is in-place on spermInSMT (no assignment).
+//   3 cycles unrolled explicitly (no loop constructs).
+//
+//   CYCLE 1
+// ------------------------------------------------------------
+
+heat spermInSMT at 4c for 10s
+heat spermInSMT at 37c for 30s
+
+// CYCLE 2
+heat spermInSMT at 4c for 10s
+heat spermInSMT at 37c for 30s
+
+// CYCLE 3
+heat spermInSMT at 4c for 10s
+heat spermInSMT at 37c for 30s
+
+// ------------------------------------------------------------
+// STEP 6: Prepare Buffer DB with heparin and BME.
+//   Buffer DB (salt decondensation buffer): 113 mM KCl,
+//   12.5 mM KH2PO4, 2.5 mM Na2HPO4, 2.5 mM MgCl2, 20 mM
+//   Tris pH 7.5. Freshly add heparin (1.5 uL of 10 mM) and
+//   BME (2 uL of 100 mM) per 100 uL Buffer DB (4 samples).
+//   Heparin prevents DNA aggregation; BME reduces disulfide
+//   bonds in protamine to release sperm chromatin.
+//   Modelled as two sequential mix steps (heparin first,
+//   then BME into the buffered heparin).
+// ------------------------------------------------------------
+
+bufferDBBase   = dispense 1 units of BufferDB_Base
+heparinStock   = dispense 1 units of Heparin_10mM
+bufferDBHep    = mix bufferDBBase with heparinStock for 10s
+
+bmeStock       = dispense 1 units of BME_100mM
+bufferDBReady  = mix bufferDBHep with bmeStock for 10s
+
+// ------------------------------------------------------------
+// STEP 7: Add 22.5 uL Buffer DB (with heparin + BME) to each
+//   sperm sample. Incubate at 37C for 45 min.
+//   This step decondenses sperm chromatin by reducing protamine
+//   disulfide crosslinks (BME) and preventing heparin-mediated
+//   aggregation. Modelled as mix (addition) + heat 37c 45m.
+//   NOTE: `heat` in-place on spermDecondensing.
+// ------------------------------------------------------------
+
+spermDecondensing = mix spermInSMT with bufferDBReady for 30s
+
+heat spermDecondensing at 37c for 45m
+
+// ------------------------------------------------------------
+// STEP 8: Add heparinase and incubate at room temperature 2 h.
+//   Thaw heparinase (0.1 units/uL) on ice during last half of
+//   37C incubation. Add 5 uL freshly-thawed heparinase to
+//   remove heparin, which would otherwise inhibit downstream
+//   PCR amplification in library generation.
+//   Mix gently (pipette). Incubate RT 2 h (120 min).
+//   NOTE: `heat` at 25c for 120m models RT incubation.
+//   After this step, spermDecondensed is the completed prepared
+//   sample. It flows directly into the library dilution (Step 11),
+//   preserving the end-to-end prep-to-library dataflow.
+// ------------------------------------------------------------
+
+heparinaseEnz    = dispense 1 units of Heparinase
+spermDecondensed = mix spermDecondensing with heparinaseEnz for 10s
+
+heat spermDecondensed at 25c for 120m
+
+// ------------------------------------------------------------
+// STEP 9: Prepare 1:100 SYBR Green I stain for cell counting.
+//   Manuscript Step 13: "Generate a DNA-stained 1:100 dilution
+//   of sperm by combining 1 uL sperm mixture, 10 uL 10X SYBR I,
+//   and 89 uL PBS." The 1 uL sub-sample is physically pipetted
+//   from the decondensed tube before the bulk is used for library.
+//
+//   ABSTRACTION NOTE: BioScript has no split operation. The 1 uL
+//   sub-sample is modelled as SpermCountAliquot_Decondensed --
+//   a manifest whose name explicitly identifies its physical
+//   source (the post-heparinase decondensed stock). The bulk
+//   stock (spermDecondensed) continues unmodified into Step 11.
+//   This is the minimal honest abstraction available under the
+//   use-once type system.
+//
+//   Incubate stain in dark at RT for 5-10 min (modelled as 7m).
+// ------------------------------------------------------------
+
+sybrGreen      = dispense 1 units of SYBRGreenI_10X
+pbsForStain    = dispense 1 units of PBS
+sybrDiluent    = mix sybrGreen with pbsForStain for 10s
+
+countAliquot   = dispense 1 units of SpermCountAliquot_Decondensed
+stainedSperm   = mix countAliquot with sybrDiluent for 7m
+
+// ------------------------------------------------------------
+// STEP 10: Count sperm on Fuchs-Rosenthal hemocytometer.
+//   Load 20 uL stained sperm into C-chip hemocytometer.
+//   Count sperm in 5 big squares under green fluorescent light.
+//   Decondensed sperm appear as large bright fluorescent circles.
+//   Concentration (cells/uL) = count in 5 squares x 100.
+//   Target: 10,833 cells in 5 uL for GemCode loading.
+//   Modelled as detect using spermCountDetection module.
+// ------------------------------------------------------------
+
+spermCountSignal = detect spermCountDetection on stainedSperm for 5m
+
+// ============================================================
+// BB2 / BB3: Sperm count QC gate
+// Pass (BB2): spermCountSignal > 0 -> sufficient cell count;
+//             dispose stain aliquot, proceed to library.
+// Fail (BB3): spermCountSignal <= 0 -> insufficient count
+//             (decondensation failed or too few cells); drain.
+// Both branches converge at BB4 (countJoin).
+// ============================================================
+
+if (spermCountSignal > 0) {
+    dispose stainedSperm
+} else {
+    drain stainedSperm
+}
+
+// ============================================================
+// BB4: countJoin
+// Dispose count QC signal. Control falls into library
+// generation branch (BB5/BB6).
+// ============================================================
+
+dispose spermCountSignal
+
+// ------------------------------------------------------------
+// STEP 11: Dilute spermDecondensed to 10,833 cells in 5 uL.
+//   spermDecondensed is the direct output of the full prep
+//   chain (Steps 1-8). This is the primary consumption of
+//   the prepared sample -- the main dataflow is intact.
+//   Target loading for GemCode droplet generator to recover
+//   ~100-1000 barcoded single-sperm libraries per run.
+// ------------------------------------------------------------
+
+dilutionWater  = dispense 1 units of UltrapureWater
+spermDiluted   = mix spermDecondensed with dilutionWater for 30s
+
+// ------------------------------------------------------------
+// STEP 12: Assemble GemCode master mix.
+//   Per sample: 32.5 uL GemCode reagent mix + 1.5 uL primer
+//   release agent + 9.2 uL GemCode polymerase + 16.8 uL
+//   ultrapure water. Total: 60 uL master mix per sample.
+//   Assembled as sequential mixes reflecting component addition
+//   order in the protocol.
+// ------------------------------------------------------------
+
+reagentMix     = dispense 1 units of GemCodeReagentMix
+primerAgent    = dispense 1 units of PrimerReleaseAgent
+polymerase     = dispense 1 units of GemCodePolymerase
+mmWater        = dispense 1 units of UltrapureWater
+
+mmStep1        = mix reagentMix with primerAgent for 5s
+mmStep2        = mix mmStep1 with polymerase for 5s
+masterMix      = mix mmStep2 with mmWater for 10s
+
+// ------------------------------------------------------------
+// STEP 13: Combine sperm with master mix.
+//   Add 60 uL master mix to sperm sample (5 uL). Pipette
+//   gently with wide-bore tips to prevent shearing decondensed
+//   sperm chromatin. Total sample volume: 65 uL.
+// ------------------------------------------------------------
+
+spermMasterMix = mix spermDiluted with masterMix for 30s
+
+// ------------------------------------------------------------
+// STEP 14: Prepare GemCode beads.
+//   Vortex GemCode beads at full speed for 25 s.
+//   Dilute 1:11 in ultrapure water (>=90 uL per sample).
+//   Two sequential mix steps chain to accumulate dilution
+//   water (compiler ignores multi-unit volume scalars).
+// ------------------------------------------------------------
+
+gemBeads       = dispense 1 units of GemCodeBeads
+beadDilWater1  = dispense 1 units of UltrapureWater
+beadDilWater2  = dispense 1 units of UltrapureWater
+
+beadMix1       = mix gemBeads with beadDilWater1 for 25s
+beadsDiluted   = mix beadMix1 with beadDilWater2 for 10s
+
+// ------------------------------------------------------------
+// STEP 15: Load GemCode chip for droplet generation.
+//   Sample well: 60 uL sperm+master mix.
+//   Bead well: 85 uL 1:11 diluted GemCode beads.
+//   Oil well: 150 uL droplet generation oil.
+//   Modelled as sequential mix of sample + beads + oil.
+//   GemCode controller partitions into GEMs (Gel Bead in
+//   Emulsions) where single sperm cells are barcoded.
+// ------------------------------------------------------------
+
+dropletOil     = dispense 1 units of DropletGenerationOil
+chipInput1     = mix spermMasterMix with beadsDiluted for 10s
+chipLoaded     = mix chipInput1 with dropletOil for 10s
+
+// ------------------------------------------------------------
+// STEP 16: GEM incubation and library construction.
+//   GemCode controller generates barcoded GEMs. Post-GEM
+//   incubation at 37C amplifies barcoded sperm genomic DNA.
+//   Library kit completes adapter ligation and indexing
+//   (GemCode User Guide Rev C Steps 5.36-6.2.6).
+//   Modelled as heat at 37c for 180m (3h GEM incubation).
+//   libraryQCDetection abstracts Bioanalyzer/qPCR QC step.
+// ------------------------------------------------------------
+
+heat chipLoaded at 37c for 180m
+
+libraryQCSignal = detect libraryQCDetection on chipLoaded for 30s
+
+// ============================================================
+// BB5 / BB6: Library QC gate
+// Pass (BB5): libraryQCSignal > 0 -> valid sequencing library
+//             (correct fragment size, sufficient yield); dispose.
+// Fail (BB6): libraryQCSignal <= 0 -> library prep failed
+//             (poor GEM generation or amplification); drain.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (libraryQCSignal > 0) {
+    dispose chipLoaded
+} else {
+    drain chipLoaded
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose library QC signal. Experiment ends.
+// Sequencing proceeds off-chip on Illumina sequencer per
+// 10X Genomics instructions (Bell et al. Nature 2020 pipeline).
+// ============================================================
+
+dispose libraryQCSignal
+
+// [terminal -- no further instructions; exit node for CFG]

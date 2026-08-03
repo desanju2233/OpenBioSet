@@ -1,0 +1,435 @@
+module echoLevelDetection
+module dropletHitDetection
+module xrdSignalDetection
+module xesSignalDetection
+module residueDetection
+
+manifest SampleSolution
+manifest CouplingWater
+manifest HFE7500_Oil
+manifest MQWater
+manifest Isopropanol
+manifest FAS_NOctane
+manifest HeliumGas
+manifest ProteinCrystalSlurry
+
+// ============================================================
+// Droplet On Tape (DOT): Protocol
+// Fuller et al., Nature Methods, 2017; 10.1038/nmeth.4195
+// Protocol DOI: 10.1038/protex.2017.017
+// Yano / Yachandra Lab, Lawrence Berkeley National Laboratory
+//
+// A sample delivery platform coupling Acoustic Droplet Ejection
+// (ADE) onto a Kapton conveyor belt for time-resolved X-ray
+// studies at XFELs (X-ray Free Electron Lasers).
+// Supports simultaneous X-ray Diffraction (XRD) and X-ray
+// Emission Spectroscopy (XES) from protein microcrystal slurry
+// or protein solution, with optional laser or gas reaction
+// initiation.
+//
+// FIVE MAIN SUBSYSTEMS ENCODED:
+//   1. ADE Injector         -- acoustic droplet ejection
+//   2. Control Systems      -- EPICS-managed hardware (abstracted)
+//   3. Conveyor Belt System -- Kapton belt prep, tensioning,
+//                             cleaning, drive
+//   4. Sample Environment   -- Helium enclosure
+//   5. Reaction Initiation  -- laser excitation / gas activation
+//
+// PLATFORM ABSTRACTION NOTES:
+//   - `mix` steps involving the ADE injector abstract an acoustic
+//     tone-burst event (15 MHz, <100 us, ~40 V) that ejects a
+//     nano-liter droplet onto the moving Kapton belt. There is no
+//     electrode-based DMF mixing in this system.
+//   - `heat` steps model temperature-controlled incubation,
+//     vacuum oven drying, and FAS reflux chemistry for belt
+//     surface treatment. Not TEC-based.
+//   - `detect` steps abstract optical/acoustic sensor readouts:
+//     echo sonar level sensing, stroboscopic droplet-hit
+//     confirmation, XRD/XES detector signals, and belt residue
+//     XES background checks.
+//   - All `dispense` units represent functional preparation
+//     volumes (belt coatings, gas flows, sample reservoirs).
+//   - Duration tokens: BioScript supports s and m only.
+//     60 min = 3600s was preferred over 60m where precision
+//     matters. Hours converted: 1h = 60m, 2h = 120m, 3h = 180m.
+//
+// CFG STRUCTURE:
+//   BB1  main               -- belt prep, ADE ejection, echo QC,
+//                             droplet timing setup
+//   BB2  echoPass           -- echoSignal > 0: fluid level OK;
+//                             continue to droplet-hit confirmation
+//   BB3  echoFail           -- echoSignal <= 0: fluid level off;
+//                             drain and re-adjust sample influx
+//   BB4  echoJoin           -- join: laser excitation branch begins
+//   BB5  laserHitPass       -- laserHitSignal > 0: spatial/temporal
+//                             overlap confirmed; proceed to XRD/XES
+//   BB6  laserHitFail       -- laserHitSignal <= 0: droplet missed;
+//                             drain and re-adjust deposition delay
+//   BB7  laserHitJoin       -- join: data collection branch begins
+//   BB8  xrdPass            -- xrdSignal > 0: valid diffraction data;
+//                             dispose and run XES check
+//   BB9  xrdFail            -- xrdSignal <= 0: no hit/beam miss; drain
+//   BB10 xrdJoin            -- join: XES branch begins
+//   BB11 xesPass            -- xesSignal > 0: valid emission signal;
+//                             dispose and proceed to residue check
+//   BB12 xesFail            -- xesSignal <= 0: no emission; drain
+//   BB13 xesJoin            -- join: belt residue QC branch begins
+//   BB14 residuePass        -- residueSignal > 0: residue detected;
+//                             re-clean belt
+//   BB15 residueFail        -- residueSignal <= 0: belt clean; dispose
+//   BB16 finalCleanup       -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// SUBSYSTEM 3 - BELT PREPARATION (Section 3b):
+// STEP 1: Clean seamless Kapton (polyimide) belt by sonication
+//         in Milli-Q water for 10 min followed by isopropanol
+//         for 10 min. Belt dimensions: 0.063-0.125" width,
+//         31-36" diameter, 50 micron thickness (BPB Inc.).
+// ------------------------------------------------------------
+
+mqWaterBath     = dispense 1 units of MQWater
+isopropBath     = dispense 1 units of Isopropanol
+
+// Sonication in MQ water: 10 min (600 s)
+sonicatedBelt   = mix mqWaterBath with isopropBath for 10m
+
+// ------------------------------------------------------------
+// STEP 2: Dry belt in vacuum oven at 50 C for 1 hour before
+//         hydrophobicity treatment. Precision vacuum oven,
+//         model 19.
+//         50 C / 60 min = 3600 s.
+// ------------------------------------------------------------
+
+heat sonicatedBelt at 50c for 60m
+
+// ------------------------------------------------------------
+// STEP 3: Hydrophobicity treatment with fluoroalkylsilane (FAS):
+//         1H,1H,2H,2H-Perfluorodecyltriethoxysilane
+//         (C10F17H4Si(OCH2CH3)3, 97%, Sigma-Aldrich).
+//         Reflux belt in 0.25% (w/v) FAS in n-octane for 2 h.
+//         This raises water contact angle (WCA) from ~60 deg
+//         to 100 +/- 5 deg so that aqueous droplets bead up
+//         on the belt surface and do not spread.
+//         2 h = 120 min.
+// ------------------------------------------------------------
+
+fasSolution     = dispense 1 units of FAS_NOctane
+treatedBelt     = mix sonicatedBelt with fasSolution for 120m
+
+// ------------------------------------------------------------
+// STEP 4: Remove residual FAS. Dry belt in vacuum oven at
+//         150 C for 3 h to remove unreacted silane.
+//         3 h = 180 min.
+// ------------------------------------------------------------
+
+heat treatedBelt at 150c for 180m
+
+// ------------------------------------------------------------
+// SUBSYSTEM 1 - ADE INJECTOR SETUP (Section 1):
+// STEP 5: Fill sample reservoir with protein crystal slurry
+//         or solution. The ADE transducer (Olympus V319-SU,
+//         1" spherical focus, 15 MHz resonance) is positioned
+//         below the reservoir, coupled through a water column.
+//         A "probe" tone-burst (<100 ns) is sent a few ms
+//         before the ejection burst to check fluid level via
+//         acoustic echo (sonar principle).
+//         Expected echo return time: ~35 us for 1" focal
+//         length transducer at correct focus. Fluid level
+//         can be monitored with <50 um accuracy.
+//
+//         `mix` here abstracts loading sample into the ADE
+//         reservoir and coupling to the transducer water
+//         column. Not a DMF electrode step.
+// ------------------------------------------------------------
+
+sampleReservoir = dispense 1 units of SampleSolution
+couplingWater   = dispense 1 units of CouplingWater
+adeLoaded       = mix sampleReservoir with couplingWater for 2s
+
+// ------------------------------------------------------------
+// STEP 6: Send acoustic probe pulse and detect echo return.
+//         echoLevelDetection module abstracts:
+//           - waveform generator (Agilent 33612A) producing
+//             tone-burst at 15 MHz
+//           - Amplifier Research 500A250C RF amp -> ~40 V
+//           - bi-directional coupler (30 dB) sampling echo
+//           - oscilloscope monitoring echo return time and
+//             amplitude (remotely accessed via desktop)
+//         A valid echo at ~35 us delay confirms the transducer
+//         is focused on the sample-air interface.
+//         Detection window: 10 s to allow stabilisation.
+// ------------------------------------------------------------
+
+echoSignal      = detect echoLevelDetection on adeLoaded for 10s
+
+// ============================================================
+// BB2 / BB3: Echo QC gate
+// Pass (BB2): echoSignal > 0 -> fluid level and focus OK;
+//             proceed with droplet ejection sequence.
+// Fail (BB3): echoSignal <= 0 -> echo out of range (wrong
+//             fluid level or transducer misaligned); drain
+//             sample and re-adjust influx rate.
+// Both branches converge at BB4 (echoJoin).
+// ============================================================
+
+if (echoSignal > 0) {
+    // Eject nano-liter droplet onto the moving Kapton belt.
+    // Ejection tone-burst typically <100 us at 15 MHz, ~40 V.
+    // The Lexium M-Drive stepper motor moves the belt at
+    // 30-300 mm/s so the ejected droplet lands on a clean
+    // section. At 10 Hz rep rate, allowed belt speeds are
+    // 30, 60, 150, or 300 mm/s (spacing = integer multiple
+    // of 30 mm between IR gate positions).
+    ejectedDroplet = mix adeLoaded with couplingWater for 1s
+    dispose ejectedDroplet
+} else {
+    drain adeLoaded
+}
+
+// ============================================================
+// BB4: echoJoin
+// Dispose echo QC signal. Control falls into laser excitation
+// timing / droplet-hit confirmation branch (BB5/BB6).
+// ============================================================
+
+dispose echoSignal
+
+// ------------------------------------------------------------
+// SUBSYSTEM 5 - REACTION INITIATION: LASER EXCITATION (Section 6-8):
+// STEP 7: Dispense a fresh sample droplet for the main
+//         experiment run. The belt carries droplets through
+//         a high-precision CNC-machined grid of fiber-coupled
+//         laser excitation points (tolerance: 0.0005").
+//         Three laser excitations and 2 IR gate fibers are
+//         mounted in the grid. For single-excitation
+//         experiments (Section 7: Free Space Timing), a
+//         movable 1 m focal length lens positions the laser
+//         up to 6 mm upstream of the XFEL interaction point,
+//         giving time delays of 20-100 ms at typical belt
+//         speeds (300-60 mm/s).
+//
+//         The Helium enclosure (Section 4) surrounds the
+//         belt/sample interaction region to reduce air scatter.
+//         `mix` here abstracts belt transport of the droplet
+//         through the laser excitation zone.
+// ------------------------------------------------------------
+
+experimentDrop  = dispense 1 units of ProteinCrystalSlurry
+heliumFlow      = dispense 1 units of HeliumGas
+
+// Droplet travels through Helium enclosure to laser zone.
+// `mix` abstracts pneumatic flow of helium + sample transport
+// through the enclosure to the laser interaction position.
+laserZoneDrop   = mix experimentDrop with heliumFlow for 5s
+
+// ------------------------------------------------------------
+// STEP 8: Confirm droplet-hit by stroboscopic video system.
+//         Side-view camera is synchronized to XFEL arrival.
+//         At zero camera delay: observe droplet explosion
+//         confirming XFEL hit. Adjust camera to negative delay
+//         to match desired laser delay and note droplet position.
+//         Move laser spot to that position.
+//         Spatial overlap accuracy: 100 um (laser spot: 400 um).
+//         Temporal overlap accuracy: 200 us (camera exposure).
+//         Fine timing (nanosecond level) is confirmed by
+//         relative photodiode measurements.
+//
+//         For fiber excitation (Section 8): adjust deposition
+//         delay until droplet appears at XFEL crosshairs on
+//         stroboscopic monitor, then adjust belt velocity until
+//         IR gate signals coincide in time.
+//
+//         dropletHitDetection module abstracts the combined
+//         stroboscopic camera + forward scatter detector +
+//         IR gate photodiode confirmation.
+// ------------------------------------------------------------
+
+laserHitSignal  = detect dropletHitDetection on laserZoneDrop for 30s
+
+// ============================================================
+// BB5 / BB6: Laser-hit / timing QC gate
+// Pass (BB5): laserHitSignal > 0 -> spatial and temporal
+//             overlap confirmed; proceed to XFEL data
+//             collection.
+// Fail (BB6): laserHitSignal <= 0 -> droplet missed laser
+//             (wrong deposition delay or belt speed); drain
+//             and re-adjust parameters.
+// Both branches converge at BB7 (laserHitJoin).
+// ============================================================
+
+if (laserHitSignal > 0) {
+    dispose laserZoneDrop
+} else {
+    drain laserZoneDrop
+}
+
+// ============================================================
+// BB7: laserHitJoin
+// Dispose laser-hit QC signal. Control falls into XFEL data
+// collection branch (BB8/BB9).
+// ============================================================
+
+dispose laserHitSignal
+
+// ------------------------------------------------------------
+// SUBSYSTEM 1 + 4 - XFEL DATA COLLECTION (Section 6, Fig 6):
+// STEP 9: Dispense production sample onto belt for XFEL
+//         measurement. The droplet travels through the Helium
+//         enclosure at the calibrated belt speed and
+//         deposition delay. The XFEL pulse (ultrashort,
+//         intense) probes the droplet at the interaction
+//         region for X-ray diffraction (XRD) from protein
+//         microcrystal slurry.
+//         Belts run at <4 revolutions/s via Lexium M-Drive
+//         LMDCE423 direct-drive stepper (1" stainless shaft).
+//
+//         `mix` abstracts transport of the production sample
+//         droplet through the full DOT system from ADE
+//         deposition to XFEL interaction.
+// ------------------------------------------------------------
+
+productionSample = dispense 1 units of ProteinCrystalSlurry
+heliumFlow2      = dispense 1 units of HeliumGas
+
+xfelDrop         = mix productionSample with heliumFlow2 for 5s
+
+// XRD signal: forward scattering detector.
+// xrdSignalDetection abstracts the area detector readout
+// for crystallographic diffraction patterns collected during
+// a beamtime of 4-5 days per experiment.
+xrdSignal        = detect xrdSignalDetection on xfelDrop for 30s
+
+// ============================================================
+// BB8 / BB9: XRD data quality gate
+// Pass (BB8): xrdSignal > 0 -> valid diffraction pattern;
+//             dispose droplet waste and proceed to XES check.
+// Fail (BB9): xrdSignal <= 0 -> no diffraction (beam miss,
+//             empty droplet, or crystal failure); drain.
+// Both branches converge at BB10 (xrdJoin).
+// ============================================================
+
+if (xrdSignal > 0) {
+    dispose xfelDrop
+} else {
+    drain xfelDrop
+}
+
+// ============================================================
+// BB10: xrdJoin
+// Dispose XRD QC signal. Control falls into XES branch
+// (BB11/BB12).
+// ============================================================
+
+dispose xrdSignal
+
+// ------------------------------------------------------------
+// STEP 10: X-ray Emission Spectroscopy (XES) detection.
+//          Simultaneous with XRD, the XES crystal spectrometer
+//          (housed in second Helium bag between spectrometer
+//          and main Helium chamber) collects X-ray emission
+//          from the sample.
+//          A fresh production droplet is used to represent
+//          the concurrent XES channel.
+//          xesSignalDetection abstracts the XES crystal
+//          spectrometer readout (emission signal).
+//          Accumulated residue is separately QC-checked by
+//          running the belt dry (no sample) and probing the
+//          XES background (residueDetection, STEP 12 below).
+// ------------------------------------------------------------
+
+xesSample       = dispense 1 units of ProteinCrystalSlurry
+heliumFlow3     = dispense 1 units of HeliumGas
+xesDrop         = mix xesSample with heliumFlow3 for 5s
+
+xesSignal       = detect xesSignalDetection on xesDrop for 30s
+
+// ============================================================
+// BB11 / BB12: XES data quality gate
+// Pass (BB11): xesSignal > 0 -> valid emission spectrum;
+//              dispose and proceed to belt residue check.
+// Fail (BB12): xesSignal <= 0 -> no emission (beam miss or
+//              instrument issue); drain.
+// Both branches converge at BB13 (xesJoin).
+// ============================================================
+
+if (xesSignal > 0) {
+    dispose xesDrop
+} else {
+    drain xesDrop
+}
+
+// ============================================================
+// BB13: xesJoin
+// Dispose XES QC signal. Control falls into belt residue
+// check branch (BB14/BB15).
+// ============================================================
+
+dispose xesSignal
+
+// ------------------------------------------------------------
+// SUBSYSTEM 3 - BELT CLEANING AND RESIDUE QC (Section 5):
+// STEP 11: Belt cleaning run. Drive belt through four high-
+//          pressure (200+ psi) water jets (500 um I.D.) to
+//          remove accumulated sample residue.
+//          Immediately dry belt top and bottom using two
+//          compressed Helium blow-off nozzles powered by
+//          three KNF Neuberger N145.1.2AN.18 diaphragm pumps
+//          recirculating Helium from the chamber.
+//          `mix` abstracts the cleaning pass of the belt
+//          through the water jets + helium blow-off sequence.
+// ------------------------------------------------------------
+
+cleaningWater   = dispense 1 units of MQWater
+beltCleanRun    = mix treatedBelt with cleaningWater for 5m
+
+heliumDry       = dispense 1 units of HeliumGas
+driedBelt       = mix beltCleanRun with heliumDry for 2m
+
+// ------------------------------------------------------------
+// STEP 12: Residue QC check. Run belt dry (no sample injected)
+//          while probing XES background signal. Any accumulated
+//          sample residue is detected sensitively by its XES
+//          emission above baseline. This test was performed
+//          periodically during beamtimes.
+//          residueDetection abstracts the XES background
+//          monitoring readout on the dry belt.
+// ------------------------------------------------------------
+
+residueSignal   = detect residueDetection on driedBelt for 30s
+
+// ============================================================
+// BB14 / BB15: Belt residue QC gate
+// Pass (BB14): residueSignal > 0 -> residue detected above
+//              XES background; re-clean belt (dispose and
+//              trigger another cleaning cycle conceptually).
+// Fail (BB15): residueSignal <= 0 -> belt clean (background
+//              at baseline); dispose cleaned belt and proceed
+//              to finalCleanup.
+// Both branches converge at BB16 (finalCleanup).
+// ============================================================
+
+if (residueSignal > 0) {
+    // Belt still dirty: dispose for re-cleaning cycle.
+    // In practice, repeat STEP 11 until residueSignal <= 0.
+    dispose driedBelt
+} else {
+    // Belt clean: ready for next beamtime shift.
+    dispose driedBelt
+}
+
+// ============================================================
+// BB16: finalCleanup (terminal)
+// Dispose the residue QC signal. Experiment ends.
+// Belt is ready for next experimental shift.
+// ============================================================
+
+dispose residueSignal
+
+// [terminal -- no further instructions; exit node for CFG]

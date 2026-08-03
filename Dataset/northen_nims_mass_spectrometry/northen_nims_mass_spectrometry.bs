@@ -1,0 +1,596 @@
+module nimsLaserDetection
+module nimsFluorescenceDetection
+module nimsIonDetection
+
+manifest BoronSilicon
+manifest HydrofluoricAcid_Ethanol
+manifest PerfluorinatedSiloxane_Initiator
+manifest Nitrogen_Gas
+manifest BSA_TrypticDigest
+manifest Verapamil
+manifest Bradykinin_1_7
+manifest Bradykinin_2_9
+manifest Neurotensin
+manifest MCF7_Cells_MDA_MB231
+manifest FDA_PI_Stain
+manifest MouseEmbryoTissueSection
+manifest FreshBlood
+manifest FreshUrine
+manifest AcetonitrileWater_01TFA
+
+// ============================================================
+// Clathrate Nanostructures for Mass Spectrometry
+// Northen, Yanes, Northen, Marrinucci, Uritboonthai,
+// Apon, Golledge, Nordstrom, Siuzdak -- Nature 2007, 449,
+// 1033-1036. DOI: 10.1038/nature06195
+//
+// Protocol: Nanostructure-Initiator Mass Spectrometry (NIMS).
+// The NIMS surface (nanostructured porous silicon, ~10-nm pores)
+// traps perfluorinated siloxane initiator molecules within
+// clathrate-like pores. Laser or ion irradiation vaporises
+// the initiator, triggering desorption and ionisation of
+// surface-adsorbed analytes without a conventional MALDI matrix.
+//
+// This BioScript file encodes the four primary application
+// demonstrations from the paper in sequence:
+//   (A) BSA tryptic digest and small molecule detection
+//       (verapamil, 1-palmitoyllysophosphatidylcholine) -- Fig 1d
+//   (B) Single cancer cell metabolite profiling (MDA-MB-231) -- Fig 2
+//   (C) Peptide microarray characterisation (ion-NIMS, Bi3+) -- Fig 3
+//   (D) Tissue imaging (mouse embryo, laser-NIMS) -- Fig 4
+//   (E) Direct biofluid analysis (blood and urine) -- Fig 5
+//
+// NOTE ON NIMS SURFACE FABRICATION:
+//   The NIMS chip itself is fabricated off-chip by anodic etching
+//   of low-resistivity P-type <100> silicon (0.01-0.02 Ohm.cm) at
+//   48 mA.cm^-2 in 25% HF/ethanol for 30 min, followed by initiator
+//   loading and nitrogen-jet removal of excess. The `mix` steps in
+//   SECTION I abstract this surface preparation sequence as a DMF
+//   analogue. All subsequent analyte deposition steps represent
+//   direct spotting (0.5 uL drops) or robotic contact printing
+//   (1.4 nL drops) onto the prepared NIMS surface.
+//
+// NOTE ON DETECTOR MODULES:
+//   nimsLaserDetection  -- abstracts VoyagerDE STR MALDI-TOF
+//                          (337 nm N2 laser, reflector mode,
+//                          +20 kV, 100-shot average)
+//   nimsFluorescenceDetection -- abstracts Nikon TE2000
+//                          epi-fluorescence with DAPI/FITC/TRITC
+//                          filter sets (FDA/PI viability readout)
+//   nimsIonDetection    -- abstracts ION-TOF IV TOF-SIMS with
+//                          Bi3+ primary ion source (25 kV, 45deg
+//                          angle, 50 ns pulse, <static dose limit)
+//
+// NOTE ON DURATION ENCODING:
+//   BioScript duration tokens are `s` and `m` only.
+//   30 min anodic etch = 30m; 30-60 min initiator loading = 45m
+//   (midpoint); 100-shot laser average modelled as 30s detect.
+//
+// CFG STRUCTURE:
+//   BB1  main               -- entry: NIMS surface prep
+//   BB2  surfacePrepPass    -- surfaceQC > 0: surface ready,
+//                             proceed to analyte studies
+//   BB3  surfacePrepFail    -- surfaceQC <= 0: etch failed, drain
+//   BB4  surfacePrepJoin    -- join: analyte deposition begins
+//   BB5  peptideAssayPass   -- peptideSignal > 0: BSA digest
+//                             detected (>55% sequence coverage),
+//                             dispose
+//   BB6  peptideAssayFail   -- peptideSignal <= 0: no signal, drain
+//   BB7  peptideAssayJoin   -- join: single-cell branch begins
+//   BB8  cellAssayPass      -- cellSignal > 0: phospholipid
+//                             ions from single cell detected,
+//                             dispose
+//   BB9  cellAssayFail      -- cellSignal <= 0: no cell signal,
+//                             drain
+//   BB10 cellAssayJoin      -- join: microarray branch begins
+//   BB11 arrayAssayPass     -- arraySignal > 0: peptide array
+//                             ions detected at 1 fmol, dispose
+//   BB12 arrayAssayFail     -- arraySignal <= 0: no array signal,
+//                             drain
+//   BB13 arrayAssayJoin     -- join: tissue imaging branch begins
+//   BB14 tissueImagingPass  -- tissueSignal > 0: lipid ion
+//                             images acquired, dispose
+//   BB15 tissueImagingFail  -- tissueSignal <= 0: no tissue
+//                             signal, drain
+//   BB16 tissueImagingJoin  -- join: biofluid branch begins
+//   BB17 biofluidPass       -- biofluidSignal > 0: blood/urine
+//                             metabolites detected, dispose
+//   BB18 biofluidFail       -- biofluidSignal <= 0: no biofluid
+//                             signal, drain
+//   BB19 finalCleanup       -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// SECTION I: NIMS SURFACE FABRICATION
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Anodic etching of silicon to form nanostructured
+//         porous silicon surface.
+//         Material: P-type <100> boron-doped silicon wafer,
+//         resistivity 0.01-0.02 Ohm.cm, 525 +/- 25 um thick,
+//         100 mm diameter (Silicon Valley Microelectronics).
+//         Etchant: 25% hydrofluoric acid in ethanol.
+//         Current density: 48 mA.cm^-2, duration: 30 min.
+//         Result: ~10-nm pore nanostructured silicon surface
+//         (confirmed by SEM, Fig 1c). CAUTION: HF is acutely
+//         hazardous; all handling under certified fume hood
+//         with appropriate PPE and neutralising agent on hand.
+//         `heat` at 25c models room-temperature anodic etch.
+// ------------------------------------------------------------
+
+siliconWafer  = dispense 1 units of BoronSilicon
+etchSolution  = dispense 1 units of HydrofluoricAcid_Ethanol
+
+// Anodic etch: 48 mA.cm^-2 for 30 min at ambient temperature.
+// `mix` abstracts the electrochemical etching of the wafer
+// surface by the HF/ethanol solution under applied current.
+etchedSurface = mix siliconWafer with etchSolution for 30m
+heat etchedSurface at 25c for 30m
+
+// ------------------------------------------------------------
+// STEP 2: Initiator loading.
+//         Undiluted bis(tridecafluoro-1,1,2,2-tetrahydrooctyl)
+//         tetramethyldisiloxane applied to etched surface at
+//         25degC for 30-60 min (45 min modelled here).
+//         Initiator molecules migrate into the pores under
+//         capillary forces and adopt a highly ordered clathrate-
+//         like arrangement (confirmed by Supplementary Movie 1:
+//         reversible migration on slight heating/cooling).
+//         Excess initiator removed with nitrogen jet.
+//         This step is the same for silanized and unsilanized
+//         surfaces (Supplementary Information).
+// ------------------------------------------------------------
+
+initiator    = dispense 1 units of PerfluorinatedSiloxane_Initiator
+nitrogenJet  = dispense 1 units of Nitrogen_Gas
+
+// Load initiator: 45 min incubation at 25degC.
+loadedSurface = mix etchedSurface with initiator for 45m
+heat loadedSurface at 25c for 45m
+
+// Nitrogen-jet removal of excess surface initiator.
+nimsSurface   = mix loadedSurface with nitrogenJet for 30s
+
+// ------------------------------------------------------------
+// STEP 3: NIMS surface QC.
+//         nimsLaserDetection module abstracts a test laser shot
+//         to verify that the surface produces initiator-derived
+//         background ions under 337 nm irradiation, confirming
+//         successful pore filling before analyte deposition.
+// ------------------------------------------------------------
+
+surfaceQC = detect nimsLaserDetection on nimsSurface for 10s
+
+// ============================================================
+// BB2 / BB3: Surface preparation QC gate
+// Pass (BB2): surfaceQC > 0 -> initiator signal confirmed;
+//             proceed to analyte characterisation sections.
+// Fail (BB3): surfaceQC <= 0 -> etching or loading failed;
+//             drain and repeat surface preparation.
+// Both branches converge at BB4 (surfacePrepJoin).
+// ============================================================
+
+if (surfaceQC > 0) {
+    dispose nimsSurface
+} else {
+    drain nimsSurface
+}
+
+// ============================================================
+// BB4: surfacePrepJoin
+// Dispose surface QC signal. Begin analyte deposition studies.
+// ============================================================
+
+dispose surfaceQC
+
+// ============================================================
+// SECTION II: LASER-NIMS -- PEPTIDE AND SMALL MOLECULE DETECTION
+// Corresponds to Figure 1d (paper).
+// Laser: 337 nm pulsed N2 (Voyager DE STR, Applied Biosystems).
+// Initiator: bis(tridecafluoro-1,1,2,2-tetrahydrooctyl)
+//            tetramethyldisiloxane, undiluted.
+// Drop volume: 0.5 uL per spot (contact spotting).
+// Acquisition: reflector mode, +20 kV, 100-shot average,
+//              first grid 60%, guide wire 0.15%, delay 100 ns.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 4: BSA tryptic digest detection.
+//         BSA reduced (DTT), alkylated (iodoacetamide), then
+//         digested with mass-spec-grade porcine trypsin (Promega).
+//         500 amol of BSA tryptic digest spotted in 0.5 uL
+//         onto NIMS surface; solvent evaporated before analysis.
+//         Expected result: 55% sequence coverage (Fig 1d,
+//         upper right panel). Analyte in AcN/water/0.1% TFA.
+// ------------------------------------------------------------
+
+bsaDigest     = dispense 1 units of BSA_TrypticDigest
+bsaSolvent    = dispense 1 units of AcetonitrileWater_01TFA
+
+// Prepare BSA tryptic digest spot: mix analyte in solvent.
+// `mix` abstracts robotic or manual 0.5 uL drop deposition.
+bsaSpot       = mix bsaDigest with bsaSolvent for 10s
+
+// Evaporate solvent at room temperature (25degC, 5 min) before
+// laser irradiation. Modelled as a 25degC heat step.
+heat bsaSpot at 25c for 5m
+
+// Laser-NIMS analysis: 337 nm, 100 shots averaged.
+bsaSpot_nims  = mix bsaSpot with nimsSurface for 5s
+peptideSignal = detect nimsLaserDetection on bsaSpot_nims for 30s
+
+// ------------------------------------------------------------
+// STEP 5: Small molecule detection -- verapamil (700 ymol).
+//         Calcium antagonist drug; molecular weight 454.6 Da.
+//         700 ymol = 7e-22 mol. Lowest amount demonstrated
+//         in Fig 1d (lower left panel). Spotted in 0.5 uL.
+//         NOTE: 1 ymol (yoctomole) = 1e-24 mol; the paper
+//         reports 700 ymol = 7e-22 mol, which equates to
+//         approximately 420 molecules on the surface. This
+//         represents the extreme sensitivity limit of NIMS
+//         versus MALDI (typically 1 fmol range).
+// ------------------------------------------------------------
+
+verapamilDrop = dispense 1 units of Verapamil
+verapamilSpot = mix verapamilDrop with nimsSurface for 5s
+heat verapamilSpot at 25c for 5m
+
+// ============================================================
+// BB5 / BB6: Peptide/small molecule assay QC gate
+// Pass (BB5): peptideSignal > 0 -> BSA digest detected at
+//             500 amol (>55% coverage); dispose spots.
+// Fail (BB6): peptideSignal <= 0 -> no signal; drain spots.
+// Both branches converge at BB7 (peptideAssayJoin).
+// ============================================================
+
+if (peptideSignal > 0) {
+    dispose bsaSpot_nims
+    dispose verapamilSpot
+} else {
+    drain bsaSpot_nims
+    drain verapamilSpot
+}
+
+// ============================================================
+// BB7: peptideAssayJoin
+// Dispose peptide QC signal. Begin single-cell branch.
+// ============================================================
+
+dispose peptideSignal
+
+// ============================================================
+// SECTION III: SINGLE-CELL METABOLITE PROFILING BY LASER-NIMS
+// Corresponds to Figure 2 (paper).
+// Cell line: MDA-MB-231 (highly metastatic breast cancer,
+//            ATCC HTB-26). Grown in Leibovitz's L-15 medium
+//            + 2 mM L-glutamine + 10% calf bovine serum at
+//            37degC. Harvested by trypsin-EDTA treatment.
+// Deposition: micromanipulator (MINJ-PD; Tritech Research)
+//             used to deposit single cells directly onto NIMS.
+// Initiator: bis(tridecafluoro-1,1,2,2-tetrahydrooctyl)
+//            tetramethyldisiloxane calibrated with Na+, K+,
+//            phosphocholine, 1-palmitoyllysophosphatidylcholine.
+// Detection: phospholipids (endogenous), m/z 400-900 range.
+//            Superior spectral complexity vs hundreds of cells
+//            measured by nanoESI, MALDI, or ion-NIMS (Fig 2c).
+// Post-MS: cells fixed (2% paraformaldehyde), permeabilised
+//          (cold methanol), immunofluorescently stained with
+//          DAPI + Alexa555-anti-Pan-cytokeratin.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 6: Deposit single MDA-MB-231 cell onto NIMS surface.
+//         Micromanipulator precisely counts and deposits a
+//         single cell; cell dried before MS analysis.
+//         `mix` abstracts cell deposition and drying step.
+// ------------------------------------------------------------
+
+singleCell      = dispense 1 units of MCF7_Cells_MDA_MB231
+cellOnSurface   = mix singleCell with nimsSurface for 2s
+heat cellOnSurface at 25c for 5m
+
+// ------------------------------------------------------------
+// STEP 7: Laser-NIMS acquisition on single cell.
+//         337 nm irradiation identifies the cell location
+//         (green fluorescent box, same laser at high intensity
+//         -- Fig 2a). Lower-energy pulses then profile the
+//         cell's phospholipid content. 100-shot average.
+// ------------------------------------------------------------
+
+cellSignal = detect nimsLaserDetection on cellOnSurface for 30s
+
+// ------------------------------------------------------------
+// STEP 8: Post-MS viability / immunofluorescence staining.
+//         FDA/PI stain for live/dead assessment; DAPI nuclear
+//         counterstain; Alexa555-cytokeratin for cell identity.
+//         nimsFluo module abstracts Nikon TE2000 acquisition
+//         with 20x Plan Fluor (NA 0.45) and 60x oil Plan Apo
+//         (NA 1.40) objectives, Retiga EXi camera.
+// ------------------------------------------------------------
+
+fdaPiStain      = dispense 1 units of FDA_PI_Stain
+stainedCell     = mix cellOnSurface with fdaPiStain for 10m
+
+fluoroSignal = detect nimsFluorescenceDetection on stainedCell for 30s
+
+// ============================================================
+// BB8 / BB9: Single-cell MS QC gate
+// Pass (BB8): cellSignal > 0 -> endogenous phospholipids
+//             detected from single cell; dispose.
+// Fail (BB9): cellSignal <= 0 -> no cell signal; drain.
+// Both branches converge at BB10 (cellAssayJoin).
+// ============================================================
+
+if (cellSignal > 0) {
+    dispose stainedCell
+    dispose fluoroSignal
+} else {
+    drain stainedCell
+    drain fluoroSignal
+}
+
+// ============================================================
+// BB10: cellAssayJoin
+// Dispose cell QC signal. Begin peptide microarray branch.
+// ============================================================
+
+dispose cellSignal
+
+// ============================================================
+// SECTION IV: ION-NIMS PEPTIDE MICROARRAY CHARACTERISATION
+// Corresponds to Figure 3 (paper).
+// Ion source: ION-TOF IV TOF-SIMS with Bi3+ primary ions.
+//             25 kV beam energy, 45deg angle, 50 ns pulse width,
+//             primary ion dose below static limit.
+//             Secondary ions directed to TOF tube at +/-2.5 kV
+//             (sample at +2.5 kV, extraction lens at -4.5 kV).
+// Lateral resolution: ~150 nm ion beam (Fig 3c inset).
+// Peptides printed: bradykinin 2-9 (904 Da, red),
+//                  neurotensin (1673 Da, blue),
+//                  bradykinin 1-7 (757 Da, yellow) at 1 fmol.
+// Printing: custom arrayer, ArrayIt contact printing head,
+//           1.4 nL drops, 1:1 AcN/water + 0.1% TFA solution.
+// Sensitivity: 1 fmol per peptide -- 1000x improvement over
+//              conventional TOF-SIMS strategies (Ref 16, 21).
+// Ion-NIMS surface: 14-kDa poly(3,3,3-trifluoropropylmethyl-
+//   siloxanes) on silanized/vacuum-baked silicon, baked 100degC
+//   overnight; excess removed with N2 jet + tBME rinse.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 9: Print peptide array spots onto ion-NIMS surface.
+//         Three peptide species deposited by robotic contact
+//         printing (1.4 nL drops) from 1:1 AcN/water + 0.1%
+//         TFA. `mix` abstracts robotic array printing.
+// ------------------------------------------------------------
+
+bk27_solution   = dispense 1 units of Bradykinin_2_9
+bk17_solution   = dispense 1 units of Bradykinin_1_7
+nt_solution     = dispense 1 units of Neurotensin
+arraySolvent    = dispense 1 units of AcetonitrileWater_01TFA
+
+// Mix each peptide in solvent (1:1 AcN/water, 0.1% TFA).
+bk27_spot       = mix bk27_solution with arraySolvent for 5s
+bk17_spot       = mix bk17_solution with arraySolvent for 5s
+nt_spot         = mix nt_solution with arraySolvent for 5s
+
+// Print array onto ion-NIMS surface via robotic contact printing.
+peptideArray    = mix bk27_spot with nimsSurface for 5s
+peptideArray    = mix bk17_spot with peptideArray for 5s
+peptideArray    = mix nt_spot with peptideArray for 5s
+
+// Dry printed array at 25degC before Bi3+ ion analysis.
+heat peptideArray at 25c for 5m
+
+// ------------------------------------------------------------
+// STEP 10: Ion-NIMS Bi3+ imaging.
+//          nimsIonDetection abstracts TOF-SIMS acquisition:
+//          selective ion images for m/z 904 (BK 2-9, red),
+//          m/z 1673 (neurotensin, blue), m/z 757 (BK 1-7,
+//          yellow). High-resolution image with 150-nm beam
+//          shows localisation at centre of printed spot
+//          (Fig 3c). BK 1-7 on silicon control shows
+//          significant fragmentation vs NIMS (Fig 3d).
+// ------------------------------------------------------------
+
+arraySignal = detect nimsIonDetection on peptideArray for 30s
+
+// ============================================================
+// BB11 / BB12: Peptide microarray QC gate
+// Pass (BB11): arraySignal > 0 -> all three peptides detected
+//              at 1 fmol with spatial localisation; dispose.
+// Fail (BB12): arraySignal <= 0 -> ion imaging failed; drain.
+// Both branches converge at BB13 (arrayAssayJoin).
+// ============================================================
+
+if (arraySignal > 0) {
+    dispose peptideArray
+} else {
+    drain peptideArray
+}
+
+// ============================================================
+// BB13: arrayAssayJoin
+// Dispose array QC signal. Begin tissue imaging branch.
+// ============================================================
+
+dispose arraySignal
+
+// ============================================================
+// SECTION V: TISSUE IMAGING BY LASER-NIMS
+// Corresponds to Figure 4 (paper).
+// Sample: Mouse embryo, C57Bl/6J, embryonic day 16.5.
+//         Embryos frozen in OCT compound on dry ice, equilibrated
+//         to -20degC, cryosectioned at 12 um thickness
+//         (Leica CM3050 S), thaw-mounted onto NIMS chip.
+// Initiator: bis(heptadecafluoro-1,1,2,2-tetrahydrodecyl)
+//            tetramethyldisiloxane.
+// Imaging: 20-um step size, ~15-um diameter laser beam.
+//          Two-step protocol:
+//   (i)  Laser etching: 0.4 J.cm^-2 per pulse to ablate tissue
+//        and expose underlying NIMS surface.
+//   (ii) NIMS imaging: 0.01 J.cm^-2 per pulse to desorb/ionise
+//        metabolites at the tissue/NIMS interface.
+// Target lipids: glycerophosphatidylcholine (m/z 782, arrow,
+//   Fig 4b) localised around developing vertebra. Also
+//   phosphatidylethanolamine (via post-source decay fragment ions).
+// Result: 300-um-wide false-colour mass intensity image shows
+//   higher lipid signal (red/yellow/cyan) surrounding the
+//   developing vertebra (dark blue). Scale bar: 1 mm.
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 11: Tissue section preparation and mounting.
+//          12-um cryosections thaw-mounted directly onto
+//          NIMS chip. `mix` abstracts the thaw-mount step.
+// ------------------------------------------------------------
+
+tissueSection   = dispense 1 units of MouseEmbryoTissueSection
+mountedTissue   = mix tissueSection with nimsSurface for 30s
+
+// ------------------------------------------------------------
+// STEP 12: Laser etching (ablation) phase.
+//          High-energy laser pulses (0.4 J.cm^-2, 337 nm)
+//          ablate the 12-um tissue slice to expose the
+//          underlying NIMS surface at the tissue interface.
+//          `heat` at 25degC abstracts the photothermal ablation
+//          step (pulsed laser; no bulk heating intended).
+// ------------------------------------------------------------
+
+heat mountedTissue at 25c for 2m
+
+// ------------------------------------------------------------
+// STEP 13: NIMS metabolite imaging (low-energy irradiation).
+//          Low-energy pulses (0.01 J.cm^-2, 337 nm) interrogate
+//          the tissue/NIMS interface; initiator vaporisation
+//          desorbs metabolites from the etched surface.
+//          100-shot average per raster point; 20-um steps.
+//          nimsLaserDetection abstracts the spatially resolved
+//          mass spectral acquisition across the tissue section.
+// ------------------------------------------------------------
+
+tissueSignal = detect nimsLaserDetection on mountedTissue for 30s
+
+// ============================================================
+// BB14 / BB15: Tissue imaging QC gate
+// Pass (BB14): tissueSignal > 0 -> lipid ion images (m/z 782,
+//              GPC) acquired with anatomical contrast; dispose.
+// Fail (BB15): tissueSignal <= 0 -> no tissue MS signal; drain.
+// Both branches converge at BB16 (tissueImagingJoin).
+// ============================================================
+
+if (tissueSignal > 0) {
+    dispose mountedTissue
+} else {
+    drain mountedTissue
+}
+
+// ============================================================
+// BB16: tissueImagingJoin
+// Dispose tissue QC signal. Begin direct biofluid branch.
+// ============================================================
+
+dispose tissueSignal
+
+// ============================================================
+// SECTION VI: DIRECT BIOFLUID ANALYSIS BY LASER-NIMS
+// Corresponds to Figure 5 (paper).
+// Samples: 1 uL fresh human blood and 1 uL fresh urine spotted
+//          directly onto NIMS without any sample preparation.
+//          After 30 s, droplets blown off with nitrogen stream.
+// Blood:   Laser-etched first (0.4 J.cm^-2, ~0.5 s) to ablate
+//          cellular material, then NIMS analysis of surface layer.
+//          Initiator: bis(heptadecafluoro-1,1,2,2-tetrahydrodecyl)
+//          tetramethyldisiloxane (perfluorinated, lipid-selective).
+//          Dominant ions: phospholipids (e.g. PC lipids).
+// Urine:   Spotted directly, no etch step. Two initiators tested:
+//          (a) bis(heptadecafluoro...) -- lipid-selective, blue spectrum
+//          (b) 1,3-bis(hydroxybutyl)tetramethyldisiloxane
+//              (polar hydroxylated) -- small metabolites, green spectrum.
+//          ~86% of ions from (b) unique to polar initiator surface.
+// Quantitation: Codeine spiked into urine at multiple concentrations.
+//          Linear NIMS response up to 15 ng.mL^-1 (Fig 5 inset).
+//          Limit of detection <15 ng.mL^-1 vs 75-250 ng.mL^-1
+//          for conventional bioanalytical approaches (Ref 28).
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 14: Blood analysis -- direct spot + laser etch.
+//          1 uL fresh blood spotted, held 30 s, then excess
+//          blown off with nitrogen. Laser-etch step ablates
+//          red blood cell matrix before NIMS interrogation.
+// ------------------------------------------------------------
+
+bloodSample     = dispense 1 units of FreshBlood
+nitrogenBlowOff = dispense 1 units of Nitrogen_Gas
+
+bloodOnSurface  = mix bloodSample with nimsSurface for 30s
+bloodExcess     = mix bloodOnSurface with nitrogenBlowOff for 5s
+
+// Laser etch at high energy to ablate cellular blood components.
+heat bloodExcess at 25c for 1m
+
+// NIMS analysis of the laser-etched blood surface interface.
+bloodNIMS       = mix bloodExcess with nimsSurface for 5s
+
+// ------------------------------------------------------------
+// STEP 15: Urine analysis -- direct spot, no etch.
+//          1 uL fresh urine spotted directly onto NIMS; excess
+//          blown off with N2. No laser-etch step for urine.
+//          Urine spectra dominated by small metabolites <500 Da
+//          (e.g. putative gangliosides GM2/GM1 also detected).
+//          Spectra converted to ASCII, baseline-corrected,
+//          normalised (TIC), and realigned in SpecAlign.
+// ------------------------------------------------------------
+
+urineSample     = dispense 1 units of FreshUrine
+nitrogenBlowOff2 = dispense 1 units of Nitrogen_Gas
+
+urineOnSurface  = mix urineSample with nimsSurface for 30s
+urineExcess     = mix urineOnSurface with nitrogenBlowOff2 for 5s
+
+urineNIMS       = mix urineExcess with nimsSurface for 5s
+
+// ------------------------------------------------------------
+// STEP 16: Laser-NIMS acquisition on blood and urine.
+//          biofluidSignal keyed on blood (red spectrum, Fig 5).
+//          Urine detection run in parallel.
+// ------------------------------------------------------------
+
+biofluidSignal  = detect nimsLaserDetection on bloodNIMS for 30s
+urineSignal     = detect nimsLaserDetection on urineNIMS for 30s
+
+// ============================================================
+// BB17 / BB18: Biofluid analysis QC gate
+// Pass (BB17): biofluidSignal > 0 -> blood phospholipids and
+//              urine metabolites detected without background;
+//              dispose all biofluid droplets.
+// Fail (BB18): biofluidSignal <= 0 -> no biofluid signal
+//              (initiator loading failure or spotting error);
+//              drain all.
+// Both branches converge at BB19 (finalCleanup).
+// ============================================================
+
+if (biofluidSignal > 0) {
+    dispose bloodNIMS
+    dispose urineNIMS
+    dispose urineSignal
+} else {
+    drain bloodNIMS
+    drain urineNIMS
+    drain urineSignal
+}
+
+// ============================================================
+// BB19: finalCleanup (terminal)
+// Dispose all remaining QC signal droplets.
+// Experiment ends.
+// ============================================================
+
+dispose biofluidSignal
+
+// [terminal -- no further instructions; exit node for CFG]

@@ -1,0 +1,446 @@
+module dplaDetection
+module ddpcrDetection
+module decisionTreeClassification
+
+manifest PBS
+manifest SDB_II_Buffer
+manifest HMB_Buffer
+manifest TM_Buffer
+manifest IL6_ProximalProbeA
+manifest IL6_ProximalProbeB
+manifest TNFa_ProximalProbeA
+manifest TNFa_ProximalProbeB
+manifest LigationSolution
+manifest ddPCR_Supermix
+manifest Universal_PCR_Assay
+manifest GN_16S_Primers_Probe
+manifest GP_16S_Primers_Probe
+manifest blaTEM_Primers_Probe
+manifest HumanPlasma_Sample
+manifest BALF_Sample
+manifest DNA_ExtractionKit
+manifest NucleaseFreeWater
+
+instructions:
+
+// ============================================================
+// Ultrasensitive Digital Quantification of Cytokines and
+// Bacteria Predicts Septic Shock Outcomes
+// Abasiyanik, Wolfe, Van Phan, Lin, Laxman, White, Verhoef,
+// Mutlu, Patel, Tay -- Nature Communications (2020) 11:2607
+// DOI: 10.1038/s41467-020-16124-9
+//
+// Protocol encodes the combined dPLA + ddPCR pipeline for
+// simultaneous quantification of:
+//   Proteins : IL-6 (SDB-II buffer), TNF-alpha (HMB buffer)
+//   DNA      : GN 16S rRNA gene, GP 16S rRNA gene, blaTEM
+// Applied to: BALF (asthma cohort) and plasma (septic shock ICU
+// cohort, time points t1 and t2).
+//
+// KEY ASSAY PARAMETERS (from paper Methods):
+//   dPLA incubation    : 37 C, 1 h (IL-6); 4 C, overnight (TNF-a)
+//                        -> TNF-a overnight modelled as 4 C, 720 m
+//   Ligation           : 37 C, 10 min
+//   Ligation stop (IL6): 95 C, 5 min
+//   Ligation stop (TNFa): protease digest 37 C 10 min -> 95 C 15 min
+//   ddPCR cycling      : 95 C 10 min; 40x[94 C 30s / 60 C 1min];
+//                        98 C 10 min; ramp 2.5 C/s
+//   DNA extraction     : QIAamp cador Pathogen Mini Kit; 100 uL
+//                        sample + PBS + proteinase K -> elute 100 uL
+//   Bacteria LODs      : GN 1.76 CFU/uL; GP 12.19 CFU/uL
+//   IL-6 sample LOD    : 0.84 pg/mL (40 fM) in plasma (SDB-II)
+//   TNF-a sample LOD   : 0.08 pg/mL (4.58 fM) in HMB
+//   blaTEM LOD         : 0.9 CPN/uL (1.57 aM)
+//   IL-6 resolution    : ~0.04 pg/mL (patient-dependent)
+//
+// DROPLET DIGITAL PCR:
+//   Each 20 uL ddPCR reaction = 9 uL PLA eluate + 10 uL 2x
+//   ddPCR Supermix + 1 uL 20x Universal PCR Assay solution.
+//   Emulsified per Bio-Rad QX200 protocol; read on Bio-Rad
+//   QX200 droplet reader; quantified by QuantaSoft Pro v1.0.596.
+//
+// SAMPLE COHORTS:
+//   Cohort 1 (BALF): 23 asthma patients + 11 healthy subjects
+//   Cohort 2 (Plasma ICU): 32 septic shock patients
+//     Group A (n=7):  early recovery (<48h shock resolution)
+//     Group B (n=13): late recovery (>48h, t3 = shock resolution)
+//     Group C (n=12): died in ICU (never resolved shock)
+//   Time points: t1 = within 24h of Sepsis-3 diagnosis;
+//                t2 = 24-48h after t1; t3 = shock resolution (B only)
+//
+// CFG STRUCTURE:
+//   BB1  main               -- DNA extraction; IL-6 dPLA; TNF-a dPLA;
+//                              triplex ddPCR (GN+GP+blaTEM);
+//                              triplex BALF assay (IL-6+GN+GP)
+//   BB2  il6Pass            -- il6Signal > 0: IL-6 above LOD; dispose
+//   BB3  il6Fail            -- il6Signal <= 0: below LOD; drain
+//   BB4  il6Join            -- join: TNF-a branch begins
+//   BB5  tnfaPass           -- tnfaSignal > 0: TNF-a above LOD; dispose
+//   BB6  tnfaFail           -- tnfaSignal <= 0: below LOD; drain
+//   BB7  tnfaJoin           -- join: ddPCR branch begins
+//   BB8  ddpcrPass          -- ddpcrSignal > 0: bacterial DNA detected;
+//                              carry forward to decision tree
+//   BB9  ddpcrFail          -- ddpcrSignal <= 0: no bacteria; drain
+//   BB10 classifierPass     -- classifierSignal > 0: patient classified
+//                              (>90% accuracy); dispose result
+//   BB11 classifierFail     -- classifierSignal <= 0: insufficient data;
+//                              drain and flag for repeat sampling
+//   BB12 finalCleanup       -- terminal: dispose all QC signals
+//
+// NOTE ON DURATION TOKENS: BioScript (lilott8/BioScript compiler)
+//   accepts only `s` and `m` duration suffixes. All hour-scale
+//   incubations are converted:
+//     1 h   -> 60m
+//     7 h   -> 420m  (TNF-a overnight incubation minimum)
+//     Overnight (modelled as ~12 h for TNF-a) -> 720m
+//   The paper specifies "overnight" for TNF-a antibody incubation
+//   at 4 C to maximise signal; 720m is the conservative lower bound.
+//
+// NOTE ON `mix` ABSTRACTION: `mix` in BioScript models reagent
+//   combination and incubation on the DMF device electrode array.
+//   Steps involving pipetting, vortexing, or centrifugation in the
+//   paper (e.g. DNA extraction column steps) are abstracted as
+//   `mix` operations with the appropriate incubation duration.
+//   Temperature-controlled incubations use `heat` statements.
+//
+// NOTE ON BUFFERS: Two separate sample dilution buffers are used:
+//   SDB-II (Thermo Fisher #4483013) for IL-6 in plasma;
+//   HMB (homemade Nong's buffer) for TNF-a in plasma;
+//   0.1x TM Buffer (Biochain #K3011010-1) + 0.5% gelatin for BALF.
+//   Each is declared as a distinct manifest to preserve fidelity.
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: DNA Extraction from human sample (plasma or BALF).
+//   QIAamp cador Pathogen Mini Kit (Qiagen #54104).
+//   100 uL sample + 100 uL PBS + 20 uL proteinase K loaded.
+//   100 uL buffer VXL added, incubated 15 min RT.
+//   350 uL buffer ACB added -> lysate loaded to QIAamp column.
+//   Washed with AW1 and AW2, eluted with 100 uL AVE buffer.
+//   Background signal from kit (PBS blank) subtracted offline.
+//   `mix` abstracts the column-based extraction workflow.
+// ------------------------------------------------------------
+
+plasmaOrBALF     = dispense 1 units of HumanPlasma_Sample
+pbsForExtraction = dispense 1 units of PBS
+extractionKit    = dispense 1 units of DNA_ExtractionKit
+
+// Combine sample with PBS and extraction reagents; lysis at RT 15 min.
+lysateMix        = mix plasmaOrBALF with pbsForExtraction for 5s
+extractedLysate  = mix lysateMix with extractionKit for 15m
+
+// Elution step: add nuclease-free water (AVE buffer abstracted).
+// Eluate contains extracted GN/GP 16S rRNA and blaTEM DNA.
+avEluent         = dispense 1 units of NucleaseFreeWater
+extractedDNA     = mix extractedLysate with avEluent for 1m
+
+// ------------------------------------------------------------
+// STEP 2: IL-6 dPLA -- Proximity probe incubation.
+//   Sample diluted 5-fold in SDB-II buffer.
+//   2 uL protein solution + 2 uL assay probe solution (APS):
+//     APS = 1 uL probe A + 1 uL probe B + 23 uL probe dilution buffer
+//     -> 200 pM per probe.
+//   Incubation: 37 C, 60 min (1 h).
+// ------------------------------------------------------------
+
+plasmaSampleIL6     = dispense 1 units of HumanPlasma_Sample
+sdbIIBuffer         = dispense 1 units of SDB_II_Buffer
+
+// 5-fold dilution of plasma in SDB-II.
+dilutedSampleIL6    = mix plasmaSampleIL6 with sdbIIBuffer for 5s
+
+il6ProbeA           = dispense 1 units of IL6_ProximalProbeA
+il6ProbeB           = dispense 1 units of IL6_ProximalProbeB
+
+// Mix proximity probes with diluted sample.
+il6ProbesMix        = mix il6ProbeA with il6ProbeB for 5s
+il6ProbeSample      = mix dilutedSampleIL6 with il6ProbesMix for 5s
+
+// Antibody-antigen binding and proximity ligation: 37 C, 60 min.
+heat il6ProbeSample at 37c for 60m
+
+// ------------------------------------------------------------
+// STEP 3: IL-6 dPLA -- Ligation.
+//   96 uL ligation solution added to 4 uL probe/sample mix.
+//   Ligation solution: 50 uL 20x buffer + 909 uL water + 1 uL ligase.
+//   Incubation: 37 C, 10 min.
+//   Ligation stop: heat 95 C, 5 min (IL-6 protocol).
+// ------------------------------------------------------------
+
+ligationSolutionIL6 = dispense 1 units of LigationSolution
+
+// Ligation: 37 C, 10 min.
+il6LigationMix      = mix il6ProbeSample with ligationSolutionIL6 for 5s
+heat il6LigationMix at 37c for 10m
+
+// Stop ligation by heat denaturation: 95 C, 5 min.
+heat il6LigationMix at 95c for 5m
+
+// ------------------------------------------------------------
+// STEP 4: IL-6 dPLA -- ddPCR reaction setup and thermal cycling.
+//   20 uL ddPCR reaction:
+//     9 uL PLA eluate + 10 uL 2x ddPCR Supermix + 1 uL 20x PCR assay
+//   Emulsified per Bio-Rad QX200 protocol.
+//   Thermal cycling: 95 C 10 min; 40x[94 C 30s + 60 C 1min]; 98 C 10 min.
+//   Total cycling time modelled as 95 C preheat (10 min) + 40 cycles
+//   (each cycle ~90s = 60 min) + final extension (10 min) = ~80 min.
+//   `heat` here models preheat and final extension; cycling is
+//   abstracted by the `detect` module (dplaDetection).
+// ------------------------------------------------------------
+
+ddpcrSupermixIL6    = dispense 1 units of ddPCR_Supermix
+universalPCRIL6     = dispense 1 units of Universal_PCR_Assay
+
+il6ddPCRMix         = mix il6LigationMix with ddpcrSupermixIL6 for 5s
+il6ReactionMix      = mix il6ddPCRMix with universalPCRIL6 for 5s
+
+// ddPCR preheat: 95 C, 10 min.
+heat il6ReactionMix at 95c for 10m
+
+// 40-cycle PCR (abstracted): 94 C/60 C per cycle, ~90s each = 60 min total.
+heat il6ReactionMix at 94c for 60m
+
+// Final extension: 98 C, 10 min.
+heat il6ReactionMix at 98c for 10m
+
+// Droplet reader readout: dplaDetection module quantifies
+// positive droplets; output is CPN/uL converted to pg/mL
+// via IL-6 calibration curve (R^2=0.99, linear regression).
+// LOD: 0.84 pg/mL in SDB-II plasma; 0.02 pg/mL in BALF.
+il6Signal           = detect dplaDetection on il6ReactionMix for 10m
+
+// ============================================================
+// BB2 / BB3: IL-6 quantification QC gate
+// Pass (BB2): il6Signal > 0 -> IL-6 above LOD (detectable);
+//             dispose ddPCR reaction droplet.
+// Fail (BB3): il6Signal <= 0 -> below LOD (sample set to 0
+//             per paper Methods); drain.
+// Both branches converge at BB4 (il6Join).
+// ============================================================
+
+if (il6Signal > 0) {
+    dispose il6ReactionMix
+} else {
+    drain il6ReactionMix
+}
+
+// ============================================================
+// BB4: il6Join
+// Dispose IL-6 signal. Control falls into TNF-a branch.
+// ============================================================
+
+dispose il6Signal
+
+// ------------------------------------------------------------
+// STEP 5: TNF-alpha dPLA -- Proximity probe incubation.
+//   Sample diluted 5-fold in HMB (homemade Nong's buffer):
+//     1x PBS, 1 mM d-biotin, 0.1% gelatin, 0.05% Tween-20,
+//     100 nM goat IgG, 0.1 mg/mL salmon sperm DNA, 4 mM EDTA.
+//   2 uL protein solution + 2 uL APS (200 pM per probe).
+//   CRITICAL: TNF-a is sensitive to storage and buffer conditions
+//   and degrades rapidly; HMB is required (SDB-II incompatible).
+//   Incubation: 4 C, overnight (720 min conservatively).
+// ------------------------------------------------------------
+
+plasmaSampleTNFa    = dispense 1 units of HumanPlasma_Sample
+hmbBuffer           = dispense 1 units of HMB_Buffer
+
+// 5-fold dilution of plasma in HMB.
+dilutedSampleTNFa   = mix plasmaSampleTNFa with hmbBuffer for 5s
+
+tnfaProbeA          = dispense 1 units of TNFa_ProximalProbeA
+tnfaProbeB          = dispense 1 units of TNFa_ProximalProbeB
+
+tnfaProbesMix       = mix tnfaProbeA with tnfaProbeB for 5s
+tnfaProbeSample     = mix dilutedSampleTNFa with tnfaProbesMix for 5s
+
+// Overnight antibody incubation: 4 C, 720 min (modelled ~12 h).
+// Paper: "overnight incubated at 4 C" for TNF-a to maximise signal.
+heat tnfaProbeSample at 4c for 720m
+
+// ------------------------------------------------------------
+// STEP 6: TNF-alpha dPLA -- Ligation.
+//   96 uL ligation solution added to 4 uL probe/sample mix.
+//   Ligation: 37 C, 10 min.
+//   Ligation stop: protease digestion (not heat as for IL-6).
+//     2 uL 1x protease in PBS -> 37 C 10 min -> 95 C 15 min.
+//   `heat` statements model both ligation and protease steps.
+// ------------------------------------------------------------
+
+ligationSolutionTNFa = dispense 1 units of LigationSolution
+
+tnfaLigationMix      = mix tnfaProbeSample with ligationSolutionTNFa for 5s
+heat tnfaLigationMix at 37c for 10m
+
+// Protease digestion stop (instead of heat for TNF-a): 37 C 10 min.
+heat tnfaLigationMix at 37c for 10m
+
+// Protease inactivation: 95 C, 15 min.
+heat tnfaLigationMix at 95c for 15m
+
+// ------------------------------------------------------------
+// STEP 7: TNF-alpha dPLA -- ddPCR reaction and thermal cycling.
+//   Identical setup to IL-6 ddPCR (same supermix, same cycling
+//   program). Calibration curve for TNF-a: R^2=0.92.
+//   LOD: 0.08 pg/mL in HMB plasma; 0.08 pg/mL in BALF.
+//   TNF-a total assay time: ~7 h (requires overnight probe step).
+// ------------------------------------------------------------
+
+ddpcrSupermixTNFa   = dispense 1 units of ddPCR_Supermix
+universalPCRTNFa    = dispense 1 units of Universal_PCR_Assay
+
+tnfaddPCRMix        = mix tnfaLigationMix with ddpcrSupermixTNFa for 5s
+tnfaReactionMix     = mix tnfaddPCRMix with universalPCRTNFa for 5s
+
+heat tnfaReactionMix at 95c for 10m
+heat tnfaReactionMix at 94c for 60m
+heat tnfaReactionMix at 98c for 10m
+
+// dplaDetection module: reads TNF-a positive droplets;
+// converts CPN/uL to pg/mL via calibration curve.
+tnfaSignal          = detect dplaDetection on tnfaReactionMix for 10m
+
+// ============================================================
+// BB5 / BB6: TNF-alpha quantification QC gate
+// Pass (BB5): tnfaSignal > 0 -> TNF-a above LOD; dispose.
+// Fail (BB6): tnfaSignal <= 0 -> below LOD; drain.
+// Both branches converge at BB7 (tnfaJoin).
+// ============================================================
+
+if (tnfaSignal > 0) {
+    dispose tnfaReactionMix
+} else {
+    drain tnfaReactionMix
+}
+
+// ============================================================
+// BB7: tnfaJoin
+// Dispose TNF-a signal. Control falls into ddPCR branch
+// for bacterial DNA quantification.
+// ============================================================
+
+dispose tnfaSignal
+
+// ------------------------------------------------------------
+// STEP 8: Triplex ddPCR -- GN bacteria + GP bacteria + blaTEM.
+//   Uses extracted DNA from STEP 1 (extractedDNA).
+//   Reaction: 1x ddPCR Supermix for Probes (Bio-Rad #186-3023),
+//     900 nM each: Bac_fwd, Bac_rev, TEM_fwd, TEM_rev primers;
+//     340 nM HEX-GN probe; 180 nM FAM-GP probe;
+//     380 nM FAM-blaTEM probe.
+//   Thermal cycling (GN/GP/blaTEM):
+//     95 C 10 min; 40x[94 C 30s + 62 C 1min]; 98 C 10 min;
+//     ramp 2.5 C/s.
+//   2D amplitude plot: 4 clusters (HEX+, FAM-med, FAM-high,
+//   empty droplets) resolved by fluorescence intensity thresholds.
+//   LODs: GN 0.06 CPN/uL (0.09 aM); GP 0.06 CPN/uL (0.09 aM);
+//         blaTEM 0.9 CPN/uL (1.57 aM).
+//   CV as low as 1.3%. Technical variability stable >100 days.
+//
+//   NOTE: GN_16S_Primers_Probe manifest bundles Bac_fwd,
+//   Bac_rev, and HEX-GN probe. GP_16S_Primers_Probe bundles
+//   Bac_fwd, Bac_rev, and FAM-GP probe. blaTEM_Primers_Probe
+//   bundles TEM_fwd, TEM_rev, FAM-blaTEM probe. The shared
+//   primers (Bac_fwd/Bac_rev) are included in each manifest for
+//   BioScript compilation tractability; concentration constraints
+//   are enforced at the instrument level.
+// ------------------------------------------------------------
+
+gnPrimersProbe      = dispense 1 units of GN_16S_Primers_Probe
+gpPrimersProbe      = dispense 1 units of GP_16S_Primers_Probe
+blatEmPrimersProbe  = dispense 1 units of blaTEM_Primers_Probe
+ddpcrSupermixDNA    = dispense 1 units of ddPCR_Supermix
+
+// Assemble triplex reaction: primer/probe sets + supermix.
+primersMix          = mix gnPrimersProbe with gpPrimersProbe for 5s
+allPrimersMix       = mix primersMix with blatEmPrimersProbe for 5s
+dnaReactionBase     = mix ddpcrSupermixDNA with allPrimersMix for 5s
+
+// Add extracted DNA template.
+triplexReactionMix  = mix dnaReactionBase with extractedDNA for 5s
+
+// ddPCR thermal cycling for GN/GP/blaTEM (annealing 62 C, not 60 C).
+heat triplexReactionMix at 95c for 10m
+heat triplexReactionMix at 94c for 60m
+heat triplexReactionMix at 98c for 10m
+
+// ddpcrDetection: reads GN (HEX channel), GP (FAM-medium),
+// blaTEM (FAM-high), empty clusters; returns composite signal.
+// Gate: if ANY of the three targets is above LOD, signal > 0.
+// Absolute concentrations reported as CPN/uL per target.
+ddpcrSignal         = detect ddpcrDetection on triplexReactionMix for 10m
+
+// ============================================================
+// BB8 / BB9: Bacterial DNA + blaTEM ddPCR QC gate
+// Pass (BB8): ddpcrSignal > 0 -> at least one DNA target above
+//             LOD; carry forward to decision-tree classification.
+// Fail (BB9): ddpcrSignal <= 0 -> no detectable bacterial DNA
+//             or blaTEM (all set to 0 per paper Methods);
+//             drain and flag sample as bacteria-negative.
+// Both branches converge at BB10/BB11 (classifier gate).
+// ============================================================
+
+if (ddpcrSignal > 0) {
+    // --------------------------------------------------------
+    // STEP 9: Decision-tree classification using t1 measurements.
+    //   Input features (from this run): GN CPN/uL, TNF-a pg/mL.
+    //   Classifier: scikit-learn DecisionTreeClassifier,
+    //   max_depth=2, 5-fold StratifiedKFold cross-validation,
+    //   n_splits=5, standardised features.
+    //   Thresholds: GN ~85 CPN/uL; TNF-a (group-specific).
+    //   Accuracy: Group A 85.71%, Group B 92.31%, Group C 100%.
+    //   Average k-fold prediction accuracy: >90%.
+    //   decisionTreeClassification module abstracts the
+    //   SciPy/scikit-learn offline analysis step, returning a
+    //   binary outcome signal (classified vs unclassified).
+    //
+    //   Clinical interpretation (paper Fig. 5a):
+    //     GN < 85 CPN/uL at t1 -> Group C (death, 100% accuracy)
+    //     GN >= 85 CPN/uL + TNF-a threshold -> Group A or B
+    //   Counterintuitive finding: lower GN at t1 correlates with
+    //   higher probability of death (excessive immune response
+    //   hypothesis: IL-6 increase, not bacterial load, drives
+    //   mortality in this cohort).
+    // --------------------------------------------------------
+
+    classifierSignal = detect decisionTreeClassification on ddpcrSignal for 30s
+
+    // =========================================================
+    // BB10 / BB11: Decision-tree classification QC gate
+    // Pass (BB10): classifierSignal > 0 -> patient successfully
+    //              classified into Group A, B, or C with >90%
+    //              accuracy; dispose result.
+    // Fail (BB11): classifierSignal <= 0 -> insufficient signal
+    //              or indeterminate (sample below thresholds on
+    //              multiple axes); drain and flag for t2
+    //              repeat sampling and longitudinal re-analysis.
+    // Both branches converge at BB12 (finalCleanup).
+    // =========================================================
+
+    if (classifierSignal > 0) {
+        dispose triplexReactionMix
+    } else {
+        drain triplexReactionMix
+    }
+
+    dispose classifierSignal
+
+} else {
+    drain triplexReactionMix
+}
+
+// ============================================================
+// BB12: finalCleanup (terminal)
+// Dispose the ddPCR signal droplet.
+// Experiment ends; quantitative results (IL-6 pg/mL, TNF-a
+// pg/mL, GN CPN/uL, GP CPN/uL, blaTEM CPN/uL) are logged
+// offline by QuantaSoft Analysis Pro v1.0.596.
+// ============================================================
+
+dispose ddpcrSignal
+
+// [terminal -- no further instructions; exit node for CFG]

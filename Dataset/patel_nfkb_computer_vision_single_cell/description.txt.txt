@@ -1,0 +1,239 @@
+PROTOCOL DESCRIPTION
+====================
+
+Title        : Computer Vision Reveals Hidden Variables Underlying NF-kB Activation in Single Cells
+Source Link  : https://www.science.org/doi/epdf/10.1126/sciadv.abg4135
+Paper DOI    : https://doi.org/10.1126/sciadv.abg4135
+Journal      : Science Advances, 2021, Vol. 7, Article eabg4135
+Platform     : High-throughput microfluidic live-cell imaging (PDMS chip) + image-based SVM machine learning
+
+
+OVERVIEW
+--------
+This protocol describes a microfluidic live-cell imaging approach to uncover hidden molecular
+variables controlling heterogeneous NF-kB (nuclear factor kappa B) activation in single
+mammalian cells. The core experiment uses automated PDMS microfluidic chambers to culture
+and stimulate NIH 3T3 mouse fibroblasts expressing dual fluorescent reporters (p65-dsRed
+for NF-kB dynamics, H2B-GFP as a nuclear marker), combined with a custom image-based support
+vector machine (SVM) pipeline that predicts which individual cells will activate NF-kB from
+their prestimulation images alone.
+
+The protocol is divided into four functional phases:
+  1. Microfluidic device preparation: fibronectin coating and cell seeding
+  2. Live-cell imaging: 1.5 h unperturbed prestimulation imaging followed by TNF-alpha
+     stimulation (0.1 ng/mL) and 6 h post-stimulation tracking of p65 nuclear translocation
+  3. Image-based machine learning: SVM classifier trained on 236 hand-crafted features
+     per cell; predicts activation with 79.4% accuracy from prestimulation images alone
+  4. Fixed-cell immunofluorescence: validates the IkB-alpha/NF-kB ratio as the primary
+     molecular determinant of heterogeneous single-cell activation probability
+
+Key finding: cell-to-cell variability in NF-kB activation is largely explained by a
+preexisting difference in the IkB/NF-kB ratio. Cells with a low IkB/NF-kB ratio show
+minute "leaky" nuclear p65 localization at rest and are significantly more sensitive to
+TNF stimulation. Activated cells show on average a 5-fold higher leaky nuclear p65 level
+before stimulation than non-responding cells (P = 1.35e-13). Resting cells dynamically
+transition between molecular states but maintain their overall activation probability
+(autocorrelation r = 0.78 at 35 min before stimulation, n = 1109 cells).
+
+
+DEVICE AND IMAGING SETUP
+-------------------------
+Device material  : PDMS microfluidic chambers
+Surface coating  : Fibronectin (FC010-10MG), overnight at room temperature
+Cell density     : ~20,000 cells/cm2; cells taken at 100% confluence via 0.25% Trypsin-EDTA
+                   (25200-056) for 5 min and cultured 5 h before stimulation
+Culture          : 37 C, 5% CO2; standard cell culture conditions maintained during imaging
+                   using an on-stage incubation chamber
+Microscope       : Nikon Eclipse Ti2
+Camera           : Hamamatsu ORCA-Flash4.0 V3 Digital CMOS (C13440)
+Magnification    : 20x
+Imaging interval : 5 min per field of view
+Stimulus delivery: TNF-alpha vials pressurized at 5 psi; connected to chip via PEEK microbore
+                   tubing (VICI)
+Image analysis   : Custom MATLAB scripts; NF-kB quantified as mean nuclear fluorescence
+                   intensity after background correction; peak analysis via MATLAB smooth +
+                   z-score normalization + peak detection
+
+
+CELL LINE
+---------
+Parental         : p65(-/-) knockout NIH 3T3 mouse fibroblasts
+Reporters        :
+  p65-dsRed      : NF-kB transcription factor p65 fused to dsRed, expressed under native
+                   p65 promotor; minimum fluorescence clone selected to represent endogenous
+                   NF-kB pathway dynamics
+  H2B-GFP        : Histone 2B fused to GFP, expressed from ubiquitin promotor; serves as
+                   nuclear marker for segmentation and cell tracking
+
+In activated cells, cytoplasmic p65-dsRed rapidly translocates to the nucleus in a digital
+(switch-like) fashion within ~40 min of TNF stimulation. Non-responding cells show no
+translocation and no NF-kB target gene expression.
+
+
+PROTOCOL STEPS
+--------------
+
+Step 1 | Fibronectin Chamber Coating
+  Reagent  : Fibronectin (FC010-10MG)
+  Duration : Overnight (~720 min) at room temperature
+  Purpose  : Promotes cell adhesion to PDMS chamber surface prior to loading
+
+Step 2 | PBS Wash of Coated Chamber
+  Reagent  : PBS
+  Duration : 1 min
+  Purpose  : Removes unbound fibronectin before cell seeding
+
+Step 3 | Cell Seeding and Pre-stimulation Culture
+  Cell line: NIH 3T3 p65-dsRed / H2B-GFP
+  Density  : ~20,000 cells/cm2
+  Process  : Cells harvested at 100% confluence with 0.25% Trypsin-EDTA (25200-056) for
+             5 min, loaded into coated chamber
+  Culture  : 5 h at 37 C, 5% CO2 (= 300 min) before stimulation; allows cell adhesion and
+             equilibration to endogenous reporter expression levels
+
+Step 4 | Prestimulation Live-Cell Imaging (t = -90 min to t = 0)
+  Duration  : 1.5 h = 90 min; image every 5 min (18 time points)
+  Channels  : p65-dsRed (red), H2B-GFP (green), phase contrast
+  Output    : 236 hand-crafted features per cell per time point, including:
+                - Mean nuclear p65-dsRed fluorescence (top predictor, r = 0.62)
+                - SD of nuclear p65-dsRed
+                - Nuclear phase entropy
+                - Nuclear pixel correlation (information measure)
+                - Otsu dimension
+                - SFTA (Segmentation-based Fractal Texture Analysis)
+                - Major axis length
+                - H2B-GFP channel morphology features
+  Purpose   : Provides the unperturbed cell image input for the SVM activation classifier.
+              Cells are not chemically stimulated during this window.
+  Note      : mix step in BioScript abstracts the repeated imaging acquisition loop;
+              no reagent mixing occurs at this step.
+
+Step 5 | TNF-alpha Stimulation (t = 0)
+  Reagent          : TNF-alpha (PMC3014_3671982503)
+  Diluent          : FluoroBrite DMEM (A1896701) + 2x GlutaMAX (35050061) +
+                     penicillin/streptomycin (15140-122) + FBS (16140071)
+  Concentration    : 0.1 ng/mL (main dataset, n = 2113 cells)
+                     Multi-dose: 0.005, 0.05, 0.5, 5 ng/mL (n = 3456 cells combined)
+  Delivery         : Pressurized vial at 5 psi; PEEK microbore tubing (VICI); chip inlet
+  Time zero        : Stimulation marks t = 0 for all single-cell NF-kB trace analyses
+
+Step 6 | Post-Stimulation Live-Cell Imaging (t = 0 to t = +360 min)
+  Duration      : 6 h = 360 min at 37 C, 5% CO2; image every 5 min (72 time points)
+  Readout       : Nuclear NF-kB (p65-dsRed) tracked per cell over 6 h
+  Activation    : Responding cells show complete cytoplasm-to-nucleus translocation
+                  (digital / switch-like behavior); non-responding cells show no change
+  Labeling      : Binary threshold on (nuclear p65_peak - nuclear p65_(t=0)) > 500
+                  (MATLAB: smooth + z-score normalization, peak detection; Fig. S4A)
+  Datasets      : Main: 0.1 ng/mL TNF, n = 2113 cells (independent validation set)
+                  Multi-dose: 0.005-5 ng/mL, n = 3456 cells (SVM training set)
+
+Step 7 | NF-kB Activation Detection (QC Gate)
+  Module   : nfkbActivationDetection
+  Duration : 30 s (image analysis classification)
+  Gate     :
+    Pass (activationSignal > 0)  -> activated cell; proceed to fixed-cell IF (Step 8-13)
+    Fail (activationSignal <= 0) -> non-responding cell; drain
+
+Step 8 | PBS Rinse (pass branch only)
+  Reagent  : PBS
+  Duration : 1 min
+  Purpose  : Removes culture medium before fixation; matches Materials and Methods protocol
+
+Step 9 | Paraformaldehyde Fixation (pass branch only)
+  Reagent     : 4% PFA in PBS (ParaformaldehydeFixative)
+  Duration    : 10 min at room temperature (25 C)
+  Imaging note: Cell image taken at t = -5 min (immediately preceding fixation) used to
+                align fixed-cell IF data with live imaging UMAP space (Fig. 5A-B)
+
+Step 10 | Blocking and Permeabilization (pass branch only)
+  Buffer   : 10% BSA + 0.5% Triton X-100 in PBS (BlockingPermeabilizationBuffer)
+  Duration : 1 h (60 min) at room temperature
+  Purpose  : Blocks non-specific antibody binding; permeabilizes cell membranes for
+             intracellular IkB-alpha antibody access
+
+Step 11 | Primary Antibody - Anti-IkB-alpha (pass branch only)
+  Antibody : Rabbit polyclonal anti-IkB-alpha (ab7217)
+  Buffer   : 2% BSA + 0.1% Triton X-100 in PBS
+  Duration : 1 h (60 min) at 37 C
+  Target   : IkB-alpha, the main inhibitor of NF-kB; binds p65 and retains it in cytoplasm
+             in unstimulated cells; the IkB/NF-kB ratio predetermines activation probability
+             (simulation: rho = -0.256, P = 2.7e-11; Fig. 5C)
+
+Step 12 | PBS Wash After Primary Antibody (pass branch only)
+  Reagent  : PBS
+  Duration : 1 min
+  Purpose  : Removes unbound primary antibody before secondary incubation
+
+Step 13 | Secondary Antibody - Alexa Fluor 647 (pass branch only)
+  Antibody : Goat polyclonal anti-rabbit IgG H&L Alexa Fluor 647 (G378361)
+  Buffer   : 2% BSA + 0.1% Triton X-100 in PBS
+  Duration : 1 h (60 min) at 37 C
+  Read     : AF647 signal (ex ~650 nm / em ~668 nm) quantifies IkB-alpha in nuclear and
+             cytoplasmic compartments for IkB/NF-kB ratio analysis
+  Validation: Activated (high-scoring) fixed cells show significantly lower IkB/NF-kB ratio,
+              higher nuclear NF-kB, and larger cellular area than inactive cells (Fig. 5D)
+
+Step 14 | Immunofluorescence Staining QC Detection
+  Module   : immunofluorescenceDetection
+  Duration : 30 s
+  Readout  : IkB/NF-kB ratio per cell (nuclear + cytoplasmic segmentation of AF647 + p65-dsRed)
+  Gate     :
+    Pass (ifStainingSignal > 0)  -> IkB/NF-kB ratio quantified; dispose stained sample
+    Fail (ifStainingSignal <= 0) -> staining failure; dispose
+
+
+MACHINE LEARNING PIPELINE
+--------------------------
+Model            : Support Vector Machine (SVM), cubic kernel
+Features         : 236 hand-crafted features per cell (nuclear segmentation, texture,
+                   morphology); extracted with custom MATLAB scripts (table S2)
+Training set     : Multi-dose dataset: [0.005, 0.05, 0.5, 5] ng/mL TNF, n = 3456 cells
+                   10-fold cross-validation, 10% dropout
+Validation set   : Independent single-dose dataset: 0.1 ng/mL TNF, n = 2113 cells
+Accuracy         : 73% (cross-validation, cubic kernel); 79.4% (independent validation set)
+Top predictor    : Mean nuclear p65-dsRed fluorescence prestimulation (r = 0.62, P < 1e-100)
+Other predictors : SD nuclear p65, nuclear phase entropy, pixel correlation, information
+                   measure, Otsu dimension, SFTA, major axis length
+Alternate models : CNN and decision tree outperform SVM in accuracy but lack interpretable
+                   feature attribution; SVM chosen for biological insight
+Code             : https://github.com/parthivapatel/ML_cellim.git
+Dataset DOI      : 10.5281/zenodo.5361956
+
+
+KEY FINDINGS
+------------
+1. Prestimulation p65 nuclear leakiness is the primary predictor of single-cell NF-kB
+   activation (r = 0.62 with activation probability; Fig. 2C).
+2. The IkB/NF-kB ratio is the molecular driver of p65 leakiness and activation probability;
+   significant inverse correlation (rho = -0.256, P = 2.7e-11) confirmed by IF (Fig. 5C).
+3. Activated cells show on average 5-fold higher leaky nuclear p65 before stimulation than
+   non-responding cells (P = 1.35e-13; Fig. 4E). Leakiness represents ~12% of total fluorescence.
+4. Unstimulated cells dynamically transition between molecular states but maintain stable
+   activation probability (autocorrelation r = 0.78 at 35 min before stimulation, n = 1109).
+5. 73.71% of state transitions remain within or adjacent to the same activation-probability
+   cluster; TNF sensitivity is stable across the observed prestimulation time window.
+6. Counterintuitively, cells with high initial IkB require a smaller TNF dose to achieve
+   NF-kB activation, because probability depends on the IkB/NF-kB ratio, not absolute IkB.
+
+
+BIOSCRIPT COMPILER NOTES
+-------------------------
+BioScript file : patel_nfkb_computer_vision_single_cell.bs
+Compiler       : lilott8/BioScript (ANTLR4-based)
+IR output      : 7 basic blocks (BB1-BB7), 2 if/else gates, 8 CFG edges
+DAG            : patel_nfkb_computer_vision_single_cell_main_dag.dot
+Duration units : All durations in s or m (BioScript supports s and m only; h not supported)
+                 Overnight coating  -> 720m  (IR: 43200.0 SECOND)
+                 5 h culture        -> 300m  (IR: 18000.0 SECOND)
+                 1.5 h prestim      -> 90m   (IR: 5400.0 SECOND)
+                 6 h post-stim      -> 360m  (IR: 21600.0 SECOND)
+                 1 h Ab incubations -> 60m   (IR: 3600.0 SECOND)
+                 10 min PFA fix     -> 10m   (IR: 600.0 SECOND)
+drain          : Normalizes to dispose in IR -- expected compiler behavior, not a bug
+Modules        : nfkbActivationDetection, immunofluorescenceDetection
+Manifest       : NIH3T3_p65dsRed_H2BGFP_Cells, FibronectinCoating, PBS,
+                 FluoroBriteDMEM_TNFalpha, ParaformaldehydeFixative,
+                 BlockingPermeabilizationBuffer, IkBa_PrimaryAntibody,
+                 AlexaFluor647_SecondaryAntibody
+CFG note       : BB3 (activationFail) drain normalizes to dispose in IR; DOT confirms
+                 BB1->BB2->BB4 and BB1->BB3->BB4 edges present and correct

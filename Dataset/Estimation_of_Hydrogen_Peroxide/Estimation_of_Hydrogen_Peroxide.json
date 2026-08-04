@@ -1,0 +1,52 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Estimation of Hydrogen Peroxide (H2O2) Content in Plant Leaf Tissue\n\nREAGENTS USED:\n  - Leaf Tissue (control and infected samples, crushed in liquid nitrogen)\n  - Trichloroacetic Acid (TCA)\n  - Potassium Iodide (KI)\n  - Potassium Phosphate Buffer (10 mM, pH 6.5)\n\nSTEPS:\n1. Crush 100 mg of leaf tissue (control or infected) with liquid nitrogen and mix with 1 mL reaction mixture comprising 0.25 mL TCA, 0.5 mL KI, and 0.25 mL potassium phosphate buffer (10 mM, pH 6.5).\n2. Vortex and homogenize the reaction for 10 min at 4 C.\n3. Centrifuge the homogenate at 12,000 x g for 15 min at 4 C.\n4. Incubate the collected supernatant at ~25 C for 20 min.\n5. Measure absorbance at 390 nm.\n\nINTERPRETATION: Absorbance at 390 nm reflects the KI-mediated colorimetric detection of H2O2 in the tissue extract; higher absorbance indicates greater H2O2 accumulation, and infected-tissue readings are typically compared against control-tissue readings to assess oxidative stress response." },
+    { "role": "assistant", "content": "module fluorescence\n\nmanifest leaf_tissue\nmanifest trichloroacetic_acid\nmanifest potassium_iodide\nmanifest potassium_phosphate_buffer\n\ninstructions:\n\n// Step 1: Crush leaf tissue (control or infected) with liquid nitrogen, then combine with the\n// reaction mixture: TCA, KI, and potassium phosphate buffer (10 mM, pH 6.5)\ntissue = dispense 100 units of leaf_tissue\ntca = dispense 250 units of trichloroacetic_acid\nki = dispense 500 units of potassium_iodide\nkpb = dispense 250 units of potassium_phosphate_buffer\n\nmix1 = mix tissue with tca\nmix2 = mix mix1 with ki\nreaction = mix mix2 with kpb\n\n// Step 2: Vortex/homogenize for 10 min at 4 C\nheat reaction at 4c for 10m\n\n// Step 3: Centrifugation (12,000 x g, 15 min, 4 C) is off-chip; supernatant is carried forward\n// and incubated at ~25 C for 20 min before reading\nheat reaction at 25c for 20m\n\n// Step 4: Measure absorbance at 390 nm to quantify H2O2 content\n// (detect fluorescence used as the generic optical-signal readout stand-in, since BioScript\n// exposes no dedicated absorbance/spectrophotometric detect module)\nh2o2_reading = detect fluorescence on reaction for 30s\n\ndispose reaction" }
+  ],
+  "metadata": {
+    "protocol_id": "hydrogen_peroxide_estimation_001",
+    "bs_file": "tests/test_cases/hydrogen_peroxide_estimation/hydrogen_peroxide_estimation.bs",
+    "protocol_name": "Estimation of Hydrogen Peroxide (H2O2) Content in Plant Leaf Tissue",
+    "category": "phytochemical_assay",
+    "chemicals": [
+      "leaf_tissue",
+      "trichloroacetic_acid",
+      "potassium_iodide",
+      "potassium_phosphate_buffer"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "internal_protocol", "title": "Estimation of Hydrogen Peroxide (H2O2)", "publisher": "Bioscience Lab, IITR", "url": "N/A", "doi": "N/A" }
+    ],
+    "notes": "Source document (Assays.docx) was a plain protocol excerpt with no journal/DOI metadata; source is attributed per user instruction as 'Bioscience Lab, IITR' with DOI N/A. Centrifugation (12,000 x g, 15 min, 4 C) has no BioScript primitive and is treated as an off-chip step not represented in the code, consistent with how solid/liquid-phase separation steps lacking a dedicated primitive are handled in the other translated protocols in this set. The initial 4 C vortex/homogenization hold and the ~25 C supernatant incubation are both modeled with 'heat' instructions, since BioScript has no separate 'incubate' or 'vortex' primitive. The control-vs-infected tissue comparison described in the protocol is not branched in code; a single representative sample flow is modeled, with the comparison intended to be run as two separate executions (control, infected) rather than as an in-script branch.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "leaf_tissue", "source_quote": "100 mg of leaf tissue of both control and infected tissue was crushed", "source_location": "Assays.docx: Estimation of Hydrogen Peroxide" },
+        { "bs_chemical": "trichloroacetic_acid", "source_quote": "0.25 mL of trichloroacetic acid (TCA)", "source_location": "Assays.docx: Estimation of Hydrogen Peroxide" },
+        { "bs_chemical": "potassium_iodide", "source_quote": "0.5 mL of potassium iodide (KI)", "source_location": "Assays.docx: Estimation of Hydrogen Peroxide" },
+        { "bs_chemical": "potassium_phosphate_buffer", "source_quote": "0.25 mL of potassium phosphate buffer (10 mM, pH 6.5)", "source_location": "Assays.docx: Estimation of Hydrogen Peroxide" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "heat reaction at 4c for 10m", "source_quote": "vortexed and homogenized for 10 min at 4 °C", "source_location": "Assays.docx: Estimation of Hydrogen Peroxide" },
+        { "bs_operation": "heat reaction at 25c for 20m", "source_quote": "supernatant was then incubated at ∼25 °C for 20 min", "source_location": "Assays.docx: Estimation of Hydrogen Peroxide" },
+        { "bs_operation": "h2o2_reading = detect fluorescence on reaction", "source_quote": "before measuring absorbance at 390 nm", "source_location": "Assays.docx: Estimation of Hydrogen Peroxide" }
+      ],
+      "numeric_mismatches": [
+        { "field": "centrifugation step omitted", "note": "The 12,000 x g, 15 min, 4 C centrifugation step has no corresponding BioScript primitive (no centrifuge/spin operation) and is not represented in the code; the reaction droplet is carried forward directly to the next incubation." },
+        { "field": "h2o2_reading = detect fluorescence", "note": "Detection in the protocol is spectrophotometric absorbance at 390 nm, not a fluorogenic signal. 'fluorescence' is used only because it is the sole detect module exposed by BioScript's grammar; it stands in for a generic quantitative optical read, not an actual fluorescence measurement." },
+        { "field": "control vs. infected tissue not branched", "note": "The protocol describes parallel processing of control and infected leaf tissue; this is modeled as a single generic 'leaf_tissue' flow rather than two branches, since the comparison is an experimental-design choice (run twice) rather than an in-protocol conditional." }
+      ]
+    }
+  }
+}

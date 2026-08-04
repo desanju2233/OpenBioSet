@@ -1,0 +1,50 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Estimation of Lipid Peroxides (TBARS) in Plant Leaf Tissue\n\nREAGENTS USED:\n  - Leaf Tissue (control and infected samples, ground in liquid nitrogen)\n  - Trichloroacetic Acid (TCA), 0.1% (w/v) for extraction\n  - TBA Reagent (0.5% thiobarbituric acid in 20% trichloroacetic acid)\n\nSTEPS:\n1. Grind leaf tissue (control or infected) with liquid nitrogen into a fine powder; homogenize 100 mg of powder with 1 mL of 0.1% (w/v) TCA.\n2. Centrifuge the extract at 12,000 x g for 15 min at 4 C; collect the supernatant.\n3. Mix 1 mL of 0.5% TBA in 20% TCA with 0.5 mL of the supernatant.\n4. Heat the mixture at 95 C for 30 min in a dry bath, then cool at ice-cold temperature.\n5. Centrifuge the mixture at 14,000 x g for 15 min at 4 C.\n6. Measure absorbance at 532 nm, then measure absorbance at 600 nm to correct for unspecific turbidity; subtract A600 from A532 to obtain corrected absorbance.\n\nINTERPRETATION: The corrected absorbance (A532 - A600) reflects malondialdehyde (MDA)-TBA complex formation and is used as a measure of lipid peroxidation (TBARS); higher corrected absorbance indicates greater oxidative membrane damage, with infected-tissue readings typically compared against control-tissue readings." },
+    { "role": "assistant", "content": "module fluorescence\n\nmanifest leaf_tissue\nmanifest trichloroacetic_acid\nmanifest tba_reagent\n\ninstructions:\n\n// Step 1: Grind leaf tissue (control or infected) with liquid nitrogen, then homogenize\n// 100 mg powder with 1 mL of 0.1% (w/v) TCA\ntissue = dispense 100 units of leaf_tissue\ntca = dispense 1000 units of trichloroacetic_acid\nhomogenate = mix tissue with tca\n\n// Step 2: Centrifugation (12,000 x g, 15 min, 4 C) is off-chip; supernatant is carried forward\n\n// Step 3: Combine 1 mL of 0.5% TBA in 20% TCA with 0.5 mL of the supernatant\ntba = dispense 1000 units of tba_reagent\nreaction = mix homogenate with tba\n\n// Step 4: Heat at 95 C for 30 min (dry bath), then cool at ice-cold temperature\nheat reaction at 95c for 30m\nheat reaction at 4c for 5m\n\n// Step 5: Second centrifugation (14,000 x g, 15 min, 4 C) is off-chip; supernatant carried forward\n\n// Step 6: Measure absorbance at 532 nm (TBARS signal) and 600 nm (turbidity correction);\n// A600 is subtracted from A532 downstream to give corrected absorbance\n// (detect fluorescence used as the generic optical-signal readout stand-in, since BioScript\n// exposes no dedicated absorbance/spectrophotometric detect module)\nabs_532 = detect fluorescence on reaction for 30s\nabs_600 = detect fluorescence on reaction for 30s\n\ndispose reaction" }
+  ],
+  "metadata": {
+    "protocol_id": "lipid_peroxides_tbars_estimation_001",
+    "bs_file": "tests/test_cases/lipid_peroxides_estimation/lipid_peroxides_estimation.bs",
+    "protocol_name": "Estimation of Lipid Peroxides (TBARS) in Plant Leaf Tissue",
+    "category": "phytochemical_assay",
+    "chemicals": [
+      "leaf_tissue",
+      "trichloroacetic_acid",
+      "tba_reagent"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "internal_protocol", "title": "Estimation of lipid peroxides", "publisher": "Bioscience Lab, IITR", "url": "N/A", "doi": "N/A" }
+    ],
+    "notes": "Source document (Assays.docx) was a plain protocol excerpt with no journal/DOI metadata; source is attributed per user instruction as 'Bioscience Lab, IITR' with DOI N/A. Both centrifugation steps (12,000 x g and 14,000 x g, 15 min, 4 C each) have no BioScript primitive and are treated as off-chip steps not represented in the code, consistent with the other translated protocols in this set. The 95 C dry-bath heating and the subsequent ice-cold cooling are both modeled with 'heat' instructions (95c and 4c respectively), since BioScript has no dedicated 'cool' primitive. The dual-wavelength absorbance readout (532 nm signal, 600 nm turbidity blank) is modeled as two separate 'detect fluorescence' calls on the same droplet, since the actual A532-A600 subtraction is a downstream calculation with no corresponding BioScript arithmetic primitive. The control-vs-infected tissue comparison is not branched in code; a single representative sample flow is modeled, with the comparison intended to be run as two separate executions (control, infected).",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "leaf_tissue", "source_quote": "one leaf tissue of both the control and the infected sample", "source_location": "Assays.docx: Estimation of lipid peroxides" },
+        { "bs_chemical": "trichloroacetic_acid", "source_quote": "One mL of 0.1% (w/v) trichloroacetic acid (TCA) was used to homogenize", "source_location": "Assays.docx: Estimation of lipid peroxides" },
+        { "bs_chemical": "tba_reagent", "source_quote": "1 mL of 0.5% thiobarbituric acid (TBA) in 20% trichloroacetic acid", "source_location": "Assays.docx: Estimation of lipid peroxides" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "heat reaction at 95c for 30m", "source_quote": "the solution was heated at 95 °C for 30 min in a dry bath", "source_location": "Assays.docx: Estimation of lipid peroxides" },
+        { "bs_operation": "heat reaction at 4c for 5m", "source_quote": "before cooling at ice-cold temperatures", "source_location": "Assays.docx: Estimation of lipid peroxides" },
+        { "bs_operation": "abs_532 = detect fluorescence; abs_600 = detect fluorescence", "source_quote": "At 532 nm, the supernatant was measured for absorbance", "source_location": "Assays.docx: Estimation of lipid peroxides" }
+      ],
+      "numeric_mismatches": [
+        { "field": "centrifugation steps omitted (12,000 x g and 14,000 x g)", "note": "Neither centrifugation step has a corresponding BioScript primitive (no centrifuge/spin operation); both are omitted from the code and the droplet is carried forward directly to the next step." },
+        { "field": "abs_532 / abs_600 = detect fluorescence", "note": "Detection in the protocol is spectrophotometric absorbance at 532 nm and 600 nm, not a fluorogenic signal, and the two readings are subtracted downstream (A532 - A600) to correct for turbidity -- a calculation not representable in BioScript. 'fluorescence' is used only because it is the sole detect module exposed by BioScript's grammar." },
+        { "field": "control vs. infected tissue not branched", "note": "The protocol describes parallel processing of control and infected leaf tissue; this is modeled as a single generic 'leaf_tissue' flow rather than two branches, since the comparison is an experimental-design choice (run twice) rather than an in-protocol conditional." }
+      ]
+    }
+  }
+}

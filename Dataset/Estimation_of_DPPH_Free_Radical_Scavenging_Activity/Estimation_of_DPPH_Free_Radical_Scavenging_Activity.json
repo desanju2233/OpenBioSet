@@ -1,0 +1,48 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Estimation of DPPH Free Radical Scavenging Activity\n\nREAGENTS USED:\n  - Methanolic Extract (various concentrations)\n  - DPPH Solution (100 uM 2,2-diphenyl-1-picrylhydrazyl, prepared in methanol)\n\nSTEPS:\n1. Combine 40 uL of methanolic extract (at a given concentration) with 160 uL of 100 uM DPPH solution (in methanol).\n2. Incubate the mixture in the dark at room temperature for 30 min.\n3. Measure absorbance at 517 nm.\n\nINTERPRETATION: A decrease in absorbance at 517 nm relative to a DPPH-only control reflects free-radical scavenging by the extract; percent scavenging activity is calculated from the absorbance decrease, with greater scavenging (larger decrease) indicating higher antioxidant capacity of the extract." },
+    { "role": "assistant", "content": "module fluorescence\n\nmanifest methanolic_extract\nmanifest dpph_solution\n\ninstructions:\n\n// Step 1: Combine 40 uL of methanolic extract with 160 uL of 100 uM DPPH solution (in methanol)\nextract = dispense 40 units of methanolic_extract\ndpph = dispense 160 units of dpph_solution\nreaction = mix extract with dpph\n\n// Step 2: Incubate in the dark at room temperature for 30 min\nheat reaction at 25c for 30m\n\n// Step 3: Measure absorbance at 517 nm to quantify DPPH radical scavenging activity\n// (detect fluorescence used as the generic optical-signal readout stand-in, since BioScript\n// exposes no dedicated absorbance/spectrophotometric detect module)\ndpph_reading = detect fluorescence on reaction for 30s\n\ndispose reaction" }
+  ],
+  "metadata": {
+    "protocol_id": "dpph_scavenging_activity_001",
+    "bs_file": "tests/test_cases/dpph_scavenging_activity/dpph_scavenging_activity.bs",
+    "protocol_name": "Estimation of DPPH Free Radical Scavenging Activity",
+    "category": "phytochemical_assay",
+    "chemicals": [
+      "methanolic_extract",
+      "dpph_solution"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "internal_protocol", "title": "Estimation of DPPH free radical scavenging activity", "publisher": "Bioscience Lab, IITR", "url": "N/A", "doi": "N/A" }
+    ],
+    "notes": "Source document (Assays.docx) was a plain protocol excerpt with no journal/DOI metadata; source is attributed per user instruction as 'Bioscience Lab, IITR' with DOI N/A. The room-temperature, dark incubation is modeled with 'heat reaction at 25c for 30m', since BioScript has no dedicated 'incubate at ambient temperature' or 'protect from light' primitive; the dark condition itself is not representable and is only documented in comments. The multiple-concentration design ('different concentrations of methanolic extract') is not branched or looped in code; a single representative extract-concentration flow is modeled, with the dose-response series intended to be run as repeated executions at varying input concentrations rather than as an in-script loop.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "methanolic_extract", "source_quote": "40 µL of different concentrations of methanolic extract", "source_location": "Assays.docx: Estimation of DPPH free radical scavenging activity" },
+        { "bs_chemical": "dpph_solution", "source_quote": "160 µL of 100 µM DPPH solution (prepared in methanol)", "source_location": "Assays.docx: Estimation of DPPH free radical scavenging activity" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "reaction = mix extract with dpph", "source_quote": "40 µL of different concentrations of methanolic extract was mixed with 160 µL", "source_location": "Assays.docx: Estimation of DPPH free radical scavenging activity" },
+        { "bs_operation": "heat reaction at 25c for 30m", "source_quote": "incubated in the dark at room temperature for 30 min", "source_location": "Assays.docx: Estimation of DPPH free radical scavenging activity" },
+        { "bs_operation": "dpph_reading = detect fluorescence on reaction", "source_quote": "followed by measuring absorbance at 517 nm", "source_location": "Assays.docx: Estimation of DPPH free radical scavenging activity" }
+      ],
+      "numeric_mismatches": [
+        { "field": "dpph_reading = detect fluorescence", "note": "Detection in the protocol is spectrophotometric absorbance at 517 nm, not a fluorogenic signal. 'fluorescence' is used only because it is the sole detect module exposed by BioScript's grammar; it stands in for a generic quantitative optical read, not an actual fluorescence measurement." },
+        { "field": "dark incubation condition", "note": "The requirement to incubate 'in the dark' has no corresponding BioScript primitive (no light-shielding/protection instruction) and is only noted in a comment, not enforced in the executable code." },
+        { "field": "multiple extract concentrations not looped", "note": "The protocol tests 'different concentrations' of extract for a dose-response curve; this is modeled as a single generic 'methanolic_extract' dispense rather than a repeat/loop over concentration values, since concentration is an experimental-design input rather than an in-protocol conditional." }
+      ]
+    }
+  }
+}

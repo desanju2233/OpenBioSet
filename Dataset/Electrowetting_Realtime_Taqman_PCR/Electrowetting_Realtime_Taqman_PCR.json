@@ -1,0 +1,54 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Electrowetting-Based Digital Microfluidics Coupled to Real-Time (TaqMan) PCR for Human SNP Allelic Discrimination\n\nREAGENTS USED:\n  - Allele 1 Control Template (human genomic DNA control containing allele 1 template only, targeted by the VIC-labeled probe)\n  - Allele 2 Control Template (human genomic DNA control containing allele 2 template only, targeted by the FAM-labeled probe)\n  - Both-Alleles Control Template (heterozygous control containing both allele 1 and allele 2 templates)\n  - No-Template Control (no DNA)\n  - TaqMan Allelic Discrimination Master Mix (commercially available TaqMan allelic discrimination kit reagent, ABI PN:4312559, for the C440T mutation of the CYC2C9*2 gene; contains differentially labeled FAM/VIC fluorescent probes, primers, dNTPs, and Taq polymerase; ~300 nL droplets)\n\nSTEPS:\n1. For each of the four allelic controls (allele 1 only, allele 2 only, both alleles, no template), dispense a ~300 nL droplet of the control template onto the electrowetting chip.\n2. Dispense a matching ~300 nL droplet of TaqMan master mix reagent for each control.\n3. Actuate and merge each control droplet with its corresponding master mix droplet on the electrowetting chip to form four complete PCR reaction droplets.\n4. Transport each droplet back and forth several hundred times under electrowetting control to verify standard droplet manipulations (transport, mixing, splitting, dispensing) are unaffected by the PCR reagents, then position the droplets at opposite ends of the electrode array.\n5. Remove the electrowetting control voltage and thermocycle the entire chip inside the custom-built hot-air thermocycler mounted on the fluorescence microscope.\n6. After each thermal cycle, read out FAM and VIC fluorescence intensity from each droplet in real time to build per-cycle amplification time-courses.\n7. Discard each droplet after the thermocycling/detection run is complete.\n\nINTERPRETATION: Successful allelic discrimination is confirmed by real-time fluorescence amplification curves showing successful DNA amplification within the droplets, and by end-point FAM/VIC intensity plots that cleanly separate droplets bearing allele 1 only, allele 2 only, both alleles, and no template, demonstrating that the addition of PCR reagents has little effect on electrowetting droplet manipulation, that the electrowetting chip environment does not inhibit PCR, and that the platform can discriminate a human SNP differing by only one base pair." },
+    { "role": "assistant", "content": "module fluorescence\n\nmanifest Allele1Control\nmanifest Allele2Control\nmanifest BothAllelesControl\nmanifest NoTemplateControl\nmanifest TaqManMasterMix\n\ninstructions:\n\nallele1 = dispense 300 units of Allele1Control\nallele2 = dispense 300 units of Allele2Control\nboth_alleles = dispense 300 units of BothAllelesControl\nno_template = dispense 300 units of NoTemplateControl\n\nmastermix1 = dispense 300 units of TaqManMasterMix\nmastermix2 = dispense 300 units of TaqManMasterMix\nmastermix3 = dispense 300 units of TaqManMasterMix\nmastermix4 = dispense 300 units of TaqManMasterMix\n\ndroplet1 = mix allele1 with mastermix1 for 5s\ndroplet2 = mix allele2 with mastermix2 for 5s\ndroplet3 = mix both_alleles with mastermix3 for 5s\ndroplet4 = mix no_template with mastermix4 for 5s\n\nrepeat 40 times {\n    heat droplet1 at 95c for 15s\n    heat droplet1 at 60c for 60s\n    signal1 = detect fluorescence on droplet1 for 5s\n\n    heat droplet2 at 95c for 15s\n    heat droplet2 at 60c for 60s\n    signal2 = detect fluorescence on droplet2 for 5s\n\n    heat droplet3 at 95c for 15s\n    heat droplet3 at 60c for 60s\n    signal3 = detect fluorescence on droplet3 for 5s\n\n    heat droplet4 at 95c for 15s\n    heat droplet4 at 60c for 60s\n    signal4 = detect fluorescence on droplet4 for 5s\n}\n\ndispose droplet1\ndispose droplet2\ndispose droplet3\ndispose droplet4" }
+  ],
+  "metadata": {
+    "protocol_id": "dmf_realtime_taqman_pcr_allelic_discrimination_001",
+    "bs_file": "tests/test_cases/pollack_taqman_pcr/electrowetting_realtime_taqman_pcr.bs",
+    "protocol_name": "Electrowetting-Based Real-Time (TaqMan) PCR Allelic Discrimination (Pollack et al. 2003)",
+    "category": "genotyping_assay",
+    "chemicals": [
+      "Allele1Control",
+      "Allele2Control",
+      "BothAllelesControl",
+      "NoTemplateControl",
+      "TaqManMasterMix"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "repeat",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": true,
+    "validation_status": "compiled_ok",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "original_protocol", "title": "Investigation of Electrowetting-Based Microfluidics for Real-Time PCR Applications", "publisher": "Proceedings of the 7th International Conference on Miniaturized Chemical and Biochemical Analysis Systems (uTAS 2003), Squaw Valley, California, USA", "url": "https://scispace.com/pdf/investigation-of-electrowetting-based-microfluidics-for-real-26cifb2oun.pdf", "doi": "N/A" }
+    ],
+    "notes": "The authored BioScript code is a direct translation of the paper's core real-time PCR experiment (RESULTS AND DISCUSSION, second issue investigated): dispensing ~300 nL PCR-mix droplets for each of the four allelic controls (allele 1 only, allele 2 only, both templates, no template), thermocycling the chip, and reading FAM/VIC fluorescence each cycle to build the amplification time-course and allelic-discrimination plot shown in Fig. 2. Unlike the DBS/nESI-MS protocol, this assay's native readout is genuinely fluorescence-based (differentially labeled FAM/VIC TaqMan probes), so the 'detect fluorescence' primitive is a direct, not a stand-in, match. The paper's text describes only that 'the entire chip was thermocycled' without giving explicit per-step temperatures, hold times, or cycle count; the 95C/60C two-temperature TaqMan qPCR profile, per-step hold times, and 40-cycle count are standard-assumption values (consistent with the ~0-50 cycle range plotted in Fig. 2) rather than values stated verbatim in the paper. The first key issue investigated (effect of PCR reagents vs. 0.1 M KCl electrolyte droplets on manipulation, transport, mixing, splitting, dispensing) and the third key issue (cross-contamination experiment: two droplets flowed in a cross-intersecting pattern for 5,000 cycles / 15,000 electrode transfers, then collected and amplified on a conventional real-time PCR system, Fig. 3) are validation/comparison sub-experiments with no corresponding BioScript primitive for spatial flow patterns or off-chip conventional-PCR readout, and are intentionally not modeled; only the core four-droplet real-time allelic-discrimination thermocycling/detection protocol is captured here.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "Allele1Control / Allele2Control / BothAllelesControl / NoTemplateControl", "source_quote": "Droplets (~300 nL) of complete PCR mix containing each of four allelic controls were dispensed into the chip using electrowetting ... i.e. allele 1 template only, allele 2 template only, both templates, no template", "source_location": "RESULTS AND DISCUSSION, second paragraph and footnote 2" },
+        { "bs_chemical": "TaqManMasterMix", "source_quote": "The real-time PCR reagents were obtained from a commercially available TaqMan allelic discrimination kit which contained differentially labeled (FAM/VIC) fluorescent probes corresponding to each of the two alleles.", "source_location": "METHODS" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "allele1/allele2/both_alleles/no_template = dispense 300 units of ...", "source_quote": "Droplets (~300 nL) of complete PCR mix containing each of four allelic controls were dispensed into the chip using electrowetting", "source_location": "RESULTS AND DISCUSSION" },
+        { "bs_operation": "droplet1..4 = mix alleleN with mastermixN", "source_quote": "the addition of PCR reagents had little noticeable effect on our ability to manipulate droplets compared to standard electrolyte droplets", "source_location": "RESULTS AND DISCUSSION, first paragraph" },
+        { "bs_operation": "heat droplet1..4 at 95c/60c ... repeat 40 times", "source_quote": "The droplets were then positioned at opposite ends of the array, the control voltage was removed and the entire chip was thermocycled.", "source_location": "RESULTS AND DISCUSSION, second paragraph" },
+        { "bs_operation": "signal1..4 = detect fluorescence on droplet1..4", "source_quote": "Fluorescence time-courses revealed successful amplification of DNA within the droplets and sufficient specificity was obtained in order to permit discrimination of alleles differing in only one base pair", "source_location": "RESULTS AND DISCUSSION; Fig. 2 caption" }
+      ],
+      "numeric_mismatches": [
+        { "field": "heat ... at 95c for 15s / at 60c for 60s", "note": "The paper states only that 'the entire chip was thermocycled' without specifying per-step temperatures or hold times. 95C denaturation / 60C combined anneal-extend is the standard TaqMan two-temperature qPCR profile, used here as a reasonable assumption rather than a value stated in the paper." },
+        { "field": "repeat 40 times", "note": "The paper does not state an explicit cycle count; the number of cycles is assumed from the ~0-50 cycle axis range shown in Fig. 2's amplification time-course." },
+        { "field": "PCR reagent vs. 0.1 M KCl electrolyte comparison (first key issue)", "note": "Not modeled. This is a droplet-manipulation-compatibility comparison, not part of the PCR reaction/detection sequence itself." },
+        { "field": "cross-contamination experiment (Fig. 3, 5,000 flow cycles / 15,000 electrode transfers, off-chip conventional real-time PCR readout)", "note": "Not modeled. This is a separate validation sub-experiment using a conventional (non-electrowetting) PCR instrument for final readout, outside the scope of the core on-chip assay translation." }
+      ]
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: EXACT-Ontology-Formalized Yeast Competent-Cell Culture Growth Protocol (\"Grow Yeast Culture\" Operating Procedure, Table 3 / Figure 3)\n\nREAGENTS/OBJECTS USED:\n  - YPD Media Bottle (Yeast extract, Peptone, Adenine hemisulfate, Dextrose medium, 50 ml used)\n  - Sealed Yeast Colonies Plate (single yeast colony, small volume used for inoculation)\n  - 500 ml Conical Flask (renamed to \"YPD conical flask\", then to \"yeast culture flask\" as its state changes)\n  - Equipment: pipette (medium transfer), inoculating loop (colony transfer), shaking incubator (200 rpm, 30 C)\n\nSTEPS (as formalized in EXACT / Figure 3 Haskell representation):\n1. Move (12): YPD media bottle, start location = store, end location = laminar flow hood.\n2. Move (13): 500 ml conical flask, start location = store, end location = laminar flow hood.\n3. Move (14): sealed yeast colonies plate, start location = cold room, end location = laminar flow hood.\n4. Add (15): component = YPD medium, volume = 50 ml, from YPD media bottle into the 500 ml conical flask, using a pipette.\n5. Rename (16): 500 ml conical flask -> \"YPD conical flask\".\n6. Add (17): component = single yeast colony, volume = small volume, from the sealed yeast colonies plate into the YPD conical flask, using an inoculating loop.\n7. Rename (18): YPD conical flask -> \"yeast culture flask\".\n8. Move (19): yeast culture flask, start location = laminar flow hood, end location = incubator.\n9. Incubate (20): yeast culture flask in a shaking incubator, 200 rpm, 30 C, for 12-24 h, goal = grow yeast until the medium becomes cloudy.\n\nPost-condition: yeast culture located_in incubator." },
+    { "role": "assistant", "content": "module fluorescence\n\n// NOTE: the source protocol (Table 3 / Fig. 3) is a bench-scale flask/plate procedure, not a\n// droplet-based one. BioScript has no primitives for the paper's <move> (spatial relocation of\n// a vessel between locations) or <rename> (renaming a vessel after a state change) experiment\n// actions, so only the material-transformation core -- adding YPD medium, inoculating with a\n// yeast colony, and incubating -- is represented below. Shaking speed (200 rpm) is likewise not\n// expressible, since BioScript's 'heat' primitive only carries temperature and duration.\n\nmanifest ypd_medium\nmanifest yeast_colony\n\ninstructions:\n\n// add 15: 50 ml YPD medium into the (to become) yeast culture flask\nypd = dispense 500 units of ypd_medium\n\n// add 17: single yeast colony (small volume) inoculated into the YPD medium\ncolony = dispense 1 units of yeast_colony\nyeast_culture = mix ypd with colony\n\n// incubate 20: shaking incubation at 30 C for 12-24 h until the medium becomes cloudy\n// (upper bound of the stated 12-24 h range used below)\nheat yeast_culture at 30c for 1440m\n\ndispose yeast_culture" }
+  ],
+  "metadata": {
+    "protocol_id": "exact_yeast_competent_cells_grow_culture_001",
+    "bs_file": "tests/test_cases/exact_yeast/exact_yeast_competent_cells.bs",
+    "protocol_name": "EXACT Ontology Formalized Yeast Competent-Cell Growth Protocol (Grow Yeast Culture Operating Procedure) (Soldatova, Aubrey, King, and Clare, 2008)",
+    "category": "general_lab_protocol_formalization",
+    "chemicals": [
+      "ypd_medium",
+      "yeast_colony"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "original_protocol", "title": "The EXACT Description of Biomedical Protocols", "publisher": "Bioinformatics", "url": "https://ncbi.nlm.nih.gov/pmc/articles/PMC2718634", "doi": "10.1093/bioinformatics/btn156" }
+    ],
+    "notes": "The authored BioScript code is a translation of only the material-transformation core of the paper's 'grow yeast culture' operating procedure (Table 3, formalized in Haskell in Figure 3): adding 50 ml YPD medium to the flask, inoculating with a single yeast colony, and shaking incubation. This example is unusual relative to other protocols in this test set because its source is not itself a microfluidic or droplet-based method -- it is a bench-scale flask/plate procedure used by the EXACT paper to demonstrate ontology-based formalization of ambiguous natural-language protocols. As a result, several of the paper's own formalized experiment actions have no BioScript equivalent: <move> (relocating a vessel between named locations such as 'store', 'laminar flow hood', 'cold room', 'incubator') and <rename> (tracking an object's identity change, e.g. '500 ml conical flask' -> 'YPD conical flask' -> 'yeast culture flask') are both omitted, since BioScript models only droplet-level material operations and has no location or object-identity primitives. The <incubate> action's 200 rpm shaking-speed parameter is also dropped, since BioScript's 'heat' primitive exposes only temperature and duration. The paper's stated 12-24 h incubation window is collapsed to a single value (24 h / 1440 min, the upper bound) since BioScript has no primitive for expressing a time range. Volumes are scaled to abstract droplet-count units (50 ml YPD -> 500 units, 'small volume' yeast colony -> 1 unit) rather than modeled as real volumes.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "ypd_medium", "source_quote": "add (Component YPDMedium) (Volume \"50ml\") (Container1 \"YPD media bottle\")", "source_location": "Figure 3: Haskell implementation of the competent-cells protocol" },
+        { "bs_chemical": "yeast_colony", "source_quote": "add (Component SingleYeastColony) (Volume \"small volume\") (Container1 \"sealed yeast colonies plate\")", "source_location": "Figure 3: Haskell implementation of the competent-cells protocol" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "ypd = dispense 500 units of ypd_medium / colony = dispense 1 units of yeast_colony", "source_quote": "add 15 ... component 1: YPD medium ... volume: 50ml ... equipment: pipette", "source_location": "Table 3: experiment action add 15" },
+        { "bs_operation": "yeast_culture = mix ypd with colony", "source_quote": "in order to mix components, the components must be moved to the same location", "source_location": "Section 3: axioms for experiment action <mix>" },
+        { "bs_operation": "heat yeast_culture at 30c for 1440m", "source_quote": "incubate (Object \"Yeast culture flask\") ... (Temperature 30) (TimeInterval \"12hours\" \"24hours\")", "source_location": "Figure 3: Haskell implementation of the competent-cells protocol" }
+      ],
+      "numeric_mismatches": [
+        { "field": "move/rename actions omitted", "note": "BioScript has no primitives for spatial relocation of a vessel between named locations or for tracking an object's renaming/identity change across a protocol, so experiment actions move 12/13/14/19 and rename 16/18 from Table 3 are not modeled." },
+        { "field": "200 rpm shaking speed dropped", "note": "BioScript's 'heat' primitive carries only temperature and duration; the incubate action's RPM parameter has no corresponding field and is omitted." },
+        { "field": "heat ... for 1440m", "note": "The paper specifies a 12-24 h incubation time interval; BioScript has no range/interval primitive, so a single value (the 24 h upper bound) was chosen." },
+        { "field": "volumes as abstract units (500 units / 1 unit)", "note": "The paper's real volumes (50 ml YPD, 'small volume' of yeast colony) are rescaled into BioScript's abstract droplet-count units rather than modeled as literal volumes." }
+      ]
+    }
+  }
+}

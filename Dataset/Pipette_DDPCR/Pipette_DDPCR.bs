@@ -1,0 +1,44 @@
+module fluorescence
+
+manifest rt_qpcr_mix
+manifest gapdh_primers_probes
+manifest f127_solution
+manifest target_rna
+manifest nuclease_free_water
+
+instructions:
+
+// Step 1: Assemble the 20 uL ddPCR reaction mix (Luna Probe One-Step RT-qPCR 4X Mix,
+// human GAPDH primers/probes, 10 w/v% F127 co-surfactant to prevent droplet coalescence,
+// diluted human control RNA target, and nuclease-free water to volume)
+qpcr_mix = dispense 5 units of rt_qpcr_mix
+primers = dispense 1 units of gapdh_primers_probes
+f127 = dispense 2 units of f127_solution
+target = dispense 10 units of target_rna
+water = dispense 2 units of nuclease_free_water
+
+combined1 = mix qpcr_mix with primers
+combined2 = mix combined1 with f127
+combined3 = mix combined2 with target
+reaction = mix combined3 with water
+
+// Note: pipette-based droplet generation into fluorinated oil (elliptical-tip pinch-off into
+// a PCR tube) has no distinct BioScript droplet-generation primitive beyond the dispense/mix
+// above, and is not separately modeled.
+
+// Step 2: Reverse transcription
+heat reaction at 52c for 600s
+
+// Step 3: Initial denaturation
+heat reaction at 95c for 120s
+
+// Step 4: PCR amplification -- 40 thermal cycles (denature / anneal-extend)
+repeat 40 times {
+    heat reaction at 95c for 10s
+    heat reaction at 60c for 30s
+}
+
+// Step 5: Post-PCR fluorescence imaging of droplets to count FAM-positive (amplified) droplets
+fam_signal = detect fluorescence on reaction for 5s
+
+dispose reaction

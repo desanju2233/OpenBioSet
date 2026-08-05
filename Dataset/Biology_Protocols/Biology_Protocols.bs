@@ -1,0 +1,51 @@
+module fluorescence
+
+// NOTE: this excerpt (Figure 3) is a bench-scale miniprep protocol built around
+// centrifugation and phase separation, neither of which has a BioScript primitive
+// (dispense/mix/heat/detect/repeat/dispose/if is the full available vocabulary). As a
+// result, centrifuge_pellet (step 2) and centrifuge_phases_top (step 6) are not modeled;
+// the droplet is simply carried forward across these steps. BioScript also has no
+// dedicated 'store'/'wait' primitive, so the ON_ICE holds in steps 4-5 are represented
+// with 'heat ... at 4c' (the nearest available primitive exposing a temperature and a
+// duration) rather than a true storage/wait construct. Steps 7-13 (phenol-chloroform
+// extraction and ethanol precipitation) are omitted for brevity in the source paper
+// itself and are therefore not modeled here either.
+
+manifest rich_medium
+manifest bacteria_colony
+manifest lysis_sol1
+manifest lysis_sol2
+manifest lysis_sol3
+
+instructions:
+
+// Step 1 (Preparation of cells): inoculate rich medium with a single bacterial colony,
+// incubate with shaking for 12 hrs at 37 C
+medium = dispense 20 units of rich_medium
+colony = dispense 1 units of bacteria_colony
+culture = mix medium with colony
+heat culture at 37c for 720m
+
+// Step 2: measure 1.5 ml of culture into a microfuge tube (the culture droplet already
+// represents this aliquot); centrifuge_pellet and supernatant removal are not modeled
+// (no centrifugation primitive available)
+
+// Step 3 (Lysis of Cells): add Alkaline Lysis Solution I, resuspend the pellet
+sol1 = dispense 1 units of lysis_sol1
+lysed1 = mix culture with sol1
+
+// Step 4: add Alkaline Lysis Solution II, invert 5 times, store on ice
+sol2 = dispense 1 units of lysis_sol2
+lysed2 = mix lysed1 with sol2
+heat lysed2 at 4c for 1m
+
+// Step 5: add Alkaline Lysis Solution III, mix by inversion until precipitate stops
+// sticking to the tube walls, store on ice for 3-5 min
+sol3 = dispense 1 units of lysis_sol3
+lysed3 = mix lysed2 with sol3
+heat lysed3 at 4c for 5m
+
+// Step 6: centrifuge at max speed, 4 C, 5 min; aspirate the top (aqueous) layer into a
+// clean tube and discard the bottom layer -- centrifuge_phases_top is not modeled (no
+// phase-separation primitive available)
+dispose lysed3

@@ -1,0 +1,55 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Droplet Digital Polymerase Chain Reaction (ddPCR) Using a Home-Made Pipette Droplet Microfluidics Kit\n\nREAGENTS USED:\n  - Luna Probe One-Step RT-qPCR 4X Mix\n  - Human GAPDH Primers and Probes (FAM-labeled)\n  - 10 w/v% F127 Aqueous Solution (co-surfactant to prevent droplet coalescence during thermal cycling)\n  - Diluted Human Control RNA (target)\n  - Nuclease-Free Water\n\nSTEPS:\n1. Prepare a 20 uL reaction mix: 5 uL Luna Probe One-Step RT-qPCR 4X Mix, 1 uL human GAPDH primers and probes, 2 uL 10 w/v% F127 aqueous solution, 0-10 uL diluted human control RNA as target, and nuclease-free water to volume.\n2. Generate uniform nanoliter droplets of the reaction mix by pipetting through a torque-deformed elliptical pipette tip into fluorinated oil (HFE 7500 with surfactant) pre-loaded in a PCR tube.\n3. Place the PCR tube with droplets into a portable thermal cycler and run: 10 min reverse transcription at 52 C, 2 min initial denaturation at 95 C.\n4. Perform 40 thermal cycles of 10 s at 95 C (denaturation) and 30 s at 60 C (annealing/extension).\n5. Image the droplets for green (FAM) fluorescence using either a smartphone camera with a blue-light transilluminator and amber filter, or a handheld fluorescence mini microscope.\n6. Count the number of positive (fluorescent) droplets to quantify the target nucleic acid, without needing the total droplet count or Poisson statistics, since at low target concentrations positive droplet count approximates target copy number.\n\nINTERPRETATION: A clear, bright green fluorescence signal in a droplet indicates successful amplification of the GAPDH target within that droplet (a \"positive\" droplet); the total count of positive droplets scales linearly with the nominal target amount over the tested range (0-1 picogram per 20 uL reaction), giving a calculated limit of detection of ~3.92 copies per reaction, comparable to commercial ddPCR systems, despite counting-based quantification carrying ~20-30% coefficient of variation at low target concentrations." },
+    { "role": "assistant", "content": "module fluorescence\n\nmanifest rt_qpcr_mix\nmanifest gapdh_primers_probes\nmanifest f127_solution\nmanifest target_rna\nmanifest nuclease_free_water\n\ninstructions:\n\n// Step 1: Assemble the 20 uL ddPCR reaction mix (Luna Probe One-Step RT-qPCR 4X Mix,\n// human GAPDH primers/probes, 10 w/v% F127 co-surfactant to prevent droplet coalescence,\n// diluted human control RNA target, and nuclease-free water to volume)\nqpcr_mix = dispense 5 units of rt_qpcr_mix\nprimers = dispense 1 units of gapdh_primers_probes\nf127 = dispense 2 units of f127_solution\ntarget = dispense 10 units of target_rna\nwater = dispense 2 units of nuclease_free_water\n\ncombined1 = mix qpcr_mix with primers\ncombined2 = mix combined1 with f127\ncombined3 = mix combined2 with target\nreaction = mix combined3 with water\n\n// Note: pipette-based droplet generation into fluorinated oil (elliptical-tip pinch-off into\n// a PCR tube) has no distinct BioScript droplet-generation primitive beyond the dispense/mix\n// above, and is not separately modeled.\n\n// Step 2: Reverse transcription\nheat reaction at 52c for 600s\n\n// Step 3: Initial denaturation\nheat reaction at 95c for 120s\n\n// Step 4: PCR amplification -- 40 thermal cycles (denature / anneal-extend)\nrepeat 40 times {\n    heat reaction at 95c for 10s\n    heat reaction at 60c for 30s\n}\n\n// Step 5: Post-PCR fluorescence imaging of droplets to count FAM-positive (amplified) droplets\nfam_signal = detect fluorescence on reaction for 5s\n\ndispose reaction" }
+  ],
+  "metadata": {
+    "protocol_id": "pipette_ddpcr_001",
+    "bs_file": "tests/test_cases/pipette_ddpcr/pipette_ddpcr.bs",
+    "protocol_name": "A Home-Made Pipette Droplet Microfluidics Rapid Prototyping and Training Kit for Digital PCR, Microorganism/Cell Encapsulation and Controlled Microgel Synthesis -- Example Application I: Droplet Digital PCR (Chen et al. 2023)",
+    "category": "digital_pcr_assay",
+    "chemicals": [
+      "rt_qpcr_mix",
+      "gapdh_primers_probes",
+      "f127_solution",
+      "target_rna",
+      "nuclease_free_water"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "repeat",
+      "detect",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "original_protocol", "title": "A home-made pipette droplet microfluidics rapid prototyping and training kit for digital PCR, microorganism/cell encapsulation and controlled microgel synthesis", "publisher": "Scientific Reports", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9813469/", "doi": "10.1038/s41598-023-27470-1" }
+      ],
+    "notes": "The author list given in the user's citation request ('unable to fully verify author list from snippet') was replaced with the verified byline from the uploaded PDF -- Liao Chen, Chenguang Zhang, Vivek Yadav, Angela Wong, Satyajyoti Senapati and Hsueh-Chia Chang -- since the full text and author list were directly available in the supplied document. Only the ddPCR example application (Methods: 'Droplet digital polymerase chain reaction') is translated here; the paper's other two example applications (spirulina photosynthetic culturing over 2-3 weeks, and UV-crosslinked polyacrylamide/gold composite microgel synthesis) and all device-fabrication content (elliptical pipette tip preparation, tape-based/3D-printed imaging chip fabrication) are separate procedures not captured by this reagent-mixing/thermal-cycling workflow. Reaction-mix component volumes (5/1/2/10/2 uL) and thermal-cycling parameters (52 C/10 min RT; 95 C/2 min initial denaturation; 40x [95 C/10 s, 60 C/30 s]) are taken directly from the Methods section. The paper's actual droplet-generation step (pipetting through a torque-deformed elliptical tip into fluorinated oil to achieve automatic pinch-off) has no distinct BioScript droplet-formation primitive and is folded into the initial dispense/mix steps rather than modeled as a separate operation.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "rt_qpcr_mix", "source_quote": "5 µL Luna Probe One-Step RT-qPCR 4X Mix (New England Biolabs", "source_location": "Methods: Droplet digital polymerase chain reaction" },
+        { "bs_chemical": "gapdh_primers_probes", "source_quote": "1 µL human GAPDH primers and probes (Termo Fisher Scientifc", "source_location": "Methods: Droplet digital polymerase chain reaction" },
+        { "bs_chemical": "f127_solution", "source_quote": "2 µL 10 w/v% F127 aqueous solution", "source_location": "Methods: Droplet digital polymerase chain reaction" },
+        { "bs_chemical": "target_rna", "source_quote": "0–10 µL diluted human control RNA", "source_location": "Methods: Droplet digital polymerase chain reaction" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "heat reaction at 52c for 600s", "source_quote": "10 min reverse transcription at 52 °C", "source_location": "Methods: Droplet digital polymerase chain reaction" },
+        { "bs_operation": "heat reaction at 95c for 120s", "source_quote": "2 min denaturation at 95 °C", "source_location": "Methods: Droplet digital polymerase chain reaction" },
+        { "bs_operation": "repeat 40 times { heat at 95c for 10s; heat at 60c for 30s }", "source_quote": "40 cycles of 10 s at 95 °C and 30 s at 60 °C", "source_location": "Methods: Droplet digital polymerase chain reaction" },
+        { "bs_operation": "fam_signal = detect fluorescence on reaction", "source_quote": "green fluorescence (FAM dye) of droplets can be recorded", "source_location": "Results: ddPCR example application" }
+      ],
+      "numeric_mismatches": [
+        { "field": "droplet generation via elliptical pipette tip omitted", "note": "The paper's core innovation -- pipetting reaction mix through a torque-deformed elliptical tip into fluorinated oil for automatic droplet pinch-off -- has no BioScript droplet-formation primitive and is not separately modeled; only the reagent-mixing and thermal-cycling steps that follow are captured." },
+        { "field": "fam_signal = detect fluorescence", "note": "The paper's actual readout is imaging-based positive-droplet counting (via smartphone camera + transilluminator, or a handheld fluorescence microscope), not a single scalar fluorescence reading; a single 'detect fluorescence' call is used as a stand-in for this per-droplet imaging/counting step, since BioScript has no droplet-population imaging or counting primitive." },
+        { "field": "nuclease-free water volume", "note": "The paper specifies '12-2 µL nuclease-free water to make the total mix volume of 20 µL' (i.e., a variable volume depending on target RNA volume, 0-10 µL); a fixed 2 units was used here corresponding to the 10 µL target volume case, rather than modeling the volume as target-dependent." }
+      ]
+    }
+  }
+}

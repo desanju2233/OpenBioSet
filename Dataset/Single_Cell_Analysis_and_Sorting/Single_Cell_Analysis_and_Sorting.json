@@ -1,0 +1,51 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Droplet-Based Microfluidic Single-Cell Antibody-Secretion Binding Assay with Fluorescence-Activated Droplet Sorting (FADS)\n\nREAGENTS USED:\n  - Cell Suspension (mixture of antibody-secreting mouse 9E10 hybridoma cells and non-secreting K562 cells, ~1:10 ratio)\n  - Bead/Detection-Antibody Reagent (6 um streptavidin-coated magnetic beads coated with biotinylated anti-mouse-Fc capture antibody, combined with a DyLight 488-labeled anti-mouse-F(ab)2 detection antibody)\n\nSTEPS:\n1. Co-encapsulate single cells from the mixed cell suspension together with the capture-bead/detection-antibody reagent into 50-pl droplets, using a flow-focusing microfluidic junction.\n2. Keep droplets cold (~4 C) during collection and handling to slow cellular metabolism and limit premature antibody secretion.\n3. Shift the collected emulsion to 37 C, 5% CO2 for ~15 min to allow antibody secretion; secreted antibody is captured on the bead surface via the capture antibody and recruits the fluorescent detection antibody, concentrating fluorescence signal onto the bead in a wash-free sandwich format.\n4. Re-inject the droplets into a sorting device and measure green fluorescence intensity of each droplet as it passes a laser detection point.\n5. Sort droplets by fluorescence-activated dielectrophoresis: droplets with fluorescence above the sorting threshold (~1.5 relative fluorescence units, RFU) are diverted into the collection channel; droplets below threshold (background ~0.5 RFU) flow by default into the waste channel.\n\nINTERPRETATION: A clearly distinguishable, bead-localized fluorescence spike indicates a droplet containing an antibody-secreting cell coencapsulated with a capture bead; droplets lacking a secreting cell (or lacking a bead) show diffuse, low fluorescence and are not sorted. In the reported experiment, sorting at the 1.5 RFU threshold produced ~220-fold enrichment of antibody-secreting (9E10) cells relative to non-secreting (K562) cells after a single round of sorting, confirming the assay's ability to isolate rare antibody-producing cells without any washing steps." },
+    { "role": "assistant", "content": "module fluorescence\n\nmanifest cell_suspension\nmanifest bead_detection_reagent\n\ninstructions:\n\n// Step 1: Co-encapsulate the cell suspension (antibody-secreting 9E10 hybridoma cells mixed\n// with non-secreting K562 cells) with the bead/detection-antibody reagent (streptavidin beads\n// coated with anti-mouse-Fc capture antibody, plus a DyLight 488-labeled anti-mouse-Fab\n// detection antibody) into a single 50-pl droplet\ncells = dispense cell_suspension\nbeads = dispense bead_detection_reagent\ndroplet = mix cells with beads\n\n// Step 2: Keep droplets cold (~4 C) during handling to slow cellular metabolism, then shift\n// to 37 C for 15 min to induce antibody secretion; secreted antibody is captured on the bead\n// and recruits the fluorescent detection probe, concentrating fluorescence on the bead\nheat droplet at 4c for 60s\nheat droplet at 37c for 900s\n\n// Step 3: Fluorescence-activated droplet analysis -- measure green fluorescence intensity\n// (bead-localized DyLight 488 signal from captured secreted antibody)\ngreen_signal = detect fluorescence on droplet for 5s\n\n// Step 4: Droplet sorting -- droplets with fluorescence above the sorting threshold\n// (~1.5 RFU, ~3x the ~0.5 RFU background/detection threshold) are diverted by\n// dielectrophoresis into the collection channel; droplets below threshold flow by default\n// into the waste channel\nif (green_signal < 1.5) {\n    dispose droplet\n}" }
+  ],
+  "metadata": {
+    "protocol_id": "droplet_single_cell_antibody_sorting_001",
+    "bs_file": "tests/test_cases/droplet_single_cell_antibody_sorting/droplet_single_cell_antibody_sorting.bs",
+    "protocol_name": "Single-Cell Analysis and Sorting Using Droplet-Based Microfluidics (Mazutis et al. 2013)",
+    "category": "single_cell_binding_assay",
+    "chemicals": [
+      "cell_suspension",
+      "bead_detection_reagent"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "if",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "original_protocol", "title": "Single-cell analysis and sorting using droplet-based microfluidics", "publisher": "Nature Protocols", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4128248/", "doi": "10.1038/nprot.2013.046" }
+    ],
+    "notes": "This is a much more elaborate protocol than most others in this set: the majority of the paper (photolithography mask design, SU-8 master fabrication, PDMS molding/soft lithography, microelectrode manufacture via solder injection, device surface treatment, cell culture/staining, optical alignment of the fluorescence detection system, droplet re-injection/spacing, dielectrophoretic sorting-junction hardware, and emulsion breaking) describes device fabrication, cell-culture maintenance, or hardware setup with no corresponding BioScript primitive and is a one-time/off-chip procedure rather than a per-run reagent-mixing workflow. The code captures only the core on-chip biochemical assay logic (paper Steps 68-92 / Section 'Cell encapsulation' through 'Analysis of sorted droplets'): co-encapsulation of cells with the bead/antibody reagent, cold-hold followed by a 37 C/15 min incubation to permit antibody secretion and capture, a single fluorescence read, and a threshold-based sort/waste decision. The sorting threshold (1.5 RFU) and background/detection threshold (0.5 RFU) are taken directly from the paper's Figure 5a; all other fabrication, hardware, and cell-culture steps are intentionally not modeled.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "cell_suspension", "source_quote": "we cultured cells in growth medium supplemented with OptiPrep and detected antibody", "source_location": "Introduction/Experimental design section" },
+        { "bs_chemical": "bead_detection_reagent", "source_quote": "single beads coated with anti-mouse IgG antibodies in 50-pl droplets", "source_location": "Abstract" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "droplet = mix cells with beads", "source_quote": "single mouse hybridoma cells, a fluorescent probe and single beads coated with anti-mouse IgG antibodies", "source_location": "Abstract" },
+        { "bs_operation": "heat droplet at 37c for 900s", "source_quote": "shifting the emulsion to 37 °C for ~15-30 min", "source_location": "ANTICIPATED RESULTS section" },
+        { "bs_operation": "green_signal = detect fluorescence on droplet", "source_quote": "the fluorescent probe becomes concentrated onto a bead, leading to a clearly distinguishable fluorescence spike", "source_location": "ANTICIPATED RESULTS section" },
+        { "bs_operation": "if (green_signal < 1.5) { dispose droplet }", "source_quote": "droplets having a fluorescence intensity three times higher than the background signal were sorted", "source_location": "ANTICIPATED RESULTS section" }
+      ],
+      "numeric_mismatches": [
+        { "field": "heat droplet at 4c for 60s", "note": "The paper keeps cells at 4 C throughout microfluidic handling (an indefinite hold, not a fixed 60 s), since BioScript requires a finite duration for the heat instruction, 60 s was used as a placeholder to represent the cold-hold step rather than a literal timed value from the text." },
+        { "field": "if (green_signal < 1.5) { dispose droplet }", "note": "The 1.5 RFU sorting threshold and implied 0.5 RFU background/detection threshold are taken from Figure 5a; the actual instrument uses two distinct thresholds (detection vs. sorting) plus droplet-size gating, which are collapsed here into a single BioScript comparison since only one numeric threshold check is representable per 'if' condition." },
+        { "field": "device fabrication and hardware setup omitted", "note": "Photolithography, PDMS soft lithography, microelectrode manufacture, surface treatment, optical alignment, and the dielectrophoretic sorting-junction hardware are one-time device/instrument setup procedures, not per-sample reagent operations, and have no corresponding BioScript primitives; they are not modeled." },
+        { "field": "cell culture and staining omitted", "note": "9E10/K562 cell culture maintenance, OptiPrep density matching, and CMRA staining (Steps 45-67) are cell-preparation steps performed off-chip before encapsulation; only the resulting 'cell_suspension' input is represented." }
+      ]
+    }
+  }
+}

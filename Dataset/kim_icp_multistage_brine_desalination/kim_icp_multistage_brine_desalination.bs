@@ -1,0 +1,338 @@
+module saltRemovalDetection
+module suspendedSolidsDetection
+module divalentCationDetection
+
+manifest NaCl_Brine_HighSalinity
+manifest Na2SO4_RinseBuffer
+manifest HFE7500_Oil
+manifest FDA_PI_ViabilityStain
+manifest EcoliBacterialCells
+manifest CrudeOilEmulsion
+manifest DemineralizedWater
+
+// ============================================================
+// Purification of High Salinity Brine by Multi-Stage Ion
+// Concentration Polarization Desalination
+// Kim, Kwak, Kwon, Pham, Kim, Al-Anzi, Lim & Han
+// Scientific Reports 6, 31850 (2016)
+// DOI: 10.1038/srep31850
+//
+// PROTOCOL OVERVIEW:
+// ICP (Ion Concentration Polarization) desalination is an
+// electrically-driven membrane process using only cation
+// exchange membranes (CEMs) with unipolar conduction.
+// Feed: 0.1-1.7 M NaCl (5,800-100,000 mg/L TDS).
+// Electrode rinse: Na2SO4 at same normality as feed.
+// Device: PDMS-based microfluidic system. Membrane gap:
+// 1.5-2.0 mm, depth 0.2-0.6 mm, length 10-100 mm.
+// CEMs: Fumasep FTCM-E (area resistance ~13.3 Ohm.cm2).
+// Electrodes: carbon paper.
+// Flow: negative-pressure syringe pump at ~20 uL/min.
+// Applied current density: 125-375 A/m2 constant.
+// Trifurcated output: concentrate (top) / intermediate
+// (middle, fed back to next stage) / diluate (bottom).
+// Salt removal per unit stage: 5-50%.
+// Overall target: 50-75% salt removal, up to 100,000 ppm.
+//
+// MULTI-STAGE (TRIFURCATED) ABSTRACTION:
+// The BioScript `mix` operation models the flow-through ICP
+// separation event at each stage. The intermediate output
+// stream (concentration ~C0, majority fluid) is re-mixed
+// with the next ICP stage as the feed, representing the
+// batch/recirculation strategy that keeps feed concentration
+// constant in every stage (EPIR-optimal regime).
+// Three stages are encoded explicitly, representing the
+// optimised staging configuration for high-salinity feed
+// (saltier feedwater requires more stages; SI-section 3.2.3).
+//
+// TEMPERATURE NOTE:
+// ICP is operated at room temperature (~25 C). The `heat`
+// statement at 25 C models the constant-current electrical
+// actuation period (no thermal processing is applied in
+// the paper; BioScript has no native voltage/current
+// operation statement, so heat at 25 C is the correct
+// abstraction for timed electrical operation, consistent
+// with the Samlali reference file convention).
+//
+// DURATION TOKENS:
+// BioScript supports s (seconds) and m (minutes) only.
+// All durations below are within these units.
+// The paper reports ~45 min for a trap-to-recovery cycle
+// and 30-60 min conductivity stabilisation; 60m is used
+// for each ICP stage incubation as a conservative bound.
+//
+// FIX: Removed the dangling global `rinseBuffer` dispense
+// that was present in v1. Na2SO4 rinse is now dispensed
+// only at the point of use within each ICP stage (rinse1,
+// rinse2, rinse3) and in the divalent cation branch
+// (rinseDivalent). This eliminates the dead-code variable
+// that compiled to an unconsumed token in the IR.
+//
+// CFG STRUCTURE:
+//   BB1  main               -- device priming, membrane prep,
+//                              Stage 1 ICP separation,
+//                              Stage 2 ICP separation,
+//                              Stage 3 ICP separation,
+//                              salt removal QC detection
+//   BB2  saltRemovalPass    -- saltSignal > 0: target TDS reached;
+//                              dispose treated diluate
+//   BB3  saltRemovalFail    -- saltSignal <= 0: TDS target not met;
+//                              drain diluate stream
+//   BB4  saltRemovalJoin    -- join: suspended-solids branch begins
+//   BB5  solidsRemovalPass  -- solidsSignal > 0: TSS cleared; proceed
+//                              to divalent cation QC
+//   BB6  solidsRemovalFail  -- solidsSignal <= 0: suspended solids
+//                              detected in diluate; drain
+//   BB7  solidsRemovalJoin  -- join: divalent cation branch begins
+//   BB8  divalentPass       -- divalentSignal > 0: Na+/Ca2+ removal
+//                              confirmed; dispose treated water
+//   BB9  divalentFail       -- divalentSignal <= 0: divalent ions
+//                              remain above threshold; drain
+//   BB10 finalCleanup       -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Membrane pre-conditioning.
+//   All CEMs (Fumasep FTCM-E) placed in demineralised water
+//   for at least 48 h at room temperature before experiments,
+//   as per paper Materials and Methods (Device fabrication).
+//   `mix` abstracts the passive soak/conditioning step.
+//   Duration: 2880m = 48 h (BioScript maximum resolution: m).
+// ------------------------------------------------------------
+
+demineralizedWaterPrep = dispense 1 units of DemineralizedWater
+cem_membrane           = dispense 1 units of DemineralizedWater
+
+conditionedMembrane = mix cem_membrane with demineralizedWaterPrep for 2880m
+
+// ------------------------------------------------------------
+// STEP 2: Dispense high-salinity brine feed.
+//   Feed: 0.1-1.7 M NaCl (5,800-100,000 mg/L TDS).
+//   Represents produced water / brine concentrate range.
+//   Delivered via syringe pump at ~20 uL/min negative
+//   pressure into the PDMS-ICP microfluidic device.
+//   Na2SO4 rinse buffer dispensed per-stage at point of use
+//   (rinse1, rinse2, rinse3 below) to avoid dead-code tokens.
+// ------------------------------------------------------------
+
+brineFeed = dispense 1 units of NaCl_Brine_HighSalinity
+
+// ------------------------------------------------------------
+// STEP 3: Stage 1 - ICP desalination (first pass).
+//   Brine feed loaded into ICP device with conditioned CEMs.
+//   Constant current applied (e.g. 125-375 A/m2) via carbon
+//   paper electrodes and Keithley 236 source unit.
+//   Ion depletion zone forms adjacent to CEMs; Na+ and Cl-
+//   are separated into concentrate (top, enriched) and
+//   diluate (bottom, depleted) streams by ICP mechanism.
+//   Trifurcated output: small diluate + majority intermediate
+//   (at ~C0) + small concentrate.
+//   Target salt removal per stage: 5-20% (optimal EPIR regime
+//   for multi-stage operation; Fig 3c, paper).
+//   `mix` abstracts the flow-through ICP separation event.
+//   `heat at 25c` abstracts timed constant-current actuation.
+//   Conductivity of dilute output tracked via flow-through
+//   probe (Microelectrode Inc.) to confirm salt removal.
+//   Na2SO4 rinse flows in parallel electrode channels to
+//   exclude electrode overpotential from cell voltage reading.
+//   Ag/AgCl reference electrodes penetrate channels vertically
+//   to measure only the membrane voltage drop per cell.
+// ------------------------------------------------------------
+
+stage1Mix = mix brineFeed with conditionedMembrane for 10s
+heat stage1Mix at 25c for 60m
+
+rinse1          = dispense 1 units of Na2SO4_RinseBuffer
+stage1WithRinse = mix stage1Mix with rinse1 for 10s
+
+// ------------------------------------------------------------
+// STEP 4: Stage 2 - ICP desalination (second pass).
+//   Intermediate stream from Stage 1 (~C0 concentration,
+//   majority fluid) is re-fed into an identical ICP unit.
+//   This constant-feed-concentration strategy keeps the
+//   system in the high-salinity (low EPIR) regime throughout,
+//   avoiding the unfavourable low-salinity regime encountered
+//   in conventional multi-stage electrodialysis.
+//   (Paper: "keeping feed concentration constant in every
+//   stage which enables us to play only in economically
+//   favorable EPIR regime", Section: Presenting multi-stage
+//   ICP desalination and optimization, p.5.)
+//   Current density adjusted per Fig 5a table for the
+//   selected dilute production ratio (p = 0.20-0.33).
+// ------------------------------------------------------------
+
+stage2Mix = mix stage1WithRinse with conditionedMembrane for 10s
+heat stage2Mix at 25c for 60m
+
+rinse2          = dispense 1 units of Na2SO4_RinseBuffer
+stage2WithRinse = mix stage2Mix with rinse2 for 10s
+
+// ------------------------------------------------------------
+// STEP 5: Stage 3 - ICP desalination (third pass).
+//   Third identical ICP stage. Cumulative salt removal now
+//   approaches 50-75% target (overall recovery fixed at 50%
+//   for cost comparison; SI-section 3.2.1).
+//   Saltier feedwater (100,000 ppm) requires more stages;
+//   3 stages modelled here as the representative optimised
+//   configuration for the high-salinity range studied.
+//   (SI-section 3.2.3: "saltier feedwater requiring more
+//   stages".)
+//   Diluate conductivity confirmed by flow-through probe;
+//   CCD-based ICP-AES (ACTIVA-S, Horiba) confirms
+//   quantitative removal of monovalent and divalent cations.
+// ------------------------------------------------------------
+
+stage3Mix = mix stage2WithRinse with conditionedMembrane for 10s
+heat stage3Mix at 25c for 60m
+
+rinse3         = dispense 1 units of Na2SO4_RinseBuffer
+treatedDiluate = mix stage3Mix with rinse3 for 10s
+
+// ------------------------------------------------------------
+// STEP 6: Salt removal QC detection.
+//   saltRemovalDetection module abstracts off-chip
+//   conductivity measurement (flow-through conductivity probe,
+//   Microelectrode Inc.) and ICP-AES cation analysis.
+//   Positive signal: diluate TDS reduced by 50-75% relative
+//   to feed (target met).
+//   Negative signal: TDS reduction below target; drain stream.
+//   (Paper Results: "ICP electrical desalination is shown
+//   here to treat brine salinity up to 100,000 ppm of TDS
+//   with flexible salt rejection rate up to 70%", Abstract.)
+// ------------------------------------------------------------
+
+saltSignal = detect saltRemovalDetection on treatedDiluate for 30s
+
+// ============================================================
+// BB2 / BB3: Salt removal QC gate
+// Pass (BB2): saltSignal > 0 -> target TDS reduction achieved;
+//             dispose treated diluate.
+// Fail (BB3): saltSignal <= 0 -> TDS target not met; drain.
+// Both branches converge at BB4 (saltRemovalJoin).
+// ============================================================
+
+if (saltSignal > 0) {
+    dispose treatedDiluate
+} else {
+    drain treatedDiluate
+}
+
+// ============================================================
+// BB4: saltRemovalJoin
+// Dispose salt removal QC signal. Control falls into the
+// suspended-solids characterisation branch (BB5/BB6).
+// ============================================================
+
+dispose saltSignal
+
+// ------------------------------------------------------------
+// STEP 7: Suspended solids removal characterisation.
+//   Brine wastewater (produced water) contains both dissolved
+//   salts (TDS) and suspended solids (TSS: bacteria, oil
+//   emulsions). ICP removes both simultaneously via
+//   electrophoretic migration of negatively charged particles
+//   to the concentrate stream (Fig 7, paper).
+//   Two contaminant models added to fresh brine feed:
+//   (a) E. coli K-12 MG1655 (GFP-expressing, negative zeta)
+//       1.5 uM Alexa Fluor 488 used to visualise ICP zone.
+//   (b) Crude oil emulsions (1:50 oil:NaCl, sonicated 2 h,
+//       fluorescent red dye 1:1000 for tracing).
+//   Particles migrate upward (anode direction) into concentrate
+//   output; diluate (bottom) is salt- and particle-free.
+//   Detection: fluorescence microscopy (Olympus IX-71).
+// ------------------------------------------------------------
+
+bacterialCells        = dispense 1 units of EcoliBacterialCells
+crudeOilEmulsion      = dispense 1 units of CrudeOilEmulsion
+brineFeedTSS          = dispense 1 units of NaCl_Brine_HighSalinity
+
+contaminatedBrine     = mix brineFeedTSS with bacterialCells for 2s
+contaminatedBrineFull = mix contaminatedBrine with crudeOilEmulsion for 2s
+
+// ICP separation of TSS-loaded brine.
+// Negatively charged particles delivered to concentrate stream
+// en bloc by electrophoretic force; diluate exits particle-free.
+membraneTSS   = dispense 1 units of DemineralizedWater
+tssSeparation = mix contaminatedBrineFull with membraneTSS for 10s
+heat tssSeparation at 25c for 30m
+
+solidsSignal = detect suspendedSolidsDetection on tssSeparation for 30s
+
+// ============================================================
+// BB5 / BB6: Suspended solids QC gate
+// Pass (BB5): solidsSignal > 0 -> TSS cleared from diluate
+//             (bacteria and oil emulsions in concentrate);
+//             proceed to divalent cation QC.
+// Fail (BB6): solidsSignal <= 0 -> particles remain in
+//             diluate; drain stream.
+// Both branches converge at BB7 (solidsRemovalJoin).
+// ============================================================
+
+if (solidsSignal > 0) {
+    dispose tssSeparation
+} else {
+    drain tssSeparation
+}
+
+// ============================================================
+// BB7: solidsRemovalJoin
+// Dispose suspended-solids QC signal. Control falls into
+// divalent cation removal branch (BB8/BB9).
+// ============================================================
+
+dispose solidsSignal
+
+// ------------------------------------------------------------
+// STEP 8: Divalent cation removal characterisation.
+//   In produced water / flowback, divalent cations (Ca2+,
+//   Mg2+, Ba2+, Sr2+) form carbonate/sulfate precipitates
+//   in the wellbore if not removed prior to recycling.
+//   ICP desalination removes divalent cations proportionally
+//   or in excess of monovalent cations (SI-section 8),
+//   consistent with electrodialysis behaviour (refs 41-43).
+//   CCD-based ICP-AES (ACTIVA-S, Horiba, Ltd., Japan) used
+//   for quantitative monovalent/divalent cation analysis.
+//   Brine feed mixed with Na2SO4 rinse (electrode channel)
+//   then processed through ICP device; diluate analysed for
+//   residual Ca2+ and Na+ by ICP-AES.
+// ------------------------------------------------------------
+
+brineFeedDivalent  = dispense 1 units of NaCl_Brine_HighSalinity
+rinseDivalent      = dispense 1 units of Na2SO4_RinseBuffer
+membraneDivalent   = dispense 1 units of DemineralizedWater
+
+divalentFeedMix    = mix brineFeedDivalent with rinseDivalent for 5s
+divalentSeparation = mix divalentFeedMix with membraneDivalent for 10s
+heat divalentSeparation at 25c for 30m
+
+divalentSignal = detect divalentCationDetection on divalentSeparation for 30s
+
+// ============================================================
+// BB8 / BB9: Divalent cation removal QC gate
+// Pass (BB8): divalentSignal > 0 -> Na+ and Ca2+ removal
+//             confirmed by ICP-AES; treated water disposed.
+// Fail (BB9): divalentSignal <= 0 -> residual divalent ions
+//             above threshold; drain stream.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (divalentSignal > 0) {
+    dispose divalentSeparation
+} else {
+    drain divalentSeparation
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose all QC signal droplets. Experiment ends.
+// ============================================================
+
+dispose divalentSignal
+
+// [terminal -- no further instructions; exit node for CFG]

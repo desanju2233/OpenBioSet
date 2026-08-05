@@ -1,0 +1,52 @@
+bsbbif_2_t:
+	dispose(stage1Enriched1[0])
+bsbbif_3_f:
+	dispose(stage1Enriched1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(wbcSignal11[0])
+	chipBuffer21[0] = dispense(PBS_EDTA_BSA)
+	stage2Enriched1[0] = mix(stage1Enriched2[0], chipBuffer21[0]) @ 180.0SECOND
+	recoverySignal1[0] = detect(parasiteRecoveryDetection, stage2Enriched1[0]) @ 30.0SECOND
+	if recoverySignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	wholeBlood1[0] = dispense(WholeBlood)
+	iRBCSpike1[0] = dispense(iRBC_Spiked)
+	spikedBlood1[0] = mix(wholeBlood1[0], iRBCSpike1[0]) @ 30.0SECOND
+	rbcLysisBuffer1[0] = dispense(RBCLysisBuffer)
+	lysedBlood1[0] = mix(spikedBlood1[0], rbcLysisBuffer1[0]) @ 900.0SECOND
+	saponinSoln1[0] = dispense(Saponin)
+	parasiteSuspension1[0] = mix(lysedBlood1[0], saponinSoln1[0]) @ 600.0SECOND
+	pbsBuffer1[0] = dispense(PBS_EDTA_BSA)
+	heat(parasiteSuspension1[0]) @ 4.0CELSIUS @ 300.0SECOND
+	washedSample1[0] = mix(parasiteSuspension1[0], pbsBuffer1[0]) @ 300.0SECOND
+	primingBuffer1[0] = dispense(PBS_EDTA_BSA)
+	primedChip1[0] = mix(washedSample1[0], primingBuffer1[0]) @ 120.0SECOND
+	chipBuffer11[0] = dispense(PBS_EDTA_BSA)
+	stage1Enriched1[0] = mix(primedChip1[0], chipBuffer11[0]) @ 180.0SECOND
+	wbcSignal11[0] = detect(wbcDepletionDetection, stage1Enriched1[0]) @ 30.0SECOND
+	if wbcSignal11[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(recoverySignal1[0])
+bsbbif_6_f:
+	dispose(stage2Enriched1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(recoverySignal2[0])
+	malariaKit1[0] = dispense(MalariaKit_Norgen)
+	sybr1[0] = dispense(SYBRGreen_qPCR_Kit)
+	extractedDNA1[0] = mix(stage2Enriched2[0], malariaKit1[0]) @ 1200.0SECOND
+	qPCRMix1[0] = mix(extractedDNA1[0], sybr1[0]) @ 5.0SECOND
+	heat(qPCRMix1[0]) @ 95.0CELSIUS @ 180.0SECOND
+	heat(qPCRMix1[0]) @ 60.0CELSIUS @ 1800.0SECOND
+	heat(qPCRMix1[0]) @ 80.0CELSIUS @ 300.0SECOND
+	qPCRSignal1[0] = detect(qPCRDetection, qPCRMix1[0]) @ 10.0SECOND
+	if qPCRSignal1[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(qPCRMix1[0])
+bsbbif_9_f:
+	dispose(qPCRMix1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(qPCRSignal1[0])
+	NOP

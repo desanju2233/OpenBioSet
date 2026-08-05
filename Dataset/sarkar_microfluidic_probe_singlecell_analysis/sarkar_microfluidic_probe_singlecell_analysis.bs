@@ -1,0 +1,457 @@
+module lysisDetection
+module aktKinaseDetection
+module gapdhActivityDetection
+
+manifest HepG2_Cells
+manifest EaglesMEM_10FBS_PenStrep
+manifest SerumFreeMedium
+manifest Insulin
+manifest CellTrackerOrange
+manifest PBS
+manifest LysisBuffer
+manifest BSA_PBS
+manifest AktAssayBuffer
+manifest GapdhAssayBuffer
+manifest DeionizedWater
+
+instructions:
+
+// ============================================================
+// Microfluidic Probe for Single-Cell Analysis in Adherent
+// Tissue Culture
+// Sarkar, Kolitz, Lauffenburger, Han --
+// Nature Communications 5:3421, 2014.
+// DOI: 10.1038/ncomms4421
+//
+// Protocol: Selective hydrodynamic confinement-based lysis
+// of single adherent HepG2 cells from standard tissue
+// culture, followed by lysate capture, mixing with assay
+// buffers, pneumatic valve-based chamber trapping, and
+// multiplexed fluorescence activity measurement of kinase
+// Akt (Sox peptide sensor) and housekeeping enzyme GAPDH
+// (NADH formation) simultaneously from the same cell.
+//
+// Device: Three-layer PDMS microfluidic probe.
+//   Layer 1 (base): bare glass slide (except at tip)
+//   Layer 2 (membrane): ~30 um thin PDMS; forms deformable
+//     tip base; contains pneumatic valve lines (V1-V4)
+//   Layer 3 (flow): ~5 mm thick PDMS; contains channels,
+//     reaction chambers (AB1-AB4), and flow/control ports.
+//   Tip channels: 5 um tall (lysis + assay buffer mixing)
+//   Reaction chambers: 30 um tall (maximise fluorescence)
+//   Assay volume per chamber: ~20 nL
+//
+// LYSIS ZONE PRINCIPLE: Simultaneous Qout (central channel,
+//   lysis buffer outflow, 5 nL/min) and Qin (outer channels,
+//   inflow, 50 nL/min total; 25 nL/min per outer channel)
+//   create a hydrodynamically confined lysis zone of radius
+//   R tunable by Qin/Qout ratio. Zone set slightly smaller
+//   than cell diameter (~15 um) to lyse only target cell.
+//   Lysis buffer detergent (1% Triton X-100) confined to zone;
+//   neighbouring cells remain unaffected even at ~80%
+//   confluency. Lysate captured within ~20 s after lysis.
+//
+// MIXING RATIO: Lysate:assay buffer = 1:4 (set by flow
+//   resistance ratio of lysate and assay buffer channels).
+//   Repeatability of mixing ratio within 10% CV.
+//   Travel time from tip to reaction chamber: 90 s.
+//
+// MULTIPLEXED ARM (this .bs file): Lysate from a single
+//   HepG2 cell subdivided into two chambers -- AB1 (Akt
+//   Sox sensor assay) and AB2 (GAPDH NADH assay) -- via
+//   pneumatic valve routing. Primary result: Fig. 5 (n=12).
+//   Single-activity arms (Akt only: Fig. 4a; GAPDH only:
+//   Fig. 4b) are not separately encoded here; they differ
+//   only in lysate routing (one chamber instead of two).
+//
+// NOTE ON `mix` ABSTRACTION:
+//   (a) Device priming / BSA coating: `mix` abstracts
+//       syringe-pump-driven flow through device channels.
+//   (b) Cell labelling and stimulation: `mix` abstracts
+//       incubation of cells with dye or insulin in medium.
+//   (c) Lysis zone formation: `mix` abstracts simultaneous
+//       Qout/Qin flow at probe tip creating lysis zone.
+//   (d) Lysate + assay buffer mixing: `mix` abstracts
+//       passive resistance-ratio mixing in flow channels
+//       before entering reaction chambers.
+//   None of these are DMF electrode mixing steps.
+//
+// NOTE ON TEMPERATURE:
+//   Cell culture, labelling, and recovery: 37 C / 5% CO2.
+//   Assay chamber monitoring: 30 C (heating chamber,
+//     Tokai Hit; lower than 37 C to reduce photobleaching).
+//   BioScript `heat` models both incubator and heating stage.
+//
+// NOTE ON DURATION TOKENS:
+//   BioScript supports s and m only; h not supported.
+//   Serum starvation 12-24 h -> 720m (minimum, 12 h)
+//   Cell attachment 4-16 h -> 240m (minimum, 4 h)
+//   BSA coating: 60m (1 h at 50 nL/min)
+//   UV bleach: 30m
+//   Cell Tracker labelling: 15m-45m -> 15m (minimum)
+//   Cell recovery post-labelling: 20m-45m -> 20m (minimum)
+//   Stimulation (insulin for Akt): 10m-16.5m -> 10m
+//   Lysis + capture: ~20 s -> 20s
+//   Valve travel time: 90 s
+//   Assay imaging: 20m minimum
+//   Clonal expansion: not in this protocol
+//
+// CFG STRUCTURE:
+//   BB1  main              -- entry: device priming, BSA
+//                            coating, UV bleach, cell
+//                            culture, serum starvation,
+//                            cell labelling, insulin
+//                            stimulation, lysis zone,
+//                            lysate capture
+//   BB2  lysisPass         -- lysisSignal > 0: lysis
+//                            confirmed (Cell Tracker Orange
+//                            fluorescence drop in target
+//                            cell); proceed to assay
+//   BB3  lysisFail         -- lysisSignal <= 0: lysis
+//                            failed (no fluorescence drop
+//                            or neighbouring cell affected);
+//                            drain lysis zone and retry
+//   BB4  lysisJoin         -- join: Akt assay branch begins
+//   BB5  aktPass           -- aktSignal > 0: Akt activity
+//                            detected above lysis buffer
+//                            control baseline; dispose
+//   BB6  aktFail           -- aktSignal <= 0: no Akt signal
+//                            (possible 'low Akt' phenotype
+//                            or cell non-responsive to
+//                            insulin); drain Akt chamber
+//   BB7  aktJoin           -- join: GAPDH assay branch begins
+//   BB8  gapdhPass         -- gapdhSignal > 0: GAPDH
+//                            activity detected (housekeeping
+//                            loading control confirmed);
+//                            dispose assay mixture
+//   BB9  gapdhFail         -- gapdhSignal <= 0: GAPDH
+//                            not detected; drain chamber
+//   BB10 finalCleanup      -- terminal: dispose GAPDH
+//                            signal; NOP
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Device preparation -- DI water priming.
+//         Prime channels with de-ionised water using gas-tight
+//         glass syringes (50 uL) connected to lysis buffer
+//         and inflow source ports via fused silica tubing
+//         (OD 360 um, ID 100 um). Controlled by syringe pumps
+//         (Harvard Apparatus PHD 2000).
+//         NOTE: `mix` abstracts syringe-pump flow through
+//         device channels at low flow rate.
+// ------------------------------------------------------------
+
+diWater       = dispense 1 units of DeionizedWater
+primedDevice  = mix diWater with diWater for 5m
+
+// ------------------------------------------------------------
+// STEP 2: Device preparation -- BSA coating.
+//         Coat device channels with 1% BSA in 0.5x PBS to
+//         prevent non-specific protein binding to PDMS surfaces.
+//         Drawn in at 50 nL/min for at least 1 h (60 min),
+//         then washed with de-ionised water.
+//         BSA coating is critical to preserve enzyme activity
+//         from the picomolar single-cell lysate.
+// ------------------------------------------------------------
+
+bsaPbs        = dispense 1 units of BSA_PBS
+diWash        = dispense 1 units of DeionizedWater
+bsaCoated     = mix primedDevice with bsaPbs for 60m
+
+heat bsaCoated at 25c for 60m
+
+bsaWashed     = mix bsaCoated with diWash for 5m
+
+// ------------------------------------------------------------
+// STEP 3: Device preparation -- UV photobleaching.
+//         Bleach the area of device observed during assay for
+//         at least 30 min using UV light (ex 377 nm) to reduce
+//         background fluorescence in reaction chambers.
+//         Done immediately before loading assay buffers and
+//         before placing the plate on the microscope stage.
+// ------------------------------------------------------------
+
+heat bsaWashed at 25c for 30m
+
+// ------------------------------------------------------------
+// STEP 4: Load assay buffers into reservoirs.
+//         Immediately before use, lysis buffer loaded into
+//         syringe at lysis buffer port.
+//         Akt assay buffer (50 mM Tris-HCl pH 7.3, 10 mM
+//         MgCl2, 1 mM EGTA, 2 mM DTT, 4 mM PKC inhibitor
+//         peptide, 10 mM Sox substrate peptide, 1 mM ATP,
+//         0.4 mM PKItide, 5 uM GF109203X) loaded into AB1.
+//         GAPDH assay buffer (90 mM sodium pyrophosphate pH
+//         7.1, 20 mM NaH2PO4, 3 mM DTT, 4 mM NAD+, 10 mM
+//         glyceraldehyde 3-phosphate) loaded into AB2.
+//         Each reservoir: 20 uL.
+//         Lysis buffer: 50 mM beta-glycerophosphate, 10 mM
+//         sodium pyrophosphate, 30 mM NaF, 50 mM Tris pH 7.4,
+//         1% Triton X-100, 15 mM NaCl, 2 mM EGTA, 100 uM
+//         sodium orthovanadate, 1 mM DTT, 1X protease and
+//         phosphatase inhibitor cocktails, 20 ug/mL Alexa 488-
+//         labelled BSA (for lysis zone visualisation).
+//         NOTE: `mix` abstracts passive buffer loading into
+//         reservoirs; no active mixing occurs at this step.
+// ------------------------------------------------------------
+
+lysisBuffer   = dispense 1 units of LysisBuffer
+aktBuffer     = dispense 1 units of AktAssayBuffer
+gapdhBuffer   = dispense 1 units of GapdhAssayBuffer
+loadedDevice  = mix bsaWashed with lysisBuffer for 2m
+
+// ------------------------------------------------------------
+// STEP 5: Cell culture -- HepG2 plating and attachment.
+//         HepG2 cells (ATCC HB-8065) plated at 5,000-20,000
+//         cells/cm2 on standard tissue culture polystyrene.
+//         Medium: Eagle's MEM + 10% FBS + 1% pen/strep
+//         (Invitrogen). Culture at 37 C, 5% CO2.
+//         Allow to attach for 4-16 h (minimum: 4 h = 240m).
+//         NOTE: `mix` abstracts cell seeding and medium
+//         addition to tissue culture plate. `heat` models
+//         37 C CO2 incubator dwell for attachment.
+// ------------------------------------------------------------
+
+hepg2Cells    = dispense 1 units of HepG2_Cells
+cultureMedium = dispense 1 units of EaglesMEM_10FBS_PenStrep
+platedCells   = mix hepg2Cells with cultureMedium for 2m
+
+heat platedCells at 37c for 240m
+
+// ------------------------------------------------------------
+// STEP 6: Serum starvation (12-24 h minimum; 720m).
+//         Replace complete medium with serum-free Eagle's MEM
+//         to synchronise signalling state before stimulation.
+//         Serum starvation sensitises Akt pathway to insulin.
+//         Duration: 720m (minimum; 12 h).
+//         NOTE: `mix` abstracts medium exchange on plate.
+// ------------------------------------------------------------
+
+serumFree     = dispense 1 units of SerumFreeMedium
+starvedCells  = mix platedCells with serumFree for 2m
+
+heat starvedCells at 37c for 720m
+
+// ------------------------------------------------------------
+// STEP 7: Cell labelling with Cell Tracker Orange dye.
+//         Incubate serum-starved cells with 2.5 uM Cell
+//         Tracker Orange in serum-free medium for 15-45 min
+//         at 37 C (minimum: 15m). Dye labels cytosol;
+//         fluorescence drop in target cell confirms lysis.
+//         Wash with PBS, then recover in serum-free medium
+//         at 37 C for 20-45 min (minimum: 20m) before
+//         stimulation. Imaging: rhodamine filter
+//         (ex 540 nm, em 570 nm, Semrock).
+// ------------------------------------------------------------
+
+cellTracker   = dispense 1 units of CellTrackerOrange
+labelledCells = mix starvedCells with cellTracker for 15m
+
+heat labelledCells at 37c for 15m
+
+pbsWash       = dispense 1 units of PBS
+washedCells   = mix labelledCells with pbsWash for 2m
+
+recoveryMedium  = dispense 1 units of SerumFreeMedium
+recoveredCells  = mix washedCells with recoveryMedium for 2m
+
+heat recoveredCells at 37c for 20m
+
+// ------------------------------------------------------------
+// STEP 8: Insulin stimulation to activate Akt.
+//         Spike insulin to final concentration 500 ng/mL in
+//         serum-free medium (for Akt time-course: cells lysed
+//         one by one under continuous stimulation conditions;
+//         medium NOT removed; cells lysed directly off plate).
+//         Stimulation duration: 10-16.5 min tested;
+//         here 10m (minimum tested; Fig. 4a/c/5a).
+//         For serum-starved control: medium not replaced;
+//         no insulin added.
+//         NOTE: `mix` abstracts insulin addition to plate
+//         medium. `heat` models 37 C incubator dwell.
+// ------------------------------------------------------------
+
+insulinStock    = dispense 1 units of Insulin
+stimulatedCells = mix recoveredCells with insulinStock for 2m
+
+heat stimulatedCells at 37c for 10m
+
+// ------------------------------------------------------------
+// STEP 9: Single-cell lysis by hydrodynamic confinement.
+//         Plate transferred to microscope (Olympus IX71).
+//         Microfluidic probe positioned near target HepG2 cell
+//         using micromanipulator.
+//         Lysis zone created by:
+//           Qout (central channel): 5 nL/min lysis buffer
+//           Qin (outer channels):   50 nL/min total inflow
+//                                   (25 nL/min per channel)
+//         Zone radius R set slightly smaller than cell (~15 um)
+//         by Qin/Qout = 10 ratio (Fig. 2b of paper).
+//         Target cell lysed immediately on exposure; cytosolic
+//         Cell Tracker Orange fluorescence drops within ~20 s.
+//         Neighbouring cell fluorescence unaffected.
+//         Lysate captured by Qin inflow along outer channels.
+//         Lysis confirmed by Cell Tracker Orange fluorescence
+//         drop monitored on rhodamine filter (ex 540, em 570).
+//         `lysisDetection` module abstracts this fluorescence
+//         drop QC check on target vs. neighbouring cells.
+//         NOTE: `mix` abstracts the simultaneous Qout/Qin
+//         flow at tip creating and maintaining the lysis zone.
+// ------------------------------------------------------------
+
+lysisZone     = mix loadedDevice with stimulatedCells for 20s
+lysisSignal   = detect lysisDetection on lysisZone for 20s
+
+// ============================================================
+// BB2 / BB3: Lysis QC gate
+// Pass (BB2): lysisSignal > 0 -> Cell Tracker Orange
+//             fluorescence drop confirmed in target cell,
+//             neighbouring cells unaffected; proceed to
+//             assay branches.
+// Fail (BB3): lysisSignal <= 0 -> lysis failed (no drop,
+//             or neighbouring cell affected); drain lysis
+//             zone and retry on next target cell.
+// Both branches converge at BB4 (lysisJoin).
+// ============================================================
+
+if (lysisSignal > 0) {
+    dispose lysisZone
+} else {
+    drain lysisZone
+}
+
+// ============================================================
+// BB4: lysisJoin
+// Dispose lysis QC signal. Lysate flows through device and
+// is subdivided by pneumatic valve routing into AB1 (Akt)
+// and AB2 (GAPDH) chambers. Lysate mixed with assay buffer
+// at 1:4 ratio by passive resistance-ratio mixing in 5 um
+// channels. Valves (V1-V4) actuated with compressed air
+// (30 psi) via solenoid valve manifold at 90 s after lysis
+// (measured travel time from tip to reaction chambers) to
+// trap assay mixture in chambers.
+// Assay chambers monitored at 30 C on automated motorised
+// stage (Prior Scientific H110) in heating chamber (Tokai
+// Hit) placed on Olympus IX71 microscope.
+// ============================================================
+
+dispose lysisSignal
+
+// ------------------------------------------------------------
+// STEP 10: Akt kinase activity assay (chamber AB1).
+//          Sox peptide sensor (10 uM substrate peptide) in
+//          Akt assay buffer mixed 1:4 with lysate from AB1.
+//          Assay mixture trapped in AB1 reaction chamber by
+//          valve actuation (V1/V2 closed) at 90 s after lysis.
+//          Fluorescence monitored every 30 s for >= 20 min
+//          at 30 C using DAPI filter (ex 377 nm, em 447 nm,
+//          Semrock), shutter (Uniblitz, 200 ms exposure).
+//          Sox sensor phosphorylation by Akt generates
+//          chelation-enhanced fluorescence (CSox fluorophore).
+//          Activity = initial slope of fluorescence vs time.
+//          LOD: 0.32 pg recombinant active Akt (vs 0.51 ng
+//          on plate reader). ~1 ng total protein equivalent
+//          per single HepG2 cell lysate.
+//          Control: lysis buffer (no lysate) run in parallel.
+//          aktKinaseDetection module abstracts the Sox sensor
+//          fluorescence slope fitting (initial linear region).
+//          NOTE: `mix` abstracts passive resistance-ratio
+//          mixing of lysate with Akt assay buffer in 5 um
+//          channels before valve closure traps mixture.
+// ------------------------------------------------------------
+
+aktAssayMix = mix lysisBuffer with aktBuffer for 90s
+
+heat aktAssayMix at 30c for 20m
+
+aktSignal   = detect aktKinaseDetection on aktAssayMix for 20m
+
+// ============================================================
+// BB5 / BB6: Akt activity QC gate
+// Pass (BB5): aktSignal > 0 -> Akt activity detected above
+//             lysis buffer baseline; 'high Akt' phenotype
+//             (insulin-responsive); dispose Akt assay mixture.
+// Fail (BB6): aktSignal <= 0 -> Akt activity at or below
+//             baseline; 'low Akt' phenotype (non-responsive
+//             to insulin; p-value 0.35, consistent with
+//             senescent morphology subgroup in Fig. 5a);
+//             drain Akt assay mixture.
+// Both branches converge at BB7 (aktJoin).
+// ============================================================
+
+if (aktSignal > 0) {
+    dispose aktAssayMix
+} else {
+    drain aktAssayMix
+}
+
+// ============================================================
+// BB7: aktJoin
+// Dispose Akt QC signal. GAPDH assay branch begins.
+// GAPDH serves as housekeeping loading control to normalise
+// Akt activity per cell (Supplementary Fig. 9). GAPDH
+// activity unaffected by insulin stimulation (p=0.98 for
+// 'high Akt' cells; Fig. 5a dark red markers).
+// ============================================================
+
+dispose aktSignal
+
+// ------------------------------------------------------------
+// STEP 11: GAPDH activity assay (chamber AB2).
+//          GAPDH assay buffer (4 mM NAD+, 10 mM
+//          glyceraldehyde 3-phosphate in 90 mM sodium
+//          pyrophosphate pH 7.1 + 20 mM NaH2PO4 + 3 mM DTT)
+//          mixed 1:4 with lysate from AB2 subdivision.
+//          Assay mixture trapped in AB2 reaction chamber by
+//          valve actuation (V3/V4 closed) at 90 s after lysis.
+//          GAPDH converts NAD+ to NADH (fluorescent);
+//          monitored on DAPI filter (ex 377 nm, em 447 nm)
+//          every 30 s for >= 20 min at 30 C.
+//          LOD lower than Akt (Fig. 4f) due to higher GAPDH
+//          expression levels relative to Akt.
+//          gapdhActivityDetection module abstracts NADH
+//          fluorescence slope fitting (initial linear region).
+//          NOTE: Simultaneously acquired with Akt assay (AB1
+//          and AB2 chambers imaged on automated stage). Here
+//          encoded sequentially for BioScript compatibility
+//          (no concurrent parallel detect statements).
+// ------------------------------------------------------------
+
+gapdhAssayMix = mix lysisBuffer with gapdhBuffer for 90s
+
+heat gapdhAssayMix at 30c for 20m
+
+gapdhSignal   = detect gapdhActivityDetection on gapdhAssayMix for 20m
+
+// ============================================================
+// BB8 / BB9: GAPDH activity QC gate
+// Pass (BB8): gapdhSignal > 0 -> GAPDH activity detected;
+//             loading control confirmed; dispose GAPDH
+//             assay mixture.
+// Fail (BB9): gapdhSignal <= 0 -> GAPDH not detected
+//             (possible lysate loss or chamber failure);
+//             drain GAPDH assay mixture.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (gapdhSignal > 0) {
+    dispose gapdhAssayMix
+} else {
+    drain gapdhAssayMix
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose GAPDH QC signal. Single-cell multiplexed assay
+// cycle complete. Probe repositioned to next target cell
+// for subsequent measurement (up to 4 cells in parallel
+// using 4 chambers AB1-AB4; lysis is sequential per cell).
+// ============================================================
+
+dispose gapdhSignal
+
+// [terminal -- no further instructions; exit node for CFG]

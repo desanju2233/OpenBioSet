@@ -1,0 +1,317 @@
+module bacterialMargination
+module yeastMargination
+module cellularComponentDetection
+module bacterialColonyCount
+
+manifest WholeBlood
+manifest PBS
+manifest BSA_Buffer
+manifest Dextran40
+manifest GFP_Ecoli
+manifest YFP_Saccharomyces
+manifest CD41a_FITC
+manifest CD45_APC
+manifest LB_Agar
+
+// ============================================================
+// A Microfluidics Approach Towards High-Throughput Pathogen
+// Removal from Blood Using Margination
+// Hou, Gan, Bhagat, Li, Lim, Han
+// Biomicrofluidics 6, 024115 (2012)
+// DOI: 10.1063/1.4710992
+//
+// Platform: Pressure-driven continuous-flow PDMS microfluidic
+// device. Two cascaded straight margination channels (20 x 20 um,
+// W x H) with bifurcations (1:8:1) in series. No digital
+// microfluidics. All dispense operations represent sample or
+// reagent introduction from syringe pump inlets.
+//
+// Separation Principle: Whole blood flows through 20 x 20 um
+// microchannels at 15 uL/min (Re ~4-5). Deformable RBCs
+// migrate axially to the channel centre (Fahreaus effect),
+// forming an RBC-rich core and a cell-free layer at the walls.
+// Mechanical RBC-cell collisions drive margination of bacteria,
+// yeast, platelets, and leukocytes into the wall-adjacent
+// cell-free layer. At the bifurcation (1:8:1), marginated
+// cells exit via the narrow side channels (waste) while
+// RBC-enriched blood exits via the large centre outlet
+// (filtered blood). Two cascaded stages achieve >80% bacterial
+// removal efficiency in a single pass.
+//
+// BioScript Abstractions:
+//   - `mix` models continuous laminar co-flow through the
+//     margination channel (NOT DMF electrode mixing). The
+//     mixing duration encodes channel transit time at the
+//     working flow rate.
+//   - `heat at 25c` models ambient-temperature incubation
+//     steps (antibody staining, room-temperature operations).
+//   - `heat at 4c` models on-ice or cold incubation.
+//   - `heat at 37c` models bacterial culture incubation.
+//   - `drain` is used for waste-stream side outlet collection
+//     (marginated cell fraction). `dispose` is used for
+//     confirmed filtered centre outlet fractions.
+//   - Centrifugation (RBC washing) is abstracted as
+//     `heat at 25c` since no centrifuge primitive exists.
+//   - The 1:8:1 bifurcation geometry and cell-free-layer
+//     enhancement at the expanded outlet are encoded
+//     implicitly in the two-stage mix/detect structure.
+//   - The parallel 6-channel device (100 uL/min total)
+//     is encoded as a separate branch in the QC-pass path,
+//     sharing the same reagent manifests.
+//
+// CFG STRUCTURE:
+//   BB1  main               -- sample prep; antibody staining;
+//                              two-stage margination; FACS QC gate
+//   BB2  separationPass     -- separationSignal > 0: high removal
+//                              efficiency confirmed; proceed to
+//                              bacterial quantification
+//   BB3  separationFail     -- separationSignal <= 0: insufficient
+//                              removal; drain filtered fraction
+//   BB4  separationJoin     -- join: bacterial CFU counting branch
+//   BB5  bacteriaPass       -- bacteriaSignal > 0: >80% removal
+//                              confirmed by CFU; dispose
+//   BB6  bacteriaFail       -- bacteriaSignal <= 0: low removal;
+//                              drain and flag for re-run
+//   BB7  finalCleanup       -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prepare washed RBC sample at physiological hematocrit.
+//   Human whole blood washed 3x with PBS + 0.5% BSA to remove
+//   plasma proteins. Final RBC concentration adjusted to 45%
+//   hematocrit in sample buffer: PBS + 0.5% BSA + 3% Dextran-40
+//   (Dextran-40 prevents cell sedimentation during pump-driven
+//   flow). This step is required for device characterisation
+//   experiments; for whole-blood pathogen removal experiments,
+//   unwashed fresh blood is used directly (see STEP 3).
+//   Centrifugation abstracted as heat at 25c (no centrifuge
+//   primitive in BioScript).
+// ------------------------------------------------------------
+
+bloodSample   = dispense 1 units of WholeBlood
+washBuffer1   = dispense 1 units of PBS
+
+// First wash: centrifuge 300 x g, 5 min, remove supernatant.
+washedBlood1  = mix bloodSample with washBuffer1 for 5m
+heat washedBlood1 at 25c for 5m
+
+washBuffer2   = dispense 1 units of PBS
+washedBlood2  = mix washedBlood1 with washBuffer2 for 5m
+heat washedBlood2 at 25c for 5m
+
+washBuffer3   = dispense 1 units of PBS
+washedBlood3  = mix washedBlood2 with washBuffer3 for 5m
+heat washedBlood3 at 25c for 5m
+
+// Resuspend at 45% hematocrit in sample buffer.
+bsaBuffer     = dispense 1 units of BSA_Buffer
+dextranBuffer = dispense 1 units of Dextran40
+sampleBuffer  = mix bsaBuffer with dextranBuffer for 30s
+
+rbcSuspension = mix washedBlood3 with sampleBuffer for 30s
+
+// ------------------------------------------------------------
+// STEP 2: Antibody staining for whole-blood cellular analysis.
+//   Fresh whole blood (unwashed, not the washed RBC sample) is
+//   incubated at 4c for 40 min with:
+//     CD41a-FITC (1:50, BD Biosciences) -- platelet marker
+//     CD45-APC  (1:100, BD Biosciences) -- leukocyte marker
+//   Staining done directly in blood without prior washing to
+//   preserve native platelet and leukocyte populations.
+// ------------------------------------------------------------
+
+freshBlood    = dispense 1 units of WholeBlood
+cd41a         = dispense 1 units of CD41a_FITC
+cd45          = dispense 1 units of CD45_APC
+
+antibodyMix   = mix cd41a with cd45 for 30s
+stainedBlood  = mix freshBlood with antibodyMix for 2m
+heat stainedBlood at 4c for 40m
+
+// ------------------------------------------------------------
+// STEP 3: Spike whole blood with GFP-E. coli and YFP-S. cerevisiae.
+//   GFP-E. coli (HB101 K-12, cultured overnight at 37c in
+//   LB Agar + ampicillin 100 ug/mL + arabinose 0.1%) spiked
+//   at 1e6-1e7 CFU/mL. YFP-S. cerevisiae (W303-1B) spiked at
+//   same concentration range. Both microbes vortexed 30 s into
+//   blood immediately before device loading.
+//   NOTE: E. coli (rod, ~2 x 0.5 um) and S. cerevisiae
+//   (ovoid, ~5 um) are similar in size to platelets (~2-3 um)
+//   and to Candida albicans (pathogenic fungal model),
+//   respectively. Size difference from RBCs drives margination.
+// ------------------------------------------------------------
+
+ecoliGFP      = dispense 1 units of GFP_Ecoli
+saccharomyces = dispense 1 units of YFP_Saccharomyces
+
+// Vortex microbes into stained blood sample (30 s).
+microbeBlood1 = mix stainedBlood with ecoliGFP for 30s
+spikedBlood   = mix microbeBlood1 with saccharomyces for 30s
+
+// ------------------------------------------------------------
+// STEP 4: Load spiked blood into the margination device.
+//   Syringe pump delivers whole blood at 15 uL/min into the
+//   device inlet. Working flow rate selected to maximise
+//   bacteria margination efficiency while staying within
+//   device pressure tolerance (PDMS + tubing connection).
+//   Re ~4-5. Wall shear rate ~6e4 s-1 (inhibits RBC
+//   aggregation; Fahreaus-dominated margination regime).
+//
+//   Channel geometry:
+//     First margination channel: 20 x 20 um (W x H), 5 mm long
+//     Cascaded channel: 20 x 20 um (W x H), 1 mm long
+//     Bifurcations: 1:8:1 (side:centre:side outlet ratio)
+//     Aspect ratio = 1 (optimal for isotropic shear and
+//     RBC core formation across the full cross-section).
+//
+//   `mix` models laminar co-flow through the margination
+//   channel. Duration encodes transit time at 15 uL/min.
+//   `rbcSuspension` supplies the RBC hydrodynamic environment
+//   required for margination physics; spikedBlood carries
+//   the pathogen and inflammatory cell cargo.
+// ------------------------------------------------------------
+
+// First-stage margination channel (5 mm, 15 uL/min).
+// RBCs migrate axially; bacteria, yeast, platelets, and
+// leukocytes marginate radially to the four channel walls.
+stage1Mix     = mix spikedBlood with rbcSuspension for 20s
+
+// Bifurcation 1 (1:8:1): marginated cells exit side channels
+// (waste stream); RBC-enriched blood exits centre outlet.
+// Side outlet collection: drain models waste stream removal.
+stage1Waste   = mix stage1Mix with rbcSuspension for 5s
+drain stage1Waste
+
+// Centre outlet after stage 1: bacteria-depleted blood
+// (approx. 50% bacterial removal, hematocrit +~10%).
+stage1Filtered = mix stage1Mix with rbcSuspension for 10s
+
+// ------------------------------------------------------------
+// STEP 5: Second-stage margination (cascaded design).
+//   The bacteria-depleted blood from stage 1 enters the
+//   second margination channel (1 mm). Higher hematocrit
+//   post-stage-1 enhances Fahreaus effect and RBC-bacteria
+//   hydrodynamic interactions, driving additional bacterial
+//   margination to the channel periphery.
+//   Cumulative two-stage removal efficiency: >80% bacteria.
+//   Platelets and leukocytes: >80% depletion.
+//   RBC concentration at centre outlet: +~30% above inlet
+//   (Fahreaus effect; 1:8:1 bifurcation concentrates RBCs).
+//   Negligible haemolysis confirmed by optical absorption
+//   at 414 nm (RBC transit time <0.01 s in shear zone).
+// ------------------------------------------------------------
+
+// Second-stage margination channel (1 mm, 15 uL/min).
+stage2Mix     = mix stage1Filtered with rbcSuspension for 5s
+
+// Bifurcation 2 (1:8:1): second margination waste stream.
+stage2Waste   = mix stage2Mix with rbcSuspension for 2s
+drain stage2Waste
+
+// Final filtered blood at centre outlet after stage 2.
+// Contains: RBC-enriched blood with >80% bacteria removed,
+// >80% platelets removed, >80% leukocytes removed,
+// ~90% S. cerevisiae removed (larger size -> corner
+// margination -> complete sidewall capture).
+filteredBlood = mix stage2Mix with rbcSuspension for 5s
+
+// ------------------------------------------------------------
+// STEP 6: FACS analysis of filtered blood at centre outlet.
+//   BD LSR II flow cytometer. Cell populations gated by
+//   forward scatter (FSC), side scatter (SSC), and
+//   fluorescence channels:
+//     CD41a-FITC: platelet gate
+//     CD45-APC:   leukocyte gate
+//     GFP:        E. coli gate
+//     YFP:        S. cerevisiae gate
+//   Normalised concentration = (cells at outlet) / (inlet)
+//   for each population. QC threshold: >80% removal for
+//   bacteria, platelets, and leukocytes; >80% RBC recovery.
+//   FACS detection abstracted via cellularComponentDetection
+//   module (covers all four fluorescence channels simultaneously).
+// ------------------------------------------------------------
+
+separationSignal = detect cellularComponentDetection on filteredBlood for 30s
+
+// ============================================================
+// BB2 / BB3: FACS QC gate
+// Pass (BB2): separationSignal > 0 -> >80% removal of
+//             inflammatory and pathogenic components confirmed;
+//             proceed to CFU bacterial quantification.
+// Fail (BB3): separationSignal <= 0 -> removal efficiency
+//             below threshold; drain filtered fraction and
+//             flag device for geometric re-optimisation.
+// Both branches converge at BB4 (separationJoin).
+// ============================================================
+
+if (separationSignal > 0) {
+    dispose filteredBlood
+} else {
+    drain filteredBlood
+}
+
+// ============================================================
+// BB4: separationJoin
+// Dispose FACS QC signal. Control falls into bacterial
+// CFU quantification branch (BB5/BB6).
+// ============================================================
+
+dispose separationSignal
+
+// ------------------------------------------------------------
+// STEP 7: Bacterial CFU quantification at inlet and outlet.
+//   10 uL aliquots from inlet (spiked blood) and filtered
+//   centre outlet are plated on LB agar. Colony-forming units
+//   (CFUs) counted after 24 h incubation at 37c. Removal
+//   efficiency = 1 - (CFU_outlet / CFU_inlet).
+//   Haemocytometer used independently for yeast concentration.
+//   Expected results:
+//     E. coli removal: ~80% (two-stage cascaded device)
+//     S. cerevisiae removal: ~90% (larger size, corner
+//     margination to all four channel walls)
+//   `heat at 37c for 1440m` models 24 h agar plate incubation
+//   (1440 min = 24 h converted per compiler duration constraint).
+// ------------------------------------------------------------
+
+agarPlate       = dispense 1 units of LB_Agar
+filteredAliquot = dispense 1 units of WholeBlood
+
+platesMix       = mix filteredAliquot with agarPlate for 30s
+heat platesMix at 37c for 1440m
+
+bacteriaSignal  = detect bacterialColonyCount on platesMix for 30s
+
+// ============================================================
+// BB5 / BB6: Bacterial CFU QC gate
+// Pass (BB5): bacteriaSignal > 0 -> >80% bacterial removal
+//             confirmed by CFU count; dispose all. Device
+//             validated for sepsis treatment application.
+//             Multiplexed 6-channel parallel system (100 uL/min
+//             total; 6 ml/h) achieves similar filtration
+//             performance at 6x throughput.
+// Fail (BB6): bacteriaSignal <= 0 -> CFU count indicates
+//             insufficient removal; drain and re-optimise
+//             flow rate or channel geometry.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (bacteriaSignal > 0) {
+    dispose platesMix
+} else {
+    drain platesMix
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose CFU QC signal. Experiment ends.
+// ============================================================
+
+dispose bacteriaSignal
+
+// [terminal -- no further instructions; exit node for CFG]

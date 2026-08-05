@@ -1,0 +1,87 @@
+bsbbif_2_t:
+	dispose(bacterialEluate1[0])
+bsbbif_3_f:
+	dispose(bacterialEluate1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(recoverySignal1[0])
+	bacterialPellet1[0] = dispense(WholeBlood)
+	rltBuffer1[0] = dispense(RLT_Lysis_Buffer)
+	bacterialLysate1[0] = mix(bacterialPellet1[0], rltBuffer1[0]) @ 300.0SECOND
+	heat(bacterialLysate1[0]) @ 25.0CELSIUS @ 300.0SECOND
+	heat(bacterialLysate1[0]) @ 65.0CELSIUS @ 7200.0SECOND
+	rRNASignal1[0] = detect(rRNASpeciesDetection, bacterialLysate1[0]) @ 30.0SECOND
+	if rRNASignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	wholeBlood1[0] = dispense(WholeBlood)
+	sampleBuffer1[0] = dispense(PBS_BSA_Buffer)
+	bacterialSample1[0] = dispense(EcoliClinicalIsolate)
+	buf11[0] = dispense(PBS_BSA_Buffer)
+	buf21[0] = dispense(PBS_BSA_Buffer)
+	bufferAcc1[0] = mix(buf11[0], buf21[0]) @ 5.0SECOND
+	dilutedBlood1[0] = mix(wholeBlood1[0], bufferAcc1[0]) @ 5.0SECOND
+	spikedBloodSample1[0] = mix(dilutedBlood1[0], bacterialSample1[0]) @ 5.0SECOND
+	sheathPrime1[0] = dispense(SheathFluid)
+	devicePrime1[0] = mix(sheathPrime1[0], spikedBloodSample1[0]) @ 2.0SECOND
+	sheathFlow1[0] = dispense(SheathFluid)
+	bacterialEluate1[0] = mix(devicePrime1[0], sheathFlow1[0]) @ 1200.0SECOND
+	heat(bacterialEluate1[0]) @ 25.0CELSIUS @ 300.0SECOND
+	recoverySignal1[0] = detect(bacterialRecoveryQC, bacterialEluate1[0]) @ 30.0SECOND
+	if recoverySignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(bacterialLysate1[0])
+bsbbif_6_f:
+	dispose(bacterialLysate1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(rRNASignal1[0])
+	ecoli_S1[0] = dispense(EcoliClinicalIsolate_Susceptible)
+	ecoli_R1[0] = dispense(EcoliClinicalIsolate_Resistant)
+	bloodForS1[0] = dispense(WholeBlood)
+	bloodForR1[0] = dispense(WholeBlood)
+	bufS11[0] = dispense(PBS_BSA_Buffer)
+	bufS21[0] = dispense(PBS_BSA_Buffer)
+	bufAccS1[0] = mix(bufS11[0], bufS21[0]) @ 5.0SECOND
+	dilutedBloodS1[0] = mix(bloodForS1[0], bufAccS1[0]) @ 5.0SECOND
+	spikedBloodS1[0] = mix(dilutedBloodS1[0], ecoli_S1[0]) @ 5.0SECOND
+	bufR11[0] = dispense(PBS_BSA_Buffer)
+	bufR21[0] = dispense(PBS_BSA_Buffer)
+	bufAccR1[0] = mix(bufR11[0], bufR21[0]) @ 5.0SECOND
+	dilutedBloodR1[0] = mix(bloodForR1[0], bufAccR1[0]) @ 5.0SECOND
+	spikedBloodR1[0] = mix(dilutedBloodR1[0], ecoli_R1[0]) @ 5.0SECOND
+	heat(spikedBloodS1[0]) @ 37.0CELSIUS @ 27000.0SECOND
+	heat(spikedBloodR1[0]) @ 37.0CELSIUS @ 27000.0SECOND
+	sheathS1[0] = dispense(SheathFluid)
+	sheathR1[0] = dispense(SheathFluid)
+	eluateS1[0] = mix(spikedBloodS1[0], sheathS1[0]) @ 1200.0SECOND
+	eluateR1[0] = mix(spikedBloodR1[0], sheathR1[0]) @ 1200.0SECOND
+	heat(eluateS1[0]) @ 25.0CELSIUS @ 300.0SECOND
+	heat(eluateR1[0]) @ 25.0CELSIUS @ 300.0SECOND
+	cipro_S1[0] = dispense(Ciprofloxacin_Stock)
+	cipro_R1[0] = dispense(Ciprofloxacin_Stock)
+	ciproExposure_S1[0] = mix(eluateS1[0], cipro_S1[0]) @ 5.0SECOND
+	ciproExposure_R1[0] = mix(eluateR1[0], cipro_R1[0]) @ 5.0SECOND
+	heat(ciproExposure_S1[0]) @ 37.0CELSIUS @ 1800.0SECOND
+	heat(ciproExposure_R1[0]) @ 37.0CELSIUS @ 1800.0SECOND
+	rltLysis_S1[0] = dispense(RLT_Lysis_Buffer)
+	rltLysis_R1[0] = dispense(RLT_Lysis_Buffer)
+	lysate_S1[0] = mix(ciproExposure_S1[0], rltLysis_S1[0]) @ 300.0SECOND
+	lysate_R1[0] = mix(ciproExposure_R1[0], rltLysis_R1[0]) @ 300.0SECOND
+	heat(lysate_S1[0]) @ 25.0CELSIUS @ 300.0SECOND
+	heat(lysate_R1[0]) @ 25.0CELSIUS @ 300.0SECOND
+	heat(lysate_S1[0]) @ 65.0CELSIUS @ 7200.0SECOND
+	heat(lysate_R1[0]) @ 65.0CELSIUS @ 7200.0SECOND
+	susceptibilitySignal_S1[0] = detect(mRNASusceptibilityDetection, lysate_S1[0]) @ 30.0SECOND
+	susceptibilitySignal_R1[0] = detect(mRNASusceptibilityDetection, lysate_R1[0]) @ 30.0SECOND
+	if susceptibilitySignal_S1[0] <= 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(lysate_S1[0])
+	dispose(lysate_R1[0])
+bsbbif_9_f:
+	dispose(lysate_S1[0])
+	dispose(lysate_R1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(susceptibilitySignal_S1[0])
+	dispose(susceptibilitySignal_R1[0])
+	NOP

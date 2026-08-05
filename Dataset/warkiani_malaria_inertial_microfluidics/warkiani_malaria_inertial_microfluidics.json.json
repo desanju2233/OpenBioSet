@@ -1,0 +1,273 @@
+{
+  "protocol": {
+    "title": "Malaria Detection Using Inertial Microfluidics",
+    "source": "Lab on a Chip, 2015, 15, 1101-1109",
+    "doi": "10.1039/c4lc01058b",
+    "platform": "Inertial microfluidics (high-aspect-ratio contraction-expansion array, continuous-flow)",
+    "parasite": "Plasmodium falciparum 3D7 (ring-stage iRBCs)",
+    "objective": "Label-free enrichment of ring-stage malaria parasites from lysed whole blood by inertial WBC depletion, enabling reliable qPCR-based detection at clinically relevant parasitemia levels (10^3-10^4 parasites/mL)",
+
+    "device": {
+      "type": "High-aspect-ratio rectangular microchannel with contraction-expansion array",
+      "channel": {
+        "height_um": 100,
+        "aspect_ratio": 3.33,
+        "contraction_expansion_designs": [
+          { "contraction_um": 30, "expansion_um": 90,  "hydraulic_diameter_um": 46.15 },
+          { "contraction_um": 40, "expansion_um": 120, "hydraulic_diameter_um": 57.14 },
+          { "contraction_um": 50, "expansion_um": 150, "hydraulic_diameter_um": 66.67 }
+        ],
+        "optimal_design": "30/90 um (contraction/expansion)",
+        "subunits": 85,
+        "total_length_mm": 20,
+        "particle_focusing_cutoff_um": 4
+      },
+      "outlets": {
+        "design": "1:1:1 (top:middle:bottom)",
+        "optimal_design": "1:1:1",
+        "center_outlet": "collects enriched parasite fraction",
+        "peripheral_outlets": "remove focused WBCs"
+      },
+      "configuration": "Cascaded 2-stage system (3 biochips: 1 pressure compensator + 2 separation chips)",
+      "material": "PDMS bonded to glass (oxygen plasma, Covance, Femto Science)",
+      "fabrication": "Soft lithography; PDMS 10:1 Sylgard 184 baked 70 C for 2 h; 1.5 mm punch holes",
+      "inlets": {
+        "single_inlet": "Sample input (lysed diluted blood + free parasites)"
+      }
+    },
+
+    "reagents": {
+      "priming_buffer": "1x PBS + 2 mM EDTA + 0.5% BSA",
+      "rbc_lysis_buffer": "eBioscience RBC lysis buffer (per manufacturer instructions)",
+      "parasite_lysis_agent": "0.05% (w/v) saponin (Sigma, USA) in PBS",
+      "sample_diluent": "1x PBS (0.25x final dilution of lysed blood, i.e. 4-fold dilution)",
+      "dna_extraction_kit": "Norgen malaria kit #34800 (Canada)",
+      "qpcr_reagent": "SYBR Green (Invitrogen)",
+      "wbc_stain": "APC-conjugated CD45 antibody (1:100, Miltenyi Biotec Asia Pacific)",
+      "fluorescent_surrogates": {
+        "parasite_proxy": "1.5 um fluorescent beads (Bangs Laboratories, USA)",
+        "wbc_proxy": "9 um fluorescent beads (Bangs Laboratories, USA)"
+      },
+      "malaria_culture_media": "RPMI 1640 + 0.5% Albumax I + 2 mM L-glutamine + 50 ug/mL hypoxanthine + 25 ug/mL gentamicin at 2.5% hematocrit",
+      "culture_gas": "5% CO2, 3% O2, 92% N2 at 37 C",
+      "synchronisation_agent": "5% sorbitol (applied every 2 days at ring stage)"
+    },
+
+    "operating_parameters": {
+      "optimal_flow_rate_uL_min": 400,
+      "reynolds_number_optimal": 102.5,
+      "optimal_blood_dilution": "0.25x (4-fold dilution in PBS)",
+      "wbc_depletion_single_cycle_pct": 99.90,
+      "wbc_depletion_two_cycle_pct": 99.99,
+      "parasite_collection_efficiency_pbs_pct": { "mean": 82, "sd": 15.2 },
+      "parasite_collection_efficiency_blood_pct": { "mean": 70.9, "sd": 11.4 },
+      "processing_time_min_per_mL": 15,
+      "detection_range_parasites_per_mL": "10^3 to 10^4",
+      "detection_range_parasites_per_uL": "2-10",
+      "sensitivity_vs_microscopy": "~100-fold improvement over thick blood smear microscopy (50-100 parasites/uL)",
+      "limit_of_detection_parasites_per_uL": 1
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Blood draw and iRBC spiking",
+        "bb": "BB1",
+        "inputs": ["WholeBlood", "iRBC_Spiked"],
+        "operation": "mix",
+        "duration_s": 30,
+        "spike_counts_iRBC_per_mL": [2000, 5000, 10000],
+        "parasite_stage": "Ring-stage P. falciparum 3D7",
+        "parasitemia_confirmation": "Giemsa thin-smear + haemocytometer count",
+        "notes": "Spiked densities mimic clinically relevant low-level parasitemia (~2-10 iRBCs/uL). Calibration standards: 2k, 5k, 10k iRBCs/mL used for qPCR standard curve."
+      },
+      {
+        "id": "S2",
+        "name": "RBC bulk lysis",
+        "bb": "BB1",
+        "inputs": ["spikedBlood", "RBCLysisBuffer"],
+        "operation": "mix",
+        "duration_s": 900,
+        "temperature_C": 25,
+        "notes": "eBioscience RBC lysis buffer per manufacturer instructions. Removes bulk erythrocyte population. iRBCs remain intact at this stage; parasites still encapsulated."
+      },
+      {
+        "id": "S3",
+        "name": "Saponin lysis to release free parasites",
+        "bb": "BB1",
+        "inputs": ["lysedBlood", "Saponin"],
+        "operation": "mix",
+        "saponin_concentration_pct_wv": 0.05,
+        "duration_s": 600,
+        "temperature_C": 25,
+        "parasite_size_released_um": "1-2",
+        "notes": "Saponin selectively disrupts cholesterol-rich RBC/iRBC membranes; parasite membranes remain intact. Released parasites (1-2 um) are below the 4 um focusing cutoff and will not be focused in the separation channel."
+      },
+      {
+        "id": "S4",
+        "name": "Centrifugation and PBS wash",
+        "bb": "BB1",
+        "inputs": ["parasiteSuspension", "PBS_EDTA_BSA"],
+        "operation": "heat (centrifuge abstraction) then mix",
+        "centrifugation_rpm": 2000,
+        "centrifugation_duration_s": 300,
+        "centrifugation_temperature_C": 4,
+        "wash_buffer": "1x PBS",
+        "dilution_factor": "0.25x (4-fold dilution in PBS)",
+        "wbc_count_at_025x": "~7e6 WBCs/mL",
+        "notes": "4-fold dilution is critical: reduces WBC-WBC interactions that degrade depletion efficiency. At 1x: ~47% depletion; at 0.25x: ~99.90% single-cycle depletion."
+      },
+      {
+        "id": "S5",
+        "name": "Device priming",
+        "bb": "BB1",
+        "inputs": ["PBS_EDTA_BSA"],
+        "operation": "mix (continuous-flow priming abstraction)",
+        "flow_rate_uL_min": 500,
+        "duration_s": 120,
+        "priming_buffer": "1x PBS + 2 mM EDTA + 0.5% BSA",
+        "notes": "Primes PDMS channel surfaces; blocks non-specific cell/particle adhesion."
+      },
+      {
+        "id": "S6",
+        "name": "Stage 1 inertial microfluidic separation",
+        "bb": "BB1",
+        "inputs": ["primedChip", "chipBuffer1"],
+        "operation": "mix (continuous-flow inertial separation abstraction)",
+        "flow_rate_uL_min": 400,
+        "reynolds_number": 102.5,
+        "duration_s": 180,
+        "channel_design": "30/90 um contraction/expansion, 100 um height, 85 subunits",
+        "outlet_ratio": "1:1:1",
+        "wbc_focusing_mechanism": "Shear-modulated inertial lift + wall-induced lift force equilibration drives WBCs (6-15 um) to sidewalls",
+        "parasite_behavior": "Free parasites (1-2 um, below 4 um cutoff) remain unfocused; distributed across all outlets",
+        "wbc_depletion_single_cycle_pct": 99.90,
+        "detection_module": "wbcDepletionDetection",
+        "detection_method": "CD45-APC flow cytometry (BD Accuri C6) + Olympus IX81 epifluorescent microscope",
+        "detection_duration_s": 30,
+        "branch": {
+          "pass": { "condition": "wbcSignal1 > 0", "action": "dispose(stage1Enriched); carry forward to Stage 2", "bb": "BB2" },
+          "fail": { "condition": "wbcSignal1 <= 0", "action": "drain(stage1Enriched); re-run at optimal Re", "bb": "BB3" }
+        }
+      },
+      {
+        "id": "S7",
+        "name": "Stage 2 cascaded inertial microfluidic separation",
+        "bb": "BB4",
+        "inputs": ["stage1Enriched", "chipBuffer2"],
+        "operation": "mix (continuous-flow inertial separation abstraction)",
+        "flow_rate_uL_min": 400,
+        "reynolds_number": 102.5,
+        "duration_s": 180,
+        "configuration": "Cascaded Stage 2 chip fed from center outlet of Stage 1; pressure compensator chip in parallel",
+        "wbc_depletion_two_cycle_pct": 99.99,
+        "wbc_reduction_vs_single_cycle": "~2000 additional WBCs removed vs single cycle",
+        "collection_output_volume_uL": 200,
+        "collection_buffer": "PBS",
+        "detection_module": "parasiteRecoveryDetection",
+        "detection_method": "FACS collection efficiency of 1.5 um bead surrogates (BD Accuri C6 flow cytometer)",
+        "detection_duration_s": 30,
+        "branch": {
+          "pass": { "condition": "recoverySignal > 0", "action": "drain(recoverySignal); carry stage2Enriched to extraction", "bb": "BB5" },
+          "fail": { "condition": "recoverySignal <= 0", "action": "drain(stage2Enriched)", "bb": "BB6" }
+        }
+      },
+      {
+        "id": "S8",
+        "name": "Parasite DNA extraction",
+        "bb": "BB7",
+        "inputs": ["stage2Enriched", "MalariaKit_Norgen"],
+        "operation": "mix",
+        "kit": "Norgen malaria kit #34800 (Canada)",
+        "input_volume_uL": 200,
+        "duration_s": 1200,
+        "notes": "WBC removal upstream is critical: residual WBC DNA cross-reacts with p.f.-specific primers; PCR inhibitors in WBC genomic material suppress amplification. Without enrichment, 2k/mL parasitemia is undetectable by qPCR."
+      },
+      {
+        "id": "S9",
+        "name": "qPCR amplification and detection",
+        "bb": "BB7",
+        "inputs": ["extractedDNA", "SYBRGreen_qPCR_Kit"],
+        "operation": "mix + heat (thermocycling)",
+        "instrument": "StepOnePlus (Applied Biosystems, Foster City, CA)",
+        "reagent": "SYBR Green (Invitrogen)",
+        "plate_format": "96-well optical plate",
+        "thermal_protocol": {
+          "initial_denaturation": { "temperature_C": 95, "duration_s": 180 },
+          "cycles": 40,
+          "denaturation_step": { "temperature_C": 94, "duration_s": 15 },
+          "annealing_extension_step": { "temperature_C": 60, "duration_s": 30 },
+          "melt_curve": { "start_C": 65, "end_C": 95, "step_C": 0.1, "hold_s": 5 }
+        },
+        "ct_threshold": "Default fluorescence threshold settings",
+        "primer_specificity": "Confirmed by melt curve (two peaks: spiked iRBCs + isoC internal control from Norgen kit)",
+        "calibration_curve_standards_iRBC_per_mL": [2000, 5000, 10000],
+        "recovery_calculation": "DNA from enriched sample / DNA from same count unenriched parasites x 100",
+        "detection_module": "qPCRDetection",
+        "detection_duration_s": 10,
+        "results": {
+          "recovery_in_PBS_pct": { "mean": 82, "sd": 15.2 },
+          "recovery_in_blood_pct": { "mean": 70.9, "sd": 11.4 },
+          "qpcr_signal_fold_increase_with_enrichment": "~2-fold increase in Ct signal vs unenriched",
+          "detection_range_per_mL": "10^3 to 10^4 P. falciparum"
+        },
+        "branch": {
+          "pass": { "condition": "qPCRSignal > 0", "action": "dispose(qPCRMix); malaria-positive result", "bb": "BB8" },
+          "fail": { "condition": "qPCRSignal <= 0", "action": "drain(qPCRMix); below detection limit or residual inhibition", "bb": "BB9" }
+        }
+      }
+    ],
+
+    "separation_physics": {
+      "drag_force": "Viscous drag entrains particles along flow streamlines",
+      "inertial_lift_force": "Responsible for lateral migration of particles across flow streamlines",
+      "equilibrium": "Balance of shear-modulated inertial lift and wall-induced lift drives particles to channel periphery",
+      "high_aspect_ratio_effect": "High shear rate along channel width causes WBCs to migrate and align into two streams near sidewalls",
+      "focusing_criterion": "Cell diameter / hydraulic diameter >= 0.07",
+      "wbc_diameter_to_Dh_ratios": {
+        "30um_design": 0.325,
+        "40um_design": 0.263,
+        "50um_design": 0.225
+      },
+      "parasite_behavior": "Below 4 um cutoff; not focused; exits all outlets predominantly at center"
+    },
+
+    "comparisons": {
+      "vs_cd45_magnetic_beads": {
+        "processing_time_microfluidics_min": 15,
+        "processing_time_cd45_beads_min": 90,
+        "depletion_microfluidics_pct": 99.99,
+        "depletion_cd45_beads_pct": "<99",
+        "magnetic_particle_interference": "Magnetic particles in enriched sample can significantly affect PCR results"
+      },
+      "vs_microscopy": {
+        "microscopy_sensitivity_parasites_per_uL": "50-100",
+        "device_sensitivity_parasites_per_uL": "1-2 (after enrichment + qPCR)",
+        "fold_improvement": "~100"
+      }
+    },
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1",  "label": "main",          "type": "entry",        "description": "Sample prep: blood draw, iRBC spike, RBC lysis, saponin lysis, PBS wash, device priming, Stage 1 separation" },
+        { "id": "BB2",  "label": "bsbbif_2_t",    "type": "branch_true",  "condition": "wbcSignal1 > 0",     "action": "dispose(stage1Enriched)" },
+        { "id": "BB3",  "label": "bsbbif_3_f",    "type": "branch_false", "condition": "wbcSignal1 <= 0",    "action": "drain(stage1Enriched)" },
+        { "id": "BB4",  "label": "bsbbif_4_j",    "type": "join",         "description": "Dispose wbcSignal1; Stage 2 cascaded separation begins" },
+        { "id": "BB5",  "label": "bsbbif_5_t",    "type": "branch_true",  "condition": "recoverySignal > 0", "action": "drain(recoverySignal); carry stage2Enriched forward" },
+        { "id": "BB6",  "label": "bsbbif_6_f",    "type": "branch_false", "condition": "recoverySignal <= 0","action": "drain(stage2Enriched)" },
+        { "id": "BB7",  "label": "bsbbif_7_j",    "type": "join",         "description": "Dispose recoverySignal; DNA extraction and qPCR branch begins" },
+        { "id": "BB8",  "label": "bsbbif_8_t",    "type": "branch_true",  "condition": "qPCRSignal > 0",    "action": "dispose(qPCRMix); malaria-positive" },
+        { "id": "BB9",  "label": "bsbbif_9_f",    "type": "branch_false", "condition": "qPCRSignal <= 0",   "action": "drain(qPCRMix); no detection" },
+        { "id": "BB10", "label": "bsbbif_10_j",   "type": "terminal",     "description": "Dispose qPCRSignal; NOP; experiment ends" }
+      ],
+      "edges": [
+        ["BB1","BB2"], ["BB1","BB3"],
+        ["BB2","BB4"], ["BB3","BB4"],
+        ["BB4","BB5"], ["BB4","BB6"],
+        ["BB5","BB7"], ["BB6","BB7"],
+        ["BB7","BB8"], ["BB7","BB9"],
+        ["BB8","BB10"],["BB9","BB10"]
+      ]
+    }
+  }
+}

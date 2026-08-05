@@ -1,0 +1,433 @@
+module fluorescenceDetection
+module tracerFluorescenceDetection
+module mmpActivityDetection
+
+manifest PBS
+manifest PluronicF127
+manifest AlexaFluor546_Tracer
+manifest MMPBuffer
+manifest MMP9_Enzyme
+manifest FRET_MMP_Substrate
+manifest CellularSupernatant_Stimulated
+manifest CellularSupernatant_Untreated
+manifest HFE7500_FluorocarbonOil
+manifest FluorocarbonSurfactant
+
+// ============================================================
+// Enhancing Protease Activity Assay in Droplet-Based
+// Microfluidics Using a Biomolecule Concentrator
+// Chen, Sarkar, Song, Miller, Kim, Griffith, Lauffenburger, Han
+// J. Am. Chem. Soc. 2011, 133(27), 10368-10371.
+// DOI: 10.1021/ja2036628
+//
+// Platform: Integrated PDMS chip combining a nanofluidic
+// biomolecule concentrator (ion concentration polarization,
+// ICP) and a flow-focusing droplet generator.
+//
+// Concentrator: Polymeric nanoporous ion-selective junctions
+// between microchannels. +50V applied to trap and accumulate
+// negatively charged biomolecules into a pL-scale plug
+// (~100-fold local concentration enhancement). Voltage off
+// releases the plug downstream.
+//
+// Droplet generator: Flow-focusing geometry with HFE7500
+// fluorocarbon oil as carrier fluid. Droplet volume ~40 pL,
+// generation rate ~2.5 kHz. Biocompatible surfactant
+// stabilises water-in-oil emulsion.
+//
+// Assay: FRET-based polypeptide MMP substrate fluoresces
+// upon cleavage by MMP-9. Reaction monitored per-droplet
+// by time-lapse fluorescence.
+//
+// Sample: Diluted conditioned media from mouse embryonic
+// fibroblasts (MEF), stimulated and untreated. < 25 uL
+// total sample consumed.
+//
+// Key results:
+//   - ~10-fold reduction in assay reaction time.
+//   - ~100-fold reduction in sample volume vs. conventional.
+//   - kcat/Km = 7.81e4 M^-1 s^-1 for MMP-9 (recombinant).
+//   - Stimulated MEF: (kcat/KM)[E] = 1.61e-4 s^-1
+//   - Untreated  MEF: (kcat/KM)[E] = 4.68e-5 s^-1
+//
+// NOTE ON ICP CONCENTRATOR ABSTRACTION:
+// BioScript has no native electrokinetic or field-gradient
+// primitive. The concentration step is modelled as a `mix`
+// of the enzyme/tracer sample with a buffer stream across
+// the nanoporous junction, followed by a `heat` step at
+// room temperature to represent the timed voltage-on
+// accumulation phase (0.03 uL/min flow, ~50 V, tunable
+// concentration time). The `heat` duration encodes the
+// accumulation time that sets the ~100-fold plug enhancement.
+// Voltage-off plug release is implicit at the end of the
+// heat block; downstream dispersion to ~20-fold at
+// encapsulation is a physical effect not separately modelled.
+//
+// NOTE ON DROPLET ENCAPSULATION ABSTRACTION:
+// The flow-focusing droplet generator is modelled as a `mix`
+// of the aqueous assay plug with the fluorocarbon oil phase.
+// Each `mix` with oil represents one encapsulation event
+// producing a monodisperse droplet population (~40 pL).
+// Parallel droplets at different enzyme concentrations
+// (arising from the Gaussian plug shape) are represented
+// as separate scalar variables.
+//
+// NOTE ON SAMPLE VOLUME:
+// All `dispense` units represent fractional microlitres
+// consistent with the chip-scale flow rates described.
+// Total aqueous volume < 25 uL across all conditions.
+//
+// CFG STRUCTURE:
+//   BB1  main                -- device priming; concentrator
+//                               loading; plug release; droplet
+//                               encapsulation; MMP-9 assay
+//   BB2  assayPass           -- assaySignal > 0: valid MMP
+//                               activity detected; dispose
+//   BB3  assayFail           -- assaySignal <= 0: no activity;
+//                               drain
+//   BB4  assayJoin           -- join: cellular supernatant branch
+//   BB5  cellAssayPass       -- cellSignal > 0: valid proteolysis
+//                               detected; dispose
+//   BB6  cellAssayFail       -- cellSignal <= 0: no signal; drain
+//   BB7  finalCleanup        -- terminal: dispose QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prime device channels with 2% Pluronics F-127 in
+//         PBS for surface passivation. Reduces nonspecific
+//         adsorption of biomolecules to PDMS channel walls
+//         and droplet interfaces.
+// ------------------------------------------------------------
+
+primingPBS      = dispense 1 units of PBS
+primingPluronic = dispense 1 units of PluronicF127
+primingMix      = mix primingPBS with primingPluronic for 5m
+
+// ------------------------------------------------------------
+// STEP 2: Prepare enzyme sample stream (middle channel).
+//         MMP-9 at 0.2 nM in MMP buffer. A fluorescent tracer
+//         (Alexa Fluor-546 phalloidin, ex 561 nm / em 572 nm)
+//         is co-loaded to monitor the concentration plug in
+//         real time and infer local enzyme concentration from
+//         tracer fluorescence intensity.
+//         Flow rate: 0.03 uL/min (middle channel).
+// ------------------------------------------------------------
+
+mmpBuffer       = dispense 1 units of MMPBuffer
+mmp9Enzyme      = dispense 1 units of MMP9_Enzyme
+tracerDye       = dispense 1 units of AlexaFluor546_Tracer
+
+enzymeSample    = mix mmp9Enzyme with tracerDye for 5s
+enzymeStream    = mix enzymeSample with mmpBuffer for 5s
+
+// ------------------------------------------------------------
+// STEP 3: Prepare substrate side-channel streams.
+//         FRET polypeptide MMP substrate at 5 uM in MMP buffer
+//         flows in from two flanking side channels and merges
+//         with the enzyme plug in the mixing zone just before
+//         droplet formation. Final enzyme:substrate mixing
+//         ratio is 1:1 (flow rates balanced).
+// ------------------------------------------------------------
+
+substrateLeft   = dispense 1 units of FRET_MMP_Substrate
+substrateRight  = dispense 1 units of FRET_MMP_Substrate
+
+// ------------------------------------------------------------
+// STEP 4: Biomolecule concentrator -- accumulation phase.
+//         +50 V applied across the ion-selective nanoporous
+//         junction flanking the main channel (buffer side
+//         channels at GND). The electrokinetic force opposes
+//         the 0.03 uL/min pressure-driven flow, trapping
+//         negatively charged enzyme molecules and tracer at
+//         the depletion boundary.
+//
+//         Modelled as: mix of enzyme stream with the buffer
+//         side-channel flow across the junction, followed by
+//         a heat step at 25 C (room temperature) to encode
+//         the accumulation time (adjustable; here set for
+//         ~100-fold enhancement in the plug).
+//
+//         NOTE: `heat` here is a BioScript abstraction for
+//         a timed electrokinetic trapping event, not a
+//         thermal step. Temperature 25 C = ambient (no
+//         external heating applied in the paper).
+// ------------------------------------------------------------
+
+bufferSideLeft  = dispense 1 units of PBS
+bufferSideRight = dispense 1 units of PBS
+
+// Junction mixing abstracts flow convergence at ICP boundary.
+junctionMix     = mix enzymeStream with bufferSideLeft for 5s
+concentratorIn  = mix junctionMix with bufferSideRight for 5s
+
+// Voltage-on accumulation: 10 min timed trapping phase
+// producing ~100-fold concentration enhancement in the plug.
+// Duration is the primary handle for tuning enhancement factor.
+heat concentratorIn at 25c for 10m
+
+// Voltage off: plug released by pressure-driven flow.
+// concentratorIn now represents the released concentrated plug.
+
+// ------------------------------------------------------------
+// STEP 5: Plug transport and mixing with substrate.
+//         The released plug (~100-fold concentrated) travels
+//         ~200 um to the mixing zone where it meets substrate
+//         from both side channels. Gaussian diffusion during
+//         transport reduces peak enhancement to ~20-fold at
+//         the droplet generator. Vortices inside droplets
+//         ensure rapid enzyme-substrate mixing post-
+//         encapsulation.
+// ------------------------------------------------------------
+
+assayMixLeft    = mix concentratorIn with substrateLeft for 5s
+assayMixFull    = mix assayMixLeft with substrateRight for 5s
+
+// ------------------------------------------------------------
+// STEP 6: Droplet encapsulation.
+//         Fluorocarbon oil (HFE7500) + biocompatible
+//         perfluorinated surfactant flows at 1.0 uL/min
+//         orthogonally at the flow-focusing junction.
+//         Aqueous plug is sheared into ~40 pL monodisperse
+//         water-in-oil droplets at ~2.5 kHz.
+//
+//         The Gaussian-shaped plug is divided into a train
+//         of droplets spanning a range of enzyme concentrations
+//         (0.2 nM to 3.2 nM inferred from tracer fluorescence).
+//         Three representative concentration bins are modelled
+//         here as separate droplet variables (high, mid, low)
+//         to encode the parallel screening experiment.
+//
+//         Modelled as: mix of assay plug with oil phase.
+//         Each mix call represents one droplet population bin.
+// ------------------------------------------------------------
+
+oilCarrier      = dispense 1 units of HFE7500_FluorocarbonOil
+surfactantOil   = dispense 1 units of FluorocarbonSurfactant
+carrierPhase    = mix oilCarrier with surfactantOil for 5s
+
+// High-concentration droplets (plug centre, ~20-fold; ~3.2 nM)
+dropletHigh     = mix assayMixFull with carrierPhase for 2s
+
+// Mid-concentration droplets (plug shoulder, ~10-fold; ~1.6 nM)
+// Dispense fresh aliquots to represent next droplet bin.
+assayMidSample  = dispense 1 units of MMP9_Enzyme
+assayMidTracer  = dispense 1 units of AlexaFluor546_Tracer
+assayMidBuf     = dispense 1 units of MMPBuffer
+assayMidSub     = dispense 1 units of FRET_MMP_Substrate
+assayMidOil     = dispense 1 units of HFE7500_FluorocarbonOil
+
+midEnzyme       = mix assayMidSample with assayMidTracer for 5s
+midAssay        = mix midEnzyme with assayMidBuf for 5s
+midMix          = mix midAssay with assayMidSub for 5s
+dropletMid      = mix midMix with assayMidOil for 2s
+
+// Low-concentration droplets (plug tail, ~1-fold; ~0.2 nM;
+// used as internal negative-reference / baseline)
+assayLowSample  = dispense 1 units of MMP9_Enzyme
+assayLowTracer  = dispense 1 units of AlexaFluor546_Tracer
+assayLowBuf     = dispense 1 units of MMPBuffer
+assayLowSub     = dispense 1 units of FRET_MMP_Substrate
+assayLowOil     = dispense 1 units of HFE7500_FluorocarbonOil
+
+lowEnzyme       = mix assayLowSample with assayLowTracer for 5s
+lowAssay        = mix lowEnzyme with assayLowBuf for 5s
+lowMix          = mix lowAssay with assayLowBuf for 5s
+dropletLow      = mix lowMix with assayLowOil for 2s
+
+// ------------------------------------------------------------
+// STEP 7: Incubate droplets in observation room.
+//         Droplets flow into collection area and are monitored
+//         by time-lapse fluorescence microscopy. FRET substrate
+//         cleavage by MMP-9 releases fluorophore; product
+//         fluorescence (separate emission channel from tracer)
+//         increases linearly with time.
+//         Incubation at 37 C for 35 min (Fig. 2A time axis).
+//         kcat/Km = 7.81e4 M^-1 s^-1 determined from reaction
+//         rate vs. concentration (Fig. 2B).
+// ------------------------------------------------------------
+
+heat dropletHigh at 37c for 35m
+heat dropletMid  at 37c for 35m
+heat dropletLow  at 37c for 35m
+
+// ------------------------------------------------------------
+// STEP 8: Fluorescence detection of MMP activity.
+//         Tracer channel (ex 561 nm / em 572 nm): reports
+//         local enzyme concentration per droplet.
+//         Product channel: reports proteolytic activity.
+//         QC gate keyed on high-concentration droplets
+//         (largest expected signal).
+// ------------------------------------------------------------
+
+assaySignal     = detect mmpActivityDetection on dropletHigh for 35m
+tracerSignal    = detect tracerFluorescenceDetection on dropletHigh for 30s
+
+// ============================================================
+// BB2 / BB3: MMP activity QC gate
+// Pass (BB2): assaySignal > 0 -> MMP proteolytic activity
+//             confirmed; dispose all droplet populations.
+// Fail (BB3): assaySignal <= 0 -> no activity (negative
+//             control or failed run); drain all droplets.
+// Both branches converge at BB4 (assayJoin).
+// ============================================================
+
+if (assaySignal > 0) {
+    dispose dropletHigh
+    dispose dropletMid
+    dispose dropletLow
+} else {
+    drain dropletHigh
+    drain dropletMid
+    drain dropletLow
+}
+
+// ============================================================
+// BB4: assayJoin
+// Dispose recombinant MMP-9 assay QC signals.
+// Control falls into cellular supernatant assay branch.
+// ============================================================
+
+dispose assaySignal
+dispose tracerSignal
+
+// ============================================================
+// CELLULAR SUPERNATANT ASSAY
+// Stimulated vs. untreated MEF conditioned media
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 9: Prepare cellular supernatant streams.
+//         0.5x dilutions of stimulated and untreated MEF
+//         conditioned media in MMP buffer. Loaded into middle
+//         channel of a fresh chip run.
+//         Total sample consumed: < 25 uL across both conditions.
+//
+//         Stimulated sample: cytokine-treated MEF supernatant.
+//         Untreated sample: control MEF supernatant.
+//         Both co-loaded with Alexa Fluor-546 tracer.
+// ------------------------------------------------------------
+
+cellBufStim     = dispense 1 units of MMPBuffer
+cellBufUntrt    = dispense 1 units of MMPBuffer
+tracerStim      = dispense 1 units of AlexaFluor546_Tracer
+tracerUntrt     = dispense 1 units of AlexaFluor546_Tracer
+
+stimSample      = dispense 1 units of CellularSupernatant_Stimulated
+untrtSample     = dispense 1 units of CellularSupernatant_Untreated
+
+stimStream      = mix stimSample with tracerStim for 5s
+stimStream      = mix stimStream with cellBufStim for 5s
+
+untrtStream     = mix untrtSample with tracerUntrt for 5s
+untrtStream     = mix untrtStream with cellBufUntrt for 5s
+
+// ------------------------------------------------------------
+// STEP 10: Concentrate cellular supernatant samples.
+//          ICP concentrator applied to both samples in
+//          sequence. Same voltage/flow conditions as STEP 4.
+//          Enhancement factor tuned to ~10-20x at encapsulation
+//          point. Concentration time (heat duration) is the
+//          same as for recombinant MMP-9.
+//
+//          NOTE: Concentrated samples amplify the difference
+//          in activity between stimulated and untreated
+//          conditions ~10-fold relative to unconcentrated,
+//          enabling differentiation in 5 min vs. 50 min.
+// ------------------------------------------------------------
+
+bufCellLeft1    = dispense 1 units of PBS
+bufCellRight1   = dispense 1 units of PBS
+bufCellLeft2    = dispense 1 units of PBS
+bufCellRight2   = dispense 1 units of PBS
+
+stimJunction    = mix stimStream with bufCellLeft1 for 5s
+stimConcIn      = mix stimJunction with bufCellRight1 for 5s
+heat stimConcIn at 25c for 10m
+
+untrtJunction   = mix untrtStream with bufCellLeft2 for 5s
+untrtConcIn     = mix untrtJunction with bufCellRight2 for 5s
+heat untrtConcIn at 25c for 10m
+
+// ------------------------------------------------------------
+// STEP 11: Mix concentrated plugs with substrate and
+//          encapsulate into droplets.
+//          Same flow-focusing geometry as STEP 5-6.
+//          Substrate: FRET MMP peptide at 5 uM.
+//          Oil carrier phase with surfactant.
+// ------------------------------------------------------------
+
+subStim         = dispense 1 units of FRET_MMP_Substrate
+subUntrt        = dispense 1 units of FRET_MMP_Substrate
+oilStim         = dispense 1 units of HFE7500_FluorocarbonOil
+oilUntrt        = dispense 1 units of HFE7500_FluorocarbonOil
+surfStim        = dispense 1 units of FluorocarbonSurfactant
+surfUntrt       = dispense 1 units of FluorocarbonSurfactant
+
+stimAssayMix    = mix stimConcIn with subStim for 5s
+oilPhaseStim    = mix oilStim with surfStim for 5s
+dropletStim     = mix stimAssayMix with oilPhaseStim for 2s
+
+untrtAssayMix   = mix untrtConcIn with subUntrt for 5s
+oilPhaseUntrt   = mix oilUntrt with surfUntrt for 5s
+dropletUntrt    = mix untrtAssayMix with oilPhaseUntrt for 2s
+
+// ------------------------------------------------------------
+// STEP 12: Incubate cell supernatant assay droplets.
+//          Concentrated stimulated sample: reaction
+//          differentiable from untreated within 5 min
+//          (line-1 slope 2.14 a.u./s vs. line-3 slope
+//          0.95 a.u./s). Unconcentrated requires > 50 min
+//          (line-2 slope 0.32 a.u./s vs. line-4 slope
+//          0.22 a.u./s).
+//          Modelled as 5 min observation (concentrated) which
+//          is the key timepoint reported in Fig. 3A.
+// ------------------------------------------------------------
+
+heat dropletStim  at 37c for 5m
+heat dropletUntrt at 37c for 5m
+
+// ------------------------------------------------------------
+// STEP 13: Detect proteolytic activity from MEF supernatant.
+//          mmpActivityDetection module reports product
+//          fluorescence per droplet over time. High-throughput:
+//          multiple droplets at different concentration
+//          enhancements read in a single experiment (Fig. 3B).
+//          QC gate keyed on stimulated sample (higher expected
+//          activity signal).
+// ------------------------------------------------------------
+
+cellSignal      = detect mmpActivityDetection on dropletStim for 5m
+
+// ============================================================
+// BB5 / BB6: Cellular supernatant assay QC gate
+// Pass (BB5): cellSignal > 0 -> proteolytic activity detected
+//             in concentrated stimulated sample; dispose both
+//             droplet populations.
+// Fail (BB6): cellSignal <= 0 -> no detectable activity;
+//             drain both droplet populations.
+// Both branches converge at BB7 (finalCleanup).
+// ============================================================
+
+if (cellSignal > 0) {
+    dispose dropletStim
+    dispose dropletUntrt
+} else {
+    drain dropletStim
+    drain dropletUntrt
+}
+
+// ============================================================
+// BB7: finalCleanup (terminal)
+// Dispose cellular assay QC signal.
+// Experiment ends.
+// ============================================================
+
+dispose cellSignal
+
+// [terminal -- no further instructions; exit node for CFG]

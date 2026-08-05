@@ -1,0 +1,294 @@
+module impedanceDetection
+module passageTimeDetection
+
+manifest MCF7_Cells
+manifest modMCF7_Cells
+manifest FixedMCF7_Cells
+manifest RBC_Cells
+manifest PBS
+manifest BSA_PBS
+manifest PMA_500nM
+manifest Formaldehyde_4pct
+manifest Glycine_127mM
+
+instructions:
+
+// ============================================================
+// Characterizing Deformability and Electrical Properties of
+// Breast Cancer Cells Using a Microfluidic Device Combining
+// Electrical Impedance Sensing and Mechanical Constriction.
+// Zhou, Yang, Zhou, Khoo, Han, Ai.
+// BioSyM / SMART Centre, MIT & SUTD.
+//
+// Protocol: Preparation of three MCF-7 cell populations
+// (untreated, PMA-modified, formaldehyde-fixed) plus RBCs,
+// followed by differential impedance measurement of undeformed
+// cells (outside constriction) and deformed cells (inside
+// constriction) as they are driven through an 8 um wide PDMS
+// constriction at 200 mbar and 500 mbar applied pressure.
+//
+// DEVICE OVERVIEW:
+//   - PDMS microfluidic channel with narrow constriction (~8 um
+//     wide, ~20 um tall) fabricated by SU-8 soft lithography.
+//   - Four pairs of coplanar gold electrodes (20 um width,
+//     30 um spacing) patterned on glass substrate by lift-off.
+//   - Outer electrode pairs sense undeformed cells (before/after
+//     constriction); inner pairs sense deformed cells (inside).
+//   - Differential impedance configuration: Z_cell-medium minus
+//     Z_medium-only eliminates baseline drift and rejects
+//     multiple-cell transit events automatically.
+//   - Input voltage: 500 mV amplitude; HF2IS impedance analyser
+//     (Zurich Instruments); frequencies 1 MHz and 2 MHz.
+//   - Pressure control: Fluigent MFCS-EZ system.
+//
+// CELL POPULATIONS:
+//   A. Untreated MCF-7  (live breast cancer cells, avg ~22 um)
+//   B. modMCF-7         (PMA-treated, more deformable, avg ~22 um)
+//   C. Fixed MCF-7      (formaldehyde-fixed, stiff, avg ~23 um)
+//   D. RBCs             (red blood cells, highly deformable reference)
+//
+// MEASURED PARAMETERS per cell:
+//   - Passage time   = total time in constriction system
+//   - Entry time     = time to enter and fully deform into constriction
+//   - Transit time   = time spent traversing inside constriction
+//   - Impedance of undeformed cell (Z_undeformed, outside constriction)
+//   - Impedance of deformed cell   (Z_deformed,   inside constriction)
+//
+// CFG STRUCTURE:
+//   BB1  main               -- device priming; cell preparation;
+//                              MCF-7 run at 500 mbar
+//   BB2  impedancePass      -- impedanceSignal > 0: valid impedance
+//                              peak detected; dispose cell droplet
+//   BB3  impedanceFail      -- impedanceSignal <= 0: no valid peak
+//                              (e.g. multi-cell event); drain
+//   BB4  impedanceJoin      -- join: modMCF-7 branch begins
+//   BB5  modPass            -- modSignal > 0: dispose modMCF-7
+//   BB6  modFail            -- modSignal <= 0: drain modMCF-7
+//   BB7  modJoin            -- join: fixed MCF-7 branch begins
+//   BB8  fixedPass          -- fixedSignal > 0: dispose fixedMCF-7
+//   BB9  fixedFail          -- fixedSignal <= 0: drain fixedMCF-7
+//   BB10 fixedJoin          -- join: RBC reference branch begins
+//   BB11 rbcPass            -- rbcSignal > 0: dispose RBCs
+//   BB12 rbcFail            -- rbcSignal <= 0: drain RBCs
+//   BB13 finalCleanup       -- terminal: dispose all QC signals
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prime microfluidic channel with 1% BSA in PBS
+//         for 20 min to block hydrophobic PDMS surfaces and
+//         prevent non-specific cell adhesion to channel walls.
+//         Channels filled via positive pressure at inlet.
+// ------------------------------------------------------------
+
+primingBSA = dispense 1 units of BSA_PBS
+primingPBS = dispense 1 units of PBS
+primingMix = mix primingBSA with primingPBS for 20m
+
+// ------------------------------------------------------------
+// STEP 2: Prepare PMA-modified MCF-7 cells (modMCF-7).
+//         MCF-7 cells treated with 500 nM PMA
+//         (Phorbol 12-myristate 13-acetate) for 18 hours at
+//         37 C to activate PKC and increase cortical
+//         deformability. After PMA treatment cells are
+//         resuspended in PBS for measurement.
+//         18 hours = 1080 min.
+// ------------------------------------------------------------
+
+mcf7_for_mod    = dispense 1 units of MCF7_Cells
+pmaReagent      = dispense 1 units of PMA_500nM
+modTreatmentMix = mix mcf7_for_mod with pmaReagent for 5s
+heat modTreatmentMix at 37c for 1080m
+
+modWashPBS      = dispense 1 units of PBS
+modMCF7_Ready   = mix modTreatmentMix with modWashPBS for 1m
+
+// ------------------------------------------------------------
+// STEP 3: Prepare formaldehyde-fixed MCF-7 cells.
+//         MCF-7 cells fixed in 4% methanol-free formaldehyde
+//         for 8 min at room temperature to crosslink cytoskeleton
+//         and stiffen the cell. 0.127 M glycine added for 5 min
+//         to quench excess formaldehyde. Fixed cells resuspended
+//         in PBS for measurement.
+// ------------------------------------------------------------
+
+mcf7_for_fix     = dispense 1 units of MCF7_Cells
+formaldehydeSoln = dispense 1 units of Formaldehyde_4pct
+fixationMix      = mix mcf7_for_fix with formaldehydeSoln for 8m
+
+glycineQuench    = dispense 1 units of Glycine_127mM
+quenchedFixation = mix fixationMix with glycineQuench for 5m
+
+fixWashPBS       = dispense 1 units of PBS
+fixedMCF7_Ready  = mix quenchedFixation with fixWashPBS for 1m
+
+// ------------------------------------------------------------
+// STEP 4: Load untreated MCF-7 cells (live) into primed
+//         microfluidic device at 500 mbar applied pressure.
+//         Cells are driven through the 8 um constriction.
+//         Differential impedance is recorded continuously:
+//           - Outer electrode pairs detect undeformed cell
+//             impedance before/after constriction entry.
+//           - Inner electrode pairs detect fully deformed
+//             cell impedance inside constriction.
+//         Passage time, entry time, transit time are extracted
+//         from the bipolar impedance peak shapes.
+//         NOTE: `mix` abstracts pressure-driven cell loading
+//         into the microfluidic channel and constriction;
+//         this is not a droplet-merging step.
+// ------------------------------------------------------------
+
+mcf7Live      = dispense 1 units of MCF7_Cells
+mcf7FlowMix   = mix mcf7Live with primingMix for 2s
+
+// Differential impedance measurement at 500 mbar.
+// impedanceDetection captures both Z_undeformed and Z_deformed
+// peak amplitudes plus passage/entry/transit timing per cell.
+impedanceSignal = detect impedanceDetection on mcf7FlowMix for 30s
+
+// ============================================================
+// BB2 / BB3: MCF-7 impedance QC gate
+// Pass (BB2): impedanceSignal > 0 -> valid bipolar peak pair
+//             detected (single cell transit confirmed by
+//             differential sign reversal); dispose cell sample.
+// Fail (BB3): impedanceSignal <= 0 -> invalid signal (multi-cell
+//             event or no cell detected); drain sample.
+// Both branches converge at BB4 (impedanceJoin).
+// ============================================================
+
+if (impedanceSignal > 0) {
+    dispose mcf7FlowMix
+} else {
+    drain mcf7FlowMix
+}
+
+// ============================================================
+// BB4: impedanceJoin
+// Dispose MCF-7 QC signal. Control falls into modMCF-7 branch.
+// ============================================================
+
+dispose impedanceSignal
+
+// ------------------------------------------------------------
+// STEP 5: Load PMA-modified MCF-7 cells (modMCF-7) into the
+//         device at 500 mbar. Differential impedance measured
+//         identically to STEP 4. modMCF-7 cells are expected
+//         to show shorter passage times and lower impedance
+//         of undeformed cells compared to untreated MCF-7,
+//         reflecting increased deformability from PMA-induced
+//         cortical actin remodelling.
+// ------------------------------------------------------------
+
+primingMix2    = dispense 1 units of BSA_PBS
+modFlowMix     = mix modMCF7_Ready with primingMix2 for 2s
+
+modSignal = detect impedanceDetection on modFlowMix for 30s
+
+// ============================================================
+// BB5 / BB6: modMCF-7 impedance QC gate
+// Pass (BB5): modSignal > 0 -> valid single-cell transit; dispose.
+// Fail (BB6): modSignal <= 0 -> invalid event; drain.
+// Both branches converge at BB7 (modJoin).
+// ============================================================
+
+if (modSignal > 0) {
+    dispose modFlowMix
+} else {
+    drain modFlowMix
+}
+
+// ============================================================
+// BB7: modJoin
+// Dispose modMCF-7 QC signal. Control falls into fixed branch.
+// ============================================================
+
+dispose modSignal
+
+// ------------------------------------------------------------
+// STEP 6: Load formaldehyde-fixed MCF-7 cells into the device
+//         at 500 mbar (and separately at 200 mbar for Figure S4
+//         comparison). Fixed cells are expected to show the
+//         longest passage times of all populations, reflecting
+//         maximum mechanical stiffness. Impedance of fixed cells
+//         is dominated by cell membrane properties since the
+//         crosslinked cytoskeleton prevents full deformation
+//         in the constriction.
+// ------------------------------------------------------------
+
+primingMix3     = dispense 1 units of BSA_PBS
+fixedFlowMix    = mix fixedMCF7_Ready with primingMix3 for 2s
+
+fixedSignal = detect impedanceDetection on fixedFlowMix for 30s
+
+// ============================================================
+// BB8 / BB9: Fixed MCF-7 impedance QC gate
+// Pass (BB8): fixedSignal > 0 -> valid single-cell transit; dispose.
+// Fail (BB9): fixedSignal <= 0 -> invalid event; drain.
+// Both branches converge at BB10 (fixedJoin).
+// ============================================================
+
+if (fixedSignal > 0) {
+    dispose fixedFlowMix
+} else {
+    drain fixedFlowMix
+}
+
+// ============================================================
+// BB10: fixedJoin
+// Dispose fixed MCF-7 QC signal. Control falls into RBC branch.
+// ============================================================
+
+dispose fixedSignal
+
+// ------------------------------------------------------------
+// STEP 7: Load RBCs (red blood cells) as a highly deformable
+//         positive-deformability reference at 500 mbar and
+//         200 mbar. RBCs are biconcave discs (~8 um diameter)
+//         that readily squeeze through the 8 um constriction
+//         with minimal entry resistance. Expected to show
+//         shortest passage times and smallest impedance
+//         signals due to low cytoplasmic conductivity and
+//         absence of nucleus.
+//         NOTE: passageTimeDetection module abstracts the
+//         high-speed optical camera readout (Phantom v9.1,
+//         Vision Research) used in parallel to validate
+//         impedance-based timing measurements.
+// ------------------------------------------------------------
+
+rbcSample      = dispense 1 units of RBC_Cells
+primingMix4    = dispense 1 units of BSA_PBS
+rbcFlowMix     = mix rbcSample with primingMix4 for 2s
+
+// Impedance detection with simultaneous passage-time
+// optical validation (high-speed camera @ 1000 fps).
+rbcImpedance = detect impedanceDetection on rbcFlowMix for 30s
+rbcSignal    = detect passageTimeDetection on rbcFlowMix for 30s
+
+// ============================================================
+// BB11 / BB12: RBC impedance QC gate
+// Pass (BB11): rbcSignal > 0 -> valid RBC transit confirmed by
+//              both impedance peak and optical frame analysis;
+//              dispose RBC sample.
+// Fail (BB12): rbcSignal <= 0 -> no valid RBC detected; drain.
+// Both branches converge at BB13 (finalCleanup).
+// ============================================================
+
+if (rbcSignal > 0) {
+    dispose rbcFlowMix
+} else {
+    drain rbcFlowMix
+}
+
+// ============================================================
+// BB13: finalCleanup (terminal)
+// Dispose all remaining QC signal variables.
+// Experiment ends.
+// ============================================================
+
+dispose rbcImpedance
+dispose rbcSignal
+
+// [terminal -- no further instructions; exit node for CFG]

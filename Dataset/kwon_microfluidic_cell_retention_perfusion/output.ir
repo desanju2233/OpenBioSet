@@ -1,0 +1,44 @@
+bsbbif_2_t:
+	dispose(bioreactorSample1[0])
+bsbbif_3_f:
+	dispose(bioreactorSample1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(retentionSignal1[0])
+	harvestSample1[0] = dispense(IgG1_Reference_Standard)
+	igG1Signal1[0] = detect(igG1Quantification, harvestSample1[0]) @ 30.0SECOND
+	if igG1Signal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	primingPBS1[0] = dispense(PBS)
+	primingPluronic1[0] = dispense(PluronicF127)
+	primedChannel1[0] = mix(primingPBS1[0], primingPluronic1[0]) @ 300.0SECOND
+	choCells1[0] = dispense(CHO_DG44_Cells)
+	batchMedium1[0] = dispense(CD_OptiCHO_Medium)
+	batchCulture1[0] = mix(choCells1[0], batchMedium1[0]) @ 345600.0SECOND
+	heat(batchCulture1[0]) @ 37.0CELSIUS @ 345600.0SECOND
+	freshMedium1[0] = dispense(FreshMedium)
+	perfusionCulture1[0] = mix(batchCulture1[0], freshMedium1[0]) @ 600.0SECOND
+	heat(perfusionCulture1[0]) @ 37.0CELSIUS @ 1555200.0SECOND
+	bioreactorSample1[0] = mix(perfusionCulture1[0], primedChannel1[0]) @ 2.0SECOND
+	retentionSignal1[0] = detect(cellRetentionDetection, bioreactorSample1[0]) @ 30.0SECOND
+	if retentionSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(harvestSample1[0])
+bsbbif_6_f:
+	dispose(harvestSample1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(igG1Signal1[0])
+	viabilitySample1[0] = dispense(CHO_DG44_Cells)
+	trypanStain1[0] = dispense(TrypanBlueExclusion)
+	stainedViability1[0] = mix(viabilitySample1[0], trypanStain1[0]) @ 120.0SECOND
+	viabilitySignal1[0] = detect(cellViabilityDetection, stainedViability1[0]) @ 30.0SECOND
+	if viabilitySignal1[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(stainedViability1[0])
+bsbbif_9_f:
+	dispose(stainedViability1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(viabilitySignal1[0])
+	NOP

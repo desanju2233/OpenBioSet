@@ -1,0 +1,290 @@
+module cellRetentionDetection
+module igG1Quantification
+module cellViabilityDetection
+
+manifest CHO_DG44_Cells
+manifest CD_OptiCHO_Medium
+manifest FreshMedium
+manifest PBS
+manifest PluronicF127
+manifest TrypanBlueExclusion
+manifest IgG1_Reference_Standard
+
+instructions:
+
+// ============================================================
+// Microfluidic Cell Retention Device for Perfusion of
+// Mammalian Suspension Culture
+// Kwon, Prentice, De Oliveira, Madziva, Warkiani, Hamel,
+// Han -- Scientific Reports 7:6703, 2017.
+// DOI: 10.1038/s41598-017-06949-8
+//
+// Protocol: Inertial microfluidic spiral cell retention
+// device for continuous perfusion culture of CHO-DG44
+// cells producing human IgG1 against CD40 ligand.
+// Device: PDMS spiral microchannel (600 um width,
+// 80 um inner depth, 130 um outer depth, 8 loops,
+// 28 uL volume). Four spiral channels combined in parallel.
+// Cell retention principle: inertial focusing (F_L and F_D)
+// focuses CHO cells (17.7 +/- 2.5 um diameter) near the
+// inner wall -> retained via inner outlet (retentate).
+// Cell-limited harvest exits via outer outlet (permeate).
+// Perfusion bioreactor: 350 mL spinner flask, 2 VVD.
+// Run duration: 18-25 days per bioreactor culture.
+//
+// NOTE ON FLOW ABSTRACTION: `mix` steps involving
+// CHO_DG44_Cells model a continuous-flow peristaltic pump
+// recirculation event through the spiral microchannel at
+// 1 mL/min (single chip, <1.5 mL/min optimal). This is a
+// BioScript abstraction for a channel-based inertial sorting
+// event, not a bulk mixing step.
+// Cell retention efficiency R(%) = (X_I - X_OO)/X_I x 100.
+// Target: >99% at <15e6 cells/mL; ~82% at 20-23e6 cells/mL.
+//
+// NOTE ON IgG1 RECOVERY: Since the spiral device has no
+// micro- or nanoporous membrane, IgG1 passes freely into the
+// harvest stream (outer outlet). Recovery efficiency
+// AR(%) = X_OO/X_I x 100 -> ~100% after Day 2 adsorption
+// equilibration to tubing and fluidic adaptors.
+//
+// NOTE ON TEMPERATURE: All cell culture incubation steps
+// run at 37 C / 5% CO2. BioScript `heat` statements model
+// CO2 incubator dwell and peristaltic pump operation.
+//
+// CFG STRUCTURE:
+//   BB1  main                 -- entry: device priming,
+//                               batch growth phase (4 days),
+//                               perfusion initiation at 2 VVD
+//   BB2  retentionPass        -- retentionSignal > 0: cell
+//                               retention confirmed (R > 80%);
+//                               continue perfusion sampling
+//   BB3  retentionFail        -- retentionSignal <= 0: retention
+//                               failure (clog or flow loss); drain
+//   BB4  retentionJoin        -- join: IgG1 QC branch begins
+//   BB5  igG1Pass             -- igG1Signal > 0: IgG1 detected
+//                               in harvest; dispose and continue
+//   BB6  igG1Fail             -- igG1Signal <= 0: product loss;
+//                               drain harvest sample
+//   BB7  igG1Join             -- join: viability branch begins
+//   BB8  viabilityPass        -- viabilitySignal > 0: viability
+//                               >97%; dispose and end
+//   BB9  viabilityFail        -- viabilitySignal <= 0: viability
+//                               drop (<97%); drain and end
+//   BB10 finalCleanup         -- terminal: dispose QC signals
+// ============================================================
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prime the spiral microchannel device with 2%
+//         Pluronic F-127 in PBS to reduce cell adhesion to
+//         PDMS surfaces and equilibrate the fluidic adaptors.
+//         Channel sterilised prior with 10% bleach (10 min)
+//         then 70% ethanol (10 min) via peristaltic pump.
+//         Device connected to sidearm ports of spinner flask
+//         and harvest bottle inside a biosafety cabinet.
+//         NOTE: Pluronic priming is modelled as a 5-minute
+//         mix (channel equilibration dwell time).
+// ------------------------------------------------------------
+
+primingPBS      = dispense 1 units of PBS
+primingPluronic = dispense 1 units of PluronicF127
+primedChannel   = mix primingPBS with primingPluronic for 5m
+
+// ------------------------------------------------------------
+// STEP 2: Batch growth phase (Days 0-4, no perfusion).
+//         CHO-DG44 cells inoculated at 0.3-0.4e6 cells/mL
+//         into 350 mL spinner flask containing pre-warmed
+//         CD OptiCHO medium. Stirring at 45 RPM.
+//         Cells grown in batch mode for 4 days to establish
+//         a viable exponential culture before initiating
+//         perfusion. pH (7.0) and DO (40% air saturation)
+//         controlled via BioFlo/CelliGen 115 or BIOSTAT A
+//         bioreactor controllers.
+//         400 mL pre-warmed medium transferred to flask.
+//         Incubation at 37 C / 5% CO2 for 4 days (5760 min).
+//
+//         NOTE ON DURATION TOKENS: BioScript supports s and
+//         m only. 4 days = 5760 min.
+// ------------------------------------------------------------
+
+choCells     = dispense 1 units of CHO_DG44_Cells
+batchMedium  = dispense 1 units of CD_OptiCHO_Medium
+batchCulture = mix choCells with batchMedium for 5760m
+
+heat batchCulture at 37c for 5760m
+
+// ------------------------------------------------------------
+// STEP 3: Initiate perfusion at 2 VVD (vessel volumes per
+//         day) on Day 4. Fresh CD OptiCHO medium supplied
+//         continuously to bioreactor via peristaltic pump.
+//         Cell culture continuously recycled through the
+//         4-spiral microfluidic device at 1 mL/min (single
+//         chip) via a second peristaltic pump.
+//         98.4% +/- 1.1% of total cells recycled back to
+//         bioreactor via inner outlet (retentate).
+//         Harvest solution (IgG1-containing) collected from
+//         outer outlet (permeate). Harvest bottle replaced
+//         daily. Working volume maintained at ~350 mL by
+//         customised software (bioreactor weight control).
+//         NOTE: `mix` here abstracts the spiral channel
+//         inertial sorting recirculation event, not a DMF
+//         electrode step. Flow rate: 1 mL/min input;
+//         fluidic resistance ratio R_OO/R_IO > 2.7 set by
+//         tubing diameter (510 um ID) and length.
+// ------------------------------------------------------------
+
+freshMedium      = dispense 1 units of FreshMedium
+perfusionCulture = mix batchCulture with freshMedium for 10m
+
+// Recirculate culture through spiral channel at 37 C.
+// Models 18-25 day perfusion dwell at 2 VVD.
+// 18 days = 25920 min (minimum run duration, Run 1).
+heat perfusionCulture at 37c for 25920m
+
+// ------------------------------------------------------------
+// STEP 4: Cell retention efficiency measurement (daily QC).
+//         Samples collected from bioreactor (inner outlet)
+//         and harvest stream (outer outlet).
+//         Cell concentration measured via BioProfile CDV
+//         Analyzer (Nova Biomedical). Three aliquots per
+//         sample. Max deviation 3.8% +/- 2.9% from mean.
+//         R(%) = (X_I - X_OO) / X_I x 100.
+//         Expected: >99% at <15e6 cells/mL;
+//                   ~82% at 20-23e6 cells/mL (peak density).
+//         cellRetentionDetection module abstracts the
+//         automated BioProfile CDV cell concentration readout
+//         comparing inner outlet vs outer outlet samples.
+// ------------------------------------------------------------
+
+bioreactorSample = mix perfusionCulture with primedChannel for 2s
+retentionSignal  = detect cellRetentionDetection on bioreactorSample for 30s
+
+// ============================================================
+// BB2 / BB3: Cell retention QC gate
+// Pass (BB2): retentionSignal > 0 -> R > 80% confirmed,
+//             device operating within spec; dispose sample
+//             and continue to IgG1 branch.
+// Fail (BB3): retentionSignal <= 0 -> retention failure
+//             (device clogged or flow disrupted); drain
+//             bioreactor sample.
+// Both branches converge at BB4 (retentionJoin).
+// ============================================================
+
+if (retentionSignal > 0) {
+    dispose bioreactorSample
+} else {
+    drain bioreactorSample
+}
+
+// ============================================================
+// BB4: retentionJoin
+// Dispose retention QC signal. Control falls into
+// IgG1 product recovery branch (BB5/BB6).
+// ============================================================
+
+dispose retentionSignal
+
+// ------------------------------------------------------------
+// STEP 5: IgG1 product recovery measurement (daily QC).
+//         IgG1 concentrations measured from bioreactor
+//         (feed, X_I) and harvest stream outer outlet
+//         (permeate, X_OO) by HPLC affinity chromatography
+//         (Applied Biosystems 2-1001-00 column, Agilent 1100
+//         Series system). Equilibration buffer: 50 mM
+//         phosphate + 150 mM NaCl, pH 7.0. Elution buffer:
+//         100 mM phosphate + 0.4% (v/v) phosphoric acid,
+//         pH 2.5. Reference: purified IgG1-Kappa from human
+//         myeloma plasma (Sigma I5154).
+//         AR(%) = X_OO / X_I x 100.
+//         Expected: ~80% on Days 1-2 (adsorption to tubing);
+//                   ~100% from Day 3 onward.
+//         Peak IgG1 in bioreactor: ~40 ug/mL after Day 9.
+//         Total IgG1 yield over 18-day run: 263 mg.
+//         Production rate from Day 9: 26.8 mg/day.
+//         igG1Quantification module abstracts the HPLC
+//         affinity chromatography antibody concentration
+//         measurement on both bioreactor and harvest samples.
+// ------------------------------------------------------------
+
+harvestSample = dispense 1 units of IgG1_Reference_Standard
+igG1Signal    = detect igG1Quantification on harvestSample for 30s
+
+// ============================================================
+// BB5 / BB6: IgG1 product recovery QC gate
+// Pass (BB5): igG1Signal > 0 -> IgG1 detected in harvest
+//             stream at expected concentration (~100% AR);
+//             dispose harvest sample and continue.
+// Fail (BB6): igG1Signal <= 0 -> product loss or no signal
+//             (possible retention in tubing); drain sample.
+// Both branches converge at BB7 (igG1Join).
+// ============================================================
+
+if (igG1Signal > 0) {
+    dispose harvestSample
+} else {
+    drain harvestSample
+}
+
+// ============================================================
+// BB7: igG1Join
+// Dispose IgG1 QC signal. Control falls into cell
+// viability branch (BB8/BB9).
+// ============================================================
+
+dispose igG1Signal
+
+// ------------------------------------------------------------
+// STEP 6: Cell viability assessment (daily QC).
+//         CHO cells from bioreactor sample spread in single
+//         layer on chamber slide; live cells marked by trypan
+//         blue dye exclusion. 40 images from 40 different
+//         fields of view per measurement. Cell diameter
+//         determined by pixel distance; concentration by
+//         counting (6,000 cells -> 5e6 cells/mL;
+//         12,000 cells -> 10e6 cells/mL as calibrants).
+//         Measurement by BioProfile FLEX and CDV Analyzers
+//         (Nova Biomedical).
+//         Long-term biocompatibility confirmed: CHO cells
+//         processed continuously for >145 h at 1 mL/min
+//         with average retention efficiency 98% (1.6% range)
+//         and NO significant decrease in viability (n=3).
+//         Target viability: >97% throughout perfusion culture
+//         (99% +/- 1%, mean +/- s.d., n=9 after Day 10).
+//         cellViabilityDetection module abstracts the trypan
+//         blue exclusion viability readout.
+// ------------------------------------------------------------
+
+viabilitySample  = dispense 1 units of CHO_DG44_Cells
+trypanStain      = dispense 1 units of TrypanBlueExclusion
+stainedViability = mix viabilitySample with trypanStain for 2m
+
+viabilitySignal  = detect cellViabilityDetection on stainedViability for 30s
+
+// ============================================================
+// BB8 / BB9: Cell viability QC gate
+// Pass (BB8): viabilitySignal > 0 -> cell viability >97%,
+//             biocompatibility confirmed; dispose stained
+//             sample and end experiment successfully.
+// Fail (BB9): viabilitySignal <= 0 -> viability drop below
+//             threshold (possible shear damage or device
+//             fouling); drain stained sample and end.
+// Both branches converge at BB10 (finalCleanup).
+// ============================================================
+
+if (viabilitySignal > 0) {
+    dispose stainedViability
+} else {
+    drain stainedViability
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose viability QC signal; experiment ends.
+// ============================================================
+
+dispose viabilitySignal
+
+// [terminal -- no further instructions; exit node for CFG]

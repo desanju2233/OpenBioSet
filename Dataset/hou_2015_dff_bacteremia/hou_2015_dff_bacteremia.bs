@@ -1,0 +1,470 @@
+module bacterialRecoveryQC
+module rRNASpeciesDetection
+module mRNASusceptibilityDetection
+
+manifest WholeBlood
+manifest PBS_BSA_Buffer
+manifest SheathFluid
+manifest EcoliClinicalIsolate
+manifest EcoliClinicalIsolate_Susceptible
+manifest EcoliClinicalIsolate_Resistant
+manifest RLT_Lysis_Buffer
+manifest Ciprofloxacin_Stock
+
+// ============================================================
+// Direct Detection and Drug-Resistance Profiling of
+// Bacteremias Using Inertial Microfluidics
+// Hou, Bhattacharyya, Hung, Han - Lab Chip 2015, 15, 2297
+// DOI: 10.1039/c5lc00311c
+//
+// PROTOCOL OVERVIEW:
+//   Two sequential diagnostic workflows are encoded:
+//
+//   WORKFLOW 1 (Species Identification via rRNA):
+//     Bacteria (~100 cfu/mL) are isolated from 3x-diluted
+//     whole blood using a PDMS spiral microchannel device
+//     (500 um x 80 um, ~10 cm length) operating on Dean
+//     Flow Fractionation (DFF). Blood is pumped at 1700 uL/min
+//     via syringe pump; sheath fluid (PBS+BSA) at ~10x ratio
+//     pins sample at the outer wall. Larger blood cells
+//     (RBCs ~6-8 um; leukocytes ~7-12 um) focus inertially
+//     at the inner wall and exit the waste outlet. Bacteria
+//     (<1 um) and platelets (~2-3 um) follow Dean vortices,
+//     complete a full Dean cycle, and exit at the bacterial
+//     outlet. Bacterial recovery >65% across 10^2-10^4 cfu/mL.
+//     Bacterial eluate is pelleted (16,000 x g), resuspended
+//     in 50 uL PBS, lysed with 4x RLT buffer + BME, and
+//     analysed by NanoString rRNA hybridization (16S/23S
+//     species-specific probes) for pathogen ID without
+//     culture or enzymatic amplification. Total time: ~8 h.
+//
+//   WORKFLOW 2 (Antibiotic Susceptibility via mRNA):
+//     Clinical E. coli isolates at ~10^5 cfu/mL (either
+//     spiked directly or grown 7.5 h in BACTEC blood culture
+//     bottles from 1 cfu/mL) are processed through the same
+//     DFF spiral device. Recovered bacteria are exposed to
+//     ciprofloxacin (2.5 mcg/mL, 37 C, 30 min), then lysed
+//     and analysed by NanoString mRNA detection. A set of 6
+//     ciprofloxacin-responsive E. coli transcripts and 3
+//     control (non-responsive) transcripts are quantified.
+//     The Transcriptional Susceptibility Score (analogous to
+//     Squared Pyramidal Distance) discriminates susceptible
+//     (score ~0) from resistant (score ~1) strains.
+//     Total time: <8 h including separation and RNA detection.
+//
+// KEY PHYSICAL PARAMETERS:
+//   Channel: 500 um (w) x 80 um (h), spiral, ~10 cm length
+//   Flow rate: 1700 uL/min total (sample:sheath = 1:10)
+//   Sample: 3x diluted whole blood (~15% hematocrit)
+//   Throughput: ~20 min per mL of whole blood per chip
+//   Bacterial recovery: >65% (vs ~30% by low-speed centrifuge)
+//   rRNA detection sensitivity: ~100 cfu/mL (3 mL input)
+//   mRNA detection sensitivity: ~10^5 cfu/mL
+//
+// TEMPERATURE CONTROL:
+//   Lysis: room temperature (25 C) for 5 min
+//   Ciprofloxacin exposure: 37 C for 30 min
+//   NanoString hybridization: 2 h (shortened from standard)
+//   `heat` statements model these incubation steps.
+//
+// NOTE ON SEPARATION ABSTRACTION:
+//   The `mix` steps used for DFF separation abstract a
+//   continuous-flow spiral microchannel operation, not a DMF
+//   electrode mixing event. At each `mix`, the sample stream
+//   traverses the spiral under inertial and Dean drag forces.
+//   Blood cells exit at the waste outlet (inner wall focus)
+//   while bacteria exit at the bacterial outlet (Dean cycle
+//   recirculation to outer wall). This is a flow-through
+//   fractionation event modelled within BioScript's `mix`
+//   abstraction for label-free cell separation.
+//
+// NOTE ON BIOSCRIPT COMPILER (lilott8/BioScript):
+//   - Duration tokens: s and m only (no h). All incubations
+//     stated in hours in the paper are converted to minutes.
+//   - No array indexing; all droplets are scalar variables.
+//   - `split` avoided to prevent stranded droplet compiler
+//     errors; dilutions use explicit multi-dispense + mix.
+//   - `drain` used for QC fail paths; `dispose` for pass paths.
+//
+// CFG STRUCTURE:
+//   BB1  main                -- entry: sample prep and DFF separation
+//   BB2  recoveryPass        -- recoverySignal > 0: adequate bacterial
+//                               yield; carry forward to lysis
+//   BB3  recoveryFail        -- recoverySignal <= 0: insufficient yield;
+//                               drain and abort
+//   BB4  recoveryJoin        -- join: rRNA species ID branch begins
+//   BB5  rRNAPass            -- rRNASignal > 0: pathogen identified;
+//                               dispose and proceed to susceptibility
+//   BB6  rRNAFail            -- rRNASignal <= 0: unidentifiable pattern;
+//                               drain
+//   BB7  rRNAJoin            -- join: mRNA susceptibility branch begins
+//   BB8  susceptibilityPass  -- susceptibilitySignal <= 0 (score near 0):
+//                               susceptible organism confirmed; dispose
+//   BB9  susceptibilityFail  -- susceptibilitySignal > 0 (score near 1):
+//                               resistant organism flagged; drain
+//   BB10 finalCleanup        -- terminal: dispose all QC signals
+// ============================================================
+
+instructions:
+
+// ============================================================
+// BB1: main
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 1: Prepare 3x-diluted whole blood sample.
+//   Fresh human whole blood with EDTA anticoagulant is diluted
+//   1:3 (v/v) with PBS + 0.1% BSA (sample buffer). BSA prevents
+//   non-specific adsorption to tubing and microchannel walls.
+//   Hematocrit target: ~15% (optimal for spiral device).
+//   For rRNA experiments: bacteria spiked at ~100 cfu/mL.
+//   For mRNA experiments: bacteria spiked at ~10^5 cfu/mL.
+//
+//   NOTE: Both susceptible and resistant E. coli clinical
+//   isolates are processed identically up to ciprofloxacin
+//   exposure. A single representative E. coli isolate is
+//   encoded here. The susceptible/resistant classification
+//   is resolved downstream by the Transcriptional
+//   Susceptibility Score in WORKFLOW 2.
+// ------------------------------------------------------------
+
+wholeBlood       = dispense 1 units of WholeBlood
+sampleBuffer     = dispense 1 units of PBS_BSA_Buffer
+bacterialSample  = dispense 1 units of EcoliClinicalIsolate
+
+// 1:3 dilution: mix blood with 3 volumes sample buffer.
+// Three buffer units chained to accumulate correct dilution.
+buf1             = dispense 1 units of PBS_BSA_Buffer
+buf2             = dispense 1 units of PBS_BSA_Buffer
+
+bufferAcc        = mix buf1 with buf2 for 5s
+dilutedBlood     = mix wholeBlood with bufferAcc for 5s
+
+// Spike bacteria into diluted blood immediately before loading.
+spikedBloodSample = mix dilutedBlood with bacterialSample for 5s
+
+// ------------------------------------------------------------
+// STEP 2: Prime the spiral microchannel device.
+//   Load 1x PBS + 0.1% BSA as sheath fluid via inner inlet
+//   (425 um width) at ~10x the sample flow rate to pin the
+//   sample stream near the outer wall at the inlet.
+//   Device is pre-wetted to remove air bubbles and
+//   condition channel walls to minimise non-specific adhesion.
+// ------------------------------------------------------------
+
+sheathPrime = dispense 1 units of SheathFluid
+devicePrime = mix sheathPrime with spikedBloodSample for 2s
+
+// ------------------------------------------------------------
+// STEP 3: DFF separation - inertial focusing of blood cells
+//   and Dean migration of bacteria.
+//   Spiral device operated at 1700 uL/min total flow.
+//   Sample loaded at outer inlet (75 um width); sheath at
+//   inner inlet (425 um width). Sample:sheath = 1:10.
+//   Over ~10 cm spiral length, RBCs and leukocytes experience
+//   dominant inertial lift (F_L) and focus at inner wall.
+//   Bacteria (<1 um, ap/h << 0.07) are unaffected by F_L and
+//   follow Dean drag (F_D), completing a full Dean Cycle (DC1)
+//   to recirculate to the outer wall and exit the bacterial
+//   outlet (200 um width).
+//   Process time: ~20 min per mL whole blood.
+//
+//   `mix` abstracts this continuous-flow separation event.
+//   Output `bacterialEluate` represents the fluid collected
+//   from the bacterial outlet; `bloodWaste` represents the
+//   inner-wall (waste) outlet stream.
+// ------------------------------------------------------------
+
+sheathFlow     = dispense 1 units of SheathFluid
+bacterialEluate = mix devicePrime with sheathFlow for 20m
+
+// ------------------------------------------------------------
+// STEP 4: Concentrate bacterial eluate.
+//   Eluate collected from bacterial outlet is pelleted by
+//   centrifugation at 16,000 x g. Supernatant removed.
+//   Pellet resuspended in 50 uL 1x PBS for downstream steps.
+//   `heat` at 25 C (room temperature) abstracts centrifugation
+//   and resuspension as a defined physical processing step.
+// ------------------------------------------------------------
+
+heat bacterialEluate at 25c for 5m
+
+// ------------------------------------------------------------
+// STEP 5: QC - verify adequate bacterial recovery.
+//   In the paper, recovery is verified by cfu counting on
+//   LB agar plates (>65% recovery expected across tested
+//   concentrations). This QC gate ensures sufficient bacterial
+//   material for downstream RNA detection before proceeding.
+//   bacterialRecoveryQC module abstracts the cfu enumeration.
+// ------------------------------------------------------------
+
+recoverySignal = detect bacterialRecoveryQC on bacterialEluate for 30s
+
+// ============================================================
+// BB2 / BB3: Recovery QC gate
+// Pass (BB2): recoverySignal > 0 -> adequate bacterial yield
+//             (>65% recovery); carry forward to lysis.
+// Fail (BB3): recoverySignal <= 0 -> insufficient bacteria
+//             recovered; drain and abort.
+// Both branches converge at BB4 (recoveryJoin).
+// ============================================================
+
+if (recoverySignal > 0) {
+    dispose bacterialEluate
+} else {
+    drain bacterialEluate
+}
+
+// ============================================================
+// BB4: recoveryJoin
+// Dispose recovery QC signal. Control falls into rRNA
+// species identification branch (BB5/BB6).
+// ============================================================
+
+dispose recoverySignal
+
+// ============================================================
+// WORKFLOW 1: Species Identification via rRNA Detection
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 6: Bacterial lysis for RNA extraction.
+//   Concentrated pellet (50 uL in PBS) is lysed by vigorous
+//   vortexing with 4x excess of RLT buffer (Qiagen) containing
+//   beta-mercaptoethanol. Incubated 5 min at room temperature.
+//   Lysate used immediately or stored at -80 C.
+//   `heat` at 25 C models RT lysis incubation.
+//   RLT buffer denatures proteins and inactivates RNases to
+//   preserve RNA integrity for NanoString hybridization.
+// ------------------------------------------------------------
+
+bacterialPellet = dispense 1 units of WholeBlood
+
+// Model: re-dispense of concentrated pellet as starting input.
+// In practice this is the resuspended pellet from STEP 4.
+rltBuffer        = dispense 1 units of RLT_Lysis_Buffer
+bacterialLysate  = mix bacterialPellet with rltBuffer for 5m
+heat bacterialLysate at 25c for 5m
+
+// ------------------------------------------------------------
+// STEP 7: NanoString rRNA hybridization for species ID.
+//   Crude lysate input to NanoString assay. Two adjacent
+//   50-nt probes hybridise to species-variable regions of
+//   16S and 23S rRNA (>1000-fold more abundant than mRNA).
+//   Probeset: 13 discriminatory probes targeting E. coli (Ec),
+//   K. pneumoniae (Kp), P. aeruginosa (PsA), and Ec/Kp shared.
+//   Hybridization time: 2 h (shortened from standard protocol
+//   with minimal signal loss). PrepStation immobilises probes;
+//   nCounter Digital Analyzer reads fluorescent barcodes.
+//   Normalized Organism Score = geometric mean of
+//   species-specific probe counts / sum of all geometric means.
+//   Samples at 100 cfu/mL processed from 3 mL whole blood.
+//   Hybridization modelled as `heat` at 65 C for 120 min.
+//
+//   NOTE: Direct detection from whole blood (without DFF)
+//   produces uninterpretable hybridization patterns due to
+//   interference from blood products. DFF pre-processing is
+//   required for valid rRNA signal.
+// ------------------------------------------------------------
+
+heat bacterialLysate at 65c for 120m
+rRNASignal = detect rRNASpeciesDetection on bacterialLysate for 30s
+
+// ============================================================
+// BB5 / BB6: rRNA species identification QC gate
+// Pass (BB5): rRNASignal > 0 -> Organism Score assigns
+//             species identity unambiguously; dispose lysate
+//             and proceed to susceptibility workflow.
+// Fail (BB6): rRNASignal <= 0 -> uninterpretable pattern
+//             (e.g. insufficient bacterial load or mixed
+//             infection outside probeset); drain.
+// Both branches converge at BB7 (rRNAJoin).
+// ============================================================
+
+if (rRNASignal > 0) {
+    dispose bacterialLysate
+} else {
+    drain bacterialLysate
+}
+
+// ============================================================
+// BB7: rRNAJoin
+// Dispose rRNA QC signal. Control falls into mRNA
+// antibiotic susceptibility branch (BB8/BB9).
+// ============================================================
+
+dispose rRNASignal
+
+// ============================================================
+// WORKFLOW 2: Antibiotic Susceptibility via mRNA Detection
+// ============================================================
+
+// ------------------------------------------------------------
+// STEP 8: Prepare bacteria at mRNA-detectable load.
+//   Two input routes (both encoded here in sequence to
+//   represent both experimental conditions in Fig. 5):
+//
+//   Route A (Direct spike): E. coli spiked at 10^5 cfu/mL
+//     into 1 mL whole blood. Processed immediately by DFF.
+//
+//   Route B (Blood culture): BACTEC blood culture bottle
+//     inoculated at 1 cfu/mL of E. coli; incubated 7.5 h at
+//     37 C to reach >10^5 cfu/mL. Cultured blood then
+//     processed by DFF (1:5 v/v dilution with culture media).
+//     7.5 h = 450 min. `heat` models BACTEC incubation.
+//
+//   NOTE: NanoString mRNA detection requires ~10^5 cfu/mL,
+//   which is >1 order of magnitude better than the VITEK-2
+//   threshold (>10^6 cfu/mL) but exceeds typical bacteremia
+//   loads (~10-100 cfu/mL). Blood culture pre-enrichment
+//   bridges this gap while still being faster than current
+//   gold-standard susceptibility methods.
+//
+//   Both susceptible and resistant isolates are encoded as
+//   separate manifests; the Transcriptional Susceptibility
+//   Score resolves their classification downstream.
+// ------------------------------------------------------------
+
+// Route A: Direct spike at 10^5 cfu/mL
+ecoli_S          = dispense 1 units of EcoliClinicalIsolate_Susceptible
+ecoli_R          = dispense 1 units of EcoliClinicalIsolate_Resistant
+
+bloodForS        = dispense 1 units of WholeBlood
+bloodForR        = dispense 1 units of WholeBlood
+
+bufS1            = dispense 1 units of PBS_BSA_Buffer
+bufS2            = dispense 1 units of PBS_BSA_Buffer
+bufAccS          = mix bufS1 with bufS2 for 5s
+dilutedBloodS    = mix bloodForS with bufAccS for 5s
+spikedBloodS     = mix dilutedBloodS with ecoli_S for 5s
+
+bufR1            = dispense 1 units of PBS_BSA_Buffer
+bufR2            = dispense 1 units of PBS_BSA_Buffer
+bufAccR          = mix bufR1 with bufR2 for 5s
+dilutedBloodR    = mix bloodForR with bufAccR for 5s
+spikedBloodR     = mix dilutedBloodR with ecoli_R for 5s
+
+// Route B: Blood culture pre-enrichment (7.5 h at 37 C = 450 min)
+// Modelled as heat step on the susceptible isolate sample.
+// In practice, BACTEC bottle incubated off-chip before DFF.
+heat spikedBloodS at 37c for 450m
+heat spikedBloodR at 37c for 450m
+
+// ------------------------------------------------------------
+// STEP 9: DFF separation of bacteria from cultured blood.
+//   Cultured blood (or directly spiked blood) processed
+//   through the same spiral device at 1700 uL/min.
+//   Bacteria at 10^5 cfu/mL are recovered at the bacterial
+//   outlet with >65% efficiency. `mix` abstracts DFF event.
+// ------------------------------------------------------------
+
+sheathS          = dispense 1 units of SheathFluid
+sheathR          = dispense 1 units of SheathFluid
+
+eluateS          = mix spikedBloodS with sheathS for 20m
+eluateR          = mix spikedBloodR with sheathR for 20m
+
+// Concentrate bacterial eluates at RT (room temperature).
+heat eluateS at 25c for 5m
+heat eluateR at 25c for 5m
+
+// ------------------------------------------------------------
+// STEP 10: Ciprofloxacin exposure.
+//   Concentrated bacterial fractions are exposed to
+//   ciprofloxacin at 2.5 mcg/mL for 30 min at 37 C.
+//   Ciprofloxacin (fluoroquinolone) inhibits DNA gyrase.
+//   In susceptible organisms: transcriptional stress response
+//   upregulates 6 ciprofloxacin-responsive mRNA transcripts.
+//   In resistant organisms: these transcripts are not induced
+//   at the same concentration. This differential expression
+//   forms the basis of the Transcriptional Susceptibility Score.
+//   30 min exposure is sufficient to generate a detectable
+//   transcriptional signal without extensive bacterial growth.
+// ------------------------------------------------------------
+
+cipro_S          = dispense 1 units of Ciprofloxacin_Stock
+cipro_R          = dispense 1 units of Ciprofloxacin_Stock
+
+ciproExposure_S  = mix eluateS with cipro_S for 5s
+ciproExposure_R  = mix eluateR with cipro_R for 5s
+
+heat ciproExposure_S at 37c for 30m
+heat ciproExposure_R at 37c for 30m
+
+// ------------------------------------------------------------
+// STEP 11: Lysis and NanoString mRNA detection.
+//   Ciprofloxacin-exposed bacteria are lysed with RLT +
+//   beta-mercaptoethanol (4x excess, 5 min RT).
+//   NanoString probeset: 6 ciprofloxacin-responsive E. coli
+//   mRNA transcripts + 3 control (non-responsive) transcripts.
+//   Responsive transcripts normalised to the geometric mean
+//   of control transcript expression to control for cell
+//   number variation. Transcriptional Susceptibility Score
+//   projected onto vector between centroid of susceptible
+//   (score ~0) and resistant (score ~1) strains.
+//   Hybridization: 2 h at 65 C.
+//
+//   NOTE: score <= 0 threshold (dashed line = 4 SD from
+//   susceptible derivation cohort mean) identifies susceptible
+//   isolates; score > 0 identifies resistant isolates.
+//   mRNASusceptibilityDetection module abstracts this scoring.
+// ------------------------------------------------------------
+
+rltLysis_S       = dispense 1 units of RLT_Lysis_Buffer
+rltLysis_R       = dispense 1 units of RLT_Lysis_Buffer
+
+lysate_S         = mix ciproExposure_S with rltLysis_S for 5m
+lysate_R         = mix ciproExposure_R with rltLysis_R for 5m
+
+heat lysate_S at 25c for 5m
+heat lysate_R at 25c for 5m
+
+// NanoString mRNA hybridization: 2 h at 65 C
+heat lysate_S at 65c for 120m
+heat lysate_R at 65c for 120m
+
+// Detect Transcriptional Susceptibility Score for each isolate.
+// Score near 0: susceptible-like. Score near 1: resistant-like.
+susceptibilitySignal_S = detect mRNASusceptibilityDetection on lysate_S for 30s
+susceptibilitySignal_R = detect mRNASusceptibilityDetection on lysate_R for 30s
+
+// ============================================================
+// BB8 / BB9: Susceptibility classification gate
+// The gate is keyed on susceptibilitySignal_S (susceptible
+// isolate), which should score near 0 (signal <= 0 in the
+// BioScript boolean sense = susceptible confirmed).
+//
+// Pass (BB8): susceptibilitySignal_S <= 0 -> score near 0,
+//             susceptible-like transcriptional profile;
+//             dispose both lysates.
+// Fail (BB9): susceptibilitySignal_S > 0 -> score near 1,
+//             resistant-like or ambiguous profile; drain both.
+//
+// NOTE: In the paper, both susceptible and resistant strains
+// are clearly separated by the score (Fig. 5B). Here the
+// gate logic reflects that a susceptible sample correctly
+// classified has susceptibilitySignal_S <= 0. A resistant
+// sample processed as lysate_S would fail this gate (> 0),
+// correctly flagging resistance.
+// ============================================================
+
+if (susceptibilitySignal_S <= 0) {
+    dispose lysate_S
+    dispose lysate_R
+} else {
+    drain lysate_S
+    drain lysate_R
+}
+
+// ============================================================
+// BB10: finalCleanup (terminal)
+// Dispose all susceptibility QC signal droplets.
+// Experiment ends. Full workflow time: ~8 h including
+// DFF separation (~20 min/mL), RNA hybridization (~2 h),
+// and ciprofloxacin exposure (30 min).
+// ============================================================
+
+dispose susceptibilitySignal_S
+dispose susceptibilitySignal_R
+
+// [terminal -- no further instructions; exit node for CFG]

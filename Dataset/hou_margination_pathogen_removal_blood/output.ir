@@ -1,0 +1,56 @@
+bsbbif_2_t:
+	dispose(filteredBlood1[0])
+bsbbif_3_f:
+	dispose(filteredBlood1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(separationSignal1[0])
+	agarPlate1[0] = dispense(LB_Agar)
+	filteredAliquot1[0] = dispense(WholeBlood)
+	platesMix1[0] = mix(filteredAliquot1[0], agarPlate1[0]) @ 30.0SECOND
+	heat(platesMix1[0]) @ 37.0CELSIUS @ 86400.0SECOND
+	bacteriaSignal1[0] = detect(bacterialColonyCount, platesMix1[0]) @ 30.0SECOND
+	if bacteriaSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	bloodSample1[0] = dispense(WholeBlood)
+	washBuffer11[0] = dispense(PBS)
+	washedBlood11[0] = mix(bloodSample1[0], washBuffer11[0]) @ 300.0SECOND
+	heat(washedBlood11[0]) @ 25.0CELSIUS @ 300.0SECOND
+	washBuffer21[0] = dispense(PBS)
+	washedBlood21[0] = mix(washedBlood11[0], washBuffer21[0]) @ 300.0SECOND
+	heat(washedBlood21[0]) @ 25.0CELSIUS @ 300.0SECOND
+	washBuffer31[0] = dispense(PBS)
+	washedBlood31[0] = mix(washedBlood21[0], washBuffer31[0]) @ 300.0SECOND
+	heat(washedBlood31[0]) @ 25.0CELSIUS @ 300.0SECOND
+	bsaBuffer1[0] = dispense(BSA_Buffer)
+	dextranBuffer1[0] = dispense(Dextran40)
+	sampleBuffer1[0] = mix(bsaBuffer1[0], dextranBuffer1[0]) @ 30.0SECOND
+	rbcSuspension1[0] = mix(washedBlood31[0], sampleBuffer1[0]) @ 30.0SECOND
+	freshBlood1[0] = dispense(WholeBlood)
+	cd41a1[0] = dispense(CD41a_FITC)
+	cd451[0] = dispense(CD45_APC)
+	antibodyMix1[0] = mix(cd41a1[0], cd451[0]) @ 30.0SECOND
+	stainedBlood1[0] = mix(freshBlood1[0], antibodyMix1[0]) @ 120.0SECOND
+	heat(stainedBlood1[0]) @ 4.0CELSIUS @ 2400.0SECOND
+	ecoliGFP1[0] = dispense(GFP_Ecoli)
+	saccharomyces1[0] = dispense(YFP_Saccharomyces)
+	microbeBlood11[0] = mix(stainedBlood1[0], ecoliGFP1[0]) @ 30.0SECOND
+	spikedBlood1[0] = mix(microbeBlood11[0], saccharomyces1[0]) @ 30.0SECOND
+	stage1Mix1[0] = mix(spikedBlood1[0], rbcSuspension1[0]) @ 20.0SECOND
+	stage1Waste1[0] = mix(stage1Mix1[0], rbcSuspension1[0]) @ 5.0SECOND
+	dispose(stage1Waste1[0])
+	stage1Filtered1[0] = mix(stage1Mix1[0], rbcSuspension1[0]) @ 10.0SECOND
+	stage2Mix1[0] = mix(stage1Filtered1[0], rbcSuspension1[0]) @ 5.0SECOND
+	stage2Waste1[0] = mix(stage2Mix1[0], rbcSuspension1[0]) @ 2.0SECOND
+	dispose(stage2Waste1[0])
+	filteredBlood1[0] = mix(stage2Mix1[0], rbcSuspension1[0]) @ 5.0SECOND
+	separationSignal1[0] = detect(cellularComponentDetection, filteredBlood1[0]) @ 30.0SECOND
+	if separationSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(platesMix1[0])
+bsbbif_6_f:
+	dispose(platesMix1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(bacteriaSignal1[0])
+	NOP

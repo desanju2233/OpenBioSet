@@ -1,0 +1,278 @@
+{
+  "protocol": {
+    "title": "Massively Parallel Concentration Device for Multiplexed Immunoassays",
+    "source": "Lab Chip, 2011, 11, 1351-1358",
+    "doi": "10.1039/c0lc00349b",
+    "platform": "PDMS-glass nanofluidic concentration device with Nafion nanoporous junction",
+    "target_analyte": "C-reactive protein (CRP)",
+    "objective": "Massively parallel electrokinetic preconcentration of biomolecules across up to 128 individually controlled microchannels from a single inlet/outlet reservoir pair, with serial concentration-enhanced immunoassay detection using antibody-functionalized microbeads",
+
+    "device": {
+      "fabrication": "Standard PDMS soft lithography; master mold patterned with SU-8 photoresist on silicon wafer",
+      "bead_trap_fabrication": "DRIE (deep reactive-ion etching) for pillar array master mold",
+      "bonding": "Plasma-assisted bonding of PDMS chip onto Nafion-patterned glass substrate",
+      "channel_dimensions": {
+        "width_um": 50,
+        "depth_um": 15
+      },
+      "bead_trap_dimensions": {
+        "width_um": 100,
+        "depth_um": 15,
+        "structure": "PDMS micro-pillar array"
+      },
+      "nanojunction": {
+        "material": "Nafion perflourinated ion-exchange resin (20 wt%, Sigma Aldrich)",
+        "fabrication": "Microflow patterning; PDMS microchannel (200 um wide x 50 um deep x 1 cm long) reversibly bonded to glass; cured at 95 C for 5 min",
+        "function": "Perm-selective membrane generating ion concentration polarization under applied voltage"
+      },
+      "multiplexing_configurations": [16, 32, 64, 128],
+      "inlet_outlet": "Single inlet and single outlet reservoir for entire array",
+      "electrodes": {
+        "material": "Ag/AgCl (A-M Systems, Inc.)",
+        "power_supply": "Keithley 6487 dc power supply"
+      },
+      "geometry": {
+        "same_length_channels": "Equal ET per channel; uniform concentration factor across array",
+        "variable_length_channels": "Varying inlet microchannel length (zigzag extension); different ET per channel; serial concentration factors 100-4000x"
+      }
+    },
+
+    "reagents": {
+      "main_buffer": {
+        "composition": "1 mM sodium phosphate dibasic",
+        "ph": 8.4,
+        "notes": "Slightly higher pH than PBS gives more stable concentration plug"
+      },
+      "bead_buffer": {
+        "composition": "10 mM sodium phosphate dibasic",
+        "ph": 8.4
+      },
+      "blocking_agent": {
+        "composition": "1% BSA in buffer",
+        "purpose": "Prevents nonspecific CRP binding to PDMS channel walls"
+      },
+      "beads": {
+        "type": "Streptavidin-coated microspheres",
+        "supplier": "Applied Biosystems",
+        "diameter_um": "6-8",
+        "stock_concentration_beads_mL": "35e6",
+        "notes": "6-8 um diameter provides optimal observation and flow regulation; 1-2 beads stack vertically in trap"
+      },
+      "antibody": {
+        "name": "Biotin-conjugated anti-CRP",
+        "supplier": "Abcam",
+        "catalog": "ab86246"
+      },
+      "antigen": {
+        "name": "Alexa-488 labeled C-reactive protein (CRP)",
+        "labeling_kit": "Alexa-488 labeling kit, Invitrogen A10235",
+        "concentrations_tested": ["1 ug/mL", "100 ng/mL", "10 ng/mL", "1 ng/mL", "100 pg/mL"]
+      },
+      "fluorescent_tracer": {
+        "name": "Fluorescein",
+        "concentrations_for_characterisation": ["1 ug/mL", "0.1 ug/mL", "0.01 ug/mL"],
+        "purpose": "Concentration factor characterisation (Fig. 3)"
+      }
+    },
+
+    "steps": [
+      {
+        "id": "S1",
+        "name": "Bead functionalization",
+        "bb": "BB1",
+        "location": "off-chip (modelled on-chip in BioScript)",
+        "inputs": ["StreptavidinBeads", "BiotinAntiCRP"],
+        "operation": "mix",
+        "duration_s": 64800,
+        "duration_note": "18 h stirring at room temperature; encoded as 1080m (h token unsupported in compiler)",
+        "notes": "Streptavidin beads + biotin-anti-CRP mixed and stirred 18 h for biotin-streptavidin conjugation"
+      },
+      {
+        "id": "S2",
+        "name": "Bead wash (3x PBS)",
+        "bb": "BB1",
+        "inputs": ["PBS"],
+        "operation": "mix + dispose (x3)",
+        "centrifugation": true,
+        "wash_cycles": 3,
+        "purpose": "Remove excess unbound antibody",
+        "dilution": "Tenfold dilution of washed bead stock before loading",
+        "notes": "Pellet re-suspended after each centrifuge step; modelled as fresh StreptavidinBeads dispense (no native pellet primitive in compiler)"
+      },
+      {
+        "id": "S3",
+        "name": "Device blocking with BSA",
+        "bb": "BB1",
+        "inputs": ["BSA_Block"],
+        "operation": "mix",
+        "duration_s": 600,
+        "temperature_C": 25,
+        "notes": "1% BSA flushed through channel for 10 min to passivate PDMS walls and prevent nonspecific CRP adsorption"
+      },
+      {
+        "id": "S4",
+        "name": "Pre-bead-loading buffer wash (3x)",
+        "bb": "BB1",
+        "inputs": ["Buffer"],
+        "operation": "sequential mix chain + dispose",
+        "wash_cycles": 3,
+        "buffer": "10 mM sodium phosphate dibasic",
+        "notes": "Channel washed 3x with buffer before bead loading"
+      },
+      {
+        "id": "S5",
+        "name": "Bead loading into pillar-array traps",
+        "bb": "BB1",
+        "inputs": ["StreptavidinBeads", "BiotinAntiCRP", "Buffer"],
+        "operation": "mix (abstracts pressure-driven flow-through trapping)",
+        "loading_mechanism": "Positive pressure at anodic reservoir",
+        "trap_structure": "DRIE pillar array, 100 um x 15 um",
+        "bead_diameter_um": "6-8",
+        "bead_layers": "1-2 vertically in trap",
+        "wash_after_loading": {
+          "direction": "cathodic side",
+          "cycles": 3,
+          "purpose": "Remove clogged non-trapped beads"
+        },
+        "final_wash_cycles": 3,
+        "preparation_time_min": 30,
+        "notes": "mix abstracts pressure-driven bead infusion; no DMF electrode mixing at this step"
+      },
+      {
+        "id": "S6",
+        "name": "Channel fill with Alexa-488-labeled CRP",
+        "bb": "BB1",
+        "inputs": ["AlexaCRP", "Buffer"],
+        "operation": "mix",
+        "buffer": "10 mM sodium phosphate dibasic, pH 8.4",
+        "representative_concentration": "10 ng/mL (run3; mid-range of run1-run5 dataset)",
+        "all_concentrations_tested": ["1 ug/mL (run1)", "100 ng/mL (run2)", "10 ng/mL (run3)", "1 ng/mL (run4)", "100 pg/mL (run5)"],
+        "notes": "CRP solution filled into microchannels; two independent channel arms encoded (ch16 and ch1)"
+      },
+      {
+        "id": "S7",
+        "name": "Electrokinetic concentration - Channel 16 (ch16, ~4000x factor)",
+        "bb": "BB1",
+        "inputs": ["AlexaCRP", "Buffer"],
+        "operation": "heat at 25c for 1800s (abstracts 70 V electrokinetic concentration)",
+        "voltage_V": 70,
+        "duration_s": 1800,
+        "temperature_C": 25,
+        "mechanism": "Ion concentration polarization at Nafion nanojunction; CRP plug accumulates on anodic side",
+        "concentration_factor": "~4000x",
+        "channel_length": "shortest inlet microchannel; highest ET = deltaV / length",
+        "notes": "heat abstraction is standard BioScript convention for voltage-driven physical process with no thermal component; 25c = ambient room temperature"
+      },
+      {
+        "id": "S8",
+        "name": "Electrokinetic concentration - Channel 1 (ch1, ~100x factor)",
+        "bb": "BB1",
+        "inputs": ["AlexaCRP", "Buffer"],
+        "operation": "heat at 25c for 1800s (abstracts 70 V electrokinetic concentration)",
+        "voltage_V": 70,
+        "duration_s": 1800,
+        "temperature_C": 25,
+        "mechanism": "Ion concentration polarization at Nafion nanojunction",
+        "concentration_factor": "~100x",
+        "channel_length": "longest inlet microchannel; lowest ET",
+        "notes": "Dynamic range low end; both channels operated simultaneously in the paper"
+      },
+      {
+        "id": "S9",
+        "name": "Post-concentration buffer wash (3x per channel)",
+        "bb": "BB1",
+        "inputs": ["Buffer"],
+        "operation": "sequential mix chain + dispose (x3 per arm)",
+        "wash_cycles": 3,
+        "purpose": "Remove unbound bulk CRP before fluorescence readout on beads",
+        "applied_to": ["ch16 arm", "ch1 arm"],
+        "notes": "Paper: sample containing Alexa-488 labeled CRP removed by flushing sodium phosphate dibasic buffer solution through the device"
+      },
+      {
+        "id": "S10",
+        "name": "Fluorescence detection of bead-bound CRP",
+        "bb": "BB1",
+        "inputs": ["AlexaCRP"],
+        "operation": "detect",
+        "detection_module": "crpBindingDetection",
+        "detection_duration_s": 30,
+        "instrument": "Inverted fluorescence microscope (Olympus IX-51) + SensiCam CCD (Cooke corp.)",
+        "image_analysis": "IPLab 3.6 (Scanalytics, Fairfax, VA)",
+        "fluorophore": "Alexa-488",
+        "readout": "Fluorescent intensity on beads proportional to bound CRP concentration",
+        "background_AU": "40-50",
+        "ch16_signal_range_AU": "56-66 (run5, lowest CRP) to ~800 (run1, highest CRP)",
+        "branch_ch16": {
+          "pass": { "condition": "bindingSignal > 0", "action": "dispose(detectCh16)", "bb": "BB2" },
+          "fail": { "condition": "bindingSignal <= 0", "action": "drain(detectCh16)", "bb": "BB3" }
+        },
+        "branch_ch1": {
+          "pass": { "condition": "ch1Signal > 0", "action": "dispose(detectCh1)", "bb": "BB5" },
+          "fail": { "condition": "ch1Signal <= 0", "action": "drain(detectCh1)", "bb": "BB6" }
+        }
+      }
+    ],
+
+    "results": {
+      "concentration_characterisation": {
+        "16_channel_uniform": {
+          "fluorescein_initial_ug_mL": 0.01,
+          "concentration_factor": "~4000x",
+          "duration_min": 30,
+          "voltage_V": 50,
+          "median_signal_AU": 1875.3,
+          "std_dev_AU": 66.5,
+          "uniformity_error_pct": "<5"
+        },
+        "128_channel": {
+          "concentration_factor": "~4000x",
+          "voltage_V": 100,
+          "mean_signal_AU": 1581.3,
+          "std_dev_AU": 170.5,
+          "notes": "Higher SD attributed to less uniform normal electric field through nanojunction at greater multiplexing"
+        },
+        "serial_concentration_16_channel": {
+          "voltage_V": 50,
+          "factor_range": "100-4000x",
+          "mechanism": "Varying inlet microchannel length changes ET = deltaV / length"
+        }
+      },
+      "immunoassay_performance": {
+        "fitting_equation": "4-parameter logistic: y = y0 + a / (1 + (x/x0)^b)",
+        "r_squared_minimum": 0.95,
+        "reference_no_concentration": {
+          "LOD_ng_mL": 162.2,
+          "ULD_ng_mL": 7244,
+          "dynamic_range_ULD_over_LOD": 44.66
+        },
+        "with_concentration_ch16": {
+          "LOD_ng_mL": 2.52,
+          "ULD_ng_mL": 7244,
+          "dynamic_range_ULD_over_LOD": 2874.60,
+          "LOD_improvement_fold": 64.4
+        },
+        "dynamic_range_improvement_fold": 64.4,
+        "experiment_repeats": 5,
+        "CRP_initial_concentrations_tested": ["1 ug/mL", "100 ng/mL", "10 ng/mL", "1 ng/mL", "100 pg/mL"]
+      }
+    },
+
+    "cfg": {
+      "basic_blocks": [
+        { "id": "BB1", "label": "main",         "type": "entry",        "description": "Functionalization; device blocking; bead loading; CRP fill; concentration; post-wash; detection" },
+        { "id": "BB2", "label": "bsbbif_2_t",   "type": "branch_true",  "condition": "bindingSignal > 0",  "action": "dispose(detectCh16)" },
+        { "id": "BB3", "label": "bsbbif_3_f",   "type": "branch_false", "condition": "bindingSignal <= 0", "action": "drain(detectCh16)" },
+        { "id": "BB4", "label": "bsbbif_4_j",   "type": "join",         "description": "Dispose bindingSignal; ch1 QC branch begins" },
+        { "id": "BB5", "label": "bsbbif_5_t",   "type": "branch_true",  "condition": "ch1Signal > 0",      "action": "dispose(detectCh1)" },
+        { "id": "BB6", "label": "bsbbif_6_f",   "type": "branch_false", "condition": "ch1Signal <= 0",     "action": "drain(detectCh1)" },
+        { "id": "BB7", "label": "bsbbif_7_j",   "type": "terminal",     "description": "Dispose ch1Signal; experiment ends" }
+      ],
+      "edges": [
+        ["BB1","BB2"], ["BB1","BB3"],
+        ["BB2","BB4"], ["BB3","BB4"],
+        ["BB4","BB5"], ["BB4","BB6"],
+        ["BB5","BB7"], ["BB6","BB7"]
+      ]
+    }
+  }
+}

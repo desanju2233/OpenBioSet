@@ -1,0 +1,59 @@
+bsbbif_2_t:
+	dispose(treatedDiluate1[0])
+bsbbif_3_f:
+	dispose(treatedDiluate1[0])
+	jump: bsbbif_4_j
+bsbbif_4_j:
+	dispose(saltSignal1[0])
+	bacterialCells1[0] = dispense(EcoliBacterialCells)
+	crudeOilEmulsion1[0] = dispense(CrudeOilEmulsion)
+	brineFeedTSS1[0] = dispense(NaCl_Brine_HighSalinity)
+	contaminatedBrine1[0] = mix(brineFeedTSS1[0], bacterialCells1[0]) @ 2.0SECOND
+	contaminatedBrineFull1[0] = mix(contaminatedBrine1[0], crudeOilEmulsion1[0]) @ 2.0SECOND
+	membraneTSS1[0] = dispense(DemineralizedWater)
+	tssSeparation1[0] = mix(contaminatedBrineFull1[0], membraneTSS1[0]) @ 10.0SECOND
+	heat(tssSeparation1[0]) @ 25.0CELSIUS @ 1800.0SECOND
+	solidsSignal1[0] = detect(suspendedSolidsDetection, tssSeparation1[0]) @ 30.0SECOND
+	if solidsSignal1[0] > 0	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+main:
+	demineralizedWaterPrep1[0] = dispense(DemineralizedWater)
+	cem_membrane1[0] = dispense(DemineralizedWater)
+	conditionedMembrane1[0] = mix(cem_membrane1[0], demineralizedWaterPrep1[0]) @ 172800.0SECOND
+	brineFeed1[0] = dispense(NaCl_Brine_HighSalinity)
+	stage1Mix1[0] = mix(brineFeed1[0], conditionedMembrane1[0]) @ 10.0SECOND
+	heat(stage1Mix1[0]) @ 25.0CELSIUS @ 3600.0SECOND
+	rinse11[0] = dispense(Na2SO4_RinseBuffer)
+	stage1WithRinse1[0] = mix(stage1Mix1[0], rinse11[0]) @ 10.0SECOND
+	stage2Mix1[0] = mix(stage1WithRinse1[0], conditionedMembrane1[0]) @ 10.0SECOND
+	heat(stage2Mix1[0]) @ 25.0CELSIUS @ 3600.0SECOND
+	rinse21[0] = dispense(Na2SO4_RinseBuffer)
+	stage2WithRinse1[0] = mix(stage2Mix1[0], rinse21[0]) @ 10.0SECOND
+	stage3Mix1[0] = mix(stage2WithRinse1[0], conditionedMembrane1[0]) @ 10.0SECOND
+	heat(stage3Mix1[0]) @ 25.0CELSIUS @ 3600.0SECOND
+	rinse31[0] = dispense(Na2SO4_RinseBuffer)
+	treatedDiluate1[0] = mix(stage3Mix1[0], rinse31[0]) @ 10.0SECOND
+	saltSignal1[0] = detect(saltRemovalDetection, treatedDiluate1[0]) @ 30.0SECOND
+	if saltSignal1[0] > 0	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbif_5_t:
+	dispose(tssSeparation1[0])
+bsbbif_6_f:
+	dispose(tssSeparation1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	dispose(solidsSignal1[0])
+	brineFeedDivalent1[0] = dispense(NaCl_Brine_HighSalinity)
+	rinseDivalent1[0] = dispense(Na2SO4_RinseBuffer)
+	membraneDivalent1[0] = dispense(DemineralizedWater)
+	divalentFeedMix1[0] = mix(brineFeedDivalent1[0], rinseDivalent1[0]) @ 5.0SECOND
+	divalentSeparation1[0] = mix(divalentFeedMix1[0], membraneDivalent1[0]) @ 10.0SECOND
+	heat(divalentSeparation1[0]) @ 25.0CELSIUS @ 1800.0SECOND
+	divalentSignal1[0] = detect(divalentCationDetection, divalentSeparation1[0]) @ 30.0SECOND
+	if divalentSignal1[0] > 0	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(divalentSeparation1[0])
+bsbbif_9_f:
+	dispose(divalentSeparation1[0])
+	jump: bsbbif_10_j
+bsbbif_10_j:
+	dispose(divalentSignal1[0])
+	NOP

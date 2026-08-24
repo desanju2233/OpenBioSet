@@ -1,0 +1,114 @@
+module fluorescence
+
+manifest magnetic_beads
+manifest capture_oligos
+manifest target_RNA
+manifest detection_oligos
+manifest SbG_enzyme
+manifest RGP_substrate
+manifest fluorinated_oil
+manifest surfactant
+manifest binding_buffer
+manifest wash_buffer
+
+instructions:
+
+// -------------------------------------------------------
+// Step 1: Prepare Magnetic Beads with Capture Oligos
+// Magnetic beads are functionalized with biotinylated
+// capture DNA probes; one Poisson process (enzyme per bead)
+// -------------------------------------------------------
+
+beads   = dispense 50 units of magnetic_beads
+cap_oligos = dispense 1 units of capture_oligos
+bb      = dispense 10 units of binding_buffer
+
+bead_capture = mix beads with cap_oligos
+bead_with_buffer = mix bead_capture with bb
+
+// -------------------------------------------------------
+// Step 2: Capture Target RNA
+// Target RNA molecules hybridize to capture probes
+// on the magnetic bead surface
+// -------------------------------------------------------
+
+target  = dispense 5 units of target_RNA
+bead_target = mix bead_with_buffer with target
+
+// -------------------------------------------------------
+// Step 3: Add Detection Oligos and Enzyme Labels
+// Biotinylated detection DNA probes (labeled with
+// streptavidin-beta-galactosidase enzyme) hybridize
+// to sandwich the captured RNA on the bead
+// -------------------------------------------------------
+
+det_oligos = dispense 1 units of detection_oligos
+enzyme  = dispense 5 units of SbG_enzyme
+
+bead_detection = mix bead_target with det_oligos
+bead_enzyme = mix bead_detection with enzyme
+
+// -------------------------------------------------------
+// Step 4: Wash Beads
+// Remove unbound oligos and enzymes via wash buffer
+// (Not explicitly modeled in BioScript, but noted)
+// -------------------------------------------------------
+
+wb = dispense 10 units of wash_buffer
+bead_washed = mix bead_enzyme with wb
+
+// -------------------------------------------------------
+// Step 5: Droplet Formation (First Poisson Process)
+// Enzyme-labeled beads are mixed with fluorogenic
+// substrate and encapsulated into picoliter-sized
+// droplets via flow-focusing (~10 pL per droplet)
+// Second Poisson process: beads per droplet
+// -------------------------------------------------------
+
+substrate = dispense 50 units of RGP_substrate
+oil       = dispense 60 units of fluorinated_oil
+surf      = dispense 2 units of surfactant
+
+bead_substrate = mix bead_washed with substrate
+droplet_mix    = mix bead_substrate with oil
+
+// -------------------------------------------------------
+// Step 6: Continuous Incubation (~77 minutes, room temp)
+// As droplets flow through tubing, the SbG enzyme
+// catalytically converts RGP substrate to fluorescent
+// resorufin product. Droplets with enzyme(s) produce
+// high fluorescence (positive); droplets with no enzyme
+// produce low fluorescence (negative).
+// -------------------------------------------------------
+
+heat droplet_mix at 20c for 77m
+
+// -------------------------------------------------------
+// Step 7: Real-Time Fluorescence Detection
+// Droplets pass through detection region one-by-one;
+// fluorescence intensity of each droplet is recorded.
+// Positive droplets (>6 SD above background) indicate
+// presence of enzyme-labeled RNA capture complex.
+// -------------------------------------------------------
+
+eloha_signal = detect fluorescence on droplet_mix for 60s
+
+// -------------------------------------------------------
+// Step 8: Digital Quantification via Poisson Statistics
+// Count positive and negative droplets; calculate:
+//   lambda_eb = -ln(1 + (1/lambda_bd) * ln(1 - p))
+//   N = -Nb * ln(1 + (v_s / (v_d * Nb)) * ln(1 - p))
+// where:
+//   p = fraction of positive droplets
+//   lambda_bd = mean beads per droplet (~0.1)
+//   Nb = total number of beads (~10^6)
+//   v_s = sample volume (100 uL)
+//   v_d = droplet volume (~10 pL)
+// Result: absolute RNA copy number per sample
+// -------------------------------------------------------
+
+if (eloha_signal >= 0) {
+    dispose droplet_mix
+} else {
+    dispose droplet_mix
+}

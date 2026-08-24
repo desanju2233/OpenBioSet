@@ -1,0 +1,79 @@
+module fluorescence
+
+manifest donor_cells
+manifest recipient_cells
+manifest xylose_inducer
+manifest wash_buffer
+manifest tss_buffer
+manifest oil_surfactant
+manifest selection_agar
+manifest iptg
+
+instructions:
+
+// Cell culture preparation: donor strain grown to OD600 ~0.2, then xylose added
+// to induce the conjugation machinery (Critical step, section B6), followed by
+// continued growth to OD600 0.8-1.0 (section B7)
+donor = dispense 50 units of donor_cells
+xylose = dispense 10 units of xylose_inducer
+induced_donor = mix donor with xylose for 30s
+heat induced_donor at 37c for 60m
+
+// Recipient strain cultured in parallel to OD600 0.8-1.0 (section B4-B7)
+recipient = dispense 50 units of recipient_cells
+heat recipient at 37c for 60m
+
+// Wash both pellets with PBS (2x, section B9), then resuspend in TSS buffer
+// to a final OD600 of 0.6 (section B10)
+wash1 = dispense 20 units of wash_buffer
+washed_donor = mix induced_donor with wash1 for 30s
+
+wash2 = dispense 20 units of wash_buffer
+washed_recipient = mix recipient with wash2 for 30s
+
+buffer1 = dispense 50 units of tss_buffer
+resuspended_donor = mix washed_donor with buffer1 for 30s
+
+buffer2 = dispense 50 units of tss_buffer
+resuspended_recipient = mix washed_recipient with buffer2 for 30s
+
+// Combine donor and recipient at a 1:1 ratio (section C2)
+cell_mix = mix resuspended_donor with resuspended_recipient for 30s
+
+// Droplet generation on the ENTRAP chip: cell suspension co-flowed with the
+// oil/surfactant carrier phase (Novec 7500/PicoSurf) to encapsulate the
+// donor-recipient mixture in droplets (section C3-C8)
+oil = dispense 200 units of oil_surfactant
+droplet = mix cell_mix with oil for 10s
+
+// Co-incubation of droplets for conjugation, >=1 h at 37C (section C11)
+heat droplet at 37c for 60m
+
+// Plate droplets onto tetracycline selection agar for transconjugant
+// selection, ~16 h incubation at 37C (section C13-C15)
+agar = dispense 50 units of selection_agar
+plated = mix droplet with agar for 30s
+heat plated at 37c for 960m
+
+// Screen plates for transconjugant colony growth (section D1)
+transconjugant_signal = detect fluorescence on plated for 30s
+
+if (transconjugant_signal < 50) {
+    dispose plated
+}
+
+// Transconjugant evaluation: pick colonies, induce with IPTG, and quantify
+// GFPmut2 expression by flow cytometry / plate reader fluorescence
+// (section D2-D4), repeated across biological replicates
+repeat 3 times {
+    colony = dispense 10 units of recipient_cells
+    inducer = dispense 5 units of iptg
+    induced_colony = mix colony with inducer for 30s
+    heat induced_colony at 37c for 60m
+
+    expression_signal = detect fluorescence on induced_colony for 30s
+
+    if (expression_signal < 50) {
+        dispose induced_colony
+    }
+}

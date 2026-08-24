@@ -1,0 +1,73 @@
+module fluorescence
+
+manifest gdna_sample
+manifest bisulfite_reagent
+manifest ssb_beads
+manifest binding_buffer
+manifest wash_ethanol
+manifest desulfonation_buffer
+manifest wash_buffer
+manifest elution_buffer
+
+instructions:
+
+// Step i: Sulfonation & deamination - combine genomic DNA, ammonium
+// bisulfite (Zymo Lightning Conversion reagent), and silica-coated
+// superparamagnetic beads (SSBs) into the first droplet
+dna = dispense 2 units of gdna_sample
+bisulfite = dispense 13 units of bisulfite_reagent
+beads = dispense 5 units of ssb_beads
+
+sample_mix = mix dna with bisulfite for 10s
+reaction_droplet = mix sample_mix with beads for 10s
+
+// Denature sample into single-stranded DNA
+heat reaction_droplet at 95c for 8m
+
+// Bisulfite-mediated deamination of unmethylated cytosine and sulfonation
+// to yield uracil-sulfonate
+heat reaction_droplet at 54c for 60m
+
+// Step ii: DNA binding - merge with M-binding buffer droplet across the
+// open channel and briefly incubate to adsorb DNA onto the silica bead
+// surface (SSBs transported by magnetic actuation)
+binding = dispense 60 units of binding_buffer
+bound_droplet = mix reaction_droplet with binding for 30s
+heat bound_droplet at 23c for 5m
+
+// Step iii: Wash - SSBs separated across the sieve structure and
+// transported into an ethanol wash droplet to remove residual bisulfite
+ethanol = dispense 40 units of wash_ethanol
+wash1_droplet = mix bound_droplet with ethanol for 15s
+dispose wash1_droplet
+
+// Step iv: Desulfonation - SSBs transported into M-desulphonation buffer
+// (sodium hydroxide) droplet to convert uracil-sulfonate into stable uracil
+desulf = dispense 20 units of desulfonation_buffer
+desulf_droplet = mix reaction_droplet with desulf for 15s
+heat desulf_droplet at 23c for 10m
+
+// Steps v-vi: Wash twice in M-wash buffer droplets to remove residual
+// sodium hydroxide
+wash2 = dispense 40 units of wash_buffer
+wash2_droplet = mix desulf_droplet with wash2 for 15s
+dispose wash2_droplet
+
+wash3 = dispense 40 units of wash_buffer
+wash3_droplet = mix desulf_droplet with wash3 for 15s
+dispose wash3_droplet
+
+// Step vii: Elution - transport SSBs into Tris-EDTA elution buffer droplet
+// and reverse the binding process to release purified, bisulfite-converted
+// DNA from the beads
+elution = dispense 20 units of elution_buffer
+eluted_droplet = mix desulf_droplet with elution for 5m
+
+// Step viii: Removal of beads - decant SSBs into the previous well,
+// retrieving the purified converted-DNA droplet for downstream analysis
+// (e.g., MethyLight qPCR)
+conversion_signal = detect fluorescence on eluted_droplet for 30s
+
+if (conversion_signal < 50) {
+    dispose eluted_droplet
+}

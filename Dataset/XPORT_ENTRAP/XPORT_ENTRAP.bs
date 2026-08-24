@@ -1,0 +1,93 @@
+module fluorescence
+
+manifest donor_cells
+manifest recipient_cells
+manifest xylose_inducer
+manifest wash_buffer
+manifest resuspension_media
+manifest oil_surfactant
+manifest lb_agar
+manifest tet_agar
+manifest dalanine_tet_agar
+manifest iptg
+
+instructions:
+
+// Donor (JAB981) sub-culture grown to OD600 = 0.15, then induced with 50%
+// xylose to activate XPORT conjugative element production, followed by
+// continued growth to OD600 = 0.9-1.1
+donor = dispense 50 units of donor_cells
+heat donor at 37c for 90m
+
+xylose = dispense 10 units of xylose_inducer
+induced_donor = mix donor with xylose for 30s
+heat induced_donor at 37c for 90m
+
+// Recipient (JAB545) sub-culture grown in parallel to matching OD600
+recipient = dispense 50 units of recipient_cells
+heat recipient at 37c for 90m
+
+// Wash both cultures with PBS (2x), then resuspend in fresh media
+// supplemented with D-alanine to a final OD600 = 0.6
+wash1 = dispense 20 units of wash_buffer
+washed_donor = mix induced_donor with wash1 for 30s
+
+wash2 = dispense 20 units of wash_buffer
+washed_recipient = mix recipient with wash2 for 30s
+
+media1 = dispense 50 units of resuspension_media
+resuspended_donor = mix washed_donor with media1 for 30s
+
+media2 = dispense 50 units of resuspension_media
+resuspended_recipient = mix washed_recipient with media2 for 30s
+
+// Combine donor and recipient cells (1:1 donor:recipient ratio) and generate
+// 60 um droplets by co-flowing the cell suspension with the fluorinated
+// oil/surfactant carrier phase (Novec 7500/Pico-Surf 1) on the DNA ENTRAP chip
+cell_mix = mix resuspended_donor with resuspended_recipient for 30s
+
+oil = dispense 200 units of oil_surfactant
+droplet = mix cell_mix with oil for 10s
+
+// Co-incubate droplets in the micro-vessel system for the designated period
+// to allow XPORT-mediated conjugation (the 1 h timepoint yielded peak
+// conjugation frequency for both donor:recipient ratios tested)
+heat droplet at 37c for 60m
+
+// Plate droplets onto three selection media to quantify donors, recipients,
+// and successful transconjugants (TCs) for conjugation efficiency analysis
+recipient_agar = dispense 50 units of lb_agar
+recipient_plate = mix droplet with recipient_agar for 30s
+heat recipient_plate at 37c for 960m
+
+tc_agar = dispense 50 units of tet_agar
+tc_plate = mix droplet with tc_agar for 30s
+heat tc_plate at 37c for 960m
+
+donor_agar = dispense 50 units of dalanine_tet_agar
+donor_plate = mix droplet with donor_agar for 30s
+heat donor_plate at 37c for 960m
+
+// Screen the transconjugant-selective (LB+tetracycline) plate for successful
+// conjugation events
+conjugation_signal = detect fluorescence on tc_plate for 30s
+
+if (conjugation_signal < 50) {
+    dispose tc_plate
+}
+
+// Downstream confirmation: pick transconjugant colonies, induce the
+// IPTG-inducible GFPmut2 miniICE reporter (1 h induction), and quantify
+// expression by flow cytometry, across three biological replicates
+repeat 3 times {
+    colony = dispense 10 units of recipient_cells
+    inducer = dispense 5 units of iptg
+    induced_colony = mix colony with inducer for 30s
+    heat induced_colony at 37c for 60m
+
+    gfp_signal = detect fluorescence on induced_colony for 30s
+
+    if (gfp_signal < 50) {
+        dispose induced_colony
+    }
+}

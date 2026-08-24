@@ -1,0 +1,40 @@
+main:
+	gdna1[0] = dispense(sample_gdna)
+	mastermix1[0] = dispense(pcr_mastermix)
+	primers1[0] = dispense(primer_pool)
+	pcr_mix1[0] = mix(gdna1[0], mastermix1[0]) @ 5.0SECOND
+	pcr_reaction1[0] = mix(pcr_mix1[0], primers1[0]) @ 5.0SECOND
+	heat(pcr_reaction1[0]) @ 98.0CELSIUS @ 30.0SECOND
+bsbbr_2_h:
+	PHI REPEAT_301 = {REPEAT_300,REPEAT_302}
+	PHI pcr_reaction2 = {pcr_reaction1,pcr_reaction2}
+	if REPEAT_301[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	heat(pcr_reaction2[0]) @ 98.0CELSIUS @ 10.0SECOND
+	heat(pcr_reaction2[0]) @ 65.0CELSIUS @ 30.0SECOND
+	heat(pcr_reaction2[0]) @ 72.0CELSIUS @ 30.0SECOND
+	REPEAT_302[0] = REPEAT_301[0] - 1
+bsbbr_4_f:
+	heat(pcr_reaction2[0]) @ 72.0CELSIUS @ 300.0SECOND
+	cas131[0] = dispense(cas13_protein)
+	guide1[0] = dispense(crRNA)
+	reporter1[0] = dispense(rna_reporter)
+	buffer1[0] = dispense(detection_buffer)
+	detection_mix11[0] = mix(cas131[0], guide1[0]) @ 5.0SECOND
+	detection_mix21[0] = mix(detection_mix11[0], reporter1[0]) @ 5.0SECOND
+	detection_set1[0] = mix(detection_mix21[0], buffer1[0]) @ 5.0SECOND
+	sample_dye1[0] = dispense(fluorescent_barcode_dye)
+	detection_dye1[0] = dispense(fluorescent_barcode_dye)
+	barcoded_sample1[0] = mix(pcr_reaction2[0], sample_dye1[0]) @ 5.0SECOND
+	barcoded_detection1[0] = mix(detection_set1[0], detection_dye1[0]) @ 5.0SECOND
+	merged_droplet1[0] = mix(barcoded_sample1[0], barcoded_detection1[0]) @ 5.0SECOND
+	heat(merged_droplet1[0]) @ 37.0CELSIUS @ 10800.0SECOND
+	carmen_signal1[0] = detect(fluorescence, merged_droplet1[0]) @ 30.0SECOND
+	if carmen_signal1[0] >= 50	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+bsbbif_5_t:
+	dispose(merged_droplet1[0])
+bsbbif_6_f:
+	dispose(merged_droplet1[0])
+	jump: bsbbif_7_j
+bsbbif_7_j:
+	NOP

@@ -1,0 +1,44 @@
+main:
+	sample1[0] = dispense(Sample)
+	beads1[0] = dispense(MagneticBeads)
+	conv1[0] = dispense(ConversionReagent)
+	protk1[0] = dispense(ProteinaseK)
+	a1[0] = mix(sample1[0], beads1[0])
+	b1[0] = mix(a1[0], conv1[0])
+	mixture1[0] = mix(b1[0], protk1[0])
+	heat(mixture1[0]) @ 30.0CELSIUS @ 2700.0SECOND
+	heat(mixture1[0]) @ 98.0CELSIUS @ 480.0SECOND
+	heat(mixture1[0]) @ 58.0CELSIUS @ 3600.0SECOND
+	binding1[0] = dispense(BindingBuffer)
+	bound1[0] = mix(mixture1[0], binding1[0]) @ 600.0SECOND
+	wash11[0] = dispense(WashBuffer)
+	temp11[0] = mix(bound1[0], wash11[0]) @ 60.0SECOND
+	dispose(temp11[0])
+	desulf1[0] = dispense(DesulfonationBuffer)
+	desulfonated1[0] = mix(bound1[0], desulf1[0]) @ 60.0SECOND
+	wash21[0] = dispense(WashBuffer)
+	temp21[0] = mix(desulfonated1[0], wash21[0]) @ 60.0SECOND
+	dispose(temp21[0])
+	wash31[0] = dispense(WashBuffer)
+	temp31[0] = mix(desulfonated1[0], wash31[0]) @ 60.0SECOND
+	dispose(temp31[0])
+	qpcrmix1[0] = dispense(qPCRMix)
+	droplet1[0] = mix(desulfonated1[0], qpcrmix1[0]) @ 5.0SECOND
+	heat(droplet1[0]) @ 70.0CELSIUS @ 600.0SECOND
+bsbbr_2_h:
+	PHI REPEAT_451 = {REPEAT_450,REPEAT_452}
+	PHI droplet2 = {droplet1,droplet2}
+	if REPEAT_451[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	heat(droplet2[0]) @ 103.0CELSIUS @ 5.0SECOND
+	heat(droplet2[0]) @ 63.0CELSIUS @ 15.0SECOND
+	REPEAT_452[0] = REPEAT_451[0] - 1
+bsbbr_4_f:
+	signal1[0] = detect(fluorescence, droplet2[0]) @ 5.0SECOND
+	if signal1[0] >= 1	|	true: jump bsbbif_5_t	|	false: jump bsbbif_6_f
+bsbbif_5_t:
+	dispose(droplet2[0])
+bsbbif_6_f:
+	PHI droplet3 = {droplet2,droplet}
+	dispose(droplet3[0])
+	NOP

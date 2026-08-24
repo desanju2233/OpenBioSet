@@ -1,0 +1,82 @@
+module fluorescence
+
+manifest ssdna_library
+manifest target_beads
+manifest wash_buffer
+manifest selection_buffer
+manifest pcr_mastermix
+manifest primers
+manifest lambda_exonuclease
+
+instructions:
+
+// Step 1: Starting pool - dispense the randomized ssDNA library, denature
+// at 95C and snap-cool before incubation with target
+library = dispense 10 units of ssdna_library
+heat library at 95c for 10m
+heat library at 4c for 2m
+
+// Step 2: Incubation with target - mix the denatured library with
+// target-coated magnetic beads and incubate with gentle rotation
+beads = dispense 10 units of target_beads
+selection_mix = mix library with beads for 5s
+heat selection_mix at 23c for 60m
+
+// Step 3: MMS separation - load onto the micro-magnetic separation device
+// and wash at high flow rate / increased time to remove non-specific and
+// weakly-bound DNA, then elute the aptamer-bound beads with selection buffer
+repeat 5 times {
+    wash = dispense 10 units of wash_buffer
+    washed = mix selection_mix with wash for 5s
+    dispose washed
+}
+
+elution = dispense 10 units of selection_buffer
+eluate = mix selection_mix with elution for 5s
+
+// Step 4: PCR amplification of the eluted DNA to generate double-stranded
+// DNA for the next round of selection
+mastermix = dispense 10 units of pcr_mastermix
+primer_mix = dispense 10 units of primers
+pcr_reaction = mix eluate with mastermix for 5s
+pcr_mix = mix pcr_reaction with primer_mix for 5s
+
+heat pcr_mix at 95c for 30s
+
+repeat 20 times {
+    heat pcr_mix at 95c for 15s
+    heat pcr_mix at 60c for 30s
+    heat pcr_mix at 72c for 30s
+}
+
+heat pcr_mix at 72c for 300s
+
+// Step 5: Single-strand separation - lambda exonuclease digestion removes
+// the phosphorylated strand, recovering the fluorescently-labeled forward
+// (single) strand for the next round or for binding measurements
+exo = dispense 10 units of lambda_exonuclease
+digestion_mix = mix pcr_mix with exo for 5s
+heat digestion_mix at 37c for 30m
+heat digestion_mix at 75c for 10m
+
+// Step 6: Measure pool binding - bead-based fluorescence binding assay of
+// the enriched ssDNA pool against fresh target-coated beads
+assay_beads = dispense 10 units of target_beads
+binding_mix = mix digestion_mix with assay_beads for 5s
+heat binding_mix at 23c for 60m
+
+repeat 4 times {
+    assay_wash = dispense 10 units of wash_buffer
+    assay_washed = mix binding_mix with assay_wash for 5s
+    dispose assay_washed
+}
+
+pool_signal = detect fluorescence on binding_mix for 30s
+
+// Step 7 (clone and sequence, performed off-chip) only proceeds for pools
+// that show sufficient enrichment/binding affinity
+if (pool_signal >= 50) {
+    dispose binding_mix
+} else {
+    dispose binding_mix
+}

@@ -1,0 +1,57 @@
+bsbbif_2_t:
+	dispose(tc_plate1[0])
+bsbbif_3_f:
+	PHI tc_plate2 = {tc_plate1,tc_plate}
+main:
+	donor1[0] = dispense(donor_cells)
+	heat(donor1[0]) @ 37.0CELSIUS @ 5400.0SECOND
+	xylose1[0] = dispense(xylose_inducer)
+	induced_donor1[0] = mix(donor1[0], xylose1[0]) @ 30.0SECOND
+	heat(induced_donor1[0]) @ 37.0CELSIUS @ 5400.0SECOND
+	recipient1[0] = dispense(recipient_cells)
+	heat(recipient1[0]) @ 37.0CELSIUS @ 5400.0SECOND
+	wash11[0] = dispense(wash_buffer)
+	washed_donor1[0] = mix(induced_donor1[0], wash11[0]) @ 30.0SECOND
+	wash21[0] = dispense(wash_buffer)
+	washed_recipient1[0] = mix(recipient1[0], wash21[0]) @ 30.0SECOND
+	media11[0] = dispense(resuspension_media)
+	resuspended_donor1[0] = mix(washed_donor1[0], media11[0]) @ 30.0SECOND
+	media21[0] = dispense(resuspension_media)
+	resuspended_recipient1[0] = mix(washed_recipient1[0], media21[0]) @ 30.0SECOND
+	cell_mix1[0] = mix(resuspended_donor1[0], resuspended_recipient1[0]) @ 30.0SECOND
+	oil1[0] = dispense(oil_surfactant)
+	droplet1[0] = mix(cell_mix1[0], oil1[0]) @ 10.0SECOND
+	heat(droplet1[0]) @ 37.0CELSIUS @ 3600.0SECOND
+	recipient_agar1[0] = dispense(lb_agar)
+	recipient_plate1[0] = mix(droplet1[0], recipient_agar1[0]) @ 30.0SECOND
+	heat(recipient_plate1[0]) @ 37.0CELSIUS @ 57600.0SECOND
+	tc_agar1[0] = dispense(tet_agar)
+	tc_plate1[0] = mix(droplet1[0], tc_agar1[0]) @ 30.0SECOND
+	heat(tc_plate1[0]) @ 37.0CELSIUS @ 57600.0SECOND
+	donor_agar1[0] = dispense(dalanine_tet_agar)
+	donor_plate1[0] = mix(droplet1[0], donor_agar1[0]) @ 30.0SECOND
+	heat(donor_plate1[0]) @ 37.0CELSIUS @ 57600.0SECOND
+	conjugation_signal1[0] = detect(fluorescence, tc_plate1[0]) @ 30.0SECOND
+	if conjugation_signal1[0] < 50	|	true: jump bsbbif_2_t	|	false: jump bsbbif_3_f
+bsbbr_4_h:
+	PHI REPEAT_31 = {REPEAT_30,REPEAT_32}
+	PHI gfp_signal1 = {gfp_signal0,gfp_signal2}
+	PHI inducer1 = {inducer0,inducer2}
+	PHI induced_colony1 = {induced_colony0,induced_colony3}
+	PHI colony1 = {colony0,colony2}
+	if REPEAT_31[0] > 0	|	true: jump bsbbr_5_t	|	false: jump bsbbr_8_f
+bsbbr_5_t:
+	colony2[0] = dispense(recipient_cells)
+	inducer2[0] = dispense(iptg)
+	induced_colony2[0] = mix(colony2[0], inducer2[0]) @ 30.0SECOND
+	heat(induced_colony2[0]) @ 37.0CELSIUS @ 3600.0SECOND
+	gfp_signal2[0] = detect(fluorescence, induced_colony2[0]) @ 30.0SECOND
+	if gfp_signal2[0] < 50	|	true: jump bsbbif_6_t	|	false: jump bsbbif_7_f
+bsbbif_6_t:
+	dispose(induced_colony2[0])
+bsbbif_7_f:
+	PHI induced_colony3 = {induced_colony2,induced_colony}
+	REPEAT_32[0] = REPEAT_31[0] - 1
+	jump: bsbbr_4_h
+bsbbr_8_f:
+	NOP

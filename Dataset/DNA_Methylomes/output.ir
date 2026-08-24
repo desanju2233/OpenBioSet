@@ -1,0 +1,77 @@
+main:
+	nuclei1[0] = dispense(nuclei_suspension)
+	lysis1[0] = dispense(lysis_buffer)
+	oil11[0] = dispense(droplet_oil)
+	scdna_droplet1[0] = mix(nuclei1[0], lysis1[0]) @ 5.0SECOND
+	encapsulated1[0] = mix(scdna_droplet1[0], oil11[0]) @ 5.0SECOND
+	heat(encapsulated1[0]) @ 4.0CELSIUS @ 600.0SECOND
+	heat(encapsulated1[0]) @ 23.0CELSIUS @ 900.0SECOND
+	heat(encapsulated1[0]) @ 65.0CELSIUS @ 1800.0SECOND
+	beads1[0] = dispense(barcode_beads)
+	enzyme1[0] = dispense(enzyme_mix)
+	bead_droplet1[0] = mix(beads1[0], enzyme1[0]) @ 5.0SECOND
+	ligmix1[0] = dispense(ligation_mix)
+	fused_droplet1[0] = mix(encapsulated1[0], bead_droplet1[0]) @ 5.0SECOND
+	barcoded_droplet1[0] = mix(fused_droplet1[0], ligmix1[0]) @ 5.0SECOND
+	heat(barcoded_droplet1[0]) @ 25.0CELSIUS @ 480.0SECOND
+	heat(barcoded_droplet1[0]) @ 16.0CELSIUS @ 64800.0SECOND
+	heat(barcoded_droplet1[0]) @ 70.0CELSIUS @ 900.0SECOND
+	pk1[0] = dispense(proteinase_k)
+	digested1[0] = mix(barcoded_droplet1[0], pk1[0]) @ 30.0SECOND
+	heat(digested1[0]) @ 65.0CELSIUS @ 7200.0SECOND
+	heat(digested1[0]) @ 95.0CELSIUS @ 90.0SECOND
+	heat(digested1[0]) @ 4.0CELSIUS @ 120.0SECOND
+	bisulfite1[0] = dispense(bisulfite_reagent)
+	bisulfite_droplet1[0] = mix(digested1[0], bisulfite1[0]) @ 10.0SECOND
+	heat(bisulfite_droplet1[0]) @ 95.0CELSIUS @ 300.0SECOND
+	heat(bisulfite_droplet1[0]) @ 54.0CELSIUS @ 3600.0SECOND
+	primer1[0] = dispense(random_primer)
+	primed1[0] = mix(bisulfite_droplet1[0], primer1[0]) @ 5.0SECOND
+	heat(primed1[0]) @ 95.0CELSIUS @ 180.0SECOND
+	heat(primed1[0]) @ 4.0CELSIUS @ 120.0SECOND
+	klenow1[0] = dispense(klenow_mix)
+	extension_mix1[0] = mix(primed1[0], klenow1[0]) @ 10.0SECOND
+	heat(extension_mix1[0]) @ 4.0CELSIUS @ 300.0SECOND
+	heat(extension_mix1[0]) @ 25.0CELSIUS @ 300.0SECOND
+	heat(extension_mix1[0]) @ 37.0CELSIUS @ 3600.0SECOND
+	mastermix11[0] = dispense(pcr_mastermix)
+	ampprimers1[0] = dispense(amp_primers)
+	preamp_mix1[0] = mix(extension_mix1[0], mastermix11[0]) @ 10.0SECOND
+	preamp_reaction1[0] = mix(preamp_mix1[0], ampprimers1[0]) @ 10.0SECOND
+	heat(preamp_reaction1[0]) @ 98.0CELSIUS @ 30.0SECOND
+bsbbr_2_h:
+	PHI REPEAT_51 = {REPEAT_50,REPEAT_52}
+	PHI preamp_reaction2 = {preamp_reaction1,preamp_reaction2}
+	if REPEAT_51[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	heat(preamp_reaction2[0]) @ 98.0CELSIUS @ 10.0SECOND
+	heat(preamp_reaction2[0]) @ 58.0CELSIUS @ 30.0SECOND
+	heat(preamp_reaction2[0]) @ 72.0CELSIUS @ 30.0SECOND
+	REPEAT_52[0] = REPEAT_51[0] - 1
+bsbbr_4_f:
+	heat(preamp_reaction2[0]) @ 72.0CELSIUS @ 60.0SECOND
+	mastermix21[0] = dispense(pcr_mastermix)
+	idxprimers1[0] = dispense(index_primers)
+	dye1[0] = dispense(evagreen_dye)
+	index_mix1[0] = mix(preamp_reaction2[0], mastermix21[0]) @ 10.0SECOND
+	index_reaction1[0] = mix(index_mix1[0], idxprimers1[0]) @ 10.0SECOND
+	labeled_reaction1[0] = mix(index_reaction1[0], dye1[0]) @ 10.0SECOND
+	heat(labeled_reaction1[0]) @ 98.0CELSIUS @ 30.0SECOND
+bsbbr_5_h:
+	PHI REPEAT_31 = {REPEAT_30,REPEAT_32}
+	PHI labeled_reaction2 = {labeled_reaction1,labeled_reaction2}
+	if REPEAT_31[0] > 0	|	true: jump bsbbr_6_t	|	false: jump bsbbr_7_f
+bsbbr_6_t:
+	heat(labeled_reaction2[0]) @ 98.0CELSIUS @ 10.0SECOND
+	heat(labeled_reaction2[0]) @ 62.0CELSIUS @ 30.0SECOND
+	heat(labeled_reaction2[0]) @ 72.0CELSIUS @ 30.0SECOND
+	REPEAT_32[0] = REPEAT_31[0] - 1
+bsbbr_7_f:
+	heat(labeled_reaction2[0]) @ 72.0CELSIUS @ 60.0SECOND
+	library_signal1[0] = detect(fluorescence, labeled_reaction2[0]) @ 30.0SECOND
+	if library_signal1[0] < 50	|	true: jump bsbbif_8_t	|	false: jump bsbbif_9_f
+bsbbif_8_t:
+	dispose(labeled_reaction2[0])
+bsbbif_9_f:
+	PHI labeled_reaction3 = {labeled_reaction2,labeled_reaction}
+	NOP

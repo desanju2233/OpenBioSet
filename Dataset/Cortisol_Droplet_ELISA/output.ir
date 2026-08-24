@@ -1,0 +1,47 @@
+main:
+bsbbr_2_h:
+	PHI REPEAT_101 = {REPEAT_100,REPEAT_102}
+	PHI cortisol_reading1 = {cortisol_reading0,cortisol_reading2}
+	PHI indicator_reagent1 = {indicator_reagent0,indicator_reagent2}
+	PHI indicator_droplet1 = {indicator_droplet0,indicator_droplet3}
+	PHI REPEAT_21 = {REPEAT_20,REPEAT_22}
+	PHI washed1 = {washed0,washed2}
+	PHI wash1 = {wash0,wash2}
+	PHI beads1 = {beads0,beads2}
+	PHI sample1 = {sample0,sample2}
+	PHI sample_droplet1 = {sample_droplet0,sample_droplet2}
+	PHI hrp1 = {hrp0,hrp2}
+	PHI a1 = {a0,a2}
+	if REPEAT_101[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_9_f
+bsbbr_3_t:
+	sample2[0] = dispense(CortisolSample)
+	beads2[0] = dispense(MagneticBeads)
+	hrp2[0] = dispense(CortisolHRP)
+	a2[0] = mix(sample2[0], beads2[0])
+	sample_droplet2[0] = mix(a2[0], hrp2[0]) @ 60.0SECOND
+	heat(sample_droplet2[0]) @ 25.0CELSIUS @ 480.0SECOND
+bsbbr_4_h:
+	PHI REPEAT_22 = {REPEAT_21,REPEAT_23}
+	PHI washed2 = {washed1,washed3}
+	PHI wash2 = {wash1,wash3}
+	if REPEAT_22[0] > 0	|	true: jump bsbbr_5_t	|	false: jump bsbbr_6_f
+bsbbr_5_t:
+	wash3[0] = dispense(PBS)
+	washed3[0] = mix(sample_droplet2[0], wash3[0]) @ 10.0SECOND
+	dispose(washed3[0])
+	REPEAT_23[0] = REPEAT_22[0] - 1
+bsbbr_6_f:
+	indicator_reagent2[0] = dispense(TMB)
+	indicator_droplet2[0] = mix(sample_droplet2[0], indicator_reagent2[0]) @ 10.0SECOND
+	heat(indicator_droplet2[0]) @ 25.0CELSIUS @ 120.0SECOND
+	cortisol_reading2[0] = detect(fluorescence, indicator_droplet2[0]) @ 10.0SECOND
+	if cortisol_reading2[0] <= 80	|	true: jump bsbbif_7_t	|	false: jump bsbbif_8_f
+bsbbif_7_t:
+	dispose(indicator_droplet2[0])
+bsbbif_8_f:
+	PHI indicator_droplet3 = {indicator_droplet2,indicator_droplet}
+	dispose(indicator_droplet3[0])
+	REPEAT_102[0] = REPEAT_101[0] - 1
+	jump: bsbbr_2_h
+bsbbr_9_f:
+	NOP

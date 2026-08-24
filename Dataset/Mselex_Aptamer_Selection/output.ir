@@ -1,0 +1,63 @@
+main:
+	library1[0] = dispense(ssdna_library)
+	heat(library1[0]) @ 95.0CELSIUS @ 600.0SECOND
+	heat(library1[0]) @ 4.0CELSIUS @ 120.0SECOND
+	beads1[0] = dispense(target_beads)
+	selection_mix1[0] = mix(library1[0], beads1[0]) @ 5.0SECOND
+	heat(selection_mix1[0]) @ 23.0CELSIUS @ 3600.0SECOND
+bsbbr_2_h:
+	PHI REPEAT_51 = {REPEAT_50,REPEAT_52}
+	PHI wash1 = {wash0,wash2}
+	PHI washed1 = {washed0,washed2}
+	if REPEAT_51[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	wash2[0] = dispense(wash_buffer)
+	washed2[0] = mix(selection_mix1[0], wash2[0]) @ 5.0SECOND
+	dispose(washed2[0])
+	REPEAT_52[0] = REPEAT_51[0] - 1
+bsbbr_4_f:
+	elution1[0] = dispense(selection_buffer)
+	eluate1[0] = mix(selection_mix1[0], elution1[0]) @ 5.0SECOND
+	mastermix1[0] = dispense(pcr_mastermix)
+	primer_mix1[0] = dispense(primers)
+	pcr_reaction1[0] = mix(eluate1[0], mastermix1[0]) @ 5.0SECOND
+	pcr_mix1[0] = mix(pcr_reaction1[0], primer_mix1[0]) @ 5.0SECOND
+	heat(pcr_mix1[0]) @ 95.0CELSIUS @ 30.0SECOND
+bsbbr_5_h:
+	PHI REPEAT_201 = {REPEAT_200,REPEAT_202}
+	PHI pcr_mix2 = {pcr_mix1,pcr_mix2}
+	if REPEAT_201[0] > 0	|	true: jump bsbbr_6_t	|	false: jump bsbbr_7_f
+bsbbr_6_t:
+	heat(pcr_mix2[0]) @ 95.0CELSIUS @ 15.0SECOND
+	heat(pcr_mix2[0]) @ 60.0CELSIUS @ 30.0SECOND
+	heat(pcr_mix2[0]) @ 72.0CELSIUS @ 30.0SECOND
+	REPEAT_202[0] = REPEAT_201[0] - 1
+bsbbr_7_f:
+	heat(pcr_mix2[0]) @ 72.0CELSIUS @ 300.0SECOND
+	exo1[0] = dispense(lambda_exonuclease)
+	digestion_mix1[0] = mix(pcr_mix2[0], exo1[0]) @ 5.0SECOND
+	heat(digestion_mix1[0]) @ 37.0CELSIUS @ 1800.0SECOND
+	heat(digestion_mix1[0]) @ 75.0CELSIUS @ 600.0SECOND
+	assay_beads1[0] = dispense(target_beads)
+	binding_mix1[0] = mix(digestion_mix1[0], assay_beads1[0]) @ 5.0SECOND
+	heat(binding_mix1[0]) @ 23.0CELSIUS @ 3600.0SECOND
+bsbbr_8_h:
+	PHI assay_washed1 = {assay_washed0,assay_washed2}
+	PHI REPEAT_41 = {REPEAT_40,REPEAT_42}
+	PHI assay_wash1 = {assay_wash0,assay_wash2}
+	if REPEAT_41[0] > 0	|	true: jump bsbbr_9_t	|	false: jump bsbbr_10_f
+bsbbr_9_t:
+	assay_wash2[0] = dispense(wash_buffer)
+	assay_washed2[0] = mix(binding_mix1[0], assay_wash2[0]) @ 5.0SECOND
+	dispose(assay_washed2[0])
+	REPEAT_42[0] = REPEAT_41[0] - 1
+bsbbr_10_f:
+	pool_signal1[0] = detect(fluorescence, binding_mix1[0]) @ 30.0SECOND
+	if pool_signal1[0] >= 50	|	true: jump bsbbif_11_t	|	false: jump bsbbif_12_f
+bsbbif_11_t:
+	dispose(binding_mix1[0])
+bsbbif_12_f:
+	dispose(binding_mix1[0])
+	jump: bsbbif_13_j
+bsbbif_13_j:
+	NOP

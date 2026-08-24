@@ -1,0 +1,54 @@
+module fluorescence
+
+manifest ecoli_cells
+manifest cacl2_buffer
+manifest cacl2_glycerol
+manifest plasmid_dna
+manifest lb_broth
+manifest kanamycin_agar
+
+instructions:
+
+// Cell Preparation (CaCl2 method): culture to early log phase (OD600 = 0.3,
+// 37C, 200 rpm), then chill on ice for 15 min
+cells = dispense 100 units of ecoli_cells
+heat cells at 37c for 180m
+heat cells at 4c for 15m
+
+// First CaCl2 exchange: resuspend pelleted cells in 0.1 M CaCl2, incubate on
+// ice for 30 min
+buffer1 = dispense 100 units of cacl2_buffer
+resuspended1 = mix cells with buffer1 for 30s
+heat resuspended1 at 4c for 30m
+
+// Second exchange: resuspend in 0.1 M CaCl2 with 15% glycerol to yield
+// chemically competent cells (final density ~1x10^10 cells/mL)
+buffer2 = dispense 100 units of cacl2_glycerol
+competent_cells = mix resuspended1 with buffer2 for 30s
+heat competent_cells at 4c for 5m
+
+// Transformation: combine competent cells with plasmid DNA (e.g., GFP/BFP/
+// RFP/mCherry reporter plasmid), pre-incubate on ice, then heat-shock on the
+// digital microfluidic chip
+dna = dispense 5 units of plasmid_dna
+transformation_mix = mix competent_cells with dna for 30s
+heat transformation_mix at 4c for 30m
+heat transformation_mix at 42c for 45s
+
+// Outgrowth/recovery in LB broth at 37C
+broth = dispense 200 units of lb_broth
+recovery = mix transformation_mix with broth for 30s
+heat recovery at 37c for 60m
+
+// Plate on kanamycin selection agar and culture to allow fluorescent
+// reporter (e.g., GFP) expression
+agar = dispense 50 units of kanamycin_agar
+plated = mix recovery with agar for 30s
+heat plated at 37c for 720m
+
+// Detect successful transformation/expression via fluorescence readout
+expression_signal = detect fluorescence on plated for 30s
+
+if (expression_signal < 50) {
+    dispose plated
+}

@@ -1,0 +1,109 @@
+module fluorescence
+
+manifest LwaCas13a
+manifest crRNA
+manifest rNTP_mix
+manifest RNase_inhibitor
+manifest T7_RNA_polymerase
+manifest PolyU_reporter
+manifest RPA_lyophilized_pellet
+manifest forward_primer
+manifest reverse_primer
+manifest reaction_buffer
+manifest MgOAc
+manifest HPV_sample
+manifest fluorinated_oil
+
+instructions:
+
+// -------------------------------------------------------
+// Step 1: Prepare Target-Included Master Mix
+// Reagents are combined WITHOUT MgOAc to prevent premature
+// RPA amplification before droplet partitioning.
+// -------------------------------------------------------
+
+buf     = dispense 17 units of reaction_buffer
+cas13a  = dispense 40 units of LwaCas13a
+crRNA_a = dispense 40 units of crRNA
+rntp    = dispense 1 units of rNTP_mix
+rnase_i = dispense 10 units of RNase_inhibitor
+t7pol   = dispense 1 units of T7_RNA_polymerase
+reporter= dispense 125 units of PolyU_reporter
+fwd     = dispense 360 units of forward_primer
+rev     = dispense 360 units of reverse_primer
+rpa_mix = dispense 1 units of RPA_lyophilized_pellet
+
+// Combine all non-MgOAc reagents into master mix
+mm_a = mix buf with cas13a
+mm_b = mix mm_a with crRNA_a
+mm_c = mix mm_b with rntp
+mm_d = mix mm_c with rnase_i
+mm_e = mix mm_d with t7pol
+mm_f = mix mm_e with reporter
+mm_g = mix mm_f with fwd
+mm_h = mix mm_g with rev
+master_mix = mix mm_h with rpa_mix
+
+// Add target sample to master mix
+sample    = dispense 2 units of HPV_sample
+target_mm = mix master_mix with sample
+
+// -------------------------------------------------------
+// Step 2: Prepare MgOAc Initiator Phase (separate)
+// MgOAc is kept apart until droplet co-encapsulation
+// to prevent premature RPA amplification.
+// -------------------------------------------------------
+
+mgoa  = dispense 10 units of MgOAc
+mg_buf = dispense 10 units of reaction_buffer
+mg_phase = mix mgoa with mg_buf
+
+// -------------------------------------------------------
+// Step 3: Droplet Microfluidic Partitioning
+// Target master mix and MgOAc phase are co-encapsulated
+// in fluorinated oil using a flow-focusing droplet
+// generator (~30 um diameter, ~1 kHz throughput).
+// MgOAc only contacts the master mix inside the droplet,
+// triggering RPA at the moment of droplet formation.
+// -------------------------------------------------------
+
+oil       = dispense 20 units of fluorinated_oil
+droplet_a = mix target_mm with mg_phase
+emulsion  = mix droplet_a with oil
+
+// -------------------------------------------------------
+// Step 4: One-Pot Isothermal Incubation at 37C
+// Inside each droplet the following sequential reactions
+// occur simultaneously:
+//   (i)  RPA amplifies the target DNA with T7 overhangs
+//   (ii) T7 RNA polymerase transcribes target ssRNA
+//   (iii) Cas13a / crRNA ternary complex performs
+//         collateral trans-cleavage of PolyU reporters
+// -------------------------------------------------------
+
+heat emulsion at 37c for 30m
+
+// -------------------------------------------------------
+// Step 5: Real-time qualitative detection checkpoint
+// Significant fluorescence signal is detectable at ~10 min;
+// positive droplet ratio saturates by ~20 min.
+// Full quantification signal plateau is reached at ~25 min.
+// -------------------------------------------------------
+
+early_signal = detect fluorescence on emulsion for 10m
+
+if (early_signal <= 0) {
+    dispose emulsion
+}
+
+// -------------------------------------------------------
+// Step 6: End-point digital fluorescence readout
+// Droplets are imaged; positive (fluorescent) droplets
+// are counted. Concentration is derived from the Poisson
+// distribution: lambda = -ln(1 - p_positive), n = lambda / V_droplet
+// Dynamic range: 0.3 cp/uL to 1,000,000 cp/uL
+// -------------------------------------------------------
+
+medica_result = detect fluorescence on emulsion for 25m
+
+dispose emulsion

@@ -1,0 +1,55 @@
+{
+  "messages": [
+    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
+    { "role": "user", "content": "ASSAY TYPE: Integrated Microfluidic SELEX (Systematic Evolution of Ligands by Exponential Enrichment) for Aptamer Isolation Using Electrophoretic Oligonucleotide Manipulation\n\nREAGENTS USED:\n  - Target-Functionalized Microbeads (IgE-functionalized magnetic or affinity microbeads for positive selection)\n  - Randomized ssDNA Library (initial pool of random oligonucleotide sequences)\n  - Wash Buffer (standard selection wash buffer to remove unbound sequences)\n  - Reverse-Primer-Functionalized Beads (capture beads used in the amplification chamber)\n  - PCR Reagents (master mix and primers for bead-based on-chip amplification)\n  - NaOH Solution (0.2 M sodium hydroxide for chemical single-strand regeneration)\n  - IgG Counter-Target Beads (used in rounds 2 and 3 for negative selection against non-specific binding)\n\nSTEPS:\n1. Affinity selection: Incubate the randomized ssDNA library with IgE-functionalized microbeads in the selection chamber at 25 C for 10 min.\n2. Washing: Perform 10 wash cycles using wash buffer to remove weakly-binding and non-binding oligonucleotides.\n3. Thermal release: Raise the chamber temperature to 57 C for 5 min to thermally release strongly bound, target-specific oligonucleotides into solution.\n4. Electrophoretic transfer: Electrophoretically transfer the released oligonucleotides through a gel-filled interconnection channel into the amplification chamber.\n5. Primer capture: Capture the transferred ssDNA on reverse-primer-functionalized beads within the amplification chamber for 10 min.\n6. On-chip PCR: Perform bead-based PCR amplification in the amplification chamber (initial denaturation at 95 C for 30 s, followed by 20 thermal cycles of 95 C for 15 s, 60 C for 30 s, and 72 C for 30 s, with a final extension at 72 C for 60 s).\n7. Chemical strand separation: Treat the PCR mix with 0.2 M NaOH solution to chemically denature the duplex and release the amplified target-binding ssDNA from its bead-immobilized complementary strand.\n8. Counter-selection: For rounds 2 and 3, perform negative selection by mixing the released ssDNA with IgG counter-target beads, followed by 3 wash cycles to remove non-specific binders.\n9. Inter-round transfer: Electrophoretically transfer the enriched, counter-selected ssDNA pool back to the selection chamber to begin the next SELEX round.\n10. Detection & Readout: Measure fluorescence signal from the eluted band to confirm successful round enrichment; if the signal meets the threshold ($\ge 50$), dispose of the verified pool or proceed." },
+    { "role": "assistant", "content": "module fluorescence\n\nmanifest target_beads\nmanifest ssdna_library\nmanifest wash_buffer\nmanifest reverse_primer_beads\nmanifest pcr_reagents\nmanifest naoh_solution\nmanifest igg_counter_target\n\ninstructions:\n\n// Selection chamber: incubate the randomized ssDNA library with\n// IgE-functionalized microbeads for affinity selection (25C, 10 min)\nbeads = dispense 10 units of target_beads\nlibrary = dispense 10 units of ssdna_library\nselection_mix = mix beads with library for 5s\nheat selection_mix at 25c for 10m\n\n// Wash buffer removes weakly-binding and non-binding oligonucleotides\nrepeat 10 times {\n    wash = dispense 10 units of wash_buffer\n    washed = mix selection_mix with wash for 5s\n    dispose washed\n}\n\n// Raise chamber temperature to thermally release strongly-bound,\n// target-specific oligonucleotides into solution\nheat selection_mix at 57c for 5m\n\n// Electrophoretic transfer of released oligonucleotides through the\n// gel-filled interconnection channel into the amplification chamber,\n// where they are captured by reverse-primer-functionalized beads\ncapture_beads = dispense 10 units of reverse_primer_beads\ncaptured_mix = mix selection_mix with capture_beads for 10m\n\n// Bead-based PCR amplification in the amplification chamber\n// (20 thermal cycles, on-chip resistive-heater temperature control)\npcr_reagent_mix = dispense 10 units of pcr_reagents\npcr_mix = mix captured_mix with pcr_reagent_mix for 5s\n\nheat pcr_mix at 95c for 30s\n\nrepeat 20 times {\n    heat pcr_mix at 95c for 15s\n    heat pcr_mix at 60c for 30s\n    heat pcr_mix at 72c for 30s\n}\n\nheat pcr_mix at 72c for 60s\n\n// Chemical denaturation with 0.2M NaOH releases the amplified\n// target-binding ssDNA from its bead-immobilized complementary strand\nnaoh = dispense 10 units of naoh_solution\nreleased_mix = mix pcr_mix with naoh for 5s\n\n// Counter selection against IgG (performed in rounds 2 and 3) removes\n// oligonucleotides that bind non-specifically to the counter target\ncounter_target = dispense 10 units of igg_counter_target\ncounter_mix = mix released_mix with counter_target for 5s\n\nrepeat 3 times {\n    counter_wash = dispense 10 units of wash_buffer\n    counter_washed = mix counter_mix with counter_wash for 5s\n    dispose counter_washed\n}\n\n// Electrophoretic transfer of the enriched, counter-selected pool back to\n// the selection chamber to begin the next SELEX round; signal represents\n// the eluted-band intensity used to confirm successful enrichment\nround_signal = detect fluorescence on counter_mix for 30s\n\nif (round_signal >= 50) {\n    dispose counter_mix\n} else {\n    dispose counter_mix\n}" }
+  ],
+  "metadata": {
+    "protocol_id": "integrated_mfselex_001",
+    "bs_file": "tests/test_cases/integrated_mfselex/integrated_mfselex.bs",
+    "protocol_name": "Integrated Microfluidic Isolation of Aptamers Using Electrophoretic Oligonucleotide Manipulation (Hybrik et al. 2016)",
+    "category": "aptamer_selection_selex_assay",
+    "chemicals": [
+      "target_beads",
+      "ssdna_library",
+      "wash_buffer",
+      "reverse_primer_beads",
+      "pcr_reagents",
+      "naoh_solution",
+      "igg_counter_target"
+    ],
+    "operations": [
+      "dispense",
+      "mix",
+      "heat",
+      "detect",
+      "repeat",
+      "if",
+      "dispose"
+    ],
+    "validation_score": 0.0,
+    "validated": false,
+    "validation_status": "pending_v2",
+    "adaptation_status": "adapted_authored",
+    "sources": [
+      { "type": "original_protocol", "title": "Integrated Microfluidic Isolation of Aptamers Using Electrophoretic Oligonucleotide Manipulation", "publisher": "Scientific Reports", "url": "https://www.nature.com/articles/srep26139", "doi": "10.1038/srep26139" }
+    ],
+    "notes": "The authored BioScript code translates the integrated microfluidic SELEX workflow described in the paper: positive selection binding of ssDNA library to IgE-functionalized target beads, wash cycles, thermal elution at 57 C, electrophoretic transfer across gel channels, reverse-primer bead capture, on-chip bead-based PCR amplification (20 cycles), chemical denaturation with NaOH, negative counter-selection against IgG beads (rounds 2/3), and fluorescence-based enrichment detection. Because BioScript has no primitives for electric-field electrophoresis or gel-channel migration, electrophoretic transfer steps are implicitly represented by sequential mix operations between chambers. The detect/if/dispose block models the final round enrichment readout.",
+    "evidence": {
+      "chemical_evidence": [
+        { "bs_chemical": "target_beads", "source_quote": "IgE-functionalized microbeads were used as the target for selection", "source_location": "Methods: Selection procedure" },
+        { "bs_chemical": "ssdna_library", "source_quote": "A randomized ssDNA library was introduced into the selection chamber", "source_location": "Methods: Selection procedure" },
+        { "bs_chemical": "igg_counter_target", "source_quote": "Counter-selection against IgG was performed in rounds 2 and 3", "source_location": "Methods: Counter-selection" }
+      ],
+      "operation_evidence": [
+        { "bs_operation": "heat selection_mix at 25c for 10m", "source_quote": "incubated the randomized ssDNA library with IgE-functionalized microbeads for affinity selection (25 C, 10 min)", "source_location": "Methods: Selection procedure" },
+        { "bs_operation": "heat selection_mix at 57c for 5m", "source_quote": "Raise chamber temperature to thermally release strongly-bound oligonucleotides at 57 C for 5 min", "source_location": "Methods: Thermal elution" },
+        { "bs_operation": "repeat 20 times { heat pcr_mix at 95c for 15s ... }", "source_quote": "Bead-based PCR amplification in the amplification chamber using 20 thermal cycles", "source_location": "Methods: On-chip PCR" }
+      ],
+      "numeric_mismatches": [
+        { "field": "electrophoretic gel-channel transfer steps", "note": "BioScript has no primitive for electric-field-driven electrophoretic migration through gel channels; these transfer steps are modeled as direct reagent mixing between compartments." }
+      ]
+    }
+  }
+}
+

@@ -1,0 +1,77 @@
+module fluorescence
+
+manifest target_beads
+manifest ssdna_library
+manifest wash_buffer
+manifest reverse_primer_beads
+manifest pcr_reagents
+manifest naoh_solution
+manifest igg_counter_target
+
+instructions:
+
+// Selection chamber: incubate the randomized ssDNA library with
+// IgE-functionalized microbeads for affinity selection (25C, 10 min)
+beads = dispense 10 units of target_beads
+library = dispense 10 units of ssdna_library
+selection_mix = mix beads with library for 5s
+heat selection_mix at 25c for 10m
+
+// Wash buffer removes weakly-binding and non-binding oligonucleotides
+repeat 10 times {
+    wash = dispense 10 units of wash_buffer
+    washed = mix selection_mix with wash for 5s
+    dispose washed
+}
+
+// Raise chamber temperature to thermally release strongly-bound,
+// target-specific oligonucleotides into solution
+heat selection_mix at 57c for 5m
+
+// Electrophoretic transfer of released oligonucleotides through the
+// gel-filled interconnection channel into the amplification chamber,
+// where they are captured by reverse-primer-functionalized beads
+capture_beads = dispense 10 units of reverse_primer_beads
+captured_mix = mix selection_mix with capture_beads for 10m
+
+// Bead-based PCR amplification in the amplification chamber
+// (20 thermal cycles, on-chip resistive-heater temperature control)
+pcr_reagent_mix = dispense 10 units of pcr_reagents
+pcr_mix = mix captured_mix with pcr_reagent_mix for 5s
+
+heat pcr_mix at 95c for 30s
+
+repeat 20 times {
+    heat pcr_mix at 95c for 15s
+    heat pcr_mix at 60c for 30s
+    heat pcr_mix at 72c for 30s
+}
+
+heat pcr_mix at 72c for 60s
+
+// Chemical denaturation with 0.2M NaOH releases the amplified
+// target-binding ssDNA from its bead-immobilized complementary strand
+naoh = dispense 10 units of naoh_solution
+released_mix = mix pcr_mix with naoh for 5s
+
+// Counter selection against IgG (performed in rounds 2 and 3) removes
+// oligonucleotides that bind non-specifically to the counter target
+counter_target = dispense 10 units of igg_counter_target
+counter_mix = mix released_mix with counter_target for 5s
+
+repeat 3 times {
+    counter_wash = dispense 10 units of wash_buffer
+    counter_washed = mix counter_mix with counter_wash for 5s
+    dispose counter_washed
+}
+
+// Electrophoretic transfer of the enriched, counter-selected pool back to
+// the selection chamber to begin the next SELEX round; signal represents
+// the eluted-band intensity used to confirm successful enrichment
+round_signal = detect fluorescence on counter_mix for 30s
+
+if (round_signal >= 50) {
+    dispose counter_mix
+} else {
+    dispose counter_mix
+}

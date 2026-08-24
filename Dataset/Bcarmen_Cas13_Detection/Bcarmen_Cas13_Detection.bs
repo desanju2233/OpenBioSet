@@ -1,0 +1,71 @@
+module fluorescence
+
+manifest sample_gdna
+manifest pcr_mastermix
+manifest primer_pool
+manifest cas13_protein
+manifest crRNA
+manifest rna_reporter
+manifest detection_buffer
+manifest fluorescent_barcode_dye
+
+instructions:
+
+// Sample processing and amplification - one-pot, multiplexed PCR
+// preamplification of the topA gene (or resistance gene) targets
+// across the bacterial species panel (Q5 Hot Start polymerase, 30 cycles,
+// 65C annealing)
+gdna = dispense 10 units of sample_gdna
+mastermix = dispense 10 units of pcr_mastermix
+primers = dispense 10 units of primer_pool
+
+pcr_mix = mix gdna with mastermix for 5s
+pcr_reaction = mix pcr_mix with primers for 5s
+
+heat pcr_reaction at 98c for 30s
+
+repeat 30 times {
+    heat pcr_reaction at 98c for 10s
+    heat pcr_reaction at 65c for 30s
+    heat pcr_reaction at 72c for 30s
+}
+
+heat pcr_reaction at 72c for 300s
+
+// Assemble the Cas13 detection set: Cas13a protein, species-specific
+// crRNA guide, quenched fluorescent RNA reporter, and nuclease assay
+// buffer (with ATP/GTP/UTP/CTP and T7 polymerase mix)
+cas13 = dispense 10 units of cas13_protein
+guide = dispense 10 units of crRNA
+reporter = dispense 10 units of rna_reporter
+buffer = dispense 10 units of detection_buffer
+
+detection_mix1 = mix cas13 with guide for 5s
+detection_mix2 = mix detection_mix1 with reporter for 5s
+detection_set = mix detection_mix2 with buffer for 5s
+
+// Barcode the amplified target sample and the detection set with distinct
+// fluorescent dyes prior to droplet pooling, so each droplet's identity
+// (target or crRNA guide) can be recovered after imaging
+sample_dye = dispense 10 units of fluorescent_barcode_dye
+detection_dye = dispense 10 units of fluorescent_barcode_dye
+
+barcoded_sample = mix pcr_reaction with sample_dye for 5s
+barcoded_detection = mix detection_set with detection_dye for 5s
+
+// Pool and merge the target droplet with its paired detection droplet in
+// a microarray well to initiate the Cas13 collateral-cleavage detection
+// reaction, then incubate at 37C
+merged_droplet = mix barcoded_sample with barcoded_detection for 5s
+
+heat merged_droplet at 37c for 180m
+
+// Image the microarray well (fluorescence microscopy or cell-phone camera)
+// and read out the reporter fluorescence signal for this target-guide pair
+carmen_signal = detect fluorescence on merged_droplet for 30s
+
+if (carmen_signal >= 50) {
+    dispose merged_droplet
+} else {
+    dispose merged_droplet
+}

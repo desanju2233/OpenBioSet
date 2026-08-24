@@ -1,0 +1,57 @@
+main:
+	beads1[0] = dispense(target_beads)
+	library1[0] = dispense(ssdna_library)
+	selection_mix1[0] = mix(beads1[0], library1[0]) @ 5.0SECOND
+	heat(selection_mix1[0]) @ 25.0CELSIUS @ 600.0SECOND
+bsbbr_2_h:
+	PHI washed1 = {washed0,washed2}
+	PHI wash1 = {wash0,wash2}
+	PHI REPEAT_101 = {REPEAT_100,REPEAT_102}
+	if REPEAT_101[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_4_f
+bsbbr_3_t:
+	wash2[0] = dispense(wash_buffer)
+	washed2[0] = mix(selection_mix1[0], wash2[0]) @ 5.0SECOND
+	dispose(washed2[0])
+	REPEAT_102[0] = REPEAT_101[0] - 1
+bsbbr_4_f:
+	heat(selection_mix1[0]) @ 57.0CELSIUS @ 300.0SECOND
+	capture_beads1[0] = dispense(reverse_primer_beads)
+	captured_mix1[0] = mix(selection_mix1[0], capture_beads1[0]) @ 600.0SECOND
+	pcr_reagent_mix1[0] = dispense(pcr_reagents)
+	pcr_mix1[0] = mix(captured_mix1[0], pcr_reagent_mix1[0]) @ 5.0SECOND
+	heat(pcr_mix1[0]) @ 95.0CELSIUS @ 30.0SECOND
+bsbbr_5_h:
+	PHI REPEAT_201 = {REPEAT_200,REPEAT_202}
+	PHI pcr_mix2 = {pcr_mix1,pcr_mix2}
+	if REPEAT_201[0] > 0	|	true: jump bsbbr_6_t	|	false: jump bsbbr_7_f
+bsbbr_6_t:
+	heat(pcr_mix2[0]) @ 95.0CELSIUS @ 15.0SECOND
+	heat(pcr_mix2[0]) @ 60.0CELSIUS @ 30.0SECOND
+	heat(pcr_mix2[0]) @ 72.0CELSIUS @ 30.0SECOND
+	REPEAT_202[0] = REPEAT_201[0] - 1
+bsbbr_7_f:
+	heat(pcr_mix2[0]) @ 72.0CELSIUS @ 60.0SECOND
+	naoh1[0] = dispense(naoh_solution)
+	released_mix1[0] = mix(pcr_mix2[0], naoh1[0]) @ 5.0SECOND
+	counter_target1[0] = dispense(igg_counter_target)
+	counter_mix1[0] = mix(released_mix1[0], counter_target1[0]) @ 5.0SECOND
+bsbbr_8_h:
+	PHI REPEAT_31 = {REPEAT_30,REPEAT_32}
+	PHI counter_wash1 = {counter_wash0,counter_wash2}
+	PHI counter_washed1 = {counter_washed0,counter_washed2}
+	if REPEAT_31[0] > 0	|	true: jump bsbbr_9_t	|	false: jump bsbbr_10_f
+bsbbr_9_t:
+	counter_wash2[0] = dispense(wash_buffer)
+	counter_washed2[0] = mix(counter_mix1[0], counter_wash2[0]) @ 5.0SECOND
+	dispose(counter_washed2[0])
+	REPEAT_32[0] = REPEAT_31[0] - 1
+bsbbr_10_f:
+	round_signal1[0] = detect(fluorescence, counter_mix1[0]) @ 30.0SECOND
+	if round_signal1[0] >= 50	|	true: jump bsbbif_11_t	|	false: jump bsbbif_12_f
+bsbbif_11_t:
+	dispose(counter_mix1[0])
+bsbbif_12_f:
+	dispose(counter_mix1[0])
+	jump: bsbbif_13_j
+bsbbif_13_j:
+	NOP

@@ -1,0 +1,46 @@
+main:
+bsbbr_2_h:
+	PHI REPEAT_1001 = {REPEAT_1000,REPEAT_1002}
+	PHI wash21 = {wash20,wash22}
+	PHI temp21 = {temp20,temp22}
+	PHI temp11 = {temp10,temp12}
+	PHI wash11 = {wash10,wash12}
+	PHI sample1 = {sample0,sample2}
+	PHI detab1 = {detab0,detab2}
+	PHI gmcsf_beads1 = {gmcsf_beads0,gmcsf_beads2}
+	PHI substrate1 = {substrate0,substrate2}
+	PHI signal1 = {signal0,signal2}
+	PHI il6_beads1 = {il6_beads0,il6_beads2}
+	PHI beads_labeled1 = {beads_labeled0,beads_labeled2}
+	PHI a1 = {a0,a2}
+	PHI beads1 = {beads0,beads2}
+	PHI droplet1 = {droplet0,droplet3}
+	if REPEAT_1001[0] > 0	|	true: jump bsbbr_3_t	|	false: jump bsbbr_6_f
+bsbbr_3_t:
+	sample2[0] = dispense(Serum)
+	gmcsf_beads2[0] = dispense(GMCSFBeads)
+	il6_beads2[0] = dispense(IL6Beads)
+	a2[0] = mix(sample2[0], gmcsf_beads2[0])
+	beads2[0] = mix(a2[0], il6_beads2[0]) @ 3600.0SECOND
+	wash12[0] = dispense(WashBuffer)
+	temp12[0] = mix(beads2[0], wash12[0]) @ 10.0SECOND
+	dispose(temp12[0])
+	detab2[0] = dispense(DetectionAntibody)
+	beads_labeled2[0] = mix(beads2[0], detab2[0]) @ 1800.0SECOND
+	wash22[0] = dispense(WashBuffer)
+	temp22[0] = mix(beads_labeled2[0], wash22[0]) @ 10.0SECOND
+	dispose(temp22[0])
+	substrate2[0] = dispense(ELISASubstrate)
+	droplet2[0] = mix(beads_labeled2[0], substrate2[0]) @ 5.0SECOND
+	heat(droplet2[0]) @ 25.0CELSIUS @ 192.0SECOND
+	signal2[0] = detect(fluorescence, droplet2[0]) @ 10.0SECOND
+	if signal2[0] >= 1	|	true: jump bsbbif_4_t	|	false: jump bsbbif_5_f
+bsbbif_4_t:
+	dispose(droplet2[0])
+bsbbif_5_f:
+	PHI droplet3 = {droplet2,droplet}
+	dispose(droplet3[0])
+	REPEAT_1002[0] = REPEAT_1001[0] - 1
+	jump: bsbbr_2_h
+bsbbr_6_f:
+	NOP

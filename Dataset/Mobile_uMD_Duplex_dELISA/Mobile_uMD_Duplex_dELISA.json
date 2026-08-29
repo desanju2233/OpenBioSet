@@ -1,64 +1,215 @@
 {
+  "_schema": "biogpt-v4",
   "messages": [
-    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
-    { "role": "user", "content": "ASSAY TYPE: Mobile Microdroplet Megascale Detector (uMD) Platform for Rapid, Sub-Picogram-per-Milliliter, Multiplexed Digital Droplet ELISA (dELISA) of Proteins\n\nREAGENTS USED:\n  - Serum Sample (human serum or FBS spiked with target proteins, input to the microbead processor)\n  - GM-CSF Antibody-Coated Beads (color-coded microbeads, d = 5.4 um, functionalized with anti-GM-CSF capture antibody)\n  - IL-6 Antibody-Coated Beads (color-coded microbeads, d = 4.5 um, functionalized with anti-IL-6 capture antibody)\n  - Wash Buffer (T20 buffer, used between each labelling step to remove unbound reagent from the immobilized beads)\n  - Detection Antibody (biotinylated/enzyme-linked detection antibody solution, 0.7 nM in T20 buffer, forms the sandwich immunocomplex)\n  - ELISA Substrate (QuantaRed Enhanced Chemifluorescent HRP Substrate, mixed with released beads before droplet encapsulation)\n\nSTEPS:\n1. Bead capture incubation: Color-coded GM-CSF and IL-6 antibody-coated beads are mixed with the serum sample and incubated together for 60 minutes so their target proteins are captured from the sample.\n2. Bead immobilization and first wash: The beads are immobilized on a semipermeable membrane in the microbead processor and washed with T20 buffer to remove unbound serum components.\n3. Detection antibody labelling: 0.1 mL of 0.7 nM detection antibody in T20 buffer is delivered to the immobilized beads and incubated for 30 minutes, forming the sandwich immunocomplex on beads that captured a target protein.\n4. Second wash and release: The beads are washed again with T20 buffer to remove unbound detection antibody, then released from the membrane by reversing the flow.\n5. Droplet encapsulation: The released beads are mixed with the ELISA (HRP) substrate in a herringbone mixing channel and encapsulated, one bead per droplet on average, into water-in-oil droplets using a parallelized (100-generator) Millipede-geometry droplet generator.\n6. Enzymatic amplification (delay line): The droplets pass through an on-chip spiral delay-line channel for approximately 3.2 minutes, allowing the HRP enzyme on positive beads to amplify the fluorescence signal to a detectable level.\n7. Fluorescence detection: Each droplet is optically interrogated using time domain-encoded, mobile-phone-camera-based fluorescence detection to determine (i) whether it contains a bead and its color code (GM-CSF or IL-6 target), and (ii) whether it fluoresces red, indicating capture of a target protein molecule.\n8. Digital classification and disposal: Each droplet is scored as positive or negative for its target based on the red fluorescence signal relative to a detection threshold, tabulated as active-enzymes-per-bead counts for each target, and then discarded.\n\nINTERPRETATION: The assay is digital: each droplet reports a binary positive/negative signal for its bead-associated target, and the fraction of red-fluorescing beads (active enzymes per bead, AEB) is converted to protein concentration via a calibration curve. The platform achieved limits of detection of 0.0045 pg/mL (320 aM) for GM-CSF and 0.0070 pg/mL (350 aM) for IL-6 in PBS, matched the sensitivity of the laboratory gold-standard Simoa digital ELISA system (R^2 = 0.95 in spiked FBS), showed negligible cross-talk between the GM-CSF and IL-6 channels in duplex measurements (R^2 > 0.99 for both targets against spiked concentrations), and measured endogenous GM-CSF and IL-6 in human serum from 14 subjects with excellent agreement to Simoa (R^2 = 0.96), supporting its use as a low-cost, mobile, high-throughput point-of-care platform for ultrasensitive multiplexed protein biomarker detection." },
-    { "role": "assistant", "content": "module fluorescence\n\nmanifest Serum\nmanifest GMCSFBeads\nmanifest IL6Beads\nmanifest WashBuffer\nmanifest DetectionAntibody\nmanifest ELISASubstrate\n\ninstructions:\n\nrepeat 100 times {\n    sample = dispense 1 units of Serum\n    gmcsf_beads = dispense 1 units of GMCSFBeads\n    il6_beads = dispense 1 units of IL6Beads\n\n    a = mix sample with gmcsf_beads\n    beads = mix a with il6_beads for 60m\n\n    wash1 = dispense 1 units of WashBuffer\n    temp1 = mix beads with wash1 for 10s\n    dispose temp1\n\n    detab = dispense 1 units of DetectionAntibody\n    beads_labeled = mix beads with detab for 30m\n\n    wash2 = dispense 1 units of WashBuffer\n    temp2 = mix beads_labeled with wash2 for 10s\n    dispose temp2\n\n    substrate = dispense 1 units of ELISASubstrate\n    droplet = mix beads_labeled with substrate for 5s\n\n    heat droplet at 25c for 192s\n\n    signal = detect fluorescence on droplet for 10s\n\n    if (signal >= 1) {\n        dispose droplet\n    }\n\n    dispose droplet\n}" }
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "Source link: https://www.pnas.org/doi/epdf/10.1073/pnas.1814110116\nPaper DOI: https://doi.org/10.1073/pnas.1814110116\n\nProtocol details:\n\nASSAY TYPE: Mobile Microdroplet Megascale Detector (µMD) Platform for Rapid, Sub-Picogram-per-Milliliter, Multiplexed Digital Droplet ELISA (dELISA) of Proteins\n\nREAGENTS USED:\n  - Serum Sample (human serum or FBS spiked with target proteins, input to the microbead processor)\n  - GM-CSF Antibody-Coated Beads (color-coded microbeads, d = 5.4 um, functionalized with anti-GM-CSF capture antibody)\n  - IL-6 Antibody-Coated Beads (color-coded microbeads, d = 4.5 um, functionalized with anti-IL-6 capture antibody)\n  - Wash Buffer (T20 buffer, used between each labelling step to remove unbound reagent from the immobilized beads)\n  - Detection Antibody (biotinylated/enzyme-linked detection antibody solution, 0.7 nM in T20 buffer, forms the sandwich immunocomplex)\n  - ELISA Substrate (QuantaRed Enhanced Chemifluorescent HRP Substrate, mixed with released beads before droplet encapsulation)\n\nSTEPS:\n1. Bead capture incubation: Color-coded GM-CSF and IL-6 antibody-coated beads are mixed with the serum sample and incubated together for 60 minutes so their target proteins are captured from the sample.\n2. Bead immobilization and first wash: The beads are immobilized on a semipermeable membrane in the microbead processor and washed with T20 buffer to remove unbound serum components.\n3. Detection antibody labelling: 0.1 mL of 0.7 nM detection antibody in T20 buffer is delivered to the immobilized beads and incubated for 30 minutes, forming the sandwich immunocomplex on beads that captured a target protein.\n4. Second wash and release: The beads are washed again with T20 buffer to remove unbound detection antibody, then released from the membrane by reversing the flow.\n5. Droplet encapsulation: The released beads are mixed with the ELISA (HRP) substrate in a herringbone mixing channel and encapsulated, one bead per droplet on average, into water-in-oil droplets using a parallelized (100-generator) Millipede-geometry droplet generator.\n6. Enzymatic amplification (delay line): The droplets pass through an on-chip spiral delay-line channel for approximately 3.2 minutes, allowing the HRP enzyme on positive beads to amplify the fluorescence signal to a detectable level.\n7. Fluorescence detection: Each droplet is optically interrogated using time domain-encoded, mobile-phone-camera-based fluorescence detection to determine (i) whether it contains a bead and its color code (GM-CSF or IL-6 target), and (ii) whether it fluoresces red, indicating capture of a target protein molecule.\n8. Digital classification and disposal: Each droplet is scored as positive or negative for its target based on the red fluorescence signal relative to a detection threshold, tabulated as active-enzymes-per-bead counts for each target, and then discarded.\n\nINTERPRETATION: The assay is digital: each droplet reports a binary positive/negative signal for its bead-associated target, and the fraction of red-fluorescing beads (active enzymes per bead, AEB) is converted to protein concentration via a calibration curve. The platform achieved limits of detection of 0.0045 pg/mL (320 aM) for GM-CSF and 0.0070 pg/mL (350 aM) for IL-6 in PBS, matched the sensitivity of the laboratory gold-standard Simoa digital ELISA system (R^2 = 0.95 in spiked FBS), showed negligible cross-talk between the GM-CSF and IL-6 channels in duplex measurements (R^2 > 0.99 for both targets against spiked concentrations), and measured endogenous GM-CSF and IL-6 in human serum from 14 subjects with excellent agreement to Simoa (R^2 = 0.96), supporting its use as a low-cost, mobile, high-throughput point-of-care platform for ultrasensitive multiplexed protein biomarker detection.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest Serum\nmanifest GMCSFBeads\nmanifest IL6Beads\nmanifest WashBuffer\nmanifest DetectionAntibody\nmanifest ELISASubstrate\n\ninstructions:\n\nrepeat 100 times {\n    sample = dispense 1 units of Serum\n    gmcsf_beads = dispense 1 units of GMCSFBeads\n    il6_beads = dispense 1 units of IL6Beads\n\n    a = mix sample with gmcsf_beads\n    beads = mix a with il6_beads for 60m\n\n    wash1 = dispense 1 units of WashBuffer\n    temp1 = mix beads with wash1 for 10s\n    dispose temp1\n\n    detab = dispense 1 units of DetectionAntibody\n    beads_labeled = mix beads with detab for 30m\n\n    wash2 = dispense 1 units of WashBuffer\n    temp2 = mix beads_labeled with wash2 for 10s\n    dispose temp2\n\n    substrate = dispense 1 units of ELISASubstrate\n    droplet = mix beads_labeled with substrate for 5s\n\n    heat droplet at 25c for 192s\n\n    signal = detect fluorescence on droplet for 10s\n\n    if (signal >= 1) {\n        dispose droplet\n    }\n\n    dispose droplet\n}\n"
+    }
   ],
   "metadata": {
-    "protocol_id": "dmf_mobile_umd_duplex_delisa_001",
-    "bs_file": "tests/test_cases/mobile_umd_duplex_delisa/mobile_umd_duplex_delisa.bs",
-    "protocol_name": "Mobile Platform for Rapid Sub-Picogram-per-Milliliter, Multiplexed, Digital Droplet Detection of Proteins (Yelleswarapu, Buser, Haber, Baron, Inapuri & Issadore, PNAS 2019)",
-    "category": "digital_droplet_immunoassay",
-    "chemicals": [
-      "Serum",
-      "GMCSFBeads",
-      "IL6Beads",
-      "WashBuffer",
-      "DetectionAntibody",
-      "ELISASubstrate"
-    ],
-    "operations": [
-      "dispense",
-      "mix",
-      "heat",
-      "detect",
-      "repeat",
-      "if",
-      "dispose"
-    ],
-    "validation_score": 0.0,
-    "validated": false,
-    "validation_status": "pending_v2",
-    "adaptation_status": "adapted_authored",
-    "sources": [
-      { "type": "original_protocol", "title": "Mobile platform for rapid sub-picogram-per-milliliter, multiplexed, digital droplet detection of proteins", "publisher": "Proceedings of the National Academy of Sciences (PNAS)", "url": "https://www.pnas.org/doi/epdf/10.1073/pnas.1814110116", "doi": "10.1073/pnas.1814110116" }
-      ,
-      { "type": "note", "title": "Author list taken from the PNAS masthead as provided in the uploaded PDF; not independently re-confirmed against a secondary source", "publisher": "N/A", "url": "N/A", "doi": "N/A" }
-    ],
-    "notes": "The authored BioScript code is a direct translation of the paper's integrated uMD workflow (Fig. 2A): (i) bead-processor capture of GM-CSF and IL6 antibody-coated beads with serum sample (60 min), (ii) T20 wash, (iii) detection-antibody sandwich labelling (30 min), (iv) second T20 wash and bead release, (v) mixing released beads with HRP substrate and droplet encapsulation, (vi) a 3.2-minute delay-line incubation for enzymatic fluorescence amplification, and (vii) fluorescence detection with a positive/negative threshold classification before disposal. BioScript has no primitive for a semipermeable-membrane bead-immobilization/wash unit distinct from droplet mixing, so each wash step is modeled as a mix of the bead complex with fresh WashBuffer into a disposed temporary variable (removing unbound reagent) while the underlying bead-complex variable is carried forward unchanged, consistent with the wash-step modeling used in the cortisol droplet ELISA and DBS translations. Because BioScript's grammar exposes only a 'detect fluorescence' primitive, it is used directly here, matching the paper's actual time domain-encoded fluorescence readout. The outer 'repeat 100 times' represents the population of parallel bead-containing droplets read out digitally per sample (the paper's platform processes up to ~10 million droplets per run across 120 parallel detection channels); BioScript has no primitive for true massively parallel droplet generation/detection, so this is approximated as 100 sequential single-droplet trials.",
+    "identity": {
+      "protocol_id": "dmf_mobile_umd_duplex_delisa_001",
+      "protocol_name": "Mobile Platform for Rapid Sub-Picogram-per-Milliliter, Multiplexed, Digital Droplet Detection of Proteins (Yelleswarapu, Buser, Haber, Baron, Inapuri & Issadore, PNAS 2019)",
+      "category": "nucleic_acid_amplification",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Mobile Microdroplet Megascale Detector (µMD) Platform for Rapid, Sub-Picogram-per-Milliliter, Multiplexed Digital Droplet ELISA (dELISA) of Proteins",
+      "publisher": null,
+      "doi": "10.1073/pnas.1814110116",
+      "url": "https://www.pnas.org/doi/epdf/10.1073/pnas.1814110116",
+      "platform": "Microwell Plate Reader"
+    },
+    "bioscript": {
+      "manifests": [
+        "Serum",
+        "GMCSFBeads",
+        "IL6Beads",
+        "WashBuffer",
+        "DetectionAntibody",
+        "ELISASubstrate"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "repeat",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": true,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 19
+      }
+    },
+    "cfg": {
+      "basic_blocks": [
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbr_2_h",
+          "type": "sequential"
+        },
+        {
+          "id": "3",
+          "label": "3",
+          "type": "sequential"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "6",
+          "label": "6",
+          "type": "terminal"
+        }
+      ],
+      "edges": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "2",
+          "3"
+        ],
+        [
+          "2",
+          "6"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "3",
+          "5"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "5",
+          "2"
+        ]
+      ]
+    },
+    "ir": {
+      "content": "main:\nbsbbr_2_h:\n\tPHI REPEAT_1001 = {REPEAT_1000,REPEAT_1002}\n\tPHI wash21 = {wash20,wash22}\n\tPHI temp21 = {temp20,temp22}\n\tPHI temp11 = {temp10,temp12}\n\tPHI wash11 = {wash10,wash12}\n\tPHI sample1 = {sample0,sample2}\n\tPHI detab1 = {detab0,detab2}\n\tPHI gmcsf_beads1 = {gmcsf_beads0,gmcsf_beads2}\n\tPHI substrate1 = {substrate0,substrate2}\n\tPHI signal1 = {signal0,signal2}\n\tPHI il6_beads1 = {il6_beads0,il6_beads2}\n\tPHI beads_labeled1 = {beads_labeled0,beads_labeled2}\n\tPHI a1 = {a0,a2}\n\tPHI beads1 = {beads0,beads2}\n\tPHI droplet1 = {droplet0,droplet3}\n\tif REPEAT_1001[0] > 0\t|\ttrue: jump bsbbr_3_t\t|\tfalse: jump bsbbr_6_f\nbsbbr_3_t:\n\tsample2[0] = dispense(Serum)\n\tgmcsf_beads2[0] = dispense(GMCSFBeads)\n\til6_beads2[0] = dispense(IL6Beads)\n\ta2[0] = mix(sample2[0], gmcsf_beads2[0])\n\tbeads2[0] = mix(a2[0], il6_beads2[0]) @ 3600.0SECOND\n\twash12[0] = dispense(WashBuffer)\n\ttemp12[0] = mix(beads2[0], wash12[0]) @ 10.0SECOND\n\tdispose(temp12[0])\n\tdetab2[0] = dispense(DetectionAntibody)\n\tbeads_labeled2[0] = mix(beads2[0], detab2[0]) @ 1800.0SECOND\n\twash22[0] = dispense(WashBuffer)\n\ttemp22[0] = mix(beads_labeled2[0], wash22[0]) @ 10.0SECOND\n\tdispose(temp22[0])\n\tsubstrate2[0] = dispense(ELISASubstrate)\n\tdroplet2[0] = mix(beads_labeled2[0], substrate2[0]) @ 5.0SECOND\n\theat(droplet2[0]) @ 25.0CELSIUS @ 192.0SECOND\n\tsignal2[0] = detect(fluorescence, droplet2[0]) @ 10.0SECOND\n\tif signal2[0] >= 1\t|\ttrue: jump bsbbif_4_t\t|\tfalse: jump bsbbif_5_f\nbsbbif_4_t:\n\tdispose(droplet2[0])\nbsbbif_5_f:\n\tPHI droplet3 = {droplet2,droplet}\n\tdispose(droplet3[0])\n\tREPEAT_1002[0] = REPEAT_1001[0] - 1\n\tjump: bsbbr_2_h\nbsbbr_6_f:\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
     "evidence": {
       "chemical_evidence": [
-        { "bs_chemical": "Serum", "source_quote": "we first measured IL6 and GM-CSF in PBS, complex media (FBS), and human serum", "source_location": "Ultrasensitive, Duplex Protein Detection in Complex Media" },
-        { "bs_chemical": "GMCSFBeads", "source_quote": "One of the populations of color-coded microbeads (d = 5.4 um ...) is functionalized with antibody for GM-CSF (MAB2172; R&D)", "source_location": "Results and Discussion: uMD Design" },
-        { "bs_chemical": "IL6Beads", "source_quote": "The other population of beads (d = 4.5 um ...) is functionalized with antibody for IL6 (MAB206; R&D)", "source_location": "Results and Discussion: uMD Design" },
-        { "bs_chemical": "WashBuffer", "source_quote": "the beads are washed with 1 mL of T20 Buffer at 10 mL/h", "source_location": "Results and Discussion: uMD Design" },
-        { "bs_chemical": "DetectionAntibody", "source_quote": "incubated with 0.1 mL of 0.7 nM detection antibody (BAF206, BAM215; R&D) in T20 buffer for 30 min", "source_location": "Results and Discussion: uMD Design" },
-        { "bs_chemical": "ELISASubstrate", "source_quote": "the released microbeads are mixed with the ELISA substrate (QuantaRed Enhanced Chemifluorescent HRP Substrate; Thermo)", "source_location": "Results and Discussion: uMD Design" }
+        {
+          "bs_chemical": "Serum",
+          "source_quote": "we first measured IL6 and GM-CSF in PBS, complex media (FBS), and human serum",
+          "source_location": "Ultrasensitive, Duplex Protein Detection in Complex Media"
+        },
+        {
+          "bs_chemical": "GMCSFBeads",
+          "source_quote": "One of the populations of color-coded microbeads (d = 5.4 um ...) is functionalized with antibody for GM-CSF (MAB2172; R&D)",
+          "source_location": "Results and Discussion: uMD Design"
+        },
+        {
+          "bs_chemical": "IL6Beads",
+          "source_quote": "The other population of beads (d = 4.5 um ...) is functionalized with antibody for IL6 (MAB206; R&D)",
+          "source_location": "Results and Discussion: uMD Design"
+        },
+        {
+          "bs_chemical": "WashBuffer",
+          "source_quote": "the beads are washed with 1 mL of T20 Buffer at 10 mL/h",
+          "source_location": "Results and Discussion: uMD Design"
+        },
+        {
+          "bs_chemical": "DetectionAntibody",
+          "source_quote": "incubated with 0.1 mL of 0.7 nM detection antibody (BAF206, BAM215; R&D) in T20 buffer for 30 min",
+          "source_location": "Results and Discussion: uMD Design"
+        },
+        {
+          "bs_chemical": "ELISASubstrate",
+          "source_quote": "the released microbeads are mixed with the ELISA substrate (QuantaRed Enhanced Chemifluorescent HRP Substrate; Thermo)",
+          "source_location": "Results and Discussion: uMD Design"
+        }
       ],
       "operation_evidence": [
-        { "bs_operation": "beads = mix a with il6_beads for 60m", "source_quote": "The beads are first incubated with the sample for 60 min, and then immobilized on the membrane", "source_location": "Results and Discussion: uMD Design" },
-        { "bs_operation": "beads_labeled = mix beads with detab for 30m", "source_quote": "incubated with 0.1 mL of 0.7 nM detection antibody ... in T20 buffer for 30 min", "source_location": "Results and Discussion: uMD Design" },
-        { "bs_operation": "heat droplet at 25c for 192s", "source_quote": "it takes droplets 3.2 min to traverse the entire channel, allowing the enzymes time to generate a measurable fluorescence signal", "source_location": "Downstream of the microbead processor / Fig. 2 legend" },
-        { "bs_operation": "signal = detect fluorescence on droplet for 10s", "source_quote": "the droplets' fluorescence are rapidly detected using time domain-encoded optofluidics", "source_location": "Results and Discussion: uMD Design" },
-        { "bs_operation": "repeat 100 times { ... }", "source_quote": "has a total droplet processing time of 10 min for 10 million droplets", "source_location": "Introduction" }
+        {
+          "bs_operation": "beads = mix a with il6_beads for 60m",
+          "source_quote": "The beads are first incubated with the sample for 60 min, and then immobilized on the membrane",
+          "source_location": "Results and Discussion: uMD Design"
+        },
+        {
+          "bs_operation": "beads_labeled = mix beads with detab for 30m",
+          "source_quote": "incubated with 0.1 mL of 0.7 nM detection antibody ... in T20 buffer for 30 min",
+          "source_location": "Results and Discussion: uMD Design"
+        },
+        {
+          "bs_operation": "heat droplet at 25c for 192s",
+          "source_quote": "it takes droplets 3.2 min to traverse the entire channel, allowing the enzymes time to generate a measurable fluorescence signal",
+          "source_location": "Downstream of the microbead processor / Fig. 2 legend"
+        },
+        {
+          "bs_operation": "signal = detect fluorescence on droplet for 10s",
+          "source_quote": "the droplets' fluorescence are rapidly detected using time domain-encoded optofluidics",
+          "source_location": "Results and Discussion: uMD Design"
+        },
+        {
+          "bs_operation": "repeat 100 times { ... }",
+          "source_quote": "has a total droplet processing time of 10 min for 10 million droplets",
+          "source_location": "Introduction"
+        }
       ],
       "numeric_mismatches": [
-        { "field": "repeat 100 times (single droplet per iteration)", "note": "The paper processes up to 10 million droplets per sample in parallel across 100 droplet generators and 120 detection channels at throughputs of ~10^5-10^6 droplets/s. BioScript has no primitive for parallel bulk droplet generation/detection, so this is approximated as 100 sequential single-droplet/single-bead trials." },
-        { "field": "wash modeled as mix(beads, WashBuffer)/dispose rather than membrane immobilization", "note": "The paper's wash steps occur while beads are physically immobilized on a semipermeable polycarbonate membrane, with wash buffer flowed past at a controlled rate (10 mL/h) rather than mixed directly with the bead suspension. BioScript has no membrane-immobilization primitive, so this is approximated as a direct mix/dispose of the bead-complex variable with fresh wash buffer." },
-        { "field": "signal >= 1 threshold", "note": "No single literal numeric fluorescence-intensity threshold is stated in the paper for droplet positivity; the paper instead reports the detection algorithm as a correlation-based peak detection on time domain-encoded signals (Fig. 3) and reports outcomes as active-enzymes-per-bead (AEB) rates. The 'signal >= 1' condition is a stand-in for a generic positive/negative classification, not a reported cutoff value." },
-        { "field": "GMCSFBeads and IL6Beads processed together in one mix chain rather than as independently gated/color-coded channels", "note": "In the paper the two bead populations remain distinguishable throughout by their distinct fluorescent color codes (470/490 nm vs 370/410 nm) and are computationally separated during image analysis (Fig. 3B). BioScript has no color/channel-tagging primitive, so both bead types are combined into a single 'beads' variable without preserving per-bead-type identity." },
-        { "field": "time domain-encoded MLS decoding, correlation-based phase/velocity detection algorithm (Fig. 3), Millipede step-emulsification droplet generator geometry, cloud/mobile-phone data pipeline, Simoa head-to-head benchmarking (Figs. 5-6)", "note": "Not modeled. These are optical/computational signal-processing algorithms, device-fabrication details, or separate benchmarking sub-experiments run alongside the core capture/wash/label/encapsulate/detect cycle, not part of the reagent-handling protocol itself, and fall outside the scope of this translation." }
+        {
+          "field": "repeat 100 times (single droplet per iteration)",
+          "note": "The paper processes up to 10 million droplets per sample in parallel across 100 droplet generators and 120 detection channels at throughputs of ~10^5-10^6 droplets/s. BioScript has no primitive for parallel bulk droplet generation/detection, so this is approximated as 100 sequential single-droplet/single-bead trials."
+        },
+        {
+          "field": "wash modeled as mix(beads, WashBuffer)/dispose rather than membrane immobilization",
+          "note": "The paper's wash steps occur while beads are physically immobilized on a semipermeable polycarbonate membrane, with wash buffer flowed past at a controlled rate (10 mL/h) rather than mixed directly with the bead suspension. BioScript has no membrane-immobilization primitive, so this is approximated as a direct mix/dispose of the bead-complex variable with fresh wash buffer."
+        },
+        {
+          "field": "signal >= 1 threshold",
+          "note": "No single literal numeric fluorescence-intensity threshold is stated in the paper for droplet positivity; the paper instead reports the detection algorithm as a correlation-based peak detection on time domain-encoded signals (Fig. 3) and reports outcomes as active-enzymes-per-bead (AEB) rates. The 'signal >= 1' condition is a stand-in for a generic positive/negative classification, not a reported cutoff value."
+        },
+        {
+          "field": "GMCSFBeads and IL6Beads processed together in one mix chain rather than as independently gated/color-coded channels",
+          "note": "In the paper the two bead populations remain distinguishable throughout by their distinct fluorescent color codes (470/490 nm vs 370/410 nm) and are computationally separated during image analysis (Fig. 3B). BioScript has no color/channel-tagging primitive, so both bead types are combined into a single 'beads' variable without preserving per-bead-type identity."
+        },
+        {
+          "field": "time domain-encoded MLS decoding, correlation-based phase/velocity detection algorithm (Fig. 3), Millipede step-emulsification droplet generator geometry, cloud/mobile-phone data pipeline, Simoa head-to-head benchmarking (Figs. 5-6)",
+          "note": "Not modeled. These are optical/computational signal-processing algorithms, device-fabrication details, or separate benchmarking sub-experiments run alongside the core capture/wash/label/encapsulate/detect cycle, not part of the reagent-handling protocol itself, and fall outside the scope of this translation."
+        }
       ]
-    }
+    },
+    "notes": "This protocol details Mobile Microdroplet Megascale Detector (µMD) Platform for Rapid, Sub-Picogram-per-Milliliter, Multiplexed Digital Droplet ELISA (dELISA) of Proteins. The assay is performed on a Microwell Plate Reader platform. It achieves a reported detection limit of the laboratory gold-standard Simoa digital ELISA system (R^2 = 0."
   }
 }

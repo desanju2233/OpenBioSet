@@ -1,491 +1,240 @@
 {
-  "protocol": {
-    "title": "A Versatile Microfluidic Device for Automating Synthetic Biology",
-    "source": "ACS Synthetic Biology 2015, 4, 1151-1164",
-    "doi": "10.1021/acssynbio.5b00062",
-    "platform": "Hybrid DMF (digital microfluidics + droplet-in-channel microfluidics)",
-    "organisms": ["Escherichia coli DH5alpha", "Saccharomyces cerevisiae CEN.PK"],
-    "objective": "On-chip Golden Gate, Gibson, and Yeast (TAR cloning) DNA assembly with integrated region-specific temperature control and on-chip electroporation transformation; 16 combinatorial plasmid variants (4 Promoter x 4 BCD) per assembly method",
-
-    "device": {
-      "dimensions_mm": "75 x 25",
-      "functional_regions": [
-        "DNA assembly region (DMF, 76 electrodes)",
-        "Queuing and incubation region (serpentine PDMS channel, 1.5 mm wide, stores 16 droplets)",
-        "Transformation region (electroporation microelectrodes)"
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "PROTOCOL DESCRIPTION\n====================\n\nTitle        : A Versatile Microfluidic Device for Automating Synthetic Biology\nSource Link  : https://escholarship.org/content/qt07q6b4f6/qt07q6b4f6.pdf\nPaper DOI    : https://doi.org/10.1021/acssynbio.5b00062\nJournal      : ACS Synthetic Biology, 2015, Vol. 4, pp. 1151-1164\nPlatform     : Hybrid DMF (digital microfluidics + droplet-in-channel microfluidics) on EWOD/electrode array\n\n\nOVERVIEW\n--------\nThis protocol describes a hybrid microfluidic platform for automating the synthetic biology\nbuild-and-test cycle. The device integrates a digital microfluidic (DMF) bottom plate (76\npatterned gold/chromium electrodes on glass, 7 um SU-8 dielectric, Aquapel hydrophobic\ncoating) with a PDMS serpentine incubation channel and an on-chip electroporation region.\nThe three functional regions -- DNA assembly (DMF), queuing and incubation (channel), and\ntransformation (electroporation electrodes) -- are integrated on a single 75 x 25 mm chip.\n\nThree DNA assembly methods are implemented and validated:\n  1. Golden Gate assembly (25 C, 10 min; T4 DNA ligase; Type IIS BsaI restriction)\n  2. Gibson assembly (50 C, 15 min; 2x Gibson master mix)\n  3. Yeast/TAR cloning assembly (25 C, 10 min; no additional reagent; in vivo assembly)\n\nFor each method, 16 combinatorial plasmid variants (4 Promoter variants x 4 BCD-gfp variants)\nare assembled, transferred into the incubation channel, and electroporated into E. coli DH5alpha\n(or S. cerevisiae CEN.PK for yeast assembly) on-chip. Each step uses ~0.2 uL dispensed\nsubdroplets from 1.5 uL reservoir droplets (10x lower total volume than comparable platforms).\n\nCross-contamination between the 16 sequential reactions is prevented by Pluronic F-127\n(0.05% w/v) surfactant additive in HFE 7500 oil -- the first application of this strategy\nto on-chip DNA assembly -- eliminating the need for additional wash reservoirs or steps.\n\nThe BioScript file encodes the Golden Gate assembly arm (representative primary method;\nfull 16-plasmid sequencing panel shown in paper Fig 6) for the canonical pProm1_BCD1-gfp\nplasmid (~3070 bp). Gibson and Yeast arms would differ only in the ligase manifest and\nheat() parameters and should be encoded in separate .bs files.\n\n\nDEVICE ARCHITECTURE\n-------------------\nDimensions : 75 x 25 mm (standard microscope slide form factor)\n\nDMF bottom plate:\n  Substrate     : Gold- and chromium-coated glass (Telic)\n  Electrodes    : 76 total; interelectrode gap 20 um\n    - 12 reservoir electrodes (3.6 x 3.0 mm); 1.5 uL droplet capacity\n    - 12 narrow electrodes (2.5 x 1.0 mm); 100% dispensing fidelity\n    - 8 mixing electrodes (1.2 x 1.2 mm)\n    - 3 digital-to-channel electrodes (1.75 x 1.75 mm)\n    - 41 actuation electrodes (1.2 x 1.2 mm)\n  Dielectric    : SU-8-5, 7 um thick (spin-coated)\n  Hydrophobic   : Aquapel (0.2 um filtered), 15 min, removed with Kimwipe\n  Top plate     : Unpatterned ITO-glass, flush with PDMS side\n  Spacer        : SU-8, ~140 um thick; dispensed droplets ~0.2 uL\n\nIncubation and queuing region (PDMS serpentine channel):\n  Width         : 1.5 mm\n  Capacity      : 16 droplets; >2 h without volume loss\n  Temperature   : Region-specific Peltier heater (Arduino RBBB PID control)\n                  Heats incubation zone only; reservoirs remain at room temperature\n                  (critical: prevents T4 ligase heat inactivation above 50 C)\n  Valves        : 4 pneumatic elastomeric microvalves (Parker VSO-EP controller)\n  Inlets        : 2 oil inlets (HFE 7500, 5 uL/s) + 1 syringe-vacuum inlet (0.1 uL/s)\n  Transfer      : Droplet drawn from DMF surface by syringe-vacuum then driven by oil phase\n\nElectroporation region:\n  Electrodes    : 2 bare gold (no dielectric), 2.0 x 0.3 mm, 100 um gap\n  Dispensing    : 4 electrodes at cell-inlet/channel intersection\n                  (three 1.4 x 0.7 mm + one 4.0 x 0.7 mm)\n  Microvalve    : 1 elastomeric valve (valve 5) prevents cross-contamination between\n                  successive assembled plasmid droplets\n  Detection     : Impedance feedback (Vsense threshold ~0.15 V); oil phase > 10 GOhm;\n                  droplet 0.1-10 MOhm; triggers pulse delivery automatically\n\nAutomation system:\n  Controller    : Arduino RBBB; driving potential ~100-120 V rms at 8 kHz (Agilent function\n                  generator); hardware: neMESYS syringe pumps (Cetoni), Parker pneumatic\n                  actuators, Peltier heater, function generator\n  Dispensing precision : ~1.5% volumetric variation (6 successive droplets)\n\n\nREAGENTS\n--------\nCarrier oil       : HFE 7500 (3M Novec); biocompatible, immiscible with aqueous DNA solutions\nSurfactant        : 0.05% w/v Pluronic F-127 in all DNA solutions (prevents biofouling;\n                    eliminates cross-contamination without wash steps)\nDNA fragments     : 30-40 ng/uL each; DpnI digested 37 C 1 h; BsaI digested overnight 37 C\n                    (Golden Gate only); gel-purified on 1% agarose\nVector backbone   : pFAB4876-based, p15A origin + kanamycin resistance; ~2100 bp (GG/Gibson)\n                    pRS424, 2 micron origin + TRP1 (yeast) + F1 + ampicillin; ~5600 bp (Yeast)\nPromoter inserts  : Prom1, Prom2, Prom9, Prom11; ~100 bp; from pFAB4876/4884/4924/4932\nBCD-gfp inserts   : BCD1, BCD2, BCD20, BCD21 fused to sfGFP; ~800 bp; from pFAB4876/77/82/83\nT4 DNA ligase     : 2.5 U/uL with 0.05% Pluronic F-127 (NEB); for Golden Gate only\nGibson master mix : 2x Gibson Assembly Master Mix (NEB); for Gibson only\nEP media (E. coli): 8 mM Na2HPO4, 2 mM KH2PO4, 250 mM sucrose pH 7.4\nEP media (yeast)  : 1.0 M sorbitol\nE. coli cells     : DH5alpha electrocompetent (NEB C2989K); plated on LB + kan 50 ug/mL\nYeast cells       : CEN.PK (TRP deletion); plated on CSM-agar delta-TRP\nRecovery media    : 200 uL LB broth (E. coli); 200 uL deionized water (yeast)\nPlasmid source    : JBEI public registry (https://public-registry.jbei.org/login)\n\n\nPROTOCOL STEPS\n--------------\n\nStep 1 | Oil Phase Priming\n  Reagents    : HFE 7500 + 0.05% w/v Pluronic F-127\n  Operation   : 1 mL pipetted onto DMF surface\n  Purpose     : Oil surrounds all aqueous droplets throughout protocol; Pluronic F-127\n                prevents biofouling and cross-contamination without wash steps.\n                First application of this strategy to on-chip DNA assembly.\n\nStep 2 | Dispense Vector Backbone\n  Reagent     : VectorBackbone (pFAB4876-based, BsaI + DpnI digested, gel-purified)\n  Volume      : 1.5 uL reservoir; ~0.2 uL dispensed subdroplet\n  Notes       : ~2100 bp band (Golden Gate). Reservoir refilled via SU-8 capillary\n                between successive reactions (16 total per run).\n\nStep 3 | Dispense Promoter1 Insert\n  Reagent     : Promoter1 (pFAB4876, ~100 bp; DpnI + BsaI digested, gel-purified)\n  Volume      : 1.5 uL reservoir; ~0.2 uL dispensed\n  Notes       : Four variants used across 16 reactions: Prom1, Prom2, Prom9, Prom11.\n                This .bs file encodes Prom1 as the representative variant.\n\nStep 4 | Dispense BCD1-gfp Insert\n  Reagent     : BCD1_gfp (pFAB4876, ~800 bp; DpnI + BsaI digested, gel-purified)\n  Volume      : 1.5 uL reservoir; ~0.2 uL dispensed\n  Notes       : Four variants: BCD1, BCD2, BCD20, BCD21 (all fused to sfGFP). GFP enables\n                colony color screening: green = correct insert, white = self-ligation artifact.\n\nStep 5 | Dispense T4 DNA Ligase\n  Reagent     : T4 DNA ligase, 2.5 U/uL + 0.05% w/v Pluronic F-127\n  Volume      : 1.5 uL reservoir; ~0.2 uL dispensed\n  Notes       : Reservoir maintained at room temperature while incubation zone is Peltier-\n                heated. T4 ligase is heat-inactivated above 50 C; region-specific heating\n                allows reagent storage on-chip without degradation. Gibson assembly substitutes\n                2x Gibson master mix; Yeast assembly requires no additional reagent.\n\nStep 6 | Mix Vector Backbone with Promoter1\n  Inputs      : vectorDrop, promoterDrop\n  Output      : dnaMix\n  Duration    : 5 s\n  Actuation   : ~100-120 V rms, 8 kHz; 2-3 circular mixing passes over mixing electrodes\n\nStep 7 | Add BCD1-gfp to DNA Mix\n  Inputs      : dnaMix, bcdDrop\n  Output      : threePartMix\n  Duration    : 5 s\n  Volume      : ~0.6 uL (three-component droplet)\n\nStep 8 | Add T4 Ligase to Complete Golden Gate Mix\n  Inputs      : threePartMix, ligaseDrop\n  Output      : assemblyMix\n  Duration    : 10 s\n  Total volume: ~0.8 uL\n  Notes       : Paper Table 1: 0.8 uL total, 2 DNA fragment insertions, 16 plasmid\n                combinations. Droplet circulates 2-3 times in circular fashion on\n                digital-to-channel electrodes (1.75 x 1.75 mm) near D2D interface.\n\nStep 9 | Digital-to-Droplet Transfer and Golden Gate Incubation\n  Input       : assemblyMix\n  Operation   : heat at 25 C for 10 min (600 s)\n  Transfer    : Syringe-vacuum at 0.1 uL/s draws droplet from DMF; HFE 7500 at 5 uL/s\n                drives droplet into serpentine incubation zone\n  Incubation  : 25 C (room temperature), 10 min; BsaI-HF creates 4-bp overhangs;\n                T4 ligase joins complementary sticky ends\n  Peltier     : Region-specific; incubation zone at 25 C; reservoirs unheated\n  Alternatives: Gibson: 50 C, 15 min. Yeast/TAR: 25 C, 10 min (no ligase).\n\nStep 10 | Assembly QC Detection\n  Input       : assemblyMix\n  Output      : assemblySignal\n  Module      : assemblyQC\n  Duration    : 30 s\n  Notes       : Abstracts GFP colony color screening after off-chip electroporation and\n                plating. Expected pass rate: 95% Golden Gate (76/80), 100% Gibson (80/80),\n                97.2% Yeast (70/72). QC branch gate decides proceed vs. discard.\n\n  Branch BB2 (assemblySignal > 0)  : dispose(assemblyMix) -- proceed to transformation\n  Branch BB3 (assemblySignal <= 0) : drain(assemblyMix)   -- ligation failed; discard\n\nStep 11 | Dispose Assembly QC Signal [BB4 join]\n  Operation   : dispose(assemblySignal)\n  Notes       : Join block; transformation branch begins.\n\nStep 12 | Dispense E. coli Cells\n  Reagent     : CompetentEcoli (DH5alpha, NEB C2989K)\n  Output      : cellDroplet\n  Notes       : Dispensed from cell inlet via 4 microelectrodes at cell-inlet/channel\n                intersection. Elastomeric microvalve (valve 5) closed to prevent\n                cross-contamination with other assembled plasmid droplets in channel.\n\nStep 13 | Dispense Incubated Plasmid (Channel Exit)\n  Reagent     : AssembledPlasmid\n  Output      : incubatedPlasmid\n  Notes       : Models the assembled pProm1_BCD1-gfp droplet exiting the serpentine\n                incubation channel and entering the electroporation zone, driven by\n                HFE 7500 at 5 uL/s (all channel valves closed per Fig S2).\n                BioScript ownership note: assemblyMix was consumed by detect(assemblyQC)\n                in BB1; incubatedPlasmid is a new fluid object at this CFG location,\n                representing the same physical droplet. This avoids the assemblyMix2\n                phantom SSA index emitted by the compiler when a variable is re-used\n                after detect has consumed it.\n\nStep 14 | Mix Cells with Electroporation Media\n  Inputs      : cellDroplet, electroporationMedia\n  Output      : cellMix\n  Duration    : 5 s\n  EP media    : 8 mM Na2HPO4, 2 mM KH2PO4, 250 mM sucrose pH 7.4\n  Notes       : Osmotically balanced buffer prevents cell lysis during pulse.\n\nStep 15 | Merge Incubated Plasmid with Cell Mix\n  Inputs      : incubatedPlasmid, cellMix\n  Output      : preMix\n  Duration    : 5 s\n  Volume      : ~2 uL (merged droplet positioned over electroporation electrodes)\n\nStep 16 | Electroporation\n  Input       : preMix\n  Operation   : heat at 37 C for 60 s (models post-pulse recovery temperature)\n  Pulse params: 3 x 100 ms DC square pulses at 1800 V/cm (E. coli)\n                Impedance feedback triggers pulse when Vsense > 0.15 V\n                Oil phase (HFE 7500) > 10 GOhm impedance; prevents short when no droplet\n  Efficiency  : 4.58e3 CFU/ng assembled DNA (110 +/- 8 colonies, N=3, microfluidic)\n                4.46e3 CFU/ng (137 +/- 16 colonies, N=3, cuvette); not significantly different\n  Notes       : Yeast (CEN.PK): 1200 V/cm; 1.90e3 CFU/ng (21 +/- 6 colonies, N=3).\n                Higher fields (above optimum) decrease efficiency by killing cells.\n\nStep 17 | Post-Electroporation Recovery\n  Inputs      : preMix, LB_Recovery\n  Output      : recoveredCells\n  Mix         : 5 s\n  Recovery    : 200 uL LB broth; 1 h at 37 C (3600 s)\n  Notes       : Electroporated droplet driven to outlet by HFE 7500 (all valves closed).\n                Plated on LB agar + kanamycin 50 ug/mL. ~100/110 colonies green (GFP+,\n                correct insert); ~10 white (self-ligation). Yeast: collected in 200 uL\n                deionized water; plated on CSM-agar delta-TRP.\n\nStep 18 | Transformation QC Detection\n  Input       : recoveredCells\n  Output      : transformSignal\n  Module      : transformationQC\n  Duration    : 30 s\n  Notes       : Abstracts off-chip colony counting (LB agar + kanamycin, 37 C overnight).\n                Colony-PCR and Sanger sequencing (QB3284_fwd / QB3810_rev) confirm assembly.\n                For yeast: 3 yeast colonies miniprepped; transformed into Turbo E. coli;\n                5 green E. coli colonies sequenced per assembled plasmid (Genewiz).\n\n  Branch BB5 (transformSignal > 0)  : dispose(recoveredCells) -- colonies confirmed\n  Branch BB6 (transformSignal <= 0) : drain(recoveredCells)   -- no colonies; discard\n\nStep 19 | Final Cleanup [BB7 terminal]\n  Operations  : dispose(transformSignal), dispose(oilPhase)\n  Notes       : Terminal block. In the actual protocol, Steps 1-19 are iterated 16 times\n                in total (one reaction per plasmid combination) using the same electrode\n                path, mixing channel, and incubation channel. Reservoir droplets refilled\n                via SU-8 capillary channel between iterations.\n\n\nSEQUENCING RESULTS\n------------------\nGolden Gate (16 plasmids, 5 colonies each = 80 total):\n  Correct clones : 76/80 = 95% (Fig 6, main text)\n  Method         : Sanger sequencing (QuintaraBio); primers QB3284_fwd / QB3810_rev\n  Analysis       : Excluding first/last bases of read and 20 bp flanking assembly junctions\n\nGibson (16 plasmids, 5 colonies each = 80 total):\n  Correct clones : 80/80 = 100% (Fig S5)\n\nYeast/TAR (16 plasmids, ~3-5 colonies each = 72 sequenced):\n  Correct clones : 70/72 = 97.2% (Fig S6)\n  Note           : 2 Sanger reactions failed for 4 plasmids (pProm2_BCD1, pProm9_BCD1,\n                   pProm11_BCD1, pProm1_BCD2); sequenced from Turbo E. coli colonies\n\n\nBIOSCRIPT COMPILER NOTES\n-------------------------\nBioScript file  : shih_versatile_dmf_synbio.bs\nCompiler        : lilott8/BioScript (ANTLR4-based)\nIR output       : 7 basic blocks (BB1-BB7), 2 if/else gates, 8 CFG edges\nDAG             : shih_versatile_dmf_synbio_main_dag.dot\nAssembly method : Golden Gate (representative; Gibson and Yeast in separate .bs files)\nDuration units  : All durations in s or m (BioScript supports s and m only; h not supported)\n                  10 min Golden Gate incubation  -> 10m  (IR: 600.0 SECOND)\n                  1 min EP recovery modelling    -> 1m   (IR: 60.0 SECOND)\n                  1 h post-EP outgrowth          -> 60m  (IR: 3600.0 SECOND)\nModules         : assemblyQC, transformationQC\nManifests       : VectorBackbone, Promoter1, BCD1_gfp, T4_DNA_Ligase,\n                  HFE7500_PluronicF127, AssembledPlasmid, ElectroporationMedia,\n                  LB_Recovery, CompetentEcoli\n\nFluid ownership fix (v2):\n  assemblyMix was consumed by detect(assemblyQC) in BB1. The join block (BB4)\n  cannot re-use assemblyMix for the cell-plasmid merge (would produce phantom\n  assemblyMix2[0] SSA index in IR). Fix: incubatedPlasmid = dispense(AssembledPlasmid)\n  models the incubated droplet as a new fluid object entering the electroporation zone.\n  v1 IR bug: assemblyMix2[0] on IR line 11. v2 IR: clean; incubatedPlasmid1[0] used.\n\nKnown compiler bugs (compiler-side; not .bs authoring issues):\n  1. drain lowered to dispose in IR\n     Affected: BB3 (bsbbif_3_f), BB6 (bsbbif_6_f)\n     Scope   : Systematic across all protocols in lilott8/BioScript\n  2. True-block missing unconditional jump instruction\n     Affected: BB2 (bsbbif_2_t), BB5 (bsbbif_5_t)\n     Scope   : Systematic; false-blocks correctly emit jump; true-blocks fall through silently\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module assemblyQC\nmodule transformationQC\n\nmanifest VectorBackbone\nmanifest Promoter1\nmanifest BCD1_gfp\nmanifest T4_DNA_Ligase\nmanifest HFE7500_PluronicF127\nmanifest AssembledPlasmid\nmanifest ElectroporationMedia\nmanifest LB_Recovery\nmanifest CompetentEcoli\n\n// ============================================================\n// A Versatile Microfluidic Device for Automating Synthetic Biology\n// Shih, Goyal, Kim, Koutsoubelis, Keasling, Adams, Hillson, Singh\n// ACS Synthetic Biology 2015, 4, 1151-1164\n// DOI: 10.1021/acssynbio.5b00062\n//\n// Platform: Hybrid digital-to-droplet microfluidic device\n// (75 x 25 mm; 76 DMF electrodes + PDMS serpentine channel).\n// Three functional regions: DNA assembly (DMF), queuing and\n// incubation (serpentine channel), transformation (electroporation\n// region with microelectrodes).\n//\n// ASSEMBLY METHOD ENCODED: Golden Gate (primary, Fig 6 in paper).\n// Golden Gate is the representative method because it is the only\n// one with a full 16-plasmid sequencing panel shown in the main\n// text. Gibson (50 C, 15 min) and Yeast/TAR (room temp, 10 min,\n// no ligase) follow the same droplet operations with different\n// incubation parameters; separate .bs files should encode those.\n//\n// REAGENT VOLUMES:\n//   Reservoir droplets: 1.5 uL (dispensed onto reservoirs).\n//   Dispensed subdroplets: ~0.2 uL per mix step on DMF.\n//   Total DNA assembly volume: ~0.8 uL (Golden Gate / Gibson)\n//                               ~0.6 uL (Yeast).\n//   T4 DNA ligase: 2.5 U/uL with 0.05% w/v Pluronic F-127.\n//   All DNA fragments: 30-40 ng/uL, gel-purified after DpnI\n//   and BsaI digest.\n//\n// CROSS-CONTAMINATION STRATEGY: HFE 7500 biocompatible oil\n// filler + 0.05% w/v Pluronic F-127 surfactant additive\n// (instead of wash steps) prevents biofouling. This is the\n// first application of this strategy to on-chip DNA assembly.\n// Modelled here by dispensing HFE7500_PluronicF127 as the\n// continuous oil phase that surrounds all DMF droplets.\n//\n// GOLDEN GATE INCUBATION:\n//   Temperature: 25 C (room temperature).\n//   Duration: 10 min.\n//   BsaI-HF cuts at Type IIS sites; T4 ligase joins overhangs.\n//   Paper Table 1: total volume 0.8 uL, 2 DNA fragment insertions.\n//\n// ELECTROPORATION:\n//   Target: E. coli DH5alpha electrocompetent cells.\n//   Media: 8 mM Na2HPO4, 2 mM KH2PO4, 250 mM sucrose pH 7.4.\n//   Pulses: 3 x 100 ms DC pulses at 1800 V/cm.\n//   Maximum efficiency: 4.58e3 CFU/ng assembled DNA (Fig 5a).\n//   Recovery: 200 uL LB broth, 1 h at 37 C before plating.\n//   Two bare gold microelectrodes (2.0 x 0.3 mm), 100 um gap.\n//   Oil phase (HFE 7500) prevents electrical short when no\n//   droplet is present; impedance feedback triggers pulses.\n//   Electroporation is modelled as a heat step at 37 C (the\n//   post-pulse recovery temperature; the pulse itself is\n//   instantaneous and has no BioScript duration token).\n//\n// INCUBATION CHANNEL:\n//   Serpentine PDMS channel, 1.5 mm wide, stores 16 droplets\n//   for > 2 h without volume loss. Peltier heater enables\n//   region-specific temperature control (heating only the\n//   incubation zone, leaving reservoirs at room temperature\n//   to preserve T4 ligase activity). Modelled via heat.\n//\n// ONE-REACTION ABSTRACTION:\n//   This .bs file encodes one representative Golden Gate\n//   assembly reaction (pProm1_BCD1-gfp, the canonical test\n//   plasmid, ~3070 bp). The actual chip runs 16 combinatorial\n//   reactions (4 Promoter variants x 4 BCD variants) in\n//   sequence using the same electrode path and incubation\n//   channel. Encoding all 16 in BioScript would require 16\n//   independent reagent manifests for each promoter/BCD\n//   variant; a single canonical reaction captures the full\n//   protocol logic without misrepresenting the paper.\n//\n// CFG STRUCTURE:\n//   BB1  main             -- device init; reagent dispensing;\n//                           DNA fragment mixing; T4 ligase\n//                           addition; digital-to-droplet\n//                           transfer; incubation; detect\n//   BB2  assemblyPass     -- assemblyQC > 0: assembly succeeded;\n//                           dispose assembled plasmid droplet\n//   BB3  assemblyFail     -- assemblyQC <= 0: assembly failed;\n//                           drain assembled plasmid droplet\n//   BB4  assemblyJoin     -- join: transformation branch begins\n//   BB5  transformPass    -- transformSignal > 0: colonies\n//                           detected; dispose recovery droplet\n//   BB6  transformFail    -- transformSignal <= 0: no colonies;\n//                           drain recovery droplet\n//   BB7  finalCleanup     -- terminal: dispose QC signal droplets\n// ============================================================\n\ninstructions:\n\n// ============================================================\n// BB1: main\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 1: Prime oil phase.\n//   HFE 7500 + 2% Pluronic F-127 surfactant is pipetted\n//   onto the DMF surface (1 mL). The oil phase surrounds\n//   all aqueous droplets, preventing cross-contamination\n//   and biofouling without additional wash steps.\n//   Modelled as a single dispense representing the bulk\n//   oil-phase load. This oil droplet is referenced during\n//   later digital-to-droplet transfer steps.\n// ------------------------------------------------------------\n\noilPhase = dispense 1 units of HFE7500_PluronicF127\n\n// ------------------------------------------------------------\n// STEP 2: Dispense vector backbone droplet (~0.2 uL).\n//   Reservoir: 1.5 uL of pFAB4876-based vector backbone\n//   at 30-40 ng/uL. Vector concentrations matched to\n//   BCD/Promoter insert concentrations by vacuum concentrator\n//   (65 C, 5-10 min) prior to chip loading.\n//   BsaI and DpnI digested, gel-purified.\n//   Golden Gate vector backbone: ~2100 bp band (Fig 3a).\n// ------------------------------------------------------------\n\nvectorDrop = dispense 1 units of VectorBackbone\n\n// ------------------------------------------------------------\n// STEP 3: Dispense Promoter1 insert droplet (~0.2 uL).\n//   Source plasmid: pFAB4876 (Promoter1, ~100 bp band).\n//   DpnI + BsaI digested; gel-purified; 30-40 ng/uL.\n//   Four promoter variants used across 16 reactions:\n//   Prom1, Prom2, Prom9, Prom11.\n//   This .bs file encodes the Prom1 variant.\n// ------------------------------------------------------------\n\npromoterDrop = dispense 1 units of Promoter1\n\n// ------------------------------------------------------------\n// STEP 4: Dispense BCD1-gfp insert droplet (~0.2 uL).\n//   Source plasmid: pFAB4876 (BCD1_gfp variant, ~800 bp).\n//   DpnI + BsaI digested; gel-purified; 30-40 ng/uL.\n//   Four BCD variants: BCD1, BCD2, BCD20, BCD21.\n//   This .bs file encodes the BCD1 variant.\n//   The gfp gene enables colony color screening (green =\n//   correct insert, white = self-ligation artifact).\n// ------------------------------------------------------------\n\nbcdDrop = dispense 1 units of BCD1_gfp\n\n// ------------------------------------------------------------\n// STEP 5: Dispense T4 DNA ligase droplet (~0.2 uL).\n//   T4 DNA ligase at 2.5 U/uL with 0.05% w/v Pluronic F-127.\n//   Pluronic additive prevents biofouling without inhibiting\n//   ligation activity (Au et al., Langmuir 2011).\n//   IMPORTANT: T4 ligase reservoir stays at room temperature\n//   while incubation zone is heated (region-specific Peltier).\n//   This prevents heat inactivation (T4 denatured above 50 C)\n//   before the ligase droplet is dispensed.\n//   For Gibson assembly, this step uses 2x Gibson master mix\n//   instead; for Yeast assembly, no ligase droplet is needed.\n// ------------------------------------------------------------\n\nligaseDrop = dispense 1 units of T4_DNA_Ligase\n\n// ------------------------------------------------------------\n// STEP 6: Merge DNA fragments.\n//   Vector backbone + Promoter1 insert mixed on-chip at\n//   160 V_rms, 15 kHz via electrode actuation. Droplet\n//   circulates 2-3 times over mixing electrodes (1.75 x 1.75 mm\n//   digital-to-channel electrodes near D2D interface).\n// ------------------------------------------------------------\n\ndnaMix = mix vectorDrop with promoterDrop for 5s\n\n// ------------------------------------------------------------\n// STEP 7: Add BCD1-gfp insert to DNA mix.\n//   Three-component droplet now contains all DNA parts for\n//   one Golden Gate reaction. Total merged volume: ~0.6 uL.\n// ------------------------------------------------------------\n\nthreePartMix = mix dnaMix with bcdDrop for 5s\n\n// ------------------------------------------------------------\n// STEP 8: Add T4 DNA ligase to complete the Golden Gate mix.\n//   Final droplet: ~0.8 uL containing vector, Promoter1,\n//   BCD1-gfp, and T4 DNA ligase (2.5 U/uL).\n//   Mixed 2-3 times in circular fashion on mixing electrodes.\n//   This merged droplet is ready for digital-to-droplet\n//   transfer into the incubation channel.\n// ------------------------------------------------------------\n\nassemblyMix = mix threePartMix with ligaseDrop for 10s\n\n// ------------------------------------------------------------\n// STEP 9: Digital-to-droplet transfer and incubation.\n//   The syringe-vacuum pump (0.1 uL/s) draws the assembled\n//   droplet from the DMF surface into the 1.5 mm wide\n//   serpentine PDMS channel. Oil phase (HFE 7500) at 5 uL/s\n//   drives the droplet into the incubation zone.\n//   Golden Gate incubation: 10 min at 25 C (room temperature).\n//   BsaI-HF digest creates overhangs; T4 ligase joins them.\n//   Paper Table 1: 10 min incubation, room temperature.\n//   The heat step at 25 C models the Peltier-controlled\n//   region-specific temperature maintenance during incubation.\n//   (For Gibson: 50 C, 15 min. For Yeast: 25 C, 10 min.)\n// ------------------------------------------------------------\n\nheat assemblyMix at 25c for 10m\n\n// ------------------------------------------------------------\n// STEP 10: Assembly QC detection.\n//   assemblyQC module abstracts an on-chip or off-chip\n//   verification step. In the paper, plasmid assembly is\n//   confirmed by colony color (green GFP fluorescence)\n//   after electroporation and plating. On-chip, no direct\n//   assembly verification is performed before electroporation;\n//   the detect step here models the GFP/colony screening QC\n//   as a logical gate to decide whether to proceed to\n//   transformation.\n// ------------------------------------------------------------\n\nassemblySignal = detect assemblyQC on assemblyMix for 30s\n\n// ============================================================\n// BB2 / BB3: Assembly QC gate\n// Pass (BB2): assemblySignal > 0 -> Golden Gate ligation\n//             succeeded (expected ~95% correct clones post-seq);\n//             dispose assembled droplet and proceed.\n// Fail (BB3): assemblySignal <= 0 -> ligation failed (e.g.\n//             self-ligation white colony dominant); drain.\n// Both branches converge at BB4 (assemblyJoin).\n// ============================================================\n\nif (assemblySignal > 0) {\n    dispose assemblyMix\n} else {\n    drain assemblyMix\n}\n\n// ============================================================\n// BB4: assemblyJoin\n// Dispose assembly QC signal. Control falls into the\n// electroporation / transformation branch (BB5/BB6).\n// ============================================================\n\ndispose assemblySignal\n\n// ------------------------------------------------------------\n// STEP 11: Dispense E. coli cells for electroporation.\n//   DH5alpha electrocompetent cells dispensed from the cell\n//   inlet into the electroporation region.\n//   Electroporation media: 8 mM Na2HPO4, 2 mM KH2PO4,\n//   250 mM sucrose, pH 7.4 (prevents osmotic lysis).\n//   Cell droplet dispensed by applying potential to 4\n//   microelectrodes (three 1.4 x 0.7 mm + one 4.0 x 0.7 mm)\n//   near the cell-inlet/main-channel intersection.\n//   Elastomeric microvalve (valve 5, Fig S2) prevents\n//   cross-contamination between successive plasmid droplets.\n// ------------------------------------------------------------\n\ncellDroplet = dispense 1 units of CompetentEcoli\n\n// ------------------------------------------------------------\n// STEP 12: Dispense incubated plasmid exiting the channel.\n//   After 10 min Golden Gate incubation in the serpentine\n//   channel, the assembled pProm1_BCD1-gfp droplet is driven\n//   by oil phase (HFE 7500, 5 uL/s) into the electroporation\n//   region. In BioScript ownership terms, the incubated\n//   assembly product is a new fluid object at this stage:\n//   assemblyMix was consumed by detect (assemblyQC) in BB1;\n//   incubatedPlasmid models the same physical droplet as it\n//   exits the incubation channel and enters the electroporation\n//   zone. This avoids the assemblyMix2 phantom SSA index\n//   emitted by the compiler when a variable is re-used after\n//   detect has already consumed it.\n//   Oil phase replaces cell-inlet flow; all channel valves\n//   closed (see Fig S2 for valve sequence).\n// ------------------------------------------------------------\n\nincubatedPlasmid = dispense 1 units of AssembledPlasmid\n\n// ------------------------------------------------------------\n// STEP 13a: Mix cells with electroporation media.\n//   Cell droplet resuspended in electroporation media on-chip\n//   before merging with the plasmid droplet.\n// ------------------------------------------------------------\n\nelectroporationMedia = dispense 1 units of ElectroporationMedia\ncellMix = mix cellDroplet with electroporationMedia for 5s\n\n// ------------------------------------------------------------\n// STEP 13b: Merge incubated plasmid with cell mix.\n//   The incubated plasmid droplet and the cell+media droplet\n//   merge in the electroporation region immediately upstream\n//   of the two bare gold microelectrodes (2.0 x 0.3 mm,\n//   100 um gap). Total merged volume: ~2 uL.\n// ------------------------------------------------------------\n\npreMix = mix incubatedPlasmid with cellMix for 5s\n\n// ------------------------------------------------------------\n// STEP 14: Electroporation.\n//   3 x 100 ms DC square pulses at 1800 V/cm applied to the\n//   merged droplet via two bare gold microelectrodes\n//   (2.0 x 0.3 mm, 100 um gap, no dielectric coating).\n//   Impedance-sensing feedback (Vsense threshold ~0.15 V)\n//   detects droplet on electrodes and triggers pulse delivery.\n//   Continuous oil phase prevents electrical short when\n//   no droplet bridges the electrode gap.\n//   Maximum efficiency: 4.58e3 CFU/ng (110 +/- 8 colonies,\n//   N=3, comparable to cuvette: 4.46e3 CFU/ng, Fig 5a).\n//   Modelled as heat at 37 C (post-pulse recovery temperature;\n//   the pulse itself is instantaneous).\n// ------------------------------------------------------------\n\nheat preMix at 37c for 1m\n\n// ------------------------------------------------------------\n// STEP 14: Recovery.\n//   Electroporated droplet driven to outlet by oil phase\n//   (HFE 7500, all valves closed). Collected in tube\n//   containing 200 uL LB broth. Incubated 1 h at 37 C\n//   (standard outgrowth for kanamycin-selected DH5alpha).\n//   50 ug/mL kanamycin selection plates used for plating.\n//   ~100 of ~110 colonies show green color (GFP+, correct\n//   insert); ~10 white (self-ligation artifacts).\n// ------------------------------------------------------------\n\nrecoveryMedia = dispense 1 units of LB_Recovery\nrecoveredCells = mix preMix with recoveryMedia for 5s\n\nheat recoveredCells at 37c for 60m\n\n// ------------------------------------------------------------\n// STEP 15: Transformation QC detection.\n//   transformationQC module abstracts off-chip colony count\n//   on kanamycin LB-agar plates (37 C, overnight incubation).\n//   Colony-PCR and Sanger sequencing (QB3284_fwd / QB3810_rev)\n//   confirm correct assembly in 95% of green colonies (Fig 6,\n//   76/80 correct for Golden Gate; 80/80 for Gibson).\n//   On-chip proxy: impedance-sensing detects viable cell\n//   density in the electroporated droplet as a QC signal.\n// ------------------------------------------------------------\n\ntransformSignal = detect transformationQC on recoveredCells for 30s\n\n// ============================================================\n// BB5 / BB6: Transformation QC gate\n// Pass (BB5): transformSignal > 0 -> transformed colonies\n//             detected; dispose recovery droplet.\n// Fail (BB6): transformSignal <= 0 -> no viable transformed\n//             cells (electroporation failure or no assembly);\n//             drain recovery droplet.\n// Both branches converge at BB7 (finalCleanup).\n// ============================================================\n\nif (transformSignal > 0) {\n    dispose recoveredCells\n} else {\n    drain recoveredCells\n}\n\n// ============================================================\n// BB7: finalCleanup (terminal)\n// Dispose transformation QC signal and oil phase droplet.\n// Experiment ends. In the actual protocol, this step is\n// repeated 15 more times (16 total reactions) using the\n// same electrode path, mixing channel, and incubation\n// channel to generate all 4 Prom x 4 BCD combinatorial\n// plasmid variants. Each successive iteration uses fresh\n// reservoir droplets refilled via the SU-8 capillary.\n// ============================================================\n\ndispose transformSignal\ndispose oilPhase\n\n// [terminal -- no further instructions; exit node for CFG]\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "shih_versatile_dmf_synbio_001",
+      "protocol_name": "A Versatile Microfluidic Device for Automating Synthetic Biology",
+      "category": "synthetic_biology",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "A Versatile Microfluidic Device for Automating Synthetic Biology",
+      "publisher": "ACS Synthetic Biology, 2015, Vol. 4, pp. 1151-1164",
+      "doi": "10.1021/acssynbio.5b00062",
+      "url": "https://escholarship.org/content/qt07q6b4f6/qt07q6b4f6.pdf",
+      "platform": "Hybrid DMF (digital microfluidics + droplet-in-channel microfluidics) on EWOD/electrode array"
+    },
+    "bioscript": {
+      "manifests": [
+        "VectorBackbone",
+        "Promoter1",
+        "BCD1_gfp",
+        "T4_DNA_Ligase",
+        "HFE7500_PluronicF127",
+        "AssembledPlasmid",
+        "ElectroporationMedia",
+        "LB_Recovery",
+        "CompetentEcoli"
       ],
-      "dmf_electrodes": {
-        "total": 76,
-        "interelectrode_gap_um": 20,
-        "reservoir_electrodes": { "count": 12, "size_mm": "3.6 x 3.0" },
-        "narrow_electrodes": { "count": 12, "size_mm": "2.5 x 1.0", "purpose": "100% dispensing fidelity" },
-        "digital_to_channel_electrodes": { "count": 3, "size_mm": "1.75 x 1.75" },
-        "actuation_electrodes": { "count": 41, "size_mm": "1.2 x 1.2" },
-        "mixing_electrodes": { "count": 8, "size_mm": "1.2 x 1.2" }
-      },
-      "top_plate": "Unpatterned ITO-glass",
-      "spacer": { "material": "SU-8", "thickness_um": 140 },
-      "dielectric": { "material": "SU-8-5", "thickness_um": 7 },
-      "hydrophobic_coating": "Aquapel (0.2 um filtered)",
-      "incubation_channel": {
-        "material": "PDMS",
-        "width_mm": 1.5,
-        "capacity_droplets": 16,
-        "max_storage_duration_h": 2,
-        "temperature_control": "Region-specific Peltier heater (Arduino RBBB controlled)",
-        "valves": 4,
-        "inlets": "2 oil inlets + 1 syringe-vacuum inlet"
-      },
-      "electroporation_electrodes": {
-        "count": 2,
-        "material": "bare gold (no dielectric coating)",
-        "size_mm": "2.0 x 0.3",
-        "gap_um": 100,
-        "additional_dispensing_electrodes": {
-          "count": 4,
-          "sizes_mm": ["1.4 x 0.7 (x3)", "4.0 x 0.7 (x1)"]
-        }
-      },
-      "fabrication": {
-        "substrate": "Gold- and chromium-coated glass (Telic)",
-        "photolithography": "S1811 photoresist, OAI Series 200 Aligner, UV 40 mW/cm2 5s",
-        "etching": "Gold etchant KI/I2; chromium etchant CR-4",
-        "pdms": "Sylgard 184, 10:1 monomer:curing agent",
-        "channel_height_um": 140
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "drain",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 27
       }
     },
-
-    "reagents": {
-      "carrier_oil": "HFE 7500 (3M Novec)",
-      "surfactant_additive": "Pluronic F-127 0.05% w/v (prevents biofouling; replaces wash steps)",
-      "dna_assembly": {
-        "vector_backbone_golden_gate_bp": "~2100",
-        "vector_backbone_yeast_bp": "~5600",
-        "bcd_gfp_insert_bp": "~800",
-        "promoter_insert_bp": "~100",
-        "dna_concentration_ng_uL": "30-40",
-        "preparation": "DpnI digested at 37 C 1h; BsaI digested overnight 37 C (Golden Gate only); gel purified",
-        "vector_concentration_matching": "Vacuum concentrator Thermo Fisher, 65 C, 5-10 min"
-      },
-      "golden_gate": {
-        "ligase": "T4 DNA ligase 2.5 U/uL with 0.05% w/v Pluronic F-127",
-        "ligase_buffer": "NEB4 buffer",
-        "restriction_enzyme": "BsaI (Type IIS)"
-      },
-      "gibson": {
-        "master_mix": "2x Gibson Assembly Master Mix (NEB)",
-        "concentration_in_droplet": "1x final"
-      },
-      "yeast": {
-        "notes": "No additional reagents required; assembly occurs in vivo after transformation"
-      },
-      "electroporation": {
-        "ecoli_media": "8 mM Na2HPO4, 2 mM KH2PO4, 250 mM sucrose pH 7.4",
-        "yeast_media": "1.0 M sorbitol",
-        "ecoli_cells": "DH5alpha electrocompetent (NEB C2989K)",
-        "yeast_cells": "CEN.PK (TRP deletion)",
-        "recovery_media_ecoli": "200 uL LB broth",
-        "recovery_media_yeast": "200 uL deionized water"
-      },
-      "selection": {
-        "ecoli_golden_gate_gibson": "LB agar + kanamycin 50 ug/mL",
-        "ecoli_yeast_rescue": "LB agar + carbenicillin 50 ug/mL",
-        "yeast": "CSM-agar delta-TRP"
-      },
-      "plasmid_source": "JBEI public registry (https://public-registry.jbei.org/login)",
-      "plasmid_variants": {
-        "promoters": ["Promoter1 (pFAB4876)", "Promoter2 (pFAB4884)", "Promoter9 (pFAB4924)", "Promoter11 (pFAB4932)"],
-        "bcd_gfp": ["BCD1_gfp (pFAB4876)", "BCD2_gfp (pFAB4877)", "BCD20_gfp (pFAB4882)", "BCD21_gfp (pFAB4883)"],
-        "vector_golden_gate_gibson": "p15A origin + kanamycin resistance (~2100 bp backbone)",
-        "vector_yeast": "pRS424 (2 micron origin + TRP1 marker for yeast; F1 origin + ampicillin for bacteria; ~5600 bp)"
-      }
-    },
-
-    "steps": [
-      {
-        "id": "S1",
-        "name": "Oil phase priming",
-        "bb": "BB1",
-        "inputs": ["HFE7500_PluronicF127"],
-        "operation": "dispense",
-        "volume_mL": 1,
-        "notes": "1 mL HFE 7500 + 0.05% w/v Pluronic F-127 pipetted onto DMF surface. Oil surrounds all aqueous droplets throughout the protocol, preventing cross-contamination without wash steps. First application of this strategy to on-chip DNA assembly."
-      },
-      {
-        "id": "S2",
-        "name": "Dispense vector backbone",
-        "bb": "BB1",
-        "inputs": ["VectorBackbone"],
-        "operation": "dispense",
-        "reservoir_volume_uL": 1.5,
-        "dispensed_volume_uL": 0.2,
-        "concentration_ng_uL": "30-40",
-        "notes": "pFAB4876-based vector backbone; BsaI + DpnI digested, gel-purified; ~2100 bp (Golden Gate). Reservoir refilled via SU-8 capillary channel between successive reactions."
-      },
-      {
-        "id": "S3",
-        "name": "Dispense Promoter1 insert",
-        "bb": "BB1",
-        "inputs": ["Promoter1"],
-        "operation": "dispense",
-        "reservoir_volume_uL": 1.5,
-        "dispensed_volume_uL": 0.2,
-        "concentration_ng_uL": "30-40",
-        "notes": "Representative variant: Promoter1 from pFAB4876; ~100 bp band. Four promoter variants (Prom1, Prom2, Prom9, Prom11) used across 16 combinatorial reactions; this .bs file encodes Prom1."
-      },
-      {
-        "id": "S4",
-        "name": "Dispense BCD1-gfp insert",
-        "bb": "BB1",
-        "inputs": ["BCD1_gfp"],
-        "operation": "dispense",
-        "reservoir_volume_uL": 1.5,
-        "dispensed_volume_uL": 0.2,
-        "concentration_ng_uL": "30-40",
-        "notes": "Representative variant: BCD1_gfp from pFAB4876; ~800 bp band. Four BCD variants (BCD1, BCD2, BCD20, BCD21) used across 16 reactions. GFP enables colony color screening: green = correct insert, white = self-ligation artifact."
-      },
-      {
-        "id": "S5",
-        "name": "Dispense T4 DNA ligase",
-        "bb": "BB1",
-        "inputs": ["T4_DNA_Ligase"],
-        "operation": "dispense",
-        "concentration_U_uL": 2.5,
-        "pluronic_additive_pct": 0.05,
-        "reservoir_volume_uL": 1.5,
-        "dispensed_volume_uL": 0.2,
-        "notes": "T4 ligase reservoir maintained at room temperature while incubation zone is heated (region-specific Peltier). Prevents heat inactivation above 50 C. Gibson assembly uses 2x Gibson master mix instead; Yeast assembly requires no additional reagent."
-      },
-      {
-        "id": "S6",
-        "name": "Mix vector backbone with Promoter1",
-        "bb": "BB1",
-        "inputs": ["vectorDrop", "promoterDrop"],
-        "output": "dnaMix",
-        "operation": "mix",
-        "duration_s": 5,
-        "actuation_voltage_V_rms": 160,
-        "actuation_frequency_kHz": 8,
-        "mixing_passes": "2-3 circular passes",
-        "electrode_type": "digital-to-channel electrodes (1.75 x 1.75 mm)",
-        "notes": "All droplet actuation on DMF region uses 8 kHz sine wave amplified to ~100-120 V rms. Volumetric precision ~1.5% variation (impedance feedback)."
-      },
-      {
-        "id": "S7",
-        "name": "Add BCD1-gfp to DNA mix",
-        "bb": "BB1",
-        "inputs": ["dnaMix", "bcdDrop"],
-        "output": "threePartMix",
-        "operation": "mix",
-        "duration_s": 5,
-        "notes": "Three-component droplet: vector + Promoter1 + BCD1-gfp. Total volume ~0.6 uL at this stage."
-      },
-      {
-        "id": "S8",
-        "name": "Add T4 DNA ligase to complete Golden Gate mix",
-        "bb": "BB1",
-        "inputs": ["threePartMix", "ligaseDrop"],
-        "output": "assemblyMix",
-        "operation": "mix",
-        "duration_s": 10,
-        "total_assembly_volume_uL": 0.8,
-        "notes": "Final assembled droplet: vector + Promoter1 + BCD1-gfp + T4 ligase. Mixed 2-3 times in circular fashion. Paper Table 1: total volume 0.8 uL, 2 DNA fragment insertions, room temperature Golden Gate."
-      },
-      {
-        "id": "S9",
-        "name": "Digital-to-droplet transfer and Golden Gate incubation",
-        "bb": "BB1",
-        "inputs": ["assemblyMix"],
-        "operation": "heat",
-        "temperature_C": 25,
-        "duration_s": 600,
-        "transfer_mechanism": "Syringe-vacuum pump at 0.1 uL/s draws droplet from DMF into channel; oil phase HFE 7500 at 5 uL/s drives droplet to incubation zone",
-        "channel": "Serpentine PDMS, 1.5 mm wide",
-        "peltier": "Region-specific; incubation zone maintained at 25 C (room temperature); reservoirs unheated",
-        "notes": "Golden Gate: 25 C, 10 min. BsaI-HF creates 4-bp overhangs; T4 ligase joins complementary ends. Gibson alternative: 50 C, 15 min with 2x Gibson master mix. Yeast alternative: 25 C, 10 min, no ligase (assembly occurs in vivo post-transformation)."
-      },
-      {
-        "id": "S10",
-        "name": "Assembly QC detection",
-        "bb": "BB1",
-        "inputs": ["assemblyMix"],
-        "output": "assemblySignal",
-        "operation": "detect",
-        "module": "assemblyQC",
-        "duration_s": 30,
-        "notes": "assemblyQC abstracts the GFP colony color screening step performed after electroporation and plating (off-chip). On-chip, no direct assembly verification precedes transformation; detect gate here models the logical QC branch. Expected pass rate: ~95% correct clones for Golden Gate (76/80 sequenced, Fig 6); ~100% for Gibson (80/80)."
-      },
-      {
-        "id": "S10a",
-        "name": "Assembly QC gate - pass branch",
-        "bb": "BB2",
-        "condition": "assemblySignal > 0",
-        "action": "dispose(assemblyMix)",
-        "notes": "Golden Gate ligation succeeded; assembled plasmid disposed (QC characterisation run). Proceed to transformation branch via BB4."
-      },
-      {
-        "id": "S10b",
-        "name": "Assembly QC gate - fail branch",
-        "bb": "BB3",
-        "condition": "assemblySignal <= 0",
-        "action": "drain(assemblyMix)",
-        "notes": "Ligation failed (e.g. self-ligation dominant, white colonies). Drain assembled droplet. Compiler known bug: drain lowered to dispose in IR; biological intent is drain."
-      },
-      {
-        "id": "S11",
-        "name": "Dispose assembly QC signal",
-        "bb": "BB4",
-        "inputs": ["assemblySignal"],
-        "operation": "dispose",
-        "notes": "Assembly join block. Transformation branch begins."
-      },
-      {
-        "id": "S12",
-        "name": "Dispense competent E. coli cells",
-        "bb": "BB4",
-        "inputs": ["CompetentEcoli"],
-        "output": "cellDroplet",
-        "operation": "dispense",
-        "cell_line": "DH5alpha electrocompetent (NEB C2989K)",
-        "dispensing_electrodes": "Three 1.4 x 0.7 mm + one 4.0 x 0.7 mm at cell-inlet/channel intersection",
-        "notes": "Cells dispensed from cell inlet into electroporation region. Elastomeric microvalve (valve 5, Fig S2) prevents cross-contamination between successive plasmid droplets. For yeast assembly: CEN.PK cells in 1.0 M sorbitol instead."
-      },
-      {
-        "id": "S13",
-        "name": "Dispense incubated plasmid (channel exit)",
-        "bb": "BB4",
-        "inputs": ["AssembledPlasmid"],
-        "output": "incubatedPlasmid",
-        "operation": "dispense",
-        "notes": "Models the assembled pProm1_BCD1-gfp droplet exiting the serpentine incubation channel and entering the electroporation zone, driven by HFE 7500 at 5 uL/s with all valves closed (Fig S2). BioScript ownership constraint: assemblyMix was consumed by detect(assemblyQC) in BB1; incubatedPlasmid is a distinct fluid object representing the same physical droplet at its new location in the CFG."
-      },
-      {
-        "id": "S14",
-        "name": "Mix cells with electroporation media",
-        "bb": "BB4",
-        "inputs": ["cellDroplet", "electroporationMedia"],
-        "output": "cellMix",
-        "operation": "mix",
-        "duration_s": 5,
-        "media_composition": "8 mM Na2HPO4, 2 mM KH2PO4, 250 mM sucrose pH 7.4",
-        "notes": "Osmotically balanced electroporation buffer prevents cell lysis during pulse. Cells fully resuspended in EP media before merging with plasmid droplet."
-      },
-      {
-        "id": "S15",
-        "name": "Merge incubated plasmid with cell mix",
-        "bb": "BB4",
-        "inputs": ["incubatedPlasmid", "cellMix"],
-        "output": "preMix",
-        "operation": "mix",
-        "duration_s": 5,
-        "total_volume_uL": "~2",
-        "notes": "Merged droplet positioned over two bare gold electroporation microelectrodes (2.0 x 0.3 mm, 100 um gap, no dielectric coating). Contains assembled + non-assembled DNA fragments and cells."
-      },
-      {
-        "id": "S16",
-        "name": "Electroporation",
-        "bb": "BB4",
-        "inputs": ["preMix"],
-        "operation": "heat",
-        "temperature_C": 37,
-        "duration_s": 60,
-        "pulse_parameters": {
-          "waveform": "DC square pulse",
-          "count": 3,
-          "pulse_duration_ms": 100,
-          "field_strength_V_cm": 1800,
-          "detection": "Impedance-sensing feedback; Vsense threshold ~0.15 V; oil phase (no droplet) impedance > 10 GOhm; droplet impedance 0.1-10 MOhm"
-        },
-        "efficiency_microfluidic": { "CFU_per_ng": 4580, "colonies": "110 +/- 8", "n": 3 },
-        "efficiency_cuvette": { "CFU_per_ng": 4460, "colonies": "137 +/- 16", "n": 3 },
-        "notes": "heat at 37 C models post-pulse recovery temperature; pulse itself is instantaneous. Oil phase (HFE 7500) prevents electrical short when no droplet bridges electrode gap. Microfluidic efficiency not significantly different from cuvette (Fig 5a). Yeast: 1200 V/cm, 1.90e3 CFU/ng (Fig 5b)."
-      },
-      {
-        "id": "S17",
-        "name": "Post-electroporation recovery",
-        "bb": "BB4",
-        "inputs": ["preMix", "LB_Recovery"],
-        "output": "recoveredCells",
-        "operation": "mix then heat",
-        "mix_duration_s": 5,
-        "heat_temperature_C": 37,
-        "heat_duration_s": 3600,
-        "recovery_volume_uL": 200,
-        "recovery_media": "LB broth",
-        "notes": "Electroporated droplet driven to outlet by HFE 7500 oil (all valves closed). Collected in tube containing 200 uL LB broth. 1 h outgrowth at 37 C before plating. ~100/110 colonies green (GFP+, correct insert); ~10 white (self-ligation). Plated on LB agar + kanamycin 50 ug/mL."
-      },
-      {
-        "id": "S18",
-        "name": "Transformation QC detection",
-        "bb": "BB4",
-        "inputs": ["recoveredCells"],
-        "output": "transformSignal",
-        "operation": "detect",
-        "module": "transformationQC",
-        "duration_s": 30,
-        "notes": "transformationQC abstracts off-chip colony counting on kanamycin LB-agar plates (37 C overnight). Colony-PCR and Sanger sequencing (primers QB3284_fwd / QB3810_rev; QuintaraBio) confirm assembly. Golden Gate: 95% correct (76/80). Gibson: 100% (80/80). Yeast: 97.2% (70/72)."
-      },
-      {
-        "id": "S18a",
-        "name": "Transformation QC gate - pass branch",
-        "bb": "BB5",
-        "condition": "transformSignal > 0",
-        "action": "dispose(recoveredCells)",
-        "notes": "Transformed colonies confirmed; dispose recovery droplet."
-      },
-      {
-        "id": "S18b",
-        "name": "Transformation QC gate - fail branch",
-        "bb": "BB6",
-        "condition": "transformSignal <= 0",
-        "action": "drain(recoveredCells)",
-        "notes": "No viable transformed cells detected (electroporation failure or no assembly). Drain recovery droplet. Compiler known bug: drain lowered to dispose in IR."
-      },
-      {
-        "id": "S19",
-        "name": "Final cleanup",
-        "bb": "BB7",
-        "inputs": ["transformSignal", "oilPhase"],
-        "operation": "dispose x2",
-        "notes": "Dispose transformation QC signal and oil phase droplet. Terminal block. In the actual protocol, Steps S1-S19 are repeated 15 more times (16 total iterations) using the same electrode path, mixing channel, and incubation channel. Reservoir droplets refilled via SU-8 capillary between iterations."
-      }
-    ],
-
-    "assembly_methods_comparison": {
-      "golden_gate": {
-        "temperature_C": 25,
-        "duration_min": 10,
-        "additional_reagent": "T4 DNA ligase 2.5 U/uL + 0.05% Pluronic F-127",
-        "total_volume_uL": 0.8,
-        "sequencing_accuracy_pct": 95,
-        "sequenced_clones": "76/80"
-      },
-      "gibson": {
-        "temperature_C": 50,
-        "duration_min": 15,
-        "additional_reagent": "2x Gibson Assembly Master Mix (NEB)",
-        "total_volume_uL": 0.8,
-        "sequencing_accuracy_pct": 100,
-        "sequenced_clones": "80/80"
-      },
-      "yeast_tar": {
-        "temperature_C": 25,
-        "duration_min": 10,
-        "additional_reagent": "none (in vivo assembly post-transformation)",
-        "total_volume_uL": 0.6,
-        "sequencing_accuracy_pct": 97.2,
-        "sequenced_clones": "70/72",
-        "vector": "pRS424 (2 micron + TRP1 + F1 + ampicillin)"
-      }
-    },
-
-    "cross_contamination": {
-      "strategy": "HFE 7500 biocompatible oil + 0.05% w/v Pluronic F-127 surfactant additive (no wash steps)",
-      "first_application_to_dna_assembly": true,
-      "confidence_level_pct": 95,
-      "cross_contamination_upper_bound_pct": 10,
-      "validation": "30 colonies picked from pProm1_BCD2-gfp plate; all 30 showed BCD2 banding pattern (Fig 4c); statistical analysis in Supporting Information"
-    },
-
-    "automation_system": {
-      "controller": "Arduino RBBB (Modern Device)",
-      "driving_potential_V_rms": "100-120",
-      "frequency_kHz": 8,
-      "feedback": "Impedance sensing; Vsense threshold ~0.15 V for ~0.2 uL droplets",
-      "external_hardware": ["Syringe pumps (neMESYS, Cetoni)", "Pneumatic actuators (Parker)", "Peltier heater", "Function generator (Agilent 8 kHz)"],
-      "software": "In-house automation; controls droplet movement, feedback sensing, syringe pumps, valves, Peltier, function generator (Fig S3)"
-    },
-
     "cfg": {
       "basic_blocks": [
         {
-          "id": "BB1", "label": "main", "type": "entry",
-          "ir_operations": [
-            "oilPhase1[0] = dispense(HFE7500_PluronicF127)",
-            "vectorDrop1[0] = dispense(VectorBackbone)",
-            "promoterDrop1[0] = dispense(Promoter1)",
-            "bcdDrop1[0] = dispense(BCD1_gfp)",
-            "ligaseDrop1[0] = dispense(T4_DNA_Ligase)",
-            "dnaMix1[0] = mix(vectorDrop1[0], promoterDrop1[0]) @ 5.0SECOND",
-            "threePartMix1[0] = mix(dnaMix1[0], bcdDrop1[0]) @ 5.0SECOND",
-            "assemblyMix1[0] = mix(threePartMix1[0], ligaseDrop1[0]) @ 10.0SECOND",
-            "heat(assemblyMix1[0]) @ 25.0CELSIUS @ 600.0SECOND",
-            "assemblySignal1[0] = detect(assemblyQC, assemblyMix1[0]) @ 30.0SECOND",
-            "if assemblySignal1[0] > 0 | true: jump bsbbif_2_t | false: jump bsbbif_3_f"
-          ]
+          "id": "1",
+          "label": "main",
+          "type": "entry"
         },
         {
-          "id": "BB2", "label": "bsbbif_2_t", "type": "branch_true",
-          "condition": "assemblySignal > 0",
-          "action": "dispose(assemblyMix)",
-          "ir_operations": ["dispose(assemblyMix1[0])"],
-          "known_compiler_bug": "true-block missing unconditional jump to bsbbif_4_j"
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
         },
         {
-          "id": "BB3", "label": "bsbbif_3_f", "type": "branch_false",
-          "condition": "assemblySignal <= 0",
-          "action": "drain(assemblyMix)",
-          "ir_operations": ["dispose(assemblyMix1[0])", "jump: bsbbif_4_j"],
-          "known_compiler_bug": "drain lowered to dispose in IR"
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
         },
         {
-          "id": "BB4", "label": "bsbbif_4_j", "type": "join",
-          "ir_operations": [
-            "dispose(assemblySignal1[0])",
-            "cellDroplet1[0] = dispense(CompetentEcoli)",
-            "incubatedPlasmid1[0] = dispense(AssembledPlasmid)",
-            "electroporationMedia1[0] = dispense(ElectroporationMedia)",
-            "cellMix1[0] = mix(cellDroplet1[0], electroporationMedia1[0]) @ 5.0SECOND",
-            "preMix1[0] = mix(incubatedPlasmid1[0], cellMix1[0]) @ 5.0SECOND",
-            "heat(preMix1[0]) @ 37.0CELSIUS @ 60.0SECOND",
-            "recoveryMedia1[0] = dispense(LB_Recovery)",
-            "recoveredCells1[0] = mix(preMix1[0], recoveryMedia1[0]) @ 5.0SECOND",
-            "heat(recoveredCells1[0]) @ 37.0CELSIUS @ 3600.0SECOND",
-            "transformSignal1[0] = detect(transformationQC, recoveredCells1[0]) @ 30.0SECOND",
-            "if transformSignal1[0] > 0 | true: jump bsbbif_5_t | false: jump bsbbif_6_f"
-          ]
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "join"
         },
         {
-          "id": "BB5", "label": "bsbbif_5_t", "type": "branch_true",
-          "condition": "transformSignal > 0",
-          "action": "dispose(recoveredCells)",
-          "ir_operations": ["dispose(recoveredCells1[0])"],
-          "known_compiler_bug": "true-block missing unconditional jump to bsbbif_7_j"
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
         },
         {
-          "id": "BB6", "label": "bsbbif_6_f", "type": "branch_false",
-          "condition": "transformSignal <= 0",
-          "action": "drain(recoveredCells)",
-          "ir_operations": ["dispose(recoveredCells1[0])", "jump: bsbbif_7_j"],
-          "known_compiler_bug": "drain lowered to dispose in IR"
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "branch_false"
         },
         {
-          "id": "BB7", "label": "bsbbif_7_j", "type": "terminal",
-          "ir_operations": [
-            "dispose(transformSignal1[0])",
-            "dispose(oilPhase1[0])",
-            "NOP"
-          ]
+          "id": "7",
+          "label": "bsbbif_7_j",
+          "type": "terminal"
         }
       ],
       "edges": [
-        ["BB1","BB2"], ["BB1","BB3"],
-        ["BB2","BB4"], ["BB3","BB4"],
-        ["BB4","BB5"], ["BB4","BB6"],
-        ["BB5","BB7"], ["BB6","BB7"]
-      ],
-      "known_compiler_bugs": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ]
+      ]
+    },
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(assemblyMix1[0])\nbsbbif_3_f:\n\tdispose(assemblyMix1[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(assemblySignal1[0])\n\tcellDroplet1[0] = dispense(CompetentEcoli)\n\tincubatedPlasmid1[0] = dispense(AssembledPlasmid)\n\telectroporationMedia1[0] = dispense(ElectroporationMedia)\n\tcellMix1[0] = mix(cellDroplet1[0], electroporationMedia1[0]) @ 5.0SECOND\n\tpreMix1[0] = mix(incubatedPlasmid1[0], cellMix1[0]) @ 5.0SECOND\n\theat(preMix1[0]) @ 37.0CELSIUS @ 60.0SECOND\n\trecoveryMedia1[0] = dispense(LB_Recovery)\n\trecoveredCells1[0] = mix(preMix1[0], recoveryMedia1[0]) @ 5.0SECOND\n\theat(recoveredCells1[0]) @ 37.0CELSIUS @ 3600.0SECOND\n\ttransformSignal1[0] = detect(transformationQC, recoveredCells1[0]) @ 30.0SECOND\n\tif transformSignal1[0] > 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nmain:\n\toilPhase1[0] = dispense(HFE7500_PluronicF127)\n\tvectorDrop1[0] = dispense(VectorBackbone)\n\tpromoterDrop1[0] = dispense(Promoter1)\n\tbcdDrop1[0] = dispense(BCD1_gfp)\n\tligaseDrop1[0] = dispense(T4_DNA_Ligase)\n\tdnaMix1[0] = mix(vectorDrop1[0], promoterDrop1[0]) @ 5.0SECOND\n\tthreePartMix1[0] = mix(dnaMix1[0], bcdDrop1[0]) @ 5.0SECOND\n\tassemblyMix1[0] = mix(threePartMix1[0], ligaseDrop1[0]) @ 10.0SECOND\n\theat(assemblyMix1[0]) @ 25.0CELSIUS @ 600.0SECOND\n\tassemblySignal1[0] = detect(assemblyQC, assemblyMix1[0]) @ 30.0SECOND\n\tif assemblySignal1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbif_5_t:\n\tdispose(recoveredCells1[0])\nbsbbif_6_f:\n\tdispose(recoveredCells1[0])\n\tjump: bsbbif_7_j\nbsbbif_7_j:\n\tdispose(transformSignal1[0])\n\tdispose(oilPhase1[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
         {
-          "bug": "drain lowered to dispose in IR",
-          "affected_blocks": ["BB3", "BB6"],
-          "scope": "systematic across all protocols; compiler-side issue in lilott8/BioScript"
+          "bs_chemical": "VectorBackbone",
+          "source_quote": "Manifests       : VectorBackbone, Promoter1, BCD1_gfp, T4_DNA_Ligase,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
         },
         {
-          "bug": "true-block missing unconditional jump",
-          "affected_blocks": ["BB2", "BB5"],
-          "scope": "systematic; false-blocks correctly emit jump; true-blocks fall through silently"
+          "bs_chemical": "Promoter1",
+          "source_quote": "Step 3 | Dispense Promoter1 Insert",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "BCD1_gfp",
+          "source_quote": "Step 7 | Add BCD1-gfp to DNA Mix",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "T4_DNA_Ligase",
+          "source_quote": "Step 5 | Dispense T4 DNA Ligase",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "HFE7500_PluronicF127",
+          "source_quote": "HFE7500_PluronicF127, AssembledPlasmid, ElectroporationMedia,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "AssembledPlasmid",
+          "source_quote": "Reagent     : AssembledPlasmid",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "ElectroporationMedia",
+          "source_quote": "Inputs      : cellDroplet, electroporationMedia",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "LB_Recovery",
+          "source_quote": "LB_Recovery, CompetentEcoli",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "CompetentEcoli",
+          "source_quote": "LB_Recovery, CompetentEcoli",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "Step 12 | Dispense E.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "Mix         : 5 s",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "heat",
+          "source_quote": "Operation   : heat at 25 C for 10 min (600 s)",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "after detect has consumed it.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "drain lowered to dispose in IR",
+          "source_location": "description.txt: Fluid ownership fix (v2)"
+        },
+        {
+          "bs_operation": "drain",
+          "source_quote": "drain lowered to dispose in IR",
+          "source_location": "description.txt: Fluid ownership fix (v2)"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "QC branch gate decides proceed vs.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 1 hour(s) vs BioScript encodes 60m — converted hours to minutes for BioScript grammar compatibility."
+        },
+        {
+          "field": "reaction_temperature",
+          "note": "Description specifies room temperature vs BioScript encodes 25c — nominal ambient temperature encoding."
         }
       ]
-    }
+    },
+    "notes": "This protocol details A Versatile Microfluidic Device for Automating Synthetic Biology. The assay is performed on a Hybrid DMF (digital microfluidics + droplet-in-channel microfluidics) on EWOD/electrode array platform. Key reagents used in the assay include 12 reservoir electrodes and 12 narrow electrodes."
   }
 }

@@ -1,353 +1,280 @@
 {
-  "protocol": {
-    "title": "Cellular Decision Making by Non-Integrative Processing of TLR Inputs",
-    "source": "Cell Reports 2017, 19, 125-135",
-    "doi": "10.1016/j.celrep.2017.03.027",
-    "platform": "Automated microfluidic cell culture + widefield live-cell fluorescence microscopy",
-    "cell_lines": [
-      "Mouse 3T3 fibroblasts p65-DsRed (p65^(-/-) background, near-endogenous p65 promoter, H2B-GFP nuclear marker)"
-    ],
-    "objective": "Combinatorial TLR2/TLR4 co-stimulation in single cells to study NF-kB dynamic profiles, bagging classifier-based response classification (LPS-like vs PAM-like vs uncertain), sequential cross-tolerance stimulation, and miR-146a TaqMan qPCR validation of slow negative feedback",
-
-    "device": {
-      "type": "Automated microfluidic cell culture chip",
-      "chamber_dimensions": {
-        "length_mm": 1.12,
-        "width_mm": 0.9,
-        "height_mm": 0.040
-      },
-      "cells_per_chamber": 100,
-      "seeding_density_cells_per_chamber": 200,
-      "surface_treatment": "Fibronectin coating",
-      "stimulation_mode": "Step increase via media exchange (chamber perfusion)",
-      "chambers_per_condition": 2,
-      "total_conditions": 9,
-      "imaging_interval_min": "5-6",
-      "imaging_duration_min": 480,
-      "atmosphere": "5% CO2, 37 C (incubation chamber on microscope stage)",
-      "reference": "Kellogg et al., Nat. Protoc. 2014; Gomez-Sjoberg et al., Anal. Chem. 2007"
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
     },
-
-    "reagents": {
-      "cell_media": "DMEM (5% CO2-equilibrated, kept on ice before delivery)",
-      "surface_coating": "Fibronectin (adsorbed to PDMS chamber surface before cell seeding)",
-      "tlr4_agonist": {
-        "name": "Ultrapure LPS",
-        "supplier": "Invivogen",
-        "specificity": "TLR4-exclusive; does not activate TLR2 (Fujihara et al. 2003; Lee et al. 2009)",
-        "doses_ng_mL": [100, 33, 11],
-        "preparation": "Diluted in DMEM in separate vials, pressured with 5% CO2, kept on ice"
-      },
-      "tlr2_agonist": {
-        "name": "Pam3CSK4 (PAM)",
-        "supplier": "Invivogen",
-        "description": "Synthetic triacylated lipopeptide; activates TLR2 via endosomal processing",
-        "doses_ng_mL": [40, 13.3, 4.4],
-        "preparation": "Diluted in DMEM in separate vials, pressured with 5% CO2, kept on ice",
-        "reference": "Brandt et al. 2013; Stack et al. 2014"
-      },
-      "rna_isolation": "mirVana miRNA isolation kit (Ambion)",
-      "cdna_synthesis": "TaqMan microRNA reverse transcription kit (Applied Biosystems)",
-      "mirna_probe": "TaqMan miRNA-specific assay hsa-miR-146a (cross-reactive with murine miR-146a)",
-      "endogenous_control": "snoRNA234 small nuclear RNA (snRNA; Applied Biosystems)",
-      "bulk_stimulation_doses_qpcr_ng_mL": {
-        "LPS": 10,
-        "PAM": 10,
-        "note": "Intermediate doses used for bulk qPCR time-course; separate from microfluidic single-cell doses"
-      }
+    {
+      "role": "user",
+      "content": "PROTOCOL DESCRIPTION\n====================\n\nTitle        : Cellular Decision Making by Non-Integrative Processing of TLR Inputs\nSource Link  : https://www.cell.com/cell-reports/fulltext/S2211-1247(17)30359-5\nPaper DOI    : http://dx.doi.org/10.1016/j.celrep.2017.03.027\nJournal      : Cell Reports, 2017, Vol. 19, pp. 125-135\nPlatform     : Automated microfluidic cell culture chip + widefield live-cell fluorescence microscopy\n\n\nOVERVIEW\n--------\nThis protocol describes a single-cell live-imaging microfluidic approach to study how cells process\nsimultaneous inflammatory signalling inputs through a shared downstream pathway. Mouse 3T3 fibroblasts\nexpressing p65-DsRed at near-endogenous levels are cultured in automated microfluidic chambers and\nstimulated with combinatorial TLR4 (LPS) and TLR2 (PAM) agonists across a 3x3 dose matrix. NF-kB\nnuclear translocation dynamics are quantified continuously over 8 hours at single-cell resolution.\n\nThe protocol is divided into four functional phases:\n  1. Automated microfluidic cell culture: fibronectin coating, cell seeding, pre-culture,\n     and 9-condition LPS x PAM co-stimulation matrix (step increase via chamber media exchange)\n  2. NF-kB live imaging and bagging classifier-based response classification:\n     single cells classified as LPS-like, PAM-like, or uncertain/mixed using a\n     trained ensemble of N=50 decision-tree classifiers (n=0.6 majority vote threshold)\n  3. Sequential cross-tolerance stimulation: two schemes test TLR cross-tolerance mediated\n     by shared negative feedback (IkB, A20, miR-146a) at the TRAF6 node\n  4. miR-146a TaqMan qPCR validation: bulk stimulation + RNA isolation + two-step\n     qPCR confirms miR-146a as the slow, sustained, ultrasensitive negative feedback\n     that mediates PAM response shutoff and enables cross-TLR tolerance\n\nThe central finding is \"non-integrative processing\": under TLR2-TLR4 co-stimulation, single cells\nrespond with an NF-kB dynamic profile characteristic of either TLR4 (LPS-like) or TLR2 (PAM-like)\nactivation, rather than a mixed or combined response. This is mediated by switch-like NF-kB activation,\nreceptor-specific processing timescales (endosomal delay for TLR2), cell-to-cell variability in TLR\nreceptor numbers, and multilayer negative feedback enabling cross-tolerance.\n\n\nDEVICE ARCHITECTURE\n-------------------\nPlatform     : Automated microfluidic cell culture system (Gomez-Sjoberg et al. Anal. Chem. 2007;\n               Kellogg et al. Nat. Protoc. 2014; Kellogg & Tay, Cell 2015)\nChamber size : 1.12 mm x 0.9 mm x 0.040 mm per chamber\nCells/chamber: ~100 cells at imaging; seeded at 200 cells/chamber\nParallelism  : All 9 LPS-PAM dose combinations run in parallel on a single chip\n               Duplicate chambers per condition (2 chambers per LPS-PAM combination)\nAtmosphere   : 37 C, 5% CO2; maintained via on-stage incubation chamber\nStimulus     : Delivered as step increase (chamber media exchange); stimulus vials\n               pressured with 5% CO2, kept on ice before delivery\nPost-stim    : Chambers sealed immediately after stimulus delivery\nImaging      : 5-6 min interval acquisitions for 480 min (8 hours)\n\n\nCELL LINE\n---------\nMouse 3T3 fibroblasts (p65^(-/-) background):\n  - Re-express p65-DsRed under control of 1.5 kb endogenous p65 promoter\n  - Clonally derived to express p65-DsRed at near-endogenous (lowest detectable) level\n  - H2B-GFP nuclear marker driven by ubiquitin promoter (automated cell tracking)\n  - Culture: DMEM complete media, 37 C, 5% CO2, no antibiotics\n  - Reference: Tay et al. Nature 2010; Lee et al. Sci. Signal. 2009\n\n\nPROTOCOL STEPS\n--------------\n\nStep 1 | Fibronectin Chamber Coating\n  Reagents  : Fibronectin, PBS wash\n  Operation : Chamber perfusion coating (abstracted as mix in BioScript)\n  Duration  : 5 min\n  Purpose   : Promotes 3T3 fibroblast adhesion to PDMS chamber surface.\n              Excess fibronectin removed with PBS wash.\n\nStep 2 | Cell Seeding and Pre-culture\n  Cell line : Mouse 3T3 p65-DsRed (p65^(-/-))\n  Density   : 200 cells/chamber (seeding); ~100 cells/chamber at imaging\n  Media     : DMEM complete (37 C, 5% CO2)\n  Duration  : 24 h (= 1440 min; IR: 86400.0 SECOND)\n  Target    : ~80% confluence before stimulation\n  Notes     : Periodic media replenishment during pre-culture. Incubation\n              chamber maintains 37 C and 5% CO2 on microscope stage.\n\nStep 3 | Pre-stimulation Media Refresh\n  Reagents  : DMEM complete (fresh, CO2-equilibrated)\n  Duration  : 1 min\n  Purpose   : Removes conditioned media; establishes NF-kB baseline before stimulus.\n\nStep 4 | Combinatorial LPS x PAM Co-stimulation (9-condition 3x3 matrix)\n  TLR4 agonist : Ultrapure LPS (Invivogen); TLR4-exclusive activation\n                 Doses: 100, 33, 11 ng/mL\n  TLR2 agonist : Pam3CSK4 (PAM, Invivogen); synthetic triacylated lipopeptide; TLR2 via endosome\n                 Doses: 40, 13.3, 4.4 ng/mL\n  Conditions   : 9 combinations (C1-C9); 2 duplicate chambers each; 18 chambers total\n  Primary cond : C9 (LPS 11 ng/mL + PAM 4.4 ng/mL) -- most distinct LPS/PAM dynamics\n                 used as representative condition for bagging classifier CFG gate\n  Delivery     : Step increase via microfluidic media exchange; all vials pressured with\n                 5% CO2 and kept on ice; delivered to parallel chambers on single chip\n  Imaging      : Chambers sealed post-delivery; 5-6 min intervals for 480 min\n\n  Dose matrix (ng/mL):\n    LPS\\PAM  |  40     |  13.3   |  4.4\n    ---------+---------+---------+------\n    100      |  C1     |  C2     |  C3\n    33       |  C4     |  C5     |  C6\n    11       |  C7     |  C8     |  C9*\n    (* primary mechanistic condition)\n\nStep 5 | NF-kB Live Imaging and Bagging Classifier Detection\n  Microscope   : Leica DMI6000B widefield, 20x magnification\n  Camera       : Retiga-SRV CCD (QImaging)\n  Light source : Leica EL6000 mercury metal halide\n  Channels     : DsRed (Y3 filter, NF-kB signal); GFP (L5 filter, H2B nuclear marker)\n  Quantification: Mean nuclear DsRed / mean cytoplasm DsRed intensity ratio\n  Tracking     : CellProfiler (automated) + custom MATLAB\n  Peak analysis: MATLAB smooth + mspeaks; features: first peak intensity, max peak time\n  Classifier   : Bagging classifier (N=50 decision trees, n=0.6 majority vote threshold)\n                 Implemented via MATLAB fitensemble ('Bag','Tree','Classification')\n                 Training: single-stimulus LPS and PAM trajectories at matched doses\n                 Output: LPS-like / PAM-like / Uncertain (mixed) per cell\n                 Accuracy: 89% overall; >=85% per condition (10-fold CV)\n  Key results  : C9 (LPS 11 + PAM 4.4 ng/mL): ~40-50% LPS-like, ~40-50% PAM-like, ~15% mixed\n                 C1 (LPS 100 + PAM 40 ng/mL): ~90% LPS-like\n                 C7 (LPS 11 + PAM 40 ng/mL): ~90% PAM-like\n  Gate         : classifySignal > 0 -> non-integrative (>80% LPS- or PAM-like) -> BB2 (pass)\n                 classifySignal <= 0 -> integrative/mixed dominant -> BB3 (fail)\n\nStep 6 | Sequential Stimulation Scheme A: LPS First, PAM at +2 hr\n  Cell line     : Mouse 3T3 p65-DsRed (fresh chambers; parallel chip run)\n  First stim    : LPS 11 ng/mL at t=0\n  Interval      : 120 min incubation at 37 C, 5% CO2 (heat step in BioScript)\n  Second stim   : PAM 13.3 ng/mL at t=120 min (delivered to same chamber)\n  Imaging       : Continuous throughout (480 min total window)\n  Detection     : nfkbLiveImagingDetection (480 min)\n  Results (Fig 5C):\n    53% cells responded to LPS only (LPS-induced IkB/A20/miR-146a blocked PAM response)\n    30% cells responded to PAM only (LPS-refractory; caught by PAM at +2 hr)\n    17% cells responded to both stimuli (incomplete negative feedback suppression)\n  Interpretation: Rapid negative feedback induced by LPS sufficient to inhibit subsequent\n                 PAM response in majority of pre-activated cells.\n\nStep 7 | Sequential Stimulation Scheme B: PAM First, LPS at +4 hr\n  Cell line     : Mouse 3T3 p65-DsRed (fresh chambers; parallel chip run)\n  First stim    : PAM 13.3 ng/mL at t=0\n  Interval      : 240 min incubation at 37 C, 5% CO2 (ensures miR-146a fully induced;\n                  PAM onset ~2 hr; 240 min interval allows sustained expression to build)\n  Second stim   : LPS 100 ng/mL at t=240 min (high dose to maximally challenge pre-activated cells)\n  Imaging       : Continuous throughout (480 min total window)\n  Detection     : nfkbLiveImagingDetection (480 min)\n  Cross-tol gate: crossToleranceDetection on Scheme A signal (30 s detection)\n                  crossTolSignal > 0 -> cross-tolerance confirmed -> BB5 (pass)\n                  crossTolSignal <= 0 -> no cross-tolerance -> BB6 (fail)\n  Results (Fig 5D):\n    84% cells responded to PAM only (A20/miR-146a fully blocked high-dose LPS response)\n    16% cells responded to both stimuli\n  Interpretation: Moderate PAM stimulus activated all cells; sustained A20/miR-146a negative\n                 feedback mediated cross-TLR tolerance, blocking even high-dose LPS at +4 hr.\n                 Cross-tolerance operates via shared TRAF6 node downstream of both TLR2 and TLR4.\n\nStep 8 | miR-146a TaqMan qPCR Validation\n  Purpose       : Validate miR-146a as slow, sustained, ultrasensitive negative feedback\n                  responsible for PAM response shutoff (Fig 2C) and cross-TLR tolerance\n  Cell line     : Mouse 3T3 (bulk flasks; off-chip, not single-cell microfluidics)\n  Stimuli       : LPS 10 ng/mL and PAM 10 ng/mL (separate flasks; not co-stimulation)\n  Time course   : RNA harvested at 0, 1, 2, 4, 6, 8 hr post-stimulation (480 min)\n  Incubation    : 37 C, 5% CO2 (heat step in BioScript; 480 min per arm)\n  RNA isolation : mirVana miRNA isolation kit (Ambion); TrizolReagent abstraction in BioScript\n  cDNA synthesis: TaqMan microRNA reverse transcription kit (Applied Biosystems)\n  qPCR assay    : TaqMan miRNA-specific assay hsa-miR-146a (cross-reactive with murine miR-146a)\n  Normalisation : snoRNA234 snRNA endogenous control (Applied Biosystems)\n  Thermocycler  : 95 C denaturation (15 s/cycle) + 60 C annealing/extension (60 s/cycle), 40 cycles\n                  Total per arm: 2 x 50 min heat steps (BioScript; 95 C then 60 C)\n  Detection     : miR146aExpressionDetection module; representative gate on LPS arm\n                  miR146aSignal > 0 -> sustained induction confirmed -> BB8 (pass)\n                  miR146aSignal <= 0 -> no induction -> BB9 (fail)\n  Results (Fig 2C):\n    LPS onset   : ~1 hr post-stimulation\n    PAM onset   : ~2 hr post-stimulation\n    Profile     : Sustained high expression for >6 hr (unlike IkB/A20 which return to baseline)\n    Role        : Slow feedback via TRAF6 mRNA cleavage (also IRAK1/2); Hill coefficient 4\n                  in ODE model (ultrasensitivity); explains rising-amplitude PAM oscillations\n                  and abrupt shutoff at 300-400 min under low-dose PAM stimulation\n\n\nMATHEMATICAL MODEL SUMMARY\n--------------------------\nType         : ODE system; mass-action / Michaelis-Menten / Hill kinetics\nBase         : Extended from Kellogg et al. eLife 2015 (LPS/TLR4 NF-kB model)\n               and Tay et al. Nature 2010 (TNF NF-kB model)\nNoise        : Receptor-level extrinsic noise only; TLR4 and TLR2 total counts are\n               lognormally distributed (mu_R, sigma_R parameters)\nSimulation   : 500 cells per condition; only active trajectories considered\nKey features :\n  - TLR4 (LPS): surface membrane signalling; rapid TRAF6a(LPS) accumulation\n  - TLR2 (PAM): endosomal processing modelled as low binding (kf) + low unbinding (kr);\n                 slow TRAF6a(PAM) accumulation; integrator-like PAM.TLR2 complex dynamics\n  - Fast feedback : IkBa (principal fast feedback); A20\n  - Slow feedback : miR-146a (Hill coefficient 4; ultrasensitive); targets TRAF6 mRNA\n  - IKK activation: cooperative TRAF6 clustering (Hill term); switch-like NF-kB response\n  - Non-integrative mechanism: LPS fires first (no endosomal delay); IkB/A20/miR-146a\n    feedback prevents PAM response in TLR4-sensitive cells; TLR4-refractory cells receive\n    PAM signal unimpeded. Switch-like activation polarises each cell to one outcome.\n  - TRIF pathway excluded: inactive in 3T3 fibroblasts (A. Hoffmann, personal communication)\n  - Ligand/cell: 1 ng/mL LPS = 2.4e4 ligands/cell (MW 10 kDa);\n                 1 ng/mL PAM = 1.6e5 ligands/cell (MW 1509.6 Da)\n                 Chamber: 1.12 x 0.9 x 0.040 mm; ~100 cells/chamber\n\n\nBIOSCRIPT COMPILER NOTES\n-------------------------\nBioScript file : kellogg_nfkb_tlr_nonintegrative.bs\nCompiler       : lilott8/BioScript (ANTLR4-based)\nIR output      : 10 basic blocks (BB1-BB10), 3 if/else gates, 12 CFG edges\nDAG            : kellogg_nfkb_tlr_nonintegrative_main_dag.dot\nDuration units : All durations converted to seconds (s) or minutes (m) for compiler compatibility\n                 (BioScript supports s and m only; h token not supported)\n                 24 h pre-culture   -> 1440m  (IR: 86400.0 SECOND)\n                 480 min imaging    -> 480m   (IR: 28800.0 SECOND)\n                 2 hr seq interval  -> 120m   (IR: 7200.0 SECOND)\n                 4 hr seq interval  -> 240m   (IR: 14400.0 SECOND)\n                 8 hr qPCR course   -> 480m   (IR: 28800.0 SECOND)\n                 50 min qPCR phase  -> 50m    (IR: 3000.0 SECOND)\nModules        : nfkbLiveImagingDetection, baggingClassifierDetection,\n                 crossToleranceDetection, miR146aExpressionDetection\nManifests      : Mouse3T3_p65DsRed_Cells, Fibronectin, DMEM_CompleteMedia,\n                 UltrapureLPS_100ngmL, UltrapureLPS_33ngmL, UltrapureLPS_11ngmL,\n                 Pam3CSK4_40ngmL, Pam3CSK4_13p3ngmL, Pam3CSK4_4p4ngmL,\n                 TrizolReagent, snoRNA234_Control, TaqMan_miR146a_Probe, PBS_Wash\nDose manifests : Each LPS and PAM concentration encoded as separate manifest reflecting\n                 distinct vial preparations in the paper (no on-chip serial dilution)\nmix abstraction: `mix` represents microfluidic chamber perfusion / media exchange,\n                 not DMF electrode droplet merging\nheat abstraction: `heat` represents incubator steps (37 C pre-culture, interval incubation)\n                  and TaqMan thermocycler phases (95 C denaturation, 60 C annealing)\nVariable names : All variable names unique (no reassignment); duplicate chambers encoded\n                 as separate named variables (cond1a/cond1b ... cond9a/cond9b)\nCFG gate note  : Classifier gate uses C9 (LPS 11 + PAM 4.4 ng/mL) as representative\n                 condition; all 18 chamber droplets disposed/drained in pass/fail branches\nIR verification: No duplicate variable assignments; all 10 BBs generated; all 12 CFG edges\n                 confirmed in DAG; terminal BB10 ends with NOP; time conversions verified\n"
     },
-
-    "imaging": {
-      "microscope": "Leica DMI6000B widefield",
-      "magnification": "20x",
-      "camera": "Retiga-SRV CCD (QImaging)",
-      "light_source": "Leica EL6000 mercury metal halide",
-      "filters": {
-        "DsRed": "Leica Y3 filter (NF-kB p65-DsRed signal)",
-        "GFP": "Leica L5 filter (H2B-GFP nuclear marker)"
-      },
-      "nfkb_quantification": "Mean nuclear DsRed intensity / mean cytoplasm DsRed intensity",
-      "analysis_software": "CellProfiler (automated tracking) + custom MATLAB (peak detection via mspeaks; smoothing via smooth function)",
-      "heatplot_sorting": "Pearson correlation coefficient similarity"
+    {
+      "role": "assistant",
+      "content": "module nfkbLiveImagingDetection\nmodule baggingClassifierDetection\nmodule miR146aExpressionDetection\nmodule crossToleranceDetection\n\nmanifest Mouse3T3_p65DsRed_Cells\nmanifest Fibronectin\nmanifest DMEM_CompleteMedia\nmanifest UltrapureLPS_100ngmL\nmanifest UltrapureLPS_33ngmL\nmanifest UltrapureLPS_11ngmL\nmanifest Pam3CSK4_40ngmL\nmanifest Pam3CSK4_13p3ngmL\nmanifest Pam3CSK4_4p4ngmL\nmanifest TrizolReagent\nmanifest snoRNA234_Control\nmanifest TaqMan_miR146a_Probe\nmanifest PBS_Wash\n\ninstructions:\n\n// ============================================================\n// Cellular Decision Making by Non-Integrative Processing\n// of TLR Inputs\n// Kellogg, Tian, Etzrodt, Tay - Cell Reports 19, 125-135 (2017)\n// DOI: http://dx.doi.org/10.1016/j.celrep.2017.03.027\n//\n// Protocol: Automated microfluidic single-cell live imaging of\n// NF-kB dynamics in mouse 3T3 fibroblasts (p65-DsRed) under\n// combinatorial TLR2/TLR4 co-stimulation (LPS x PAM dose matrix),\n// bagging classifier-based response classification, sequential\n// cross-tolerance stimulation, and miR-146a TaqMan qPCR validation.\n//\n// BIOLOGICAL SCOPE:\n//   TLR4 agonist: Ultrapure LPS (Invivogen) -- activates TLR4\n//     exclusively (Fujihara et al., 2003; Lee et al., 2009).\n//   TLR2 agonist: Pam3CSK4 (PAM, Invivogen) -- synthetic\n//     triacylated lipopeptide, activates TLR2 via endosomal\n//     processing (Brandt et al., 2013; Stack et al., 2014).\n//   Cell line: p65^(-/-) mouse 3T3 fibroblasts re-expressing\n//     p65-DsRed under endogenous 1.5 kb p65 promoter; H2B-GFP\n//     nuclear marker for automated tracking (Tay et al., 2010).\n//\n// MICROFLUIDIC PLATFORM:\n//   Chambers: 1.12 mm x 0.9 mm x 0.040 mm; ~100 cells/chamber.\n//   Fibronectin pre-treatment for cell adhesion.\n//   Seeding density: 200 cells/chamber. 1-day pre-culture to\n//   80% confluence with periodic media replenishment.\n//   Stimuli diluted in DMEM equilibrated to 5% CO2; delivered\n//   as step increase (chamber media exchange). All nine LPS-PAM\n//   dose combinations run in parallel on a single chip.\n//   Stimulations applied in duplicate chambers per condition.\n//   Post-stimulation: chambers sealed; imaged every 5-6 min.\n//\n// IMAGING AND ANALYSIS:\n//   Leica DMI6000B widefield microscope, 20x, Retiga-SRV CCD.\n//   DsRed (Y3 filter) and GFP (L5 filter) channels acquired.\n//   NF-kB activation = mean nuclear DsRed / mean cytoplasm DsRed.\n//   CellProfiler + custom MATLAB: automated cell tracking and\n//   NF-kB quantification. Peak detection via MATLAB mspeaks.\n//\n// NOTE ON `mix` ABSTRACTION:\n//   `mix` in this protocol represents the microfluidic media\n//   exchange / stimulus delivery step (chamber perfusion), not\n//   pipette mixing. Stimulus is delivered as a step increase in\n//   chamber concentration by flushing stimulus-containing DMEM.\n//   There is no droplet-level DMF merging.\n//\n// NOTE ON DOSE MANIFESTS:\n//   Each LPS and PAM concentration is encoded as a separate\n//   manifest reflecting the distinct vial preparations used in\n//   the paper (LPS/PAM diluted in DMEM in separate vials,\n//   pressured with 5% CO2, kept on ice before delivery).\n//   This avoids the need for on-chip serial dilution, which is\n//   not described in the paper's experimental procedure.\n//\n// NOTE ON SEQUENTIAL STIMULATION (BB6/BB7):\n//   Two sequential schemes are tested:\n//     Scheme A: LPS 11 ng/mL first -> PAM 13.3 ng/mL at +2 hr.\n//     Scheme B: PAM 13.3 ng/mL first -> LPS 100 ng/mL at +4 hr.\n//   Both probe TLR cross-tolerance mediated by miR-146a / A20 /\n//   IkB negative feedback (Fig. 5, paper).\n//   crossTolSignal abstracts the dual-response QC gate:\n//     Scheme A result: 53% cells LPS-only, 30% PAM-only, 17% both.\n//     Scheme B result: 84% cells PAM-only, 16% both (full block).\n//   Signal > 0 encodes the expected cross-tolerance outcome\n//   (majority of pre-stimulated cells refractory to 2nd stimulus).\n//\n// NOTE ON miRNA QPCRvalidation (BB8 onward):\n//   Bulk RNA was isolated from cells stimulated with 10 ng/mL LPS\n//   or 10 ng/mL PAM (separate conditions, not co-stimulation).\n//   miR-146a induced by both; LPS onset ~1 hr, PAM onset ~2 hr;\n//   sustained high expression for several hours (Fig. 2C).\n//   `detect miR146aExpressionDetection` abstracts the TaqMan\n//   real-time PCR assay (Applied Biosystems). Expression\n//   normalised to snoRNA234 endogenous control.\n//   miR146aSignal > 0 encodes detection of sustained induction.\n//\n// CFG STRUCTURE:\n//   BB1  main                  -- device prep; cell seeding;\n//                                 9 x LPS-PAM co-stimulation matrix\n//   BB2  classifyPass          -- classifySignal > 0: predominantly\n//                                 LPS-like or PAM-like (non-integrative);\n//                                 dispose co-stim droplets; proceed\n//   BB3  classifyFail          -- classifySignal <= 0: mixed/uncertain\n//                                 response dominant; drain\n//   BB4  classifyJoin          -- join: sequential cross-tolerance arm\n//   BB5  seqSchemeA            -- Scheme A: LPS first -> PAM at +2 hr\n//   BB5a seqSchemeA_stimulate  -- deliver second stimulus (PAM)\n//   BB6  seqSchemeB            -- Scheme B: PAM first -> LPS at +4 hr\n//   BB6a seqSchemeB_stimulate  -- deliver second stimulus (LPS)\n//   BB7  crossTolPass          -- crossTolSignal > 0: cross-tolerance\n//                                 confirmed; dispose; proceed to miRNA\n//   BB8  crossTolFail          -- crossTolSignal <= 0: no cross-tol; drain\n//   BB9  crossTolJoin          -- join: miR-146a validation arm\n//   BB10 miR146aPass           -- miR146aSignal > 0: sustained induction\n//                                 confirmed; dispose\n//   BB11 miR146aFail           -- miR146aSignal <= 0: no induction; drain\n//   BB12 finalCleanup          -- terminal: dispose all QC signals\n// ============================================================\n\n\n// ============================================================\n// BB1: main\n// Device preparation, cell seeding, and 9-condition\n// LPS x PAM co-stimulation matrix.\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 1: Fibronectin coating of microfluidic chambers.\n//   Chambers coated with fibronectin to promote 3T3 cell\n//   adhesion. Coating applied before cell loading and allowed\n//   to adsorb to PDMS surface. PBS wash removes excess.\n//   `mix` abstracts the chamber perfusion coating step.\n// ------------------------------------------------------------\n\nfibronectinCoat = dispense 1 units of Fibronectin\npbsWash1        = dispense 1 units of PBS_Wash\ncoatedChamber   = mix fibronectinCoat with pbsWash1 for 5m\n\n// ------------------------------------------------------------\n// STEP 2: Cell seeding and pre-culture.\n//   Mouse 3T3 p65-DsRed cells seeded at 200 cells/chamber.\n//   Standard culture: 37 C, 5% CO2. Cells grow for 1 day\n//   with periodic media replenishment to ~80% confluence.\n//   `heat` models the 24 h incubator pre-culture step.\n//   NOTE: 24 h = 1440 min (BioScript supports min only, not h).\n// ------------------------------------------------------------\n\ncells          = dispense 1 units of Mouse3T3_p65DsRed_Cells\nmediaPreCulture = dispense 1 units of DMEM_CompleteMedia\nseededChamber  = mix cells with coatedChamber for 2s\n\nheat seededChamber at 37c for 1440m\n\n// ------------------------------------------------------------\n// STEP 3: Replace media with fresh DMEM before stimulation.\n//   Media replenishment step to remove conditioned media and\n//   establish a baseline before stimulus delivery.\n// ------------------------------------------------------------\n\nfreshMedia     = dispense 1 units of DMEM_CompleteMedia\nbaselineChamber = mix seededChamber with freshMedia for 1m\n\n// ------------------------------------------------------------\n// STEP 4a: Prepare and deliver co-stimulation condition 1\n//   LPS 100 ng/mL + PAM 40 ng/mL (high-high dose).\n//   Stimulus vials pre-equilibrated to 5% CO2 and kept on ice.\n//   Media exchange produces a step increase in concentration.\n//   Live imaging begins immediately after stimulus delivery.\n//   Chambers sealed; 5-6 min imaging intervals for 480 min.\n//   NOTE: `mix` abstracts the microfluidic chamber perfusion\n//   and media exchange event, not pipette mixing.\n//   Duplicate chamber (cond1b) run in parallel on same chip.\n// ------------------------------------------------------------\n\nlps100         = dispense 1 units of UltrapureLPS_100ngmL\npam40          = dispense 1 units of Pam3CSK4_40ngmL\nstimulusCond1  = mix lps100 with pam40 for 5s\ncond1a         = mix baselineChamber with stimulusCond1 for 480m\ncond1b         = mix baselineChamber with stimulusCond1 for 480m\n\n// ------------------------------------------------------------\n// STEP 4b: Condition 2 -- LPS 100 ng/mL + PAM 13.3 ng/mL\n//   (high LPS, mid PAM).\n// ------------------------------------------------------------\n\nlps100_c2      = dispense 1 units of UltrapureLPS_100ngmL\npam13p3        = dispense 1 units of Pam3CSK4_13p3ngmL\nstimulusCond2  = mix lps100_c2 with pam13p3 for 5s\ncond2a         = mix baselineChamber with stimulusCond2 for 480m\ncond2b         = mix baselineChamber with stimulusCond2 for 480m\n\n// ------------------------------------------------------------\n// STEP 4c: Condition 3 -- LPS 100 ng/mL + PAM 4.4 ng/mL\n//   (high LPS, low PAM).\n// ------------------------------------------------------------\n\nlps100_c3      = dispense 1 units of UltrapureLPS_100ngmL\npam4p4         = dispense 1 units of Pam3CSK4_4p4ngmL\nstimulusCond3  = mix lps100_c3 with pam4p4 for 5s\ncond3a         = mix baselineChamber with stimulusCond3 for 480m\ncond3b         = mix baselineChamber with stimulusCond3 for 480m\n\n// ------------------------------------------------------------\n// STEP 4d: Condition 4 -- LPS 33 ng/mL + PAM 40 ng/mL\n//   (mid LPS, high PAM).\n// ------------------------------------------------------------\n\nlps33          = dispense 1 units of UltrapureLPS_33ngmL\npam40_c4       = dispense 1 units of Pam3CSK4_40ngmL\nstimulusCond4  = mix lps33 with pam40_c4 for 5s\ncond4a         = mix baselineChamber with stimulusCond4 for 480m\ncond4b         = mix baselineChamber with stimulusCond4 for 480m\n\n// ------------------------------------------------------------\n// STEP 4e: Condition 5 -- LPS 33 ng/mL + PAM 13.3 ng/mL\n//   (mid LPS, mid PAM).\n// ------------------------------------------------------------\n\nlps33_c5       = dispense 1 units of UltrapureLPS_33ngmL\npam13p3_c5     = dispense 1 units of Pam3CSK4_13p3ngmL\nstimulusCond5  = mix lps33_c5 with pam13p3_c5 for 5s\ncond5a         = mix baselineChamber with stimulusCond5 for 480m\ncond5b         = mix baselineChamber with stimulusCond5 for 480m\n\n// ------------------------------------------------------------\n// STEP 4f: Condition 6 -- LPS 33 ng/mL + PAM 4.4 ng/mL\n//   (mid LPS, low PAM).\n// ------------------------------------------------------------\n\nlps33_c6       = dispense 1 units of UltrapureLPS_33ngmL\npam4p4_c6      = dispense 1 units of Pam3CSK4_4p4ngmL\nstimulusCond6  = mix lps33_c6 with pam4p4_c6 for 5s\ncond6a         = mix baselineChamber with stimulusCond6 for 480m\ncond6b         = mix baselineChamber with stimulusCond6 for 480m\n\n// ------------------------------------------------------------\n// STEP 4g: Condition 7 -- LPS 11 ng/mL + PAM 40 ng/mL\n//   (low LPS, high PAM).\n// ------------------------------------------------------------\n\nlps11          = dispense 1 units of UltrapureLPS_11ngmL\npam40_c7       = dispense 1 units of Pam3CSK4_40ngmL\nstimulusCond7  = mix lps11 with pam40_c7 for 5s\ncond7a         = mix baselineChamber with stimulusCond7 for 480m\ncond7b         = mix baselineChamber with stimulusCond7 for 480m\n\n// ------------------------------------------------------------\n// STEP 4h: Condition 8 -- LPS 11 ng/mL + PAM 13.3 ng/mL\n//   (low LPS, mid PAM).\n// ------------------------------------------------------------\n\nlps11_c8       = dispense 1 units of UltrapureLPS_11ngmL\npam13p3_c8     = dispense 1 units of Pam3CSK4_13p3ngmL\nstimulusCond8  = mix lps11_c8 with pam13p3_c8 for 5s\ncond8a         = mix baselineChamber with stimulusCond8 for 480m\ncond8b         = mix baselineChamber with stimulusCond8 for 480m\n\n// ------------------------------------------------------------\n// STEP 4i: Condition 9 -- LPS 11 ng/mL + PAM 4.4 ng/mL\n//   (low LPS, low PAM). Primary condition for mechanistic\n//   analysis: most distinct LPS-like vs PAM-like dynamics.\n//   Bagging classifier trained on individual LPS/PAM responses\n//   applied to classify each cell as LPS-like, PAM-like, or\n//   uncertain. Fig. 4B upper-left panel. ~15% mixed/uncertain.\n// ------------------------------------------------------------\n\nlps11_c9       = dispense 1 units of UltrapureLPS_11ngmL\npam4p4_c9      = dispense 1 units of Pam3CSK4_4p4ngmL\nstimulusCond9  = mix lps11_c9 with pam4p4_c9 for 5s\ncond9a         = mix baselineChamber with stimulusCond9 for 480m\ncond9b         = mix baselineChamber with stimulusCond9 for 480m\n\n// ------------------------------------------------------------\n// STEP 5: NF-kB live imaging and bagging classifier detection.\n//   nfkbLiveImagingDetection: abstracts CellProfiler/MATLAB\n//     automated tracking and DsRed nuclear/cytoplasm ratio\n//     quantification over 480 min at 5-6 min intervals.\n//   baggingClassifierDetection: abstracts the ensemble of N=50\n//     decision-tree classifiers (n=0.6 majority vote threshold)\n//     trained on single-stimulus LPS and PAM trajectories.\n//     Outputs LPS-like (> n fraction), PAM-like (> n fraction),\n//     or uncertain (neither fraction reaches n).\n//     QC gate here uses classifySignal > 0 to encode the\n//     population-level finding that non-integrative processing\n//     dominates (>80% LPS-like or PAM-like; <15-20% uncertain).\n//   Detection is run on the primary mechanistic condition (cond9a)\n//   as the representative for the classifier QC gate. All nine\n//   conditions are imaged in parallel (single chip), but only\n//   cond9a drives the downstream CFG branch.\n// ------------------------------------------------------------\n\nnfkbSignal     = detect nfkbLiveImagingDetection on cond9a for 480m\nclassifySignal = detect baggingClassifierDetection on nfkbSignal for 30s\n\n// ============================================================\n// BB2 / BB3: Classifier QC gate\n// Pass (BB2): classifySignal > 0 -> non-integrative processing\n//             confirmed; majority of cells are LPS-like or\n//             PAM-like, not mixed; dispose co-stim chamber\n//             and proceed to sequential stimulation arm (BB4).\n// Fail (BB3): classifySignal <= 0 -> mixed/uncertain responses\n//             dominate (integrative processing); drain.\n// Both branches converge at BB4 (classifyJoin).\n// ============================================================\n\nif (classifySignal > 0) {\n    dispose cond1a\n    dispose cond1b\n    dispose cond2a\n    dispose cond2b\n    dispose cond3a\n    dispose cond3b\n    dispose cond4a\n    dispose cond4b\n    dispose cond5a\n    dispose cond5b\n    dispose cond6a\n    dispose cond6b\n    dispose cond7a\n    dispose cond7b\n    dispose cond8a\n    dispose cond8b\n    dispose cond9b\n} else {\n    drain cond1a\n    drain cond1b\n    drain cond2a\n    drain cond2b\n    drain cond3a\n    drain cond3b\n    drain cond4a\n    drain cond4b\n    drain cond5a\n    drain cond5b\n    drain cond6a\n    drain cond6b\n    drain cond7a\n    drain cond7b\n    drain cond8a\n    drain cond8b\n    drain cond9b\n}\n\n// ============================================================\n// BB4: classifyJoin\n// Dispose classifier and imaging QC signal droplets.\n// Control falls into the sequential cross-tolerance arm (BB5).\n// ============================================================\n\ndispose classifySignal\ndispose nfkbSignal\n\n// ============================================================\n// BB5: seqSchemeA\n// Sequential stimulation Scheme A: LPS 11 ng/mL delivered\n// first (t=0); PAM 13.3 ng/mL delivered to the SAME cells\n// at t=2 hr (120 min) later.\n//\n// Fresh 3T3 p65-DsRed cells are seeded and pre-cultured in a\n// new chamber (parallel chip run). LPS 11 ng/mL is delivered\n// as the first stimulus. `heat` at 37 C for 120 min models\n// the 2-hour interval before second stimulus delivery.\n// Incubation: 5% CO2, 37 C, sealed chamber. Imaging continuous.\n//\n// Paper result (Fig. 5C): 53% of cells responded to LPS only;\n// 17% responded to both; 30% responded to PAM only (LPS-\n// refractory cells caught by PAM at 2 hr). Only 17% double-\n// responders indicate rapid negative feedback (IkB, A20,\n// miR-146a) is sufficient to suppress subsequent PAM response\n// in most LPS-activated cells.\n// ============================================================\n\n// BB5a: Cell prep for sequential scheme A\ncellsSeqA       = dispense 1 units of Mouse3T3_p65DsRed_Cells\nfibronectinA    = dispense 1 units of Fibronectin\npbsWashA        = dispense 1 units of PBS_Wash\ncoatedChamberA  = mix fibronectinA with pbsWashA for 5m\nseededChamberA  = mix cellsSeqA with coatedChamberA for 2s\nheat seededChamberA at 37c for 1440m\n\n// BB5b: First stimulus -- LPS 11 ng/mL\nlps11_seqA      = dispense 1 units of UltrapureLPS_11ngmL\nmediaSeqA       = dispense 1 units of DMEM_CompleteMedia\nlpsMediaA       = mix lps11_seqA with mediaSeqA for 5s\nseqA_firstStim  = mix seededChamberA with lpsMediaA for 120m\n\n// BB5c: Second stimulus -- PAM 13.3 ng/mL at +2 hr\n//   Delivered to the same chamber at 120 min post-LPS.\n//   Chambers remain sealed; imaging continues uninterrupted.\npam13p3_seqA    = dispense 1 units of Pam3CSK4_13p3ngmL\nseqA_secondStim = mix seqA_firstStim with pam13p3_seqA for 360m\n\n// NF-kB imaging over full 480 min window (120 + 360 min)\nseqA_nfkbSignal = detect nfkbLiveImagingDetection on seqA_secondStim for 480m\n\n// ============================================================\n// BB6: seqSchemeB\n// Sequential stimulation Scheme B: PAM 13.3 ng/mL delivered\n// first (t=0); LPS 100 ng/mL delivered to the SAME cells\n// at t=4 hr (240 min) later.\n//\n// Paper result (Fig. 5D): 84% of cells responded to PAM only;\n// 16% responded to both. Moderate PAM stimulus activated all\n// cells and induced sufficient negative feedback (A20, miR-146a)\n// to fully block even a high-dose LPS response in 84% of cells.\n// A20 and miR-146a mediated cross-tolerance operates across\n// TLR2 and TLR4 via their shared TRAF6 downstream node.\n// ============================================================\n\n// BB6a: Cell prep for sequential scheme B\ncellsSeqB       = dispense 1 units of Mouse3T3_p65DsRed_Cells\nfibronectinB    = dispense 1 units of Fibronectin\npbsWashB        = dispense 1 units of PBS_Wash\ncoatedChamberB  = mix fibronectinB with pbsWashB for 5m\nseededChamberB  = mix cellsSeqB with coatedChamberB for 2s\nheat seededChamberB at 37c for 1440m\n\n// BB6b: First stimulus -- PAM 13.3 ng/mL\npam13p3_seqB    = dispense 1 units of Pam3CSK4_13p3ngmL\nmediaSeqB       = dispense 1 units of DMEM_CompleteMedia\npamMediaB       = mix pam13p3_seqB with mediaSeqB for 5s\nseqB_firstStim  = mix seededChamberB with pamMediaB for 240m\n\n// BB6b: Second stimulus -- LPS 100 ng/mL at +4 hr\n//   High-dose LPS delivered at 240 min to test whether PAM-\n//   induced negative feedback blocks TLR4 cross-stimulation.\n//   240 min interval chosen to ensure miR-146a is fully induced\n//   (onset ~2 hr post-PAM; sustained for several hours).\nlps100_seqB     = dispense 1 units of UltrapureLPS_100ngmL\nseqB_secondStim = mix seqB_firstStim with lps100_seqB for 240m\n\n// NF-kB imaging over full 480 min window (240 + 240 min)\nseqB_nfkbSignal = detect nfkbLiveImagingDetection on seqB_secondStim for 480m\n\n// QC gate: crossToleranceDetection abstracts the dual-response\n// analysis across Scheme A and Scheme B:\n//   crossTolSignal > 0 encodes the expected cross-tolerance\n//   outcome (majority of pre-stimulated cells refractory to\n//   2nd stimulus, confirming miR-146a / A20 / IkB mechanism).\n//   Representative gating on Scheme A (seqA_nfkbSignal) as\n//   the primary cross-tolerance signal.\ncrossTolSignal  = detect crossToleranceDetection on seqA_nfkbSignal for 30s\n\n// ============================================================\n// BB7 / BB8: Cross-tolerance QC gate\n// Pass (BB7): crossTolSignal > 0 -> cross-tolerance confirmed;\n//             negative feedback prevents second-stimulus response\n//             in the majority of pre-activated cells.\n//             Dispose sequential stimulation chambers.\n//             Proceed to miR-146a validation arm (BB9).\n// Fail (BB8): crossTolSignal <= 0 -> no cross-tolerance;\n//             cells respond to both stimuli (no NF-kB inhibition);\n//             drain sequential chambers.\n// Both branches converge at BB9 (crossTolJoin).\n// ============================================================\n\nif (crossTolSignal > 0) {\n    dispose seqA_secondStim\n    dispose seqB_secondStim\n} else {\n    drain seqA_secondStim\n    drain seqB_secondStim\n}\n\n// ============================================================\n// BB9: crossTolJoin\n// Dispose sequential stimulation imaging signals and cross-\n// tolerance QC signal. Control falls into miR-146a validation\n// arm (BB10 / BB11).\n// ============================================================\n\ndispose seqA_nfkbSignal\ndispose seqB_nfkbSignal\ndispose crossTolSignal\n\n// ============================================================\n// BB10 / BB11: miR-146a TaqMan qPCR validation\n// Mechanistic validation of miR-146a as the slow, sustained\n// negative feedback mediating response shutoff under low-dose\n// PAM and enabling cross-tolerance.\n//\n// Protocol (Fig. 2C): Bulk 3T3 cells stimulated with:\n//   Condition A: LPS 10 ng/mL (separate flask, not co-stim)\n//   Condition B: PAM 10 ng/mL (separate flask, not co-stim)\n// Time course: RNA harvested at 0, 1, 2, 4, 6, 8 hr post-stim.\n// miR-146a detected by TaqMan miRNA-specific assay targeting\n// hsa-miR-146a (cross-reactive with murine miR-146a).\n// Normalised to snoRNA234 (snRNA endogenous control).\n// Result: Both LPS and PAM induce miR-146a; LPS onset ~1 hr,\n//   PAM onset ~2 hr; both maintain high expression for >6 hr.\n//   Unlike IkB/A20 (return to baseline), miR-146a is sustained\n//   -> ultrasensitive slow feedback (Hill coefficient 4 in model).\n//\n// NOTE: LPS/PAM doses for qPCR (10 ng/mL each) are intermediate\n// to those used in the microfluidic experiment and represent a\n// bulk cell assay condition, not the single-cell live-imaging\n// doses. Separate manifests are not added for 10 ng/mL stocks\n// as the qPCR uses off-chip bulk stimulation; DMEM_CompleteMedia\n// and the existing LPS/PAM manifests are reused here to model\n// the stimulus preparation step before cell harvest.\n//\n// `heat` at 37 C models the incubation period for RNA induction.\n// 8 hr time course endpoint = 480 min.\n// TrizolReagent: total RNA isolation (mirVana miRNA kit, Ambion).\n// TaqMan_miR146a_Probe: reverse transcription + qPCR detection\n//   (Applied Biosystems TaqMan microRNA reverse transcription kit\n//   + TaqMan miRNA-specific assay hsa-miR-146a).\n// snoRNA234_Control: endogenous control for normalisation.\n// ============================================================\n\n// Bulk stimulation for miR-146a qPCR -- LPS arm\ncellsBulkLPS    = dispense 1 units of Mouse3T3_p65DsRed_Cells\nmediaBulkLPS    = dispense 1 units of DMEM_CompleteMedia\nlps10_qpcr      = dispense 1 units of UltrapureLPS_11ngmL\nlpsBulkStim     = mix lps10_qpcr with mediaBulkLPS for 5s\nlpsQPCR_Chamber = mix cellsBulkLPS with lpsBulkStim for 480m\nheat lpsQPCR_Chamber at 37c for 480m\n\n// Bulk stimulation for miR-146a qPCR -- PAM arm\ncellsBulkPAM    = dispense 1 units of Mouse3T3_p65DsRed_Cells\nmediaBulkPAM    = dispense 1 units of DMEM_CompleteMedia\npam10_qpcr      = dispense 1 units of Pam3CSK4_13p3ngmL\npamBulkStim     = mix pam10_qpcr with mediaBulkPAM for 5s\npamQPCR_Chamber = mix cellsBulkPAM with pamBulkStim for 480m\nheat pamQPCR_Chamber at 37c for 480m\n\n// RNA isolation\ntrizolLPS       = dispense 1 units of TrizolReagent\ntrizolPAM       = dispense 1 units of TrizolReagent\nrnaLPS          = mix lpsQPCR_Chamber with trizolLPS for 10m\nrnaPAM          = mix pamQPCR_Chamber with trizolPAM for 10m\n\n// TaqMan miR-146a detection (normalised to snoRNA234)\nsnoRNA_LPS      = dispense 1 units of snoRNA234_Control\nsnoRNA_PAM      = dispense 1 units of snoRNA234_Control\ntaqman_LPS      = dispense 1 units of TaqMan_miR146a_Probe\ntaqman_PAM      = dispense 1 units of TaqMan_miR146a_Probe\n\nqpcrMixLPS      = mix rnaLPS with taqman_LPS for 2m\nqpcrMixPAM      = mix rnaPAM with taqman_PAM for 2m\n\n// qPCR amplification: 95 C denaturation then 60 C annealing/extension.\n// Two-step TaqMan protocol; `heat` models the cycling block.\n// NOTE: BioScript encodes the overall thermocycler incubation.\n//   Denaturation phase modelled at 95 C for 15s (per-cycle ABI\n//   TaqMan standard); extension/annealing at 60 C for 60s.\n//   40-cycle qPCR total = 40 x (15 s + 60 s) = 3000 s = 50 min.\n//   Encoded as two sequential heat steps per sample.\nheat qpcrMixLPS at 95c for 50m\nheat qpcrMixLPS at 60c for 50m\nheat qpcrMixPAM at 95c for 50m\nheat qpcrMixPAM at 60c for 50m\n\nmiR146a_normLPS = mix qpcrMixLPS with snoRNA_LPS for 5s\nmiR146a_normPAM = mix qpcrMixPAM with snoRNA_PAM for 5s\n\n// miR-146a expression detection: signal > 0 encodes the\n// expected result of sustained induction by both LPS and PAM,\n// with differential onset kinetics (LPS ~1 hr, PAM ~2 hr) and\n// maintained expression for the full 8-hr time course.\n// Representative detection on LPS arm (primary Fig. 2C result).\nmiR146aSignal   = detect miR146aExpressionDetection on miR146a_normLPS for 30s\n\n// ============================================================\n// BB10 / BB11: miR-146a QC gate\n// Pass (BB10): miR146aSignal > 0 -> sustained miR-146a\n//              induction confirmed; validates model slow\n//              feedback mechanism; dispose qPCR samples.\n// Fail (BB11): miR146aSignal <= 0 -> no miR-146a induction;\n//              drain qPCR samples.\n// Both branches converge at BB12 (finalCleanup).\n// ============================================================\n\nif (miR146aSignal > 0) {\n    dispose miR146a_normLPS\n    dispose miR146a_normPAM\n} else {\n    drain miR146a_normLPS\n    drain miR146a_normPAM\n}\n\n// ============================================================\n// BB12: finalCleanup (terminal)\n// Dispose all remaining QC signal droplets.\n// Experiment ends.\n// ============================================================\n\ndispose miR146aSignal\ndispose cond9a\n\n// [terminal -- no further instructions; exit node for CFG]\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "kellogg_nfkb_tlr_nonintegrative_001",
+      "protocol_name": "Cellular Decision Making by Non-Integrative Processing of TLR Inputs",
+      "category": "cell_based",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
     },
-
-    "classifier": {
-      "type": "Bagging classifier (ensemble of decision trees)",
-      "implementation": "MATLAB fitensemble ('Bag', 'Tree', 'Classification')",
-      "n_trees": 50,
-      "majority_vote_threshold_nu": 0.6,
-      "training_data": "Single-stimulus LPS and PAM NF-kB trajectories at matched doses",
-      "test_data": "Co-stimulation NF-kB trajectories",
-      "output_classes": ["LPS-like", "PAM-like", "Uncertain (mixed)"],
-      "classification_rule": "LPS-like if >nu fraction of trees vote LPS; PAM-like if >nu fraction vote PAM; Uncertain otherwise",
-      "overall_accuracy_pct": 89,
-      "min_accuracy_per_condition_pct": 85,
-      "active_cell_fractions": {
-        "LPS_100_ng_mL": 0.95,
-        "LPS_33_ng_mL": 0.73,
-        "LPS_11_ng_mL": 0.47,
-        "PAM_40_ng_mL": 1.00,
-        "PAM_13p3_ng_mL": 1.00,
-        "PAM_4p4_ng_mL": 1.00
-      },
-      "training_set_size_cells": "100-300 per condition",
-      "test_set_size_cells": "100-200 per condition",
-      "cross_validation": "10-fold CV",
-      "artificial_mixed_check": "1000 artificial mixed trajectories (LPS + PAM training trace sums) tested; majority classified as mixed/uncertain confirming classifier validity"
+    "source": {
+      "title": "Cellular Decision Making by Non-Integrative Processing of TLR Inputs",
+      "publisher": "Cell Reports, 2017, Vol. 19, pp. 125-135",
+      "doi": "10.1016/j.celrep.2017.03.027",
+      "url": "https://www.cell.com/cell-reports/fulltext/S2211-1247(17",
+      "platform": "Automated microfluidic cell culture chip + widefield live-cell fluorescence microscopy"
     },
-
-    "steps": [
-      {
-        "id": "S1",
-        "name": "Fibronectin chamber coating",
-        "bb": "BB1",
-        "inputs": ["Fibronectin", "PBS_Wash"],
-        "operation": "mix (chamber perfusion coating)",
-        "duration_min": 5,
-        "notes": "Fibronectin adsorbed to PDMS chamber surface to promote 3T3 fibroblast adhesion. PBS wash removes excess."
-      },
-      {
-        "id": "S2",
-        "name": "Cell seeding and pre-culture",
-        "bb": "BB1",
-        "cell_line": "Mouse 3T3 p65-DsRed",
-        "seeding_density_cells_per_chamber": 200,
-        "media": "DMEM complete",
-        "incubation_temperature_C": 37,
-        "co2_pct": 5,
-        "duration_h": 24,
-        "duration_min": 1440,
-        "target_confluence_pct": 80,
-        "operation": "heat (incubator pre-culture)",
-        "notes": "Periodic media replenishment during pre-culture. Cells reach ~80% confluence before stimulation."
-      },
-      {
-        "id": "S3",
-        "name": "Pre-stimulation media refresh",
-        "bb": "BB1",
-        "inputs": ["DMEM_CompleteMedia"],
-        "operation": "mix (chamber perfusion)",
-        "duration_min": 1,
-        "notes": "Fresh DMEM delivered to remove conditioned media and establish baseline NF-kB level before stimulus."
-      },
-      {
-        "id": "S4",
-        "name": "Combinatorial LPS x PAM co-stimulation (9-condition matrix)",
-        "bb": "BB1",
-        "conditions": [
-          { "id": "C1", "LPS_ng_mL": 100, "PAM_ng_mL": 40,   "label": "high-high",  "duplicate_chambers": 2 },
-          { "id": "C2", "LPS_ng_mL": 100, "PAM_ng_mL": 13.3, "label": "high-mid",   "duplicate_chambers": 2 },
-          { "id": "C3", "LPS_ng_mL": 100, "PAM_ng_mL": 4.4,  "label": "high-low",   "duplicate_chambers": 2 },
-          { "id": "C4", "LPS_ng_mL": 33,  "PAM_ng_mL": 40,   "label": "mid-high",   "duplicate_chambers": 2 },
-          { "id": "C5", "LPS_ng_mL": 33,  "PAM_ng_mL": 13.3, "label": "mid-mid",    "duplicate_chambers": 2 },
-          { "id": "C6", "LPS_ng_mL": 33,  "PAM_ng_mL": 4.4,  "label": "mid-low",    "duplicate_chambers": 2 },
-          { "id": "C7", "LPS_ng_mL": 11,  "PAM_ng_mL": 40,   "label": "low-high",   "duplicate_chambers": 2 },
-          { "id": "C8", "LPS_ng_mL": 11,  "PAM_ng_mL": 13.3, "label": "low-mid",    "duplicate_chambers": 2 },
-          { "id": "C9", "LPS_ng_mL": 11,  "PAM_ng_mL": 4.4,  "label": "low-low (primary mechanistic condition)", "duplicate_chambers": 2 }
-        ],
-        "delivery": "Step increase via microfluidic chamber media exchange",
-        "chip_parallelism": "All 9 conditions run in parallel on a single chip",
-        "imaging_duration_min": 480,
-        "imaging_interval_min": "5-6",
-        "operation": "mix (chamber perfusion + sealed imaging)",
-        "notes": "Stimulus vials pressured with 5% CO2, kept on ice. Chamber sealed post-delivery. Condition C9 (LPS 11 / PAM 4.4 ng/mL) used as primary CFG gate condition -- most distinct LPS-like vs PAM-like dynamics."
-      },
-      {
-        "id": "S5",
-        "name": "NF-kB live imaging and bagging classifier detection",
-        "bb": "BB1",
-        "detection_module": "nfkbLiveImagingDetection + baggingClassifierDetection",
-        "imaging_duration_min": 480,
-        "classifier_gate_condition": "C9 (LPS 11 ng/mL + PAM 4.4 ng/mL)",
-        "detection_duration_s": 30,
-        "branch": {
-          "pass": {
-            "condition": "classifySignal > 0",
-            "interpretation": "Non-integrative processing confirmed; >80% cells are LPS-like or PAM-like, <15-20% uncertain",
-            "action": "dispose all co-stim chambers; proceed to sequential stimulation arm",
-            "bb": "BB2"
-          },
-          "fail": {
-            "condition": "classifySignal <= 0",
-            "interpretation": "Mixed/uncertain responses dominate (integrative processing)",
-            "action": "drain",
-            "bb": "BB3"
-          }
-        },
-        "key_results_fig4": {
-          "C9_LPS_like_pct": "~40-50",
-          "C9_PAM_like_pct": "~40-50",
-          "C9_mixed_uncertain_pct": "~15",
-          "C1_LPS_like_pct": "~90",
-          "C7_PAM_like_pct": "~90"
-        }
-      },
-      {
-        "id": "S6",
-        "name": "Sequential stimulation Scheme A: LPS first, PAM at +2 hr",
-        "bb": "BB4",
-        "cell_line": "Mouse 3T3 p65-DsRed",
-        "first_stimulus": {
-          "reagent": "UltrapureLPS_11ngmL",
-          "dose_ng_mL": 11,
-          "time_min": 0
-        },
-        "interval_before_second_stimulus_min": 120,
-        "second_stimulus": {
-          "reagent": "Pam3CSK4_13p3ngmL",
-          "dose_ng_mL": 13.3,
-          "time_min": 120
-        },
-        "total_imaging_duration_min": 480,
-        "incubation_temperature_C": 37,
-        "co2_pct": 5,
-        "detection_module": "nfkbLiveImagingDetection",
-        "operation": "mix (sequential chamber perfusion); heat (interval incubation)",
-        "results_fig5c": {
-          "LPS_only_pct": 53,
-          "both_stimuli_pct": 17,
-          "PAM_only_pct": 30,
-          "interpretation": "Rapid NF-kB negative feedback (IkB, A20, miR-146a) induced by LPS prevents PAM response in 53% of cells. Remaining 30% were LPS-refractory and caught by PAM at +2 hr."
-        }
-      },
-      {
-        "id": "S7",
-        "name": "Sequential stimulation Scheme B: PAM first, LPS at +4 hr",
-        "bb": "BB4",
-        "cell_line": "Mouse 3T3 p65-DsRed",
-        "first_stimulus": {
-          "reagent": "Pam3CSK4_13p3ngmL",
-          "dose_ng_mL": 13.3,
-          "time_min": 0
-        },
-        "interval_before_second_stimulus_min": 240,
-        "second_stimulus": {
-          "reagent": "UltrapureLPS_100ngmL",
-          "dose_ng_mL": 100,
-          "time_min": 240,
-          "note": "High-dose LPS used to maximally challenge PAM-pre-activated cells"
-        },
-        "total_imaging_duration_min": 480,
-        "incubation_temperature_C": 37,
-        "co2_pct": 5,
-        "detection_module": "nfkbLiveImagingDetection",
-        "operation": "mix (sequential chamber perfusion); heat (interval incubation)",
-        "rationale_for_240min_interval": "Ensures miR-146a is fully induced (onset ~2 hr post-PAM; sustained for several hours) before second stimulus",
-        "results_fig5d": {
-          "PAM_only_pct": 84,
-          "both_stimuli_pct": 16,
-          "interpretation": "Moderate PAM 13.3 ng/mL activated all cells. A20 / miR-146a negative feedback sufficient to block even high-dose LPS in 84% of pre-activated cells. Demonstrates cross-TLR tolerance through shared TRAF6 node."
-        },
-        "cross_tolerance_gate": {
-          "detection_module": "crossToleranceDetection",
-          "branch": {
-            "pass": {
-              "condition": "crossTolSignal > 0",
-              "interpretation": "Cross-tolerance confirmed; majority of pre-stimulated cells refractory to second stimulus",
-              "action": "dispose sequential chambers; proceed to miR-146a validation",
-              "bb": "BB5"
-            },
-            "fail": {
-              "condition": "crossTolSignal <= 0",
-              "interpretation": "No cross-tolerance; cells respond to both stimuli",
-              "action": "drain",
-              "bb": "BB6"
-            }
-          }
-        }
-      },
-      {
-        "id": "S8",
-        "name": "miR-146a TaqMan qPCR validation",
-        "bb": "BB7",
-        "purpose": "Mechanistic validation of miR-146a as slow sustained negative feedback mediating PAM response shutoff and TLR cross-tolerance",
-        "stimulation_conditions": [
-          { "reagent": "UltrapureLPS_11ngmL", "dose_ng_mL": 10, "cell_line": "Mouse 3T3", "format": "bulk flask" },
-          { "reagent": "Pam3CSK4_13p3ngmL",  "dose_ng_mL": 10, "cell_line": "Mouse 3T3", "format": "bulk flask" }
-        ],
-        "time_course_h": [0, 1, 2, 4, 6, 8],
-        "rna_isolation": {
-          "kit": "mirVana miRNA isolation kit (Ambion)",
-          "operation": "mix TrizolReagent with stimulated cells"
-        },
-        "cdna_synthesis": {
-          "kit": "TaqMan microRNA reverse transcription kit (Applied Biosystems)",
-          "operation": "mix TaqMan_miR146a_Probe with isolated RNA"
-        },
-        "qpcr": {
-          "assay": "TaqMan miRNA-specific assay hsa-miR-146a (cross-reactive murine miR-146a)",
-          "normalisation": "snoRNA234 snRNA endogenous control (Applied Biosystems)",
-          "thermocycler_phases": [
-            { "step": "denaturation", "temperature_C": 95, "duration_per_cycle_s": 15, "total_cycles": 40 },
-            { "step": "annealing_extension", "temperature_C": 60, "duration_per_cycle_s": 60, "total_cycles": 40 }
-          ],
-          "total_qpcr_duration_min": 50,
-          "operation": "heat (thermocycler)"
-        },
-        "results_fig2c": {
-          "LPS_onset_hr": 1,
-          "PAM_onset_hr": 2,
-          "expression_profile": "Sustained high expression for >6 hr (unlike IkB/A20 which return to baseline)",
-          "Hill_coefficient_model": 4,
-          "feedback_type": "Slow, ultrasensitive negative feedback targeting TRAF6 mRNA (IRAK1/2 also targeted)"
-        },
-        "detection_module": "miR146aExpressionDetection",
-        "branch": {
-          "pass": {
-            "condition": "miR146aSignal > 0",
-            "interpretation": "Sustained miR-146a induction confirmed; validates model slow feedback mechanism",
-            "action": "dispose qPCR samples",
-            "bb": "BB8"
-          },
-          "fail": {
-            "condition": "miR146aSignal <= 0",
-            "interpretation": "No miR-146a induction detected",
-            "action": "drain qPCR samples",
-            "bb": "BB9"
-          }
-        }
-      }
-    ],
-
-    "mathematical_model": {
-      "type": "ODE mass-action / Michaelis-Menten / Hill kinetics",
-      "base_model": "Extended from Kellogg et al. eLife 2015 (TLR4/LPS) and Tay et al. Nature 2010",
-      "noise_model": "Receptor-level extrinsic noise only; TLR4 and TLR2 total counts follow log-normal distributions",
-      "key_mechanistic_features": [
-        "TLR4 (LPS): surface membrane signalling; rapid TRAF6 accumulation",
-        "TLR2 (PAM): endosomal processing; slow TRAF6 accumulation (low binding rate kf, low unbinding rate kr models internalization as integrator)",
-        "Fast feedback: IkBa (principal); A20",
-        "Slow feedback: miR-146a (Hill coefficient 4, ultrasensitive); targets TRAF6 mRNA",
-        "Switch-like IKK/NF-kB activation (cooperative TRAF6 clustering)",
-        "Cell-to-cell variability from TLR receptor number lognormal distribution"
+    "bioscript": {
+      "manifests": [
+        "Mouse3T3_p65DsRed_Cells",
+        "Fibronectin",
+        "DMEM_CompleteMedia",
+        "UltrapureLPS_100ngmL",
+        "UltrapureLPS_33ngmL",
+        "UltrapureLPS_11ngmL",
+        "Pam3CSK4_40ngmL",
+        "Pam3CSK4_13p3ngmL",
+        "Pam3CSK4_4p4ngmL",
+        "TrizolReagent",
+        "snoRNA234_Control",
+        "TaqMan_miR146a_Probe",
+        "PBS_Wash"
       ],
-      "simulation_population_size": 500,
-      "chamber_volume_calculation": "1 ng/mL LPS -> 2.4e4 ligands/cell; 1 ng/mL PAM -> 1.6e5 ligands/cell (MW: LPS 10 kDa, PAM 1509.6 Da)",
-      "non_integrative_mechanism": "LPS activates first (no endosomal delay); IkB/A20/miR-146a feedback prevents PAM response in TLR4-sensitive cells. TLR4-refractory cells receive PAM signal unimpeded -> PAM-like response. Switch-like NF-kB activation polarises each cell to one outcome.",
-      "excluded_pathway": "TRIF-mediated TLR4 pathway excluded (inactive in 3T3 fibroblasts; Alexander Hoffmann personal communication)"
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "drain",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 161
+      }
     },
-
     "cfg": {
       "basic_blocks": [
-        { "id": "BB1",  "label": "main",         "type": "entry",        "description": "Device prep; cell seeding; 9-condition LPS x PAM co-stimulation matrix; NF-kB live imaging" },
-        { "id": "BB2",  "label": "bsbbif_2_t",   "type": "branch_true",  "condition": "classifySignal > 0",  "action": "dispose all 18 co-stim chamber droplets" },
-        { "id": "BB3",  "label": "bsbbif_3_f",   "type": "branch_false", "condition": "classifySignal <= 0", "action": "drain all 18 co-stim chamber droplets" },
-        { "id": "BB4",  "label": "bsbbif_4_j",   "type": "join",         "description": "Dispose classifier + imaging QC signals; enter sequential stimulation arm" },
-        { "id": "BB5",  "label": "bsbbif_5_t",   "type": "branch_true",  "condition": "crossTolSignal > 0",  "action": "dispose seqA and seqB chambers; proceed to miR-146a arm" },
-        { "id": "BB6",  "label": "bsbbif_6_f",   "type": "branch_false", "condition": "crossTolSignal <= 0", "action": "drain seqA and seqB chambers" },
-        { "id": "BB7",  "label": "bsbbif_7_j",   "type": "join",         "description": "Dispose sequential imaging signals and cross-tolerance QC signal; enter miR-146a arm" },
-        { "id": "BB8",  "label": "bsbbif_8_t",   "type": "branch_true",  "condition": "miR146aSignal > 0",   "action": "dispose LPS and PAM qPCR normalised samples" },
-        { "id": "BB9",  "label": "bsbbif_9_f",   "type": "branch_false", "condition": "miR146aSignal <= 0",  "action": "drain LPS and PAM qPCR normalised samples" },
-        { "id": "BB10", "label": "bsbbif_10_j",  "type": "terminal",     "description": "Dispose miR146aSignal and remaining cond9a chamber; NOP; experiment ends" }
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "join"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "7",
+          "label": "bsbbif_7_j",
+          "type": "join"
+        },
+        {
+          "id": "8",
+          "label": "bsbbif_8_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "9",
+          "label": "bsbbif_9_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "10",
+          "label": "bsbbif_10_j",
+          "type": "terminal"
+        }
       ],
       "edges": [
-        ["BB1","BB2"],  ["BB1","BB3"],
-        ["BB2","BB4"],  ["BB3","BB4"],
-        ["BB4","BB5"],  ["BB4","BB6"],
-        ["BB5","BB7"],  ["BB6","BB7"],
-        ["BB7","BB8"],  ["BB7","BB9"],
-        ["BB8","BB10"], ["BB9","BB10"]
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ],
+        [
+          "7",
+          "8"
+        ],
+        [
+          "7",
+          "9"
+        ],
+        [
+          "8",
+          "10"
+        ],
+        [
+          "9",
+          "10"
+        ]
       ]
-    }
+    },
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(cond1a1[0])\n\tdispose(cond1b1[0])\n\tdispose(cond2a1[0])\n\tdispose(cond2b1[0])\n\tdispose(cond3a1[0])\n\tdispose(cond3b1[0])\n\tdispose(cond4a1[0])\n\tdispose(cond4b1[0])\n\tdispose(cond5a1[0])\n\tdispose(cond5b1[0])\n\tdispose(cond6a1[0])\n\tdispose(cond6b1[0])\n\tdispose(cond7a1[0])\n\tdispose(cond7b1[0])\n\tdispose(cond8a1[0])\n\tdispose(cond8b1[0])\n\tdispose(cond9b1[0])\nbsbbif_3_f:\n\tdispose(cond1a1[0])\n\tdispose(cond1b1[0])\n\tdispose(cond2a1[0])\n\tdispose(cond2b1[0])\n\tdispose(cond3a1[0])\n\tdispose(cond3b1[0])\n\tdispose(cond4a1[0])\n\tdispose(cond4b1[0])\n\tdispose(cond5a1[0])\n\tdispose(cond5b1[0])\n\tdispose(cond6a1[0])\n\tdispose(cond6b1[0])\n\tdispose(cond7a1[0])\n\tdispose(cond7b1[0])\n\tdispose(cond8a1[0])\n\tdispose(cond8b1[0])\n\tdispose(cond9b1[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(classifySignal1[0])\n\tdispose(nfkbSignal1[0])\n\tcellsSeqA1[0] = dispense(Mouse3T3_p65DsRed_Cells)\n\tfibronectinA1[0] = dispense(Fibronectin)\n\tpbsWashA1[0] = dispense(PBS_Wash)\n\tcoatedChamberA1[0] = mix(fibronectinA1[0], pbsWashA1[0]) @ 300.0SECOND\n\tseededChamberA1[0] = mix(cellsSeqA1[0], coatedChamberA1[0]) @ 2.0SECOND\n\theat(seededChamberA1[0]) @ 37.0CELSIUS @ 86400.0SECOND\n\tlps11_seqA1[0] = dispense(UltrapureLPS_11ngmL)\n\tmediaSeqA1[0] = dispense(DMEM_CompleteMedia)\n\tlpsMediaA1[0] = mix(lps11_seqA1[0], mediaSeqA1[0]) @ 5.0SECOND\n\tseqA_firstStim1[0] = mix(seededChamberA1[0], lpsMediaA1[0]) @ 7200.0SECOND\n\tpam13p3_seqA1[0] = dispense(Pam3CSK4_13p3ngmL)\n\tseqA_secondStim1[0] = mix(seqA_firstStim1[0], pam13p3_seqA1[0]) @ 21600.0SECOND\n\tseqA_nfkbSignal1[0] = detect(nfkbLiveImagingDetection, seqA_secondStim1[0]) @ 28800.0SECOND\n\tcellsSeqB1[0] = dispense(Mouse3T3_p65DsRed_Cells)\n\tfibronectinB1[0] = dispense(Fibronectin)\n\tpbsWashB1[0] = dispense(PBS_Wash)\n\tcoatedChamberB1[0] = mix(fibronectinB1[0], pbsWashB1[0]) @ 300.0SECOND\n\tseededChamberB1[0] = mix(cellsSeqB1[0], coatedChamberB1[0]) @ 2.0SECOND\n\theat(seededChamberB1[0]) @ 37.0CELSIUS @ 86400.0SECOND\n\tpam13p3_seqB1[0] = dispense(Pam3CSK4_13p3ngmL)\n\tmediaSeqB1[0] = dispense(DMEM_CompleteMedia)\n\tpamMediaB1[0] = mix(pam13p3_seqB1[0], mediaSeqB1[0]) @ 5.0SECOND\n\tseqB_firstStim1[0] = mix(seededChamberB1[0], pamMediaB1[0]) @ 14400.0SECOND\n\tlps100_seqB1[0] = dispense(UltrapureLPS_100ngmL)\n\tseqB_secondStim1[0] = mix(seqB_firstStim1[0], lps100_seqB1[0]) @ 14400.0SECOND\n\tseqB_nfkbSignal1[0] = detect(nfkbLiveImagingDetection, seqB_secondStim1[0]) @ 28800.0SECOND\n\tcrossTolSignal1[0] = detect(crossToleranceDetection, seqA_nfkbSignal1[0]) @ 30.0SECOND\n\tif crossTolSignal1[0] > 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nmain:\n\tfibronectinCoat1[0] = dispense(Fibronectin)\n\tpbsWash11[0] = dispense(PBS_Wash)\n\tcoatedChamber1[0] = mix(fibronectinCoat1[0], pbsWash11[0]) @ 300.0SECOND\n\tcells1[0] = dispense(Mouse3T3_p65DsRed_Cells)\n\tmediaPreCulture1[0] = dispense(DMEM_CompleteMedia)\n\tseededChamber1[0] = mix(cells1[0], coatedChamber1[0]) @ 2.0SECOND\n\theat(seededChamber1[0]) @ 37.0CELSIUS @ 86400.0SECOND\n\tfreshMedia1[0] = dispense(DMEM_CompleteMedia)\n\tbaselineChamber1[0] = mix(seededChamber1[0], freshMedia1[0]) @ 60.0SECOND\n\tlps1001[0] = dispense(UltrapureLPS_100ngmL)\n\tpam401[0] = dispense(Pam3CSK4_40ngmL)\n\tstimulusCond11[0] = mix(lps1001[0], pam401[0]) @ 5.0SECOND\n\tcond1a1[0] = mix(baselineChamber1[0], stimulusCond11[0]) @ 28800.0SECOND\n\tcond1b1[0] = mix(baselineChamber1[0], stimulusCond11[0]) @ 28800.0SECOND\n\tlps100_c21[0] = dispense(UltrapureLPS_100ngmL)\n\tpam13p31[0] = dispense(Pam3CSK4_13p3ngmL)\n\tstimulusCond21[0] = mix(lps100_c21[0], pam13p31[0]) @ 5.0SECOND\n\tcond2a1[0] = mix(baselineChamber1[0], stimulusCond21[0]) @ 28800.0SECOND\n\tcond2b1[0] = mix(baselineChamber1[0], stimulusCond21[0]) @ 28800.0SECOND\n\tlps100_c31[0] = dispense(UltrapureLPS_100ngmL)\n\tpam4p41[0] = dispense(Pam3CSK4_4p4ngmL)\n\tstimulusCond31[0] = mix(lps100_c31[0], pam4p41[0]) @ 5.0SECOND\n\tcond3a1[0] = mix(baselineChamber1[0], stimulusCond31[0]) @ 28800.0SECOND\n\tcond3b1[0] = mix(baselineChamber1[0], stimulusCond31[0]) @ 28800.0SECOND\n\tlps331[0] = dispense(UltrapureLPS_33ngmL)\n\tpam40_c41[0] = dispense(Pam3CSK4_40ngmL)\n\tstimulusCond41[0] = mix(lps331[0], pam40_c41[0]) @ 5.0SECOND\n\tcond4a1[0] = mix(baselineChamber1[0], stimulusCond41[0]) @ 28800.0SECOND\n\tcond4b1[0] = mix(baselineChamber1[0], stimulusCond41[0]) @ 28800.0SECOND\n\tlps33_c51[0] = dispense(UltrapureLPS_33ngmL)\n\tpam13p3_c51[0] = dispense(Pam3CSK4_13p3ngmL)\n\tstimulusCond51[0] = mix(lps33_c51[0], pam13p3_c51[0]) @ 5.0SECOND\n\tcond5a1[0] = mix(baselineChamber1[0], stimulusCond51[0]) @ 28800.0SECOND\n\tcond5b1[0] = mix(baselineChamber1[0], stimulusCond51[0]) @ 28800.0SECOND\n\tlps33_c61[0] = dispense(UltrapureLPS_33ngmL)\n\tpam4p4_c61[0] = dispense(Pam3CSK4_4p4ngmL)\n\tstimulusCond61[0] = mix(lps33_c61[0], pam4p4_c61[0]) @ 5.0SECOND\n\tcond6a1[0] = mix(baselineChamber1[0], stimulusCond61[0]) @ 28800.0SECOND\n\tcond6b1[0] = mix(baselineChamber1[0], stimulusCond61[0]) @ 28800.0SECOND\n\tlps111[0] = dispense(UltrapureLPS_11ngmL)\n\tpam40_c71[0] = dispense(Pam3CSK4_40ngmL)\n\tstimulusCond71[0] = mix(lps111[0], pam40_c71[0]) @ 5.0SECOND\n\tcond7a1[0] = mix(baselineChamber1[0], stimulusCond71[0]) @ 28800.0SECOND\n\tcond7b1[0] = mix(baselineChamber1[0], stimulusCond71[0]) @ 28800.0SECOND\n\tlps11_c81[0] = dispense(UltrapureLPS_11ngmL)\n\tpam13p3_c81[0] = dispense(Pam3CSK4_13p3ngmL)\n\tstimulusCond81[0] = mix(lps11_c81[0], pam13p3_c81[0]) @ 5.0SECOND\n\tcond8a1[0] = mix(baselineChamber1[0], stimulusCond81[0]) @ 28800.0SECOND\n\tcond8b1[0] = mix(baselineChamber1[0], stimulusCond81[0]) @ 28800.0SECOND\n\tlps11_c91[0] = dispense(UltrapureLPS_11ngmL)\n\tpam4p4_c91[0] = dispense(Pam3CSK4_4p4ngmL)\n\tstimulusCond91[0] = mix(lps11_c91[0], pam4p4_c91[0]) @ 5.0SECOND\n\tcond9a1[0] = mix(baselineChamber1[0], stimulusCond91[0]) @ 28800.0SECOND\n\tcond9b1[0] = mix(baselineChamber1[0], stimulusCond91[0]) @ 28800.0SECOND\n\tnfkbSignal1[0] = detect(nfkbLiveImagingDetection, cond9a1[0]) @ 28800.0SECOND\n\tclassifySignal1[0] = detect(baggingClassifierDetection, nfkbSignal1[0]) @ 30.0SECOND\n\tif classifySignal1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbif_5_t:\n\tdispose(seqA_secondStim1[0])\n\tdispose(seqB_secondStim1[0])\nbsbbif_6_f:\n\tdispose(seqA_secondStim1[0])\n\tdispose(seqB_secondStim1[0])\n\tjump: bsbbif_7_j\nbsbbif_7_j:\n\tdispose(seqA_nfkbSignal1[0])\n\tdispose(seqB_nfkbSignal1[0])\n\tdispose(crossTolSignal1[0])\n\tcellsBulkLPS1[0] = dispense(Mouse3T3_p65DsRed_Cells)\n\tmediaBulkLPS1[0] = dispense(DMEM_CompleteMedia)\n\tlps10_qpcr1[0] = dispense(UltrapureLPS_11ngmL)\n\tlpsBulkStim1[0] = mix(lps10_qpcr1[0], mediaBulkLPS1[0]) @ 5.0SECOND\n\tlpsQPCR_Chamber1[0] = mix(cellsBulkLPS1[0], lpsBulkStim1[0]) @ 28800.0SECOND\n\theat(lpsQPCR_Chamber1[0]) @ 37.0CELSIUS @ 28800.0SECOND\n\tcellsBulkPAM1[0] = dispense(Mouse3T3_p65DsRed_Cells)\n\tmediaBulkPAM1[0] = dispense(DMEM_CompleteMedia)\n\tpam10_qpcr1[0] = dispense(Pam3CSK4_13p3ngmL)\n\tpamBulkStim1[0] = mix(pam10_qpcr1[0], mediaBulkPAM1[0]) @ 5.0SECOND\n\tpamQPCR_Chamber1[0] = mix(cellsBulkPAM1[0], pamBulkStim1[0]) @ 28800.0SECOND\n\theat(pamQPCR_Chamber1[0]) @ 37.0CELSIUS @ 28800.0SECOND\n\ttrizolLPS1[0] = dispense(TrizolReagent)\n\ttrizolPAM1[0] = dispense(TrizolReagent)\n\trnaLPS1[0] = mix(lpsQPCR_Chamber1[0], trizolLPS1[0]) @ 600.0SECOND\n\trnaPAM1[0] = mix(pamQPCR_Chamber1[0], trizolPAM1[0]) @ 600.0SECOND\n\tsnoRNA_LPS1[0] = dispense(snoRNA234_Control)\n\tsnoRNA_PAM1[0] = dispense(snoRNA234_Control)\n\ttaqman_LPS1[0] = dispense(TaqMan_miR146a_Probe)\n\ttaqman_PAM1[0] = dispense(TaqMan_miR146a_Probe)\n\tqpcrMixLPS1[0] = mix(rnaLPS1[0], taqman_LPS1[0]) @ 120.0SECOND\n\tqpcrMixPAM1[0] = mix(rnaPAM1[0], taqman_PAM1[0]) @ 120.0SECOND\n\theat(qpcrMixLPS1[0]) @ 95.0CELSIUS @ 3000.0SECOND\n\theat(qpcrMixLPS1[0]) @ 60.0CELSIUS @ 3000.0SECOND\n\theat(qpcrMixPAM1[0]) @ 95.0CELSIUS @ 3000.0SECOND\n\theat(qpcrMixPAM1[0]) @ 60.0CELSIUS @ 3000.0SECOND\n\tmiR146a_normLPS1[0] = mix(qpcrMixLPS1[0], snoRNA_LPS1[0]) @ 5.0SECOND\n\tmiR146a_normPAM1[0] = mix(qpcrMixPAM1[0], snoRNA_PAM1[0]) @ 5.0SECOND\n\tmiR146aSignal1[0] = detect(miR146aExpressionDetection, miR146a_normLPS1[0]) @ 30.0SECOND\n\tif miR146aSignal1[0] > 0\t|\ttrue: jump bsbbif_8_t\t|\tfalse: jump bsbbif_9_f\nbsbbif_8_t:\n\tdispose(miR146a_normLPS1[0])\n\tdispose(miR146a_normPAM1[0])\nbsbbif_9_f:\n\tdispose(miR146a_normLPS1[0])\n\tdispose(miR146a_normPAM1[0])\n\tjump: bsbbif_10_j\nbsbbif_10_j:\n\tdispose(miR146aSignal1[0])\n\tdispose(cond9a1[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "Mouse3T3_p65DsRed_Cells",
+          "source_quote": "16% cells responded to both stimuli",
+          "source_location": "description.txt: Results (Fig 5D)"
+        },
+        {
+          "bs_chemical": "Fibronectin",
+          "source_quote": "Reagents  : Fibronectin, PBS wash",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "DMEM_CompleteMedia",
+          "source_quote": "Media     : DMEM complete (37 C, 5% CO2)",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "UltrapureLPS_100ngmL",
+          "source_quote": "UltrapureLPS_100ngmL, UltrapureLPS_33ngmL, UltrapureLPS_11ngmL,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "UltrapureLPS_33ngmL",
+          "source_quote": "UltrapureLPS_100ngmL, UltrapureLPS_33ngmL, UltrapureLPS_11ngmL,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "UltrapureLPS_11ngmL",
+          "source_quote": "UltrapureLPS_100ngmL, UltrapureLPS_33ngmL, UltrapureLPS_11ngmL,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "Pam3CSK4_40ngmL",
+          "source_quote": "Pam3CSK4_40ngmL, Pam3CSK4_13p3ngmL, Pam3CSK4_4p4ngmL,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "Pam3CSK4_13p3ngmL",
+          "source_quote": "Pam3CSK4_40ngmL, Pam3CSK4_13p3ngmL, Pam3CSK4_4p4ngmL,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "Pam3CSK4_4p4ngmL",
+          "source_quote": "Pam3CSK4_40ngmL, Pam3CSK4_13p3ngmL, Pam3CSK4_4p4ngmL,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "TrizolReagent",
+          "source_quote": "TrizolReagent, snoRNA234_Control, TaqMan_miR146a_Probe, PBS_Wash",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "snoRNA234_Control",
+          "source_quote": "TrizolReagent, snoRNA234_Control, TaqMan_miR146a_Probe, PBS_Wash",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "TaqMan_miR146a_Probe",
+          "source_quote": "Step 8 | miR-146a TaqMan qPCR Validation",
+          "source_location": "description.txt: Results (Fig 5D)"
+        },
+        {
+          "bs_chemical": "PBS_Wash",
+          "source_quote": "Reagents  : Fibronectin, PBS wash",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "mix",
+          "source_quote": "Operation : Chamber perfusion coating (abstracted as mix in BioScript)",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "heat",
+          "source_quote": "Total per arm: 2 x 50 min heat steps (BioScript; 95 C then 60 C)",
+          "source_location": "description.txt: Results (Fig 5D)"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "PAM signal unimpeded.",
+          "source_location": "description.txt: Key features"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "(* primary mechanistic condition)",
+          "source_location": "description.txt: 11       |  C7     |  C8     |  C9*"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 8 hour(s) vs BioScript encodes 480m — converted hours to minutes for BioScript grammar compatibility."
+        },
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 8 hour(s) vs BioScript encodes 480m — converted hours to minutes for BioScript grammar compatibility."
+        }
+      ]
+    },
+    "notes": "This protocol details Cellular Decision Making by Non-Integrative Processing of TLR Inputs. The assay is performed on a Automated microfluidic cell culture chip + widefield live-cell fluorescence microscopy platform. It achieves a reported detection limit of ); explains rising-amplitude PAM oscillations."
   }
 }

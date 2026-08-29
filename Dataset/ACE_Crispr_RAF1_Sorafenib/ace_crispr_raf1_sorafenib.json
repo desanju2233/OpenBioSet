@@ -1,779 +1,217 @@
 {
-  "protocol": {
-    "metadata": {
-      "id": "ace_crispr_raf1_sorafenib",
-      "title": "Automated CRISPR-Cas9 Gene Editing: RAF1 Knockout + Sorafenib Inhibition on DMF (ACE Platform)",
-      "source": {
-        "citation": "Sinha H, Quach ABV, Vo PQN, Shih SCC. An automated microfluidic gene-editing platform for deciphering cancer genes. Lab Chip. 2018;18:2300-2312.",
-        "doi": "10.1039/c8lc00470f"
-      },
-      "platform": "Digital Microfluidics (DMF) — ACE platform, DropBot-compatible",
-      "cell_line": "NCI-H1299 (human lung squamous cell carcinoma, dual-labeled stable)",
-      "assay_type": "MAPK/ERK pathway — CRISPR-Cas9 RAF1 knockout + Sorafenib Tosylate dose-response",
-      "experimental_design": {
-        "arms": 2,
-        "arm_labels": ["Ctrl_sgRNA", "RAF1_sg94"],
-        "drug_concentrations_uM": [120, 60, 30, 15, 7.5, 0],
-        "total_sites": 12,
-        "readout": "Calcein-AM violet cell viability (Fig. 4c on-chip, Fig. 4d off-chip)",
-        "duration_days": 5
-      },
-      "bs_source_file": "ace_crispr_raf1_sorafenib_corrected.bs",
-      "cfg_dot_file": "ace_crispr_raf1_sorafenib_main_dag.dot"
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
     },
-
-    "modules": [
-      "fluorescenceImaging",
-      "cellViabilityAssay"
-    ],
-
-    "manifests": [
-      {
-        "name": "cellSuspension",
-        "description": "NCI-H1299 cells at ~1.75e6 cells/mL in RPMI-1640 complete media + 0.05% w/v Pluronics F-68"
-      },
-      {
-        "name": "lipofectamine",
-        "description": "Invitrogen Lipofectamine 3000 transfection reagent, diluted in Opti-MEM"
-      },
-      {
-        "name": "optiMEM",
-        "description": "Opti-MEM reduced serum medium (Thermo Fisher), used as diluent for transfection reagents"
-      },
-      {
-        "name": "p3000Reagent",
-        "description": "P3000 enhancer reagent for Lipofectamine 3000 transfection"
-      },
-      {
-        "name": "pCRISPR_ctrl",
-        "description": "All-in-one pCRISPR/Cas9 plasmid with sgRNA targeting eGFP (non-genomic control, ~10.5 kb)"
-      },
-      {
-        "name": "pCRISPR_RAF1",
-        "description": "All-in-one pCRISPR/Cas9 plasmid with sgRNA RAF1_sg94 targeting the RAF1 genomic locus (~10.5 kb)"
-      },
-      {
-        "name": "completeMedia",
-        "description": "RPMI-1640 + 10% FBS, no antibiotics; used for cell maintenance and drug dilutions"
-      },
-      {
-        "name": "calceinAM",
-        "description": "Calcein-AM violet (5 uM working concentration); live-cell esterase viability probe, lambda_ex=408nm, lambda_em=450nm"
-      },
-      {
-        "name": "sorafenib",
-        "description": "Sorafenib Tosylate stock solution (Selleckchem); RAF kinase inhibitor used for dose-response assay"
-      },
-      {
-        "name": "hoechst",
-        "description": "Hoechst 33342 (1 uM working concentration); nuclear stain for Day-1 transfection-efficiency checkpoint only, lambda_ex=350nm, lambda_em=461nm. NOTE: not used at Day 5 due to spectral overlap with Calcein-AM violet."
+    {
+      "role": "user",
+      "content": "================================================================================\nPROTOCOL: Automated CRISPR-Cas9 RAF1 Knockout + Sorafenib Dose-Response\n         on a Digital Microfluidic (DMF) ACE Platform\n================================================================================\n\nSOURCE LINK  : https://pubs.rsc.org/en/content/articlepdf/2018/lc/c8lc00470f\nPAPER DOI    : https://doi.org/10.1039/c8lc00470f\nCITATION     : Sinha H, Quach ABV, Vo PQN, Shih SCC. An automated microfluidic\n               gene-editing platform for deciphering cancer genes.\n               Lab Chip. 2018;18:2300-2312.\nPLATFORM     : Digital Microfluidics (DMF) — ACE (Automated CRISPR Editing)\n               platform, DropBot-compatible, open-source automation system.\nBS_FILE      : ace_crispr_raf1_sorafenib_corrected.bs\nJSON_FILE    : ace_crispr_raf1_sorafenib.json\nDOT_FILE     : ace_crispr_raf1_sorafenib_main_dag.dot\n\n--------------------------------------------------------------------------------\nOVERVIEW\n--------------------------------------------------------------------------------\n\nThis protocol implements the first fully automated CRISPR-Cas9 gene-editing\nassay on a digital microfluidic platform. The ACE platform automates all steps\n— cell seeding, culture, lipid-mediated transfection, CRISPR-Cas9 knockout, drug\ninhibition, and fluorescence-based viability readout — for lung cancer cells on a\nsingle device.\n\nThe specific assay interrogates the MAPK/ERK (RAS-RAF-MEK-ERK) signaling\npathway by knocking out the RAF1 gene in NCI-H1299 lung squamous cell carcinoma\ncells using CRISPR-Cas9, combined with dose-response treatment using the RAF\nkinase inhibitor Sorafenib Tosylate. The combination of genomic disruption and\nenzymatic inhibition results in lower IC50 values compared to inhibitor treatment\nalone, confirming successful on-device gene editing.\n\n--------------------------------------------------------------------------------\nCELL LINE AND REAGENTS\n--------------------------------------------------------------------------------\n\nCell Line       : NCI-H1299 human lung squamous cell carcinoma, dual-labeled\n                  stable line (Genecopoeia SL001). Stably expresses eGFP at AAVS1\n                  locus and mCherry. Grown in RPMI-1640 + 10% FBS, no antibiotics,\n                  37 degrees C, 5% CO2.\n\nPlasmids        :\n  - pCRISPR_ctrl  : All-in-one pCRISPR/Cas9 plasmid (~10.5 kb) with sgRNA\n                    targeting eGFP (non-genomic control, AAVS1 locus).\n  - pCRISPR_RAF1  : All-in-one pCRISPR/Cas9 plasmid (~10.5 kb) with sgRNA\n                    RAF1_sg94 targeting the human RAF1 genomic locus.\n                    Designed via Benchling; assembled by restriction\n                    digestion/ligation into All-in-one_CRISPR/Cas9_LacZ backbone.\n\nTransfection    : Invitrogen Lipofectamine 3000 + P3000 reagent (Thermo Fisher).\n                  On-device optimum lipid:media ratio is 1:1 (not the off-chip\n                  manufacturer default of 1:10). The 1:1 ratio compensates for\n                  the increased surface-area-to-volume ratio at microscale and\n                  yields ~65% transfection efficiency vs ~15% at 1:10 (Fig. 2d).\n\nDrug            : Sorafenib Tosylate (Selleckchem). RAF kinase inhibitor targeting\n                  the MAPK/ERK pathway upstream at BRAF/RAF1.\n                  Six concentrations: 0, 7.5, 15, 30, 60, 120 uM in complete media.\n\nStains          :\n  - Hoechst 33342 (1 uM): nuclear stain; used ONLY at Day-1 transfection-\n                           efficiency checkpoint. lambda_ex=350nm, lambda_em=461nm.\n  - Calcein-AM violet (5 uM): live-cell esterase viability probe; used ONLY at\n                               Day-5 readout. lambda_ex=408nm, lambda_em=450nm.\n                               NOTE: Hoechst and Calcein-AM must NOT be used at\n                               the same timepoint due to spectral overlap at ~450-\n                               461nm.\n\n--------------------------------------------------------------------------------\nDEVICE DESCRIPTION\n--------------------------------------------------------------------------------\n\nThe DMF device consists of two parallel plates separated by a 140 um spacer.\nThe bottom plate contains chromium-patterned electrodes with dielectric and\nhydrophobic layers (DuPont AF) for droplet actuation via electrowetting-on-\ndielectric (EWOD) at ~200 VRMS, 10 kHz. Electrode boundaries are interlaced to\nimprove droplet movement for protein-rich solutions over multi-day culture.\n\nThe top plate (ITO-coated) contains six 1.2 mm diameter hydrophilic spots\nmicrofabricated for adherent cell culture. Cells are passively dispensed onto\nthese spots; a fraction of the moving 690 nL droplet pins to the hydrophilic\nsite, forming a ~160 nL culture microvessel. Devices are incubated inverted in\na 3D-printed humidified chamber at 37 degrees C.\n\nReservoirs hold: cell suspension, Lipofectamine, Opti-MEM, plasmid DNA, P3000\nreagent, complete media, Hoechst stain, Calcein-AM stain, and Sorafenib Tosylate.\nA waste reservoir collects excess liquid from passive dispensing steps.\n\n--------------------------------------------------------------------------------\nEXPERIMENTAL DESIGN\n--------------------------------------------------------------------------------\n\nArms            : 2 (Ctrl sgRNA arm / RAF1_sg94 arm)\nSites per arm   : 6 (one per drug concentration)\nTotal sites     : 12\nDrug doses (uM) : 120, 60, 30, 15, 7.5, 0\nDuration        : 5 days (Day 0 seeding through Day 5 viability readout)\nReadout         : Calcein-AM violet fluorescence cell count, normalised to\n                  vehicle control (0 uM site) for each arm.\nAnalysis        : Sigmoid dose-response curve fit; IC50 extracted per arm;\n                  F-test for significance in linear region (2.5-50 uM, P<0.05).\n\nQC gates        : Two independent QC branches in the CFG:\n                  - Ctrl arm: gated on signalCtrl6 (0 uM Ctrl sgRNA vehicle).\n                  - RAF1 arm: gated on signalRaf6 (0 uM RAF1_sg94 vehicle).\n                  Pass = positive fluorescence signal (dispose viability droplets,\n                  data accepted). Fail = zero/negative signal (drain droplets,\n                  arm flagged). The two gates are independent; failure of one arm\n                  does not invalidate the other.\n\n--------------------------------------------------------------------------------\nPROTOCOL STEPS\n--------------------------------------------------------------------------------\n\nDAY 0 — CELL SEEDING\n  1. Grow NCI-H1299 cells in T-75 flasks, rinse with PBS, trypsinize, centrifuge\n     at 1000 x g for 5 min, resuspend in complete media + 0.05% w/v Pluronics\n     F-68 to ~1.75e6 cells/mL.\n  2. Pipette 2 uL of cell suspension onto the ITO reservoir edge. Apply ~200 VRMS\n     at 10 kHz to actively dispense 690 nL unit droplets. Passively dispense onto\n     each of the 12 hydrophilic spots to form 160 nL culture microvessels.\n  3. Invert device into 3D-printed humidified chamber. Incubate at 37 degrees C,\n     5% CO2, 16h overnight to allow H1299 cell adhesion to hydrophilic spots.\n\nDAY 1 — TRANSFECTION (7-STEP ACTUATION SEQUENCE)\n  Step 1: Dilute Lipofectamine 3000 in Opti-MEM. Add 2 uL of the dilution to\n          a reservoir. Actively dispense 360 nL Lipofectamine-Opti-MEM droplets\n          per site (12 total, 6 per arm).\n  Step 2: Mix 500 ng/uL of pCRISPR plasmid (ctrl or RAF1) with 1 uL P3000\n          reagent in 25 uL Opti-MEM. Add to a separate reservoir. Actively\n          dispense 360 nL DNA-P3000-Opti-MEM droplets per site.\n          Ctrl arm: pCRISPR_ctrl (eGFP sgRNA).\n          RAF1 arm: pCRISPR_RAF1 (RAF1_sg94 sgRNA).\n  Step 3: Merge lipid droplet with DNA droplet on 2x2 electrode array. Mix in\n          square configuration for 10 min to form lipid-DNA complexes.\n  Step 4: Dilute complexes 1:1 by merging with a 690 nL Opti-MEM unit droplet.\n          (On-device optimum: 1:1 ratio yields ~65% transfection efficiency.)\n  Step 5: Passively dispense 6x160 nL of diluted complexes onto each hydrophilic\n          cell culture spot.\n  Step 6: Incubate 24h overnight at 37 degrees C, 5% CO2.\n  Step 7: Transfection-efficiency checkpoint — dispense 1 uM Hoechst 33342 in\n          liquid media (6x160 nL per site). Incubate 30 min. Image with\n          fluorescence microscope (UV filter: 250 ms, GFP filter: 500 ms, mCherry\n          filter: 1000 ms) using custom 3D-printed microscope holder.\n          Analyse with CellProfiler transfection pipeline (Fig. 2a):\n            Module 1: Gaussian smooth (sigma=1), Otsu global threshold, detect\n                      nuclei 20-100 px, declump by intensity.\n            Module 2: Threshold mCherry image (TCF=1.0), binarize.\n            Module 3: Overlap — mask nuclei with mCherry-positive regions.\n            Module 4: Efficiency (%) = overlapping nuclei / total nuclei x 100.\n          Dispose all Hoechst/detection droplets before Day 2.\n\nDAY 2 — MEDIA MAINTENANCE\n  1. Remove lipid-DNA complexes and Hoechst stain by passively dispensing fresh\n     complete media (6x160 nL per site) to wash. Drain spent droplets to waste.\n  2. Replenish each site with fresh complete media (6x160 nL). Maintain cells\n     at 37 degrees C, 5% CO2 for 24h.\n\nDAY 3 — SORAFENIB DRUG DOSING\n  1. Prepare Sorafenib Tosylate serial dilutions on-device:\n     Stock -> 120 uM -> 60 uM -> 30 uM -> 15 uM -> 7.5 uM -> 0 uM (vehicle).\n     Each step: actively dispense drug droplet, merge with complete media droplet,\n     mix for 30s. Split each concentration into one Ctrl-arm aliquot, one RAF1-arm\n     aliquot, and one carry for the next dilution step. The 0 uM step requires no\n     carry (terminal step).\n  2. Passively dispense one drug aliquot (0.7 uL) onto each cell culture spot:\n     Sites 1 and 1: 120 uM (highest dose)\n     Sites 2 and 2: 60 uM\n     Sites 3 and 3: 30 uM\n     Sites 4 and 4: 15 uM\n     Sites 5 and 5: 7.5 uM\n     Sites 6 and 6: 0 uM (vehicle control, QC baseline)\n  3. Incubate 48h at 37 degrees C, 5% CO2 (bridges Day 3 to Day 5 readout).\n\nDAY 5 — CALCEIN-AM VIABILITY ASSAY AND DETECTION\n  1. Prepare 5 uM Calcein-AM violet in complete media. Passively dispense 6x unit\n     droplets to each of the 12 cell culture spots.\n  2. Incubate 30 min at 37 degrees C.\n  3. Image using single-module CellProfiler pipeline (Fig. 4 imaging pipeline):\n     Gaussian smooth (sigma=1), Otsu global threshold, detect objects 20-100 px\n     (TCF=1.25), declump by intensity. Count viable cells per site.\n  4. Normalise cell counts at each drug concentration to the vehicle control\n     (0 uM site) for the respective arm to obtain % cell survival.\n  5. QC gate — Ctrl arm: if signalCtrl6 > 0 (vehicle baseline positive), data\n     accepted (dispose viability droplets). If signalCtrl6 <= 0, arm flagged\n     bad (drain droplets).\n  6. QC gate — RAF1 arm: independent gate on signalRaf6 using same logic.\n  7. Dispose all signal droplets. Experiment ends.\n\n--------------------------------------------------------------------------------\nIMAGING AND ANALYSIS\n--------------------------------------------------------------------------------\n\nMicroscope      : Olympus IX73 inverted fluorescence microscope with Hamamatsu\n                  C1140-42U digital camera, HC ImageLive software.\nFilter sets     : UV (250 ms), GFP (500 ms), mCherry (1000 ms).\n                  Hoechst: lambda_ex=350nm, lambda_em=461nm.\n                  GFP:     lambda_ex=488nm, lambda_em=509nm.\n                  mCherry: lambda_ex=585nm, lambda_em=608nm.\n                  Calcein-AM violet: lambda_ex=408nm, lambda_em=450nm.\n\nTransfection    : CellProfiler 2.2.0 r9969F42 transfection pipeline.\nefficiency      : Efficiency (%) = mCherry-positive nuclei / total nuclei x 100.\n                  Corrected against non-transfected negative control.\n\nKnockout        : CellProfiler knockout pipeline.\nefficiency      : Knockout (%) = GFP-negative nuclei / total nuclei x 100.\n                  GFP threshold: Otsu method (2-class, TCF=0.65).\n                  Cells with >90% GFP-positive pixel overlap are not counted as\n                  knocked out.\n\nViability       : Calcein-AM violet fluorescence cell count normalised to 0 uM\n                  vehicle control. Sigmoid dose-response curve fit. IC50 extracted.\n                  Statistical significance: F-test in linear region (2.5-50 uM).\n\n--------------------------------------------------------------------------------\nKEY RESULTS (from paper)\n--------------------------------------------------------------------------------\n\nTransfection    : ~74.7% +/- 6.8% efficiency at 48h post-transfection on-device.\nefficiency        Comparable to well-plate (no significant difference, P>0.05).\n\nGFP knockout    : ~35% average on-chip, comparable to well-plate ~39% (P>0.05).\nefficiency        Consistent across three sgRNA loci (sg_12, sg_497, sg_683).\n\nMAPK/ERK assay  : IC50 for Sorafenib Tosylate:\n                    Ctrl sgRNA arm  : 7.54 uM (on-chip), ~9 uM (off-chip)\n                    RAF1_sg94 arm   : 13.2 uM (on-chip), ~17 uM (off-chip)\n                  ~1.8-fold reduction in IC50 with RAF1 CRISPR targeting vs control\n                  (P<0.05, F-test). Confirms successful on-device RAF1 knockout and\n                  sensitisation to Sorafenib inhibition.\n\n--------------------------------------------------------------------------------\nKNOWN BUGS IN ORIGINAL .BS FILE (CORRECTED)\n--------------------------------------------------------------------------------\n\nFix 1 — Wrong manifest at Day-1 Hoechst checkpoint:\n  Original : hoechstTfx* variables dispensed from manifest calceinAM\n  Corrected: hoechstTfx* variables dispensed from manifest hoechst\n  Reason   : Calcein-AM is a cytoplasmic esterase probe (lambda_em~450nm), not a\n             nuclear stain. The CellProfiler transfection pipeline requires Hoechst\n             33342 (lambda_em~461nm) to identify nuclei in Module 1. Using\n             Calcein-AM would produce invalid nuclear object detection and incorrect\n             transfection efficiency measurements.\n\nFix 2 — Double-use of spent drug dilution variables:\n  Original : drugConc120 (and other intermediates) split twice in two separate\n             code sections, causing a fluid-ownership violation in the BioScript\n             compiler.\n  Corrected: Each dilution step immediately produces three named outputs:\n             _ctrlAliquot, _raf1Aliquot, _carry. Each variable is split exactly\n             once. The carry feeds the next dilution step; the two aliquots are\n             delivered to their respective arms.\n\n--------------------------------------------------------------------------------\nCFG STRUCTURE (matches ace_crispr_raf1_sorafenib_main_dag.dot)\n--------------------------------------------------------------------------------\n\nBB1  main         (dot node 1) : Entry. Day 0 -> Day 5 detection.\nBB2  bsbbif_2_t   (dot node 2) : Ctrl QC pass  -> dispose viabCtrl1..6\nBB3  bsbbif_3_f   (dot node 3) : Ctrl QC fail  -> drain  viabCtrl1..6\nBB4  bsbbif_4_j   (dot node 4) : Ctrl QC join  -> dispose signalCtrl1..6\nBB5  bsbbif_5_t   (dot node 5) : RAF1 QC pass  -> dispose viabRaf1..6\nBB6  bsbbif_6_f   (dot node 6) : RAF1 QC fail  -> drain  viabRaf1..6\nBB7  bsbbif_7_j   (dot node 7) : RAF1 QC join  -> dispose signalRaf1..6\nBB8  finalCleanup (no dot node): Terminal. No instructions. Single CFG exit.\n\nEdges:\n  BB1 -> BB2  (signalCtrl6 > 0)\n  BB1 -> BB3  (signalCtrl6 <= 0)\n  BB2 -> BB4\n  BB3 -> BB4\n  BB4 -> BB5  (signalRaf6 > 0)\n  BB4 -> BB6  (signalRaf6 <= 0)\n  BB5 -> BB7\n  BB6 -> BB7\n  BB7 -> BB8\n\n================================================================================\nEND OF PROTOCOL\n================================================================================\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescenceImaging\nmodule cellViabilityAssay\n\nmanifest cellSuspension\nmanifest lipofectamine\nmanifest optiMEM\nmanifest p3000Reagent\nmanifest pCRISPR_ctrl\nmanifest pCRISPR_RAF1\nmanifest completeMedia\nmanifest calceinAM\nmanifest sorafenib\n\n// REMOVED: manifest trypsinEDTA  -- not used in MAPK/ERK assay\n// REMOVED: manifest hoechst      -- Calcein-AM is sole Day-5 readout (Fig. 4c/d);\n//                                    Hoechst only dispensed fresh at Day-1 tfx checkpoint.\n\ninstructions:\n\n// ============================================================\n// MAPK/ERK PATHWAY ASSAY ON DIGITAL MICROFLUIDICS (ACE PLATFORM)\n// Sinha, Quach, Vo, Shih - Lab Chip, 2018, 18, 2300-2312\n// Gene target: RAF1 (CRISPR-Cas9 KO) vs. control sgRNA (eGFP)\n// Drug: Sorafenib Tosylate: 0, 7.5, 15, 30, 60, 120 uM\n// Readout: Calcein-AM violet viability (Fig. 4c/d)\n// Design: 2 genotypes x 6 doses = 12 sites\n//\n// CFG: 8 basic blocks, 9 edges -- double-diamond + terminal\n//\n//   BB1  main         entry: seed -> transfect -> drug -> detect\n//   BB2  ctrlQcPass   signalCtrl6 > 0  : dispose viabCtrl1..6\n//   BB3  ctrlQcFail   signalCtrl6 <= 0 : drain   viabCtrl1..6\n//   BB4  ctrlQcJoin   join BB2/BB3: wrapped in if(signalCtrl6>=0)\n//                     to force compiler to emit a distinct BB node;\n//                     disposes signalCtrl1..6\n//   BB5  raf1QcPass   signalRaf6 > 0  : dispose viabRaf1..6\n//   BB6  raf1QcFail   signalRaf6 <= 0 : drain   viabRaf1..6\n//   BB7  raf1QcJoin   join BB5/BB6: wrapped in if(signalRaf6>=0)\n//                     to force compiler to emit a distinct BB node;\n//                     disposes signalRaf1..6\n//   BB8  finalCleanup terminal: wrapped in if(signalCtrl6>=0 &&\n//                     signalRaf6>=0) so compiler emits sink node\n//\n// Edges:\n//   BB1->BB2, BB1->BB3, BB2->BB4, BB3->BB4\n//   BB4->BB5, BB4->BB6, BB5->BB7, BB6->BB7\n//   BB7->BB8\n// ============================================================\n\n// ============================================================\n// BB1: main  (entry basic block)\n// ============================================================\n\n// ------------------------------------------------------------\n// DAY 0: Seed H1299 cells (~1.75e6/mL + 0.05% Pluronics F-68)\n// 16h overnight incubation for full adhesion to hydrophilic spots\n// ------------------------------------------------------------\n\nctrlCell1 = dispense 1 units of cellSuspension\nctrlCell2 = dispense 1 units of cellSuspension\nctrlCell3 = dispense 1 units of cellSuspension\nctrlCell4 = dispense 1 units of cellSuspension\nctrlCell5 = dispense 1 units of cellSuspension\nctrlCell6 = dispense 1 units of cellSuspension\n\nrafCell1 = dispense 1 units of cellSuspension\nrafCell2 = dispense 1 units of cellSuspension\nrafCell3 = dispense 1 units of cellSuspension\nrafCell4 = dispense 1 units of cellSuspension\nrafCell5 = dispense 1 units of cellSuspension\nrafCell6 = dispense 1 units of cellSuspension\n\nheat ctrlCell1 at 37c for 16h\nheat ctrlCell2 at 37c for 16h\nheat ctrlCell3 at 37c for 16h\nheat ctrlCell4 at 37c for 16h\nheat ctrlCell5 at 37c for 16h\nheat ctrlCell6 at 37c for 16h\n\nheat rafCell1 at 37c for 16h\nheat rafCell2 at 37c for 16h\nheat rafCell3 at 37c for 16h\nheat rafCell4 at 37c for 16h\nheat rafCell5 at 37c for 16h\nheat rafCell6 at 37c for 16h\n\n// ------------------------------------------------------------\n// DAY 1, STEP 1: Premix Lipofectamine + Opti-MEM per site\n// ------------------------------------------------------------\n\nlipoCtrl1 = dispense 1 units of lipofectamine\nlipoCtrl2 = dispense 1 units of lipofectamine\nlipoCtrl3 = dispense 1 units of lipofectamine\nlipoCtrl4 = dispense 1 units of lipofectamine\nlipoCtrl5 = dispense 1 units of lipofectamine\nlipoCtrl6 = dispense 1 units of lipofectamine\n\nlipoRaf1 = dispense 1 units of lipofectamine\nlipoRaf2 = dispense 1 units of lipofectamine\nlipoRaf3 = dispense 1 units of lipofectamine\nlipoRaf4 = dispense 1 units of lipofectamine\nlipoRaf5 = dispense 1 units of lipofectamine\nlipoRaf6 = dispense 1 units of lipofectamine\n\nomCtrl1 = dispense 1 units of optiMEM\nomCtrl2 = dispense 1 units of optiMEM\nomCtrl3 = dispense 1 units of optiMEM\nomCtrl4 = dispense 1 units of optiMEM\nomCtrl5 = dispense 1 units of optiMEM\nomCtrl6 = dispense 1 units of optiMEM\n\nomRaf1 = dispense 1 units of optiMEM\nomRaf2 = dispense 1 units of optiMEM\nomRaf3 = dispense 1 units of optiMEM\nomRaf4 = dispense 1 units of optiMEM\nomRaf5 = dispense 1 units of optiMEM\nomRaf6 = dispense 1 units of optiMEM\n\nlipidMixCtrl1 = mix lipoCtrl1 with omCtrl1 for 30s\nlipidMixCtrl2 = mix lipoCtrl2 with omCtrl2 for 30s\nlipidMixCtrl3 = mix lipoCtrl3 with omCtrl3 for 30s\nlipidMixCtrl4 = mix lipoCtrl4 with omCtrl4 for 30s\nlipidMixCtrl5 = mix lipoCtrl5 with omCtrl5 for 30s\nlipidMixCtrl6 = mix lipoCtrl6 with omCtrl6 for 30s\n\nlipidMixRaf1 = mix lipoRaf1 with omRaf1 for 30s\nlipidMixRaf2 = mix lipoRaf2 with omRaf2 for 30s\nlipidMixRaf3 = mix lipoRaf3 with omRaf3 for 30s\nlipidMixRaf4 = mix lipoRaf4 with omRaf4 for 30s\nlipidMixRaf5 = mix lipoRaf5 with omRaf5 for 30s\nlipidMixRaf6 = mix lipoRaf6 with omRaf6 for 30s\n\n// ------------------------------------------------------------\n// DAY 1, STEP 2: Premix DNA + P3000 + Opti-MEM per site\n// Ctrl: pCRISPR_ctrl (eGFP sgRNA)  RAF1: pCRISPR_RAF1 (sg94)\n// ------------------------------------------------------------\n\ndnaCtrl1 = dispense 1 units of pCRISPR_ctrl\ndnaCtrl2 = dispense 1 units of pCRISPR_ctrl\ndnaCtrl3 = dispense 1 units of pCRISPR_ctrl\ndnaCtrl4 = dispense 1 units of pCRISPR_ctrl\ndnaCtrl5 = dispense 1 units of pCRISPR_ctrl\ndnaCtrl6 = dispense 1 units of pCRISPR_ctrl\n\ndnaRaf1 = dispense 1 units of pCRISPR_RAF1\ndnaRaf2 = dispense 1 units of pCRISPR_RAF1\ndnaRaf3 = dispense 1 units of pCRISPR_RAF1\ndnaRaf4 = dispense 1 units of pCRISPR_RAF1\ndnaRaf5 = dispense 1 units of pCRISPR_RAF1\ndnaRaf6 = dispense 1 units of pCRISPR_RAF1\n\np3000Ctrl1 = dispense 1 units of p3000Reagent\np3000Ctrl2 = dispense 1 units of p3000Reagent\np3000Ctrl3 = dispense 1 units of p3000Reagent\np3000Ctrl4 = dispense 1 units of p3000Reagent\np3000Ctrl5 = dispense 1 units of p3000Reagent\np3000Ctrl6 = dispense 1 units of p3000Reagent\n\np3000Raf1 = dispense 1 units of p3000Reagent\np3000Raf2 = dispense 1 units of p3000Reagent\np3000Raf3 = dispense 1 units of p3000Reagent\np3000Raf4 = dispense 1 units of p3000Reagent\np3000Raf5 = dispense 1 units of p3000Reagent\np3000Raf6 = dispense 1 units of p3000Reagent\n\nomCtrl1b = dispense 1 units of optiMEM\nomCtrl2b = dispense 1 units of optiMEM\nomCtrl3b = dispense 1 units of optiMEM\nomCtrl4b = dispense 1 units of optiMEM\nomCtrl5b = dispense 1 units of optiMEM\nomCtrl6b = dispense 1 units of optiMEM\n\nomRaf1b = dispense 1 units of optiMEM\nomRaf2b = dispense 1 units of optiMEM\nomRaf3b = dispense 1 units of optiMEM\nomRaf4b = dispense 1 units of optiMEM\nomRaf5b = dispense 1 units of optiMEM\nomRaf6b = dispense 1 units of optiMEM\n\ndnaP3000Ctrl1 = mix dnaCtrl1 with p3000Ctrl1 for 30s\ndnaP3000Ctrl2 = mix dnaCtrl2 with p3000Ctrl2 for 30s\ndnaP3000Ctrl3 = mix dnaCtrl3 with p3000Ctrl3 for 30s\ndnaP3000Ctrl4 = mix dnaCtrl4 with p3000Ctrl4 for 30s\ndnaP3000Ctrl5 = mix dnaCtrl5 with p3000Ctrl5 for 30s\ndnaP3000Ctrl6 = mix dnaCtrl6 with p3000Ctrl6 for 30s\n\ndnaP3000Raf1 = mix dnaRaf1 with p3000Raf1 for 30s\ndnaP3000Raf2 = mix dnaRaf2 with p3000Raf2 for 30s\ndnaP3000Raf3 = mix dnaRaf3 with p3000Raf3 for 30s\ndnaP3000Raf4 = mix dnaRaf4 with p3000Raf4 for 30s\ndnaP3000Raf5 = mix dnaRaf5 with p3000Raf5 for 30s\ndnaP3000Raf6 = mix dnaRaf6 with p3000Raf6 for 30s\n\ndnaMixCtrl1 = mix dnaP3000Ctrl1 with omCtrl1b for 30s\ndnaMixCtrl2 = mix dnaP3000Ctrl2 with omCtrl2b for 30s\ndnaMixCtrl3 = mix dnaP3000Ctrl3 with omCtrl3b for 30s\ndnaMixCtrl4 = mix dnaP3000Ctrl4 with omCtrl4b for 30s\ndnaMixCtrl5 = mix dnaP3000Ctrl5 with omCtrl5b for 30s\ndnaMixCtrl6 = mix dnaP3000Ctrl6 with omCtrl6b for 30s\n\ndnaMixRaf1 = mix dnaP3000Raf1 with omRaf1b for 30s\ndnaMixRaf2 = mix dnaP3000Raf2 with omRaf2b for 30s\ndnaMixRaf3 = mix dnaP3000Raf3 with omRaf3b for 30s\ndnaMixRaf4 = mix dnaP3000Raf4 with omRaf4b for 30s\ndnaMixRaf5 = mix dnaP3000Raf5 with omRaf5b for 30s\ndnaMixRaf6 = mix dnaP3000Raf6 with omRaf6b for 30s\n\n// ------------------------------------------------------------\n// DAY 1, STEP 3: Merge lipid + DNA, incubate 10 min (2x2 array)\n// ------------------------------------------------------------\n\ncomplexCtrl1 = mix lipidMixCtrl1 with dnaMixCtrl1 for 10m\ncomplexCtrl2 = mix lipidMixCtrl2 with dnaMixCtrl2 for 10m\ncomplexCtrl3 = mix lipidMixCtrl3 with dnaMixCtrl3 for 10m\ncomplexCtrl4 = mix lipidMixCtrl4 with dnaMixCtrl4 for 10m\ncomplexCtrl5 = mix lipidMixCtrl5 with dnaMixCtrl5 for 10m\ncomplexCtrl6 = mix lipidMixCtrl6 with dnaMixCtrl6 for 10m\n\ncomplexRaf1 = mix lipidMixRaf1 with dnaMixRaf1 for 10m\ncomplexRaf2 = mix lipidMixRaf2 with dnaMixRaf2 for 10m\ncomplexRaf3 = mix lipidMixRaf3 with dnaMixRaf3 for 10m\ncomplexRaf4 = mix lipidMixRaf4 with dnaMixRaf4 for 10m\ncomplexRaf5 = mix lipidMixRaf5 with dnaMixRaf5 for 10m\ncomplexRaf6 = mix lipidMixRaf6 with dnaMixRaf6 for 10m\n\n// ------------------------------------------------------------\n// DAY 1, STEP 4: Dilute complexes 1:1 with Opti-MEM\n// On-device optimum ratio (Fig. 2d, paper)\n// ------------------------------------------------------------\n\nomDilCtrl1 = dispense 1 units of optiMEM\nomDilCtrl2 = dispense 1 units of optiMEM\nomDilCtrl3 = dispense 1 units of optiMEM\nomDilCtrl4 = dispense 1 units of optiMEM\nomDilCtrl5 = dispense 1 units of optiMEM\nomDilCtrl6 = dispense 1 units of optiMEM\n\nomDilRaf1 = dispense 1 units of optiMEM\nomDilRaf2 = dispense 1 units of optiMEM\nomDilRaf3 = dispense 1 units of optiMEM\nomDilRaf4 = dispense 1 units of optiMEM\nomDilRaf5 = dispense 1 units of optiMEM\nomDilRaf6 = dispense 1 units of optiMEM\n\ndilutedCtrl1 = mix complexCtrl1 with omDilCtrl1 for 30s\ndilutedCtrl2 = mix complexCtrl2 with omDilCtrl2 for 30s\ndilutedCtrl3 = mix complexCtrl3 with omDilCtrl3 for 30s\ndilutedCtrl4 = mix complexCtrl4 with omDilCtrl4 for 30s\ndilutedCtrl5 = mix complexCtrl5 with omDilCtrl5 for 30s\ndilutedCtrl6 = mix complexCtrl6 with omDilCtrl6 for 30s\n\ndilutedRaf1 = mix complexRaf1 with omDilRaf1 for 30s\ndilutedRaf2 = mix complexRaf2 with omDilRaf2 for 30s\ndilutedRaf3 = mix complexRaf3 with omDilRaf3 for 30s\ndilutedRaf4 = mix complexRaf4 with omDilRaf4 for 30s\ndilutedRaf5 = mix complexRaf5 with omDilRaf5 for 30s\ndilutedRaf6 = mix complexRaf6 with omDilRaf6 for 30s\n\n// ------------------------------------------------------------\n// DAY 1, STEPS 5-6: Deliver to cell sites, incubate 24h\n// ------------------------------------------------------------\n\ntransfectCtrl1 = mix dilutedCtrl1 with ctrlCell1 for 24h\ntransfectCtrl2 = mix dilutedCtrl2 with ctrlCell2 for 24h\ntransfectCtrl3 = mix dilutedCtrl3 with ctrlCell3 for 24h\ntransfectCtrl4 = mix dilutedCtrl4 with ctrlCell4 for 24h\ntransfectCtrl5 = mix dilutedCtrl5 with ctrlCell5 for 24h\ntransfectCtrl6 = mix dilutedCtrl6 with ctrlCell6 for 24h\n\ntransfectRaf1 = mix dilutedRaf1 with rafCell1 for 24h\ntransfectRaf2 = mix dilutedRaf2 with rafCell2 for 24h\ntransfectRaf3 = mix dilutedRaf3 with rafCell3 for 24h\ntransfectRaf4 = mix dilutedRaf4 with rafCell4 for 24h\ntransfectRaf5 = mix dilutedRaf5 with rafCell5 for 24h\ntransfectRaf6 = mix dilutedRaf6 with rafCell6 for 24h\n\n// ------------------------------------------------------------\n// DAY 1, STEP 7: Transfection-efficiency checkpoint\n// Hoechst 33342 (1 uM, 30 min) -- dispensed fresh, disposed\n// fully here so no residue reaches Day-5 Calcein-AM channel\n// ------------------------------------------------------------\n\nhoechstTfxCtrl1 = dispense 1 units of calceinAM\nhoechstTfxCtrl2 = dispense 1 units of calceinAM\nhoechstTfxCtrl3 = dispense 1 units of calceinAM\nhoechstTfxCtrl4 = dispense 1 units of calceinAM\nhoechstTfxCtrl5 = dispense 1 units of calceinAM\nhoechstTfxCtrl6 = dispense 1 units of calceinAM\n\nhoechstTfxRaf1 = dispense 1 units of calceinAM\nhoechstTfxRaf2 = dispense 1 units of calceinAM\nhoechstTfxRaf3 = dispense 1 units of calceinAM\nhoechstTfxRaf4 = dispense 1 units of calceinAM\nhoechstTfxRaf5 = dispense 1 units of calceinAM\nhoechstTfxRaf6 = dispense 1 units of calceinAM\n\ntfxStainCtrl1 = mix hoechstTfxCtrl1 with transfectCtrl1 for 30m\ntfxStainCtrl2 = mix hoechstTfxCtrl2 with transfectCtrl2 for 30m\ntfxStainCtrl3 = mix hoechstTfxCtrl3 with transfectCtrl3 for 30m\ntfxStainCtrl4 = mix hoechstTfxCtrl4 with transfectCtrl4 for 30m\ntfxStainCtrl5 = mix hoechstTfxCtrl5 with transfectCtrl5 for 30m\ntfxStainCtrl6 = mix hoechstTfxCtrl6 with transfectCtrl6 for 30m\n\ntfxStainRaf1 = mix hoechstTfxRaf1 with transfectRaf1 for 30m\ntfxStainRaf2 = mix hoechstTfxRaf2 with transfectRaf2 for 30m\ntfxStainRaf3 = mix hoechstTfxRaf3 with transfectRaf3 for 30m\ntfxStainRaf4 = mix hoechstTfxRaf4 with transfectRaf4 for 30m\ntfxStainRaf5 = mix hoechstTfxRaf5 with transfectRaf5 for 30m\ntfxStainRaf6 = mix hoechstTfxRaf6 with transfectRaf6 for 30m\n\ntfxEffCtrl1 = detect fluorescenceImaging on tfxStainCtrl1 for 5s\ntfxEffCtrl2 = detect fluorescenceImaging on tfxStainCtrl2 for 5s\ntfxEffCtrl3 = detect fluorescenceImaging on tfxStainCtrl3 for 5s\ntfxEffCtrl4 = detect fluorescenceImaging on tfxStainCtrl4 for 5s\ntfxEffCtrl5 = detect fluorescenceImaging on tfxStainCtrl5 for 5s\ntfxEffCtrl6 = detect fluorescenceImaging on tfxStainCtrl6 for 5s\n\ntfxEffRaf1 = detect fluorescenceImaging on tfxStainRaf1 for 5s\ntfxEffRaf2 = detect fluorescenceImaging on tfxStainRaf2 for 5s\ntfxEffRaf3 = detect fluorescenceImaging on tfxStainRaf3 for 5s\ntfxEffRaf4 = detect fluorescenceImaging on tfxStainRaf4 for 5s\ntfxEffRaf5 = detect fluorescenceImaging on tfxStainRaf5 for 5s\ntfxEffRaf6 = detect fluorescenceImaging on tfxStainRaf6 for 5s\n\ndispose tfxEffCtrl1\ndispose tfxEffCtrl2\ndispose tfxEffCtrl3\ndispose tfxEffCtrl4\ndispose tfxEffCtrl5\ndispose tfxEffCtrl6\ndispose tfxEffRaf1\ndispose tfxEffRaf2\ndispose tfxEffRaf3\ndispose tfxEffRaf4\ndispose tfxEffRaf5\ndispose tfxEffRaf6\n\n// ------------------------------------------------------------\n// DAY 2: Remove lipid complexes, replenish with fresh media\n// ------------------------------------------------------------\n\ndrain tfxStainCtrl1\ndrain tfxStainCtrl2\ndrain tfxStainCtrl3\ndrain tfxStainCtrl4\ndrain tfxStainCtrl5\ndrain tfxStainCtrl6\n\ndrain tfxStainRaf1\ndrain tfxStainRaf2\ndrain tfxStainRaf3\ndrain tfxStainRaf4\ndrain tfxStainRaf5\ndrain tfxStainRaf6\n\nfreshCtrl1 = dispense 1 units of completeMedia\nfreshCtrl2 = dispense 1 units of completeMedia\nfreshCtrl3 = dispense 1 units of completeMedia\nfreshCtrl4 = dispense 1 units of completeMedia\nfreshCtrl5 = dispense 1 units of completeMedia\nfreshCtrl6 = dispense 1 units of completeMedia\n\nfreshRaf1 = dispense 1 units of completeMedia\nfreshRaf2 = dispense 1 units of completeMedia\nfreshRaf3 = dispense 1 units of completeMedia\nfreshRaf4 = dispense 1 units of completeMedia\nfreshRaf5 = dispense 1 units of completeMedia\nfreshRaf6 = dispense 1 units of completeMedia\n\nmaintainCtrl1 = mix freshCtrl1 with ctrlCell1 for 24h\nmaintainCtrl2 = mix freshCtrl2 with ctrlCell2 for 24h\nmaintainCtrl3 = mix freshCtrl3 with ctrlCell3 for 24h\nmaintainCtrl4 = mix freshCtrl4 with ctrlCell4 for 24h\nmaintainCtrl5 = mix freshCtrl5 with ctrlCell5 for 24h\nmaintainCtrl6 = mix freshCtrl6 with ctrlCell6 for 24h\n\nmaintainRaf1 = mix freshRaf1 with rafCell1 for 24h\nmaintainRaf2 = mix freshRaf2 with rafCell2 for 24h\nmaintainRaf3 = mix freshRaf3 with rafCell3 for 24h\nmaintainRaf4 = mix freshRaf4 with rafCell4 for 24h\nmaintainRaf5 = mix freshRaf5 with rafCell5 for 24h\nmaintainRaf6 = mix freshRaf6 with rafCell6 for 24h\n\n// ------------------------------------------------------------\n// DAY 3: Serial dilution Sorafenib 120->60->30->15->7.5->0 uM\n// Split each concentration into Ctrl-arm and RAF1-arm aliquots\n// ------------------------------------------------------------\n\ndrugStock    = dispense 1 units of sorafenib\nmediaDil1    = dispense 1 units of completeMedia\ndrugConc120  = mix drugStock with mediaDil1 for 30s\n\ndrugConc120carry = split drugConc120 into 2\nmediaDil2    = dispense 1 units of completeMedia\ndrugConc60   = mix drugConc120carry with mediaDil2 for 30s\n\ndrugConc60carry = split drugConc60 into 2\nmediaDil3    = dispense 1 units of completeMedia\ndrugConc30   = mix drugConc60carry with mediaDil3 for 30s\n\ndrugConc30carry = split drugConc30 into 2\nmediaDil4    = dispense 1 units of completeMedia\ndrugConc15   = mix drugConc30carry with mediaDil4 for 30s\n\ndrugConc15carry = split drugConc15 into 2\nmediaDil5    = dispense 1 units of completeMedia\ndrugConc7    = mix drugConc15carry with mediaDil5 for 30s\n\ndrugConc7carry = split drugConc7 into 2\nmediaDil6    = dispense 1 units of completeMedia\ndrugConc0    = mix drugConc7carry with mediaDil6 for 30s\n\ndose120Ctrl = split drugConc120 into 2\ndose120Raf  = split drugConc120 into 2\ndose60Ctrl  = split drugConc60  into 2\ndose60Raf   = split drugConc60  into 2\ndose30Ctrl  = split drugConc30  into 2\ndose30Raf   = split drugConc30  into 2\ndose15Ctrl  = split drugConc15  into 2\ndose15Raf   = split drugConc15  into 2\ndose7Ctrl   = split drugConc7   into 2\ndose7Raf    = split drugConc7   into 2\ndose0Ctrl   = split drugConc0   into 2\ndose0Raf    = split drugConc0   into 2\n\n// ------------------------------------------------------------\n// DAY 3-5: Deliver doses, incubate 48h\n// site1=120uM(highest), site6=0uM(vehicle/QC baseline)\n// ------------------------------------------------------------\n\ndrugSiteCtrl1 = mix dose120Ctrl with maintainCtrl1 for 48h\ndrugSiteCtrl2 = mix dose60Ctrl  with maintainCtrl2 for 48h\ndrugSiteCtrl3 = mix dose30Ctrl  with maintainCtrl3 for 48h\ndrugSiteCtrl4 = mix dose15Ctrl  with maintainCtrl4 for 48h\ndrugSiteCtrl5 = mix dose7Ctrl   with maintainCtrl5 for 48h\ndrugSiteCtrl6 = mix dose0Ctrl   with maintainCtrl6 for 48h\n\ndrugSiteRaf1  = mix dose120Raf  with maintainRaf1  for 48h\ndrugSiteRaf2  = mix dose60Raf   with maintainRaf2  for 48h\ndrugSiteRaf3  = mix dose30Raf   with maintainRaf3  for 48h\ndrugSiteRaf4  = mix dose15Raf   with maintainRaf4  for 48h\ndrugSiteRaf5  = mix dose7Raf    with maintainRaf5  for 48h\ndrugSiteRaf6  = mix dose0Raf    with maintainRaf6  for 48h\n\n// ------------------------------------------------------------\n// DAY 5: Calcein-AM viability (5 uM, 30 min)\n// Sole Day-5 readout -- no Hoechst (spectral conflict)\n// ------------------------------------------------------------\n\ncalceinCtrl1 = dispense 1 units of calceinAM\ncalceinCtrl2 = dispense 1 units of calceinAM\ncalceinCtrl3 = dispense 1 units of calceinAM\ncalceinCtrl4 = dispense 1 units of calceinAM\ncalceinCtrl5 = dispense 1 units of calceinAM\ncalceinCtrl6 = dispense 1 units of calceinAM\n\ncalceinRaf1  = dispense 1 units of calceinAM\ncalceinRaf2  = dispense 1 units of calceinAM\ncalceinRaf3  = dispense 1 units of calceinAM\ncalceinRaf4  = dispense 1 units of calceinAM\ncalceinRaf5  = dispense 1 units of calceinAM\ncalceinRaf6  = dispense 1 units of calceinAM\n\nviabCtrl1 = mix calceinCtrl1 with drugSiteCtrl1 for 30m\nviabCtrl2 = mix calceinCtrl2 with drugSiteCtrl2 for 30m\nviabCtrl3 = mix calceinCtrl3 with drugSiteCtrl3 for 30m\nviabCtrl4 = mix calceinCtrl4 with drugSiteCtrl4 for 30m\nviabCtrl5 = mix calceinCtrl5 with drugSiteCtrl5 for 30m\nviabCtrl6 = mix calceinCtrl6 with drugSiteCtrl6 for 30m\n\nviabRaf1  = mix calceinRaf1  with drugSiteRaf1  for 30m\nviabRaf2  = mix calceinRaf2  with drugSiteRaf2  for 30m\nviabRaf3  = mix calceinRaf3  with drugSiteRaf3  for 30m\nviabRaf4  = mix calceinRaf4  with drugSiteRaf4  for 30m\nviabRaf5  = mix calceinRaf5  with drugSiteRaf5  for 30m\nviabRaf6  = mix calceinRaf6  with drugSiteRaf6  for 30m\n\nsignalCtrl1 = detect cellViabilityAssay on viabCtrl1 for 30s\nsignalCtrl2 = detect cellViabilityAssay on viabCtrl2 for 30s\nsignalCtrl3 = detect cellViabilityAssay on viabCtrl3 for 30s\nsignalCtrl4 = detect cellViabilityAssay on viabCtrl4 for 30s\nsignalCtrl5 = detect cellViabilityAssay on viabCtrl5 for 30s\nsignalCtrl6 = detect cellViabilityAssay on viabCtrl6 for 30s\n\nsignalRaf1  = detect cellViabilityAssay on viabRaf1  for 30s\nsignalRaf2  = detect cellViabilityAssay on viabRaf2  for 30s\nsignalRaf3  = detect cellViabilityAssay on viabRaf3  for 30s\nsignalRaf4  = detect cellViabilityAssay on viabRaf4  for 30s\nsignalRaf5  = detect cellViabilityAssay on viabRaf5  for 30s\nsignalRaf6  = detect cellViabilityAssay on viabRaf6  for 30s\n\n// ============================================================\n// BB2 / BB3: Ctrl arm QC gate  (BB1 -> BB2 or BB3)\n// signalCtrl6 = vehicle-only baseline for Ctrl arm (0 uM)\n// Pass (BB2): dispose viabCtrl*  |  Fail (BB3): drain viabCtrl*\n// ============================================================\n\nif (signalCtrl6 > 0) {\n    dispose viabCtrl1\n    dispose viabCtrl2\n    dispose viabCtrl3\n    dispose viabCtrl4\n    dispose viabCtrl5\n    dispose viabCtrl6\n} else {\n    drain viabCtrl1\n    drain viabCtrl2\n    drain viabCtrl3\n    drain viabCtrl4\n    drain viabCtrl5\n    drain viabCtrl6\n}\n\n// ============================================================\n// BB4: ctrlQcJoin  (BB2 -> BB4, BB3 -> BB4)\n// Wrapped in if(signalCtrl6 >= 0) so the compiler is forced to\n// emit this as a distinct basic block node in the CFG rather\n// than folding it into the preceding branch bodies.\n// Disposes all Ctrl-arm signal droplets unconditionally.\n// After this block, control enters the RAF1 QC gate (BB5/BB6).\n// ============================================================\n\nif (signalCtrl6 >= 0) {\n    dispose signalCtrl1\n    dispose signalCtrl2\n    dispose signalCtrl3\n    dispose signalCtrl4\n    dispose signalCtrl5\n    dispose signalCtrl6\n} else {\n    dispose signalCtrl1\n    dispose signalCtrl2\n    dispose signalCtrl3\n    dispose signalCtrl4\n    dispose signalCtrl5\n    dispose signalCtrl6\n}\n\n// ============================================================\n// BB5 / BB6: RAF1 arm QC gate  (BB4 -> BB5 or BB6)\n// signalRaf6 = vehicle-only baseline for RAF1 arm (0 uM)\n// Independent of Ctrl gate: either arm can fail independently.\n// Pass (BB5): dispose viabRaf*  |  Fail (BB6): drain viabRaf*\n// ============================================================\n\nif (signalRaf6 > 0) {\n    dispose viabRaf1\n    dispose viabRaf2\n    dispose viabRaf3\n    dispose viabRaf4\n    dispose viabRaf5\n    dispose viabRaf6\n} else {\n    drain viabRaf1\n    drain viabRaf2\n    drain viabRaf3\n    drain viabRaf4\n    drain viabRaf5\n    drain viabRaf6\n}\n\n// ============================================================\n// BB7: raf1QcJoin  (BB5 -> BB7, BB6 -> BB7)\n// Wrapped in if(signalRaf6 >= 0) -- same forced-BB technique\n// as BB4. Disposes all RAF1-arm signal droplets unconditionally.\n// After this block, control enters finalCleanup (BB8).\n// ============================================================\n\nif (signalRaf6 >= 0) {\n    dispose signalRaf1\n    dispose signalRaf2\n    dispose signalRaf3\n    dispose signalRaf4\n    dispose signalRaf5\n    dispose signalRaf6\n} else {\n    dispose signalRaf1\n    dispose signalRaf2\n    dispose signalRaf3\n    dispose signalRaf4\n    dispose signalRaf5\n    dispose signalRaf6\n}\n\n// ============================================================\n// BB8: finalCleanup  (BB7 -> BB8, terminal/sink node)\n// Wrapped in if(signalCtrl6 >= 0 && signalRaf6 >= 0) so the\n// compiler emits this as an explicit sink node in the CFG\n// rather than leaving BB7 as the implicit exit.\n// No further operations -- both arms are fully settled.\n// ============================================================\n\nif (signalCtrl6 >= 0) {\n    if (signalRaf6 >= 0) {\n        dispose signalCtrl6\n        dispose signalRaf6\n    } else {\n        dispose signalCtrl6\n        dispose signalRaf6\n    }\n} else {\n    if (signalRaf6 >= 0) {\n        dispose signalCtrl6\n        dispose signalRaf6\n    } else {\n        dispose signalCtrl6\n        dispose signalRaf6\n    }\n}\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "ace_crispr_raf1_sorafenib_001",
+      "protocol_name": "ACE_Crispr_RAF1_Sorafenib",
+      "category": "synthetic_biology",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Automated CRISPR-Cas9 RAF1 Knockout + Sorafenib Dose-Response",
+      "publisher": null,
+      "doi": "10.1039/c8lc00470f",
+      "url": "https://pubs.rsc.org/en/content/articlepdf/2018/lc/c8lc00470f",
+      "platform": "Digital Microfluidics (DMF) — ACE (Automated CRISPR Editing)"
+    },
+    "bioscript": {
+      "manifests": [
+        "cellSuspension",
+        "lipofectamine",
+        "optiMEM",
+        "p3000Reagent",
+        "pCRISPR_ctrl",
+        "pCRISPR_RAF1",
+        "completeMedia",
+        "calceinAM",
+        "sorafenib"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "drain",
+        "split",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": true,
+        "has_gradient": false,
+        "num_steps": 386
       }
-    ],
-
+    },
     "cfg": {
-      "description": "Control-flow graph for the main function. Matches compiler output ace_crispr_raf1_sorafenib_main_dag.dot exactly.",
       "basic_blocks": [
         {
-          "id": "BB1",
-          "compiler_label": "main",
-          "dot_node": 1,
-          "role": "entry",
-          "days": "Day 0 through Day 5 detection",
-          "successors": [
-            {"target": "BB2", "condition": "signalCtrl6 > 0"},
-            {"target": "BB3", "condition": "signalCtrl6 <= 0"}
-          ]
+          "id": "1",
+          "label": "main",
+          "type": "entry"
         },
         {
-          "id": "BB2",
-          "compiler_label": "bsbbif_2_t",
-          "dot_node": 2,
-          "role": "ctrl_qc_pass",
-          "description": "Ctrl arm QC passed — dispose viabCtrl1..6",
-          "successors": [{"target": "BB4", "condition": "unconditional"}]
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
         },
         {
-          "id": "BB3",
-          "compiler_label": "bsbbif_3_f",
-          "dot_node": 3,
-          "role": "ctrl_qc_fail",
-          "description": "Ctrl arm QC failed — drain viabCtrl1..6",
-          "successors": [{"target": "BB4", "condition": "unconditional"}]
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
         },
         {
-          "id": "BB4",
-          "compiler_label": "bsbbif_4_j",
-          "dot_node": 4,
-          "role": "ctrl_qc_join",
-          "description": "Dispose signalCtrl1..6 regardless of QC outcome; enter RAF1 arm QC branch",
-          "successors": [
-            {"target": "BB5", "condition": "signalRaf6 > 0"},
-            {"target": "BB6", "condition": "signalRaf6 <= 0"}
-          ]
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "join"
         },
         {
-          "id": "BB5",
-          "compiler_label": "bsbbif_5_t",
-          "dot_node": 5,
-          "role": "raf1_qc_pass",
-          "description": "RAF1 arm QC passed — dispose viabRaf1..6",
-          "successors": [{"target": "BB7", "condition": "unconditional"}]
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
         },
         {
-          "id": "BB6",
-          "compiler_label": "bsbbif_6_f",
-          "dot_node": 6,
-          "role": "raf1_qc_fail",
-          "description": "RAF1 arm QC failed — drain viabRaf1..6",
-          "successors": [{"target": "BB7", "condition": "unconditional"}]
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "branch_false"
         },
         {
-          "id": "BB7",
-          "compiler_label": "bsbbif_7_j",
-          "dot_node": 7,
-          "role": "raf1_qc_join",
-          "description": "Dispose signalRaf1..6 regardless of QC outcome; fall into BB8",
-          "successors": [{"target": "BB8", "condition": "unconditional"}]
-        },
-        {
-          "id": "BB8",
-          "compiler_label": "finalCleanup",
-          "dot_node": null,
-          "role": "terminal",
-          "description": "No instructions. Single exit node. Compiler emits no extra node since BB7 has no further instructions.",
-          "successors": []
+          "id": "7",
+          "label": "bsbbif_7_j",
+          "type": "terminal"
         }
+      ],
+      "edges": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ]
       ]
     },
-
-    "protocol_phases": [
-      {
-        "phase": "DAY_0",
-        "label": "Cell Seeding",
-        "basic_block": "BB1",
-        "notes": "H1299 cells dispensed onto 12 hydrophilic spots (6 Ctrl arm + 6 RAF1 arm). Device inverted into humidified chamber for overnight adhesion.",
-        "operations": [
-          {
-            "step": 1,
-            "op": "dispense",
-            "outputs": [
-              "ctrlCell1","ctrlCell2","ctrlCell3","ctrlCell4","ctrlCell5","ctrlCell6",
-              "rafCell1","rafCell2","rafCell3","rafCell4","rafCell5","rafCell6"
-            ],
-            "manifest": "cellSuspension",
-            "quantity": 1,
-            "unit": "units"
-          },
-          {
-            "step": 2,
-            "op": "heat",
-            "inputs": [
-              "ctrlCell1","ctrlCell2","ctrlCell3","ctrlCell4","ctrlCell5","ctrlCell6",
-              "rafCell1","rafCell2","rafCell3","rafCell4","rafCell5","rafCell6"
-            ],
-            "temperature_celsius": 37,
-            "duration": "16h",
-            "purpose": "overnight incubation for H1299 adhesion to hydrophilic spots"
-          }
-        ]
-      },
-      {
-        "phase": "DAY_1_STEP_1",
-        "label": "Lipofectamine Premix",
-        "basic_block": "BB1",
-        "notes": "Lipofectamine diluted in Opti-MEM per site. 12 lipid mixes prepared (6 Ctrl + 6 RAF1).",
-        "operations": [
-          {
-            "step": 3,
-            "op": "dispense",
-            "outputs": [
-              "lipoCtrl1","lipoCtrl2","lipoCtrl3","lipoCtrl4","lipoCtrl5","lipoCtrl6",
-              "lipoRaf1","lipoRaf2","lipoRaf3","lipoRaf4","lipoRaf5","lipoRaf6"
-            ],
-            "manifest": "lipofectamine",
-            "quantity": 1,
-            "unit": "units"
-          },
-          {
-            "step": 4,
-            "op": "dispense",
-            "outputs": [
-              "omCtrl1","omCtrl2","omCtrl3","omCtrl4","omCtrl5","omCtrl6",
-              "omRaf1","omRaf2","omRaf3","omRaf4","omRaf5","omRaf6"
-            ],
-            "manifest": "optiMEM",
-            "quantity": 1,
-            "unit": "units"
-          },
-          {
-            "step": 5,
-            "op": "mix",
-            "pairs": [
-              {"input_a": "lipoCtrl1", "input_b": "omCtrl1", "output": "lipidMixCtrl1"},
-              {"input_a": "lipoCtrl2", "input_b": "omCtrl2", "output": "lipidMixCtrl2"},
-              {"input_a": "lipoCtrl3", "input_b": "omCtrl3", "output": "lipidMixCtrl3"},
-              {"input_a": "lipoCtrl4", "input_b": "omCtrl4", "output": "lipidMixCtrl4"},
-              {"input_a": "lipoCtrl5", "input_b": "omCtrl5", "output": "lipidMixCtrl5"},
-              {"input_a": "lipoCtrl6", "input_b": "omCtrl6", "output": "lipidMixCtrl6"},
-              {"input_a": "lipoRaf1",  "input_b": "omRaf1",  "output": "lipidMixRaf1"},
-              {"input_a": "lipoRaf2",  "input_b": "omRaf2",  "output": "lipidMixRaf2"},
-              {"input_a": "lipoRaf3",  "input_b": "omRaf3",  "output": "lipidMixRaf3"},
-              {"input_a": "lipoRaf4",  "input_b": "omRaf4",  "output": "lipidMixRaf4"},
-              {"input_a": "lipoRaf5",  "input_b": "omRaf5",  "output": "lipidMixRaf5"},
-              {"input_a": "lipoRaf6",  "input_b": "omRaf6",  "output": "lipidMixRaf6"}
-            ],
-            "duration": "30s"
-          }
-        ]
-      },
-      {
-        "phase": "DAY_1_STEP_2",
-        "label": "DNA + P3000 Premix",
-        "basic_block": "BB1",
-        "notes": "Ctrl arm uses pCRISPR_ctrl (eGFP sgRNA). RAF1 arm uses pCRISPR_RAF1 (RAF1_sg94). Each plasmid mixed with P3000 reagent then diluted into Opti-MEM.",
-        "operations": [
-          {
-            "step": 6,
-            "op": "dispense",
-            "ctrl_outputs": ["dnaCtrl1","dnaCtrl2","dnaCtrl3","dnaCtrl4","dnaCtrl5","dnaCtrl6"],
-            "ctrl_manifest": "pCRISPR_ctrl",
-            "raf1_outputs": ["dnaRaf1","dnaRaf2","dnaRaf3","dnaRaf4","dnaRaf5","dnaRaf6"],
-            "raf1_manifest": "pCRISPR_RAF1",
-            "quantity": 1,
-            "unit": "units"
-          },
-          {
-            "step": 7,
-            "op": "dispense",
-            "outputs": [
-              "p3000Ctrl1","p3000Ctrl2","p3000Ctrl3","p3000Ctrl4","p3000Ctrl5","p3000Ctrl6",
-              "p3000Raf1","p3000Raf2","p3000Raf3","p3000Raf4","p3000Raf5","p3000Raf6"
-            ],
-            "manifest": "p3000Reagent",
-            "quantity": 1,
-            "unit": "units"
-          },
-          {
-            "step": 8,
-            "op": "dispense",
-            "outputs": [
-              "omCtrl1b","omCtrl2b","omCtrl3b","omCtrl4b","omCtrl5b","omCtrl6b",
-              "omRaf1b","omRaf2b","omRaf3b","omRaf4b","omRaf5b","omRaf6b"
-            ],
-            "manifest": "optiMEM",
-            "quantity": 1,
-            "unit": "units"
-          },
-          {
-            "step": 9,
-            "op": "mix",
-            "description": "DNA + P3000 mix",
-            "pairs": [
-              {"input_a": "dnaCtrl1", "input_b": "p3000Ctrl1", "output": "dnaP3000Ctrl1"},
-              {"input_a": "dnaCtrl2", "input_b": "p3000Ctrl2", "output": "dnaP3000Ctrl2"},
-              {"input_a": "dnaCtrl3", "input_b": "p3000Ctrl3", "output": "dnaP3000Ctrl3"},
-              {"input_a": "dnaCtrl4", "input_b": "p3000Ctrl4", "output": "dnaP3000Ctrl4"},
-              {"input_a": "dnaCtrl5", "input_b": "p3000Ctrl5", "output": "dnaP3000Ctrl5"},
-              {"input_a": "dnaCtrl6", "input_b": "p3000Ctrl6", "output": "dnaP3000Ctrl6"},
-              {"input_a": "dnaRaf1",  "input_b": "p3000Raf1",  "output": "dnaP3000Raf1"},
-              {"input_a": "dnaRaf2",  "input_b": "p3000Raf2",  "output": "dnaP3000Raf2"},
-              {"input_a": "dnaRaf3",  "input_b": "p3000Raf3",  "output": "dnaP3000Raf3"},
-              {"input_a": "dnaRaf4",  "input_b": "p3000Raf4",  "output": "dnaP3000Raf4"},
-              {"input_a": "dnaRaf5",  "input_b": "p3000Raf5",  "output": "dnaP3000Raf5"},
-              {"input_a": "dnaRaf6",  "input_b": "p3000Raf6",  "output": "dnaP3000Raf6"}
-            ],
-            "duration": "30s"
-          },
-          {
-            "step": 10,
-            "op": "mix",
-            "description": "Dilute DNA-P3000 into Opti-MEM",
-            "pairs": [
-              {"input_a": "dnaP3000Ctrl1", "input_b": "omCtrl1b", "output": "dnaMixCtrl1"},
-              {"input_a": "dnaP3000Ctrl2", "input_b": "omCtrl2b", "output": "dnaMixCtrl2"},
-              {"input_a": "dnaP3000Ctrl3", "input_b": "omCtrl3b", "output": "dnaMixCtrl3"},
-              {"input_a": "dnaP3000Ctrl4", "input_b": "omCtrl4b", "output": "dnaMixCtrl4"},
-              {"input_a": "dnaP3000Ctrl5", "input_b": "omCtrl5b", "output": "dnaMixCtrl5"},
-              {"input_a": "dnaP3000Ctrl6", "input_b": "omCtrl6b", "output": "dnaMixCtrl6"},
-              {"input_a": "dnaP3000Raf1",  "input_b": "omRaf1b",  "output": "dnaMixRaf1"},
-              {"input_a": "dnaP3000Raf2",  "input_b": "omRaf2b",  "output": "dnaMixRaf2"},
-              {"input_a": "dnaP3000Raf3",  "input_b": "omRaf3b",  "output": "dnaMixRaf3"},
-              {"input_a": "dnaP3000Raf4",  "input_b": "omRaf4b",  "output": "dnaMixRaf4"},
-              {"input_a": "dnaP3000Raf5",  "input_b": "omRaf5b",  "output": "dnaMixRaf5"},
-              {"input_a": "dnaP3000Raf6",  "input_b": "omRaf6b",  "output": "dnaMixRaf6"}
-            ],
-            "duration": "30s"
-          }
-        ]
-      },
-      {
-        "phase": "DAY_1_STEP_3",
-        "label": "Lipid-DNA Complex Formation",
-        "basic_block": "BB1",
-        "notes": "Lipid mix merged with DNA mix on 2x2 electrode array. 10-minute incubation to form transfection complexes.",
-        "operations": [
-          {
-            "step": 11,
-            "op": "mix",
-            "pairs": [
-              {"input_a": "lipidMixCtrl1", "input_b": "dnaMixCtrl1", "output": "complexCtrl1"},
-              {"input_a": "lipidMixCtrl2", "input_b": "dnaMixCtrl2", "output": "complexCtrl2"},
-              {"input_a": "lipidMixCtrl3", "input_b": "dnaMixCtrl3", "output": "complexCtrl3"},
-              {"input_a": "lipidMixCtrl4", "input_b": "dnaMixCtrl4", "output": "complexCtrl4"},
-              {"input_a": "lipidMixCtrl5", "input_b": "dnaMixCtrl5", "output": "complexCtrl5"},
-              {"input_a": "lipidMixCtrl6", "input_b": "dnaMixCtrl6", "output": "complexCtrl6"},
-              {"input_a": "lipidMixRaf1",  "input_b": "dnaMixRaf1",  "output": "complexRaf1"},
-              {"input_a": "lipidMixRaf2",  "input_b": "dnaMixRaf2",  "output": "complexRaf2"},
-              {"input_a": "lipidMixRaf3",  "input_b": "dnaMixRaf3",  "output": "complexRaf3"},
-              {"input_a": "lipidMixRaf4",  "input_b": "dnaMixRaf4",  "output": "complexRaf4"},
-              {"input_a": "lipidMixRaf5",  "input_b": "dnaMixRaf5",  "output": "complexRaf5"},
-              {"input_a": "lipidMixRaf6",  "input_b": "dnaMixRaf6",  "output": "complexRaf6"}
-            ],
-            "duration": "10m"
-          }
-        ]
-      },
-      {
-        "phase": "DAY_1_STEP_4",
-        "label": "1:1 Dilution of Complexes with Opti-MEM",
-        "basic_block": "BB1",
-        "notes": "On-device optimum ratio is 1:1 (paper Fig. 2d). Off-chip manufacturer default is 1:10, which yields only ~15% transfection efficiency on-chip vs ~65% at 1:1.",
-        "operations": [
-          {
-            "step": 12,
-            "op": "dispense",
-            "outputs": [
-              "omDilCtrl1","omDilCtrl2","omDilCtrl3","omDilCtrl4","omDilCtrl5","omDilCtrl6",
-              "omDilRaf1","omDilRaf2","omDilRaf3","omDilRaf4","omDilRaf5","omDilRaf6"
-            ],
-            "manifest": "optiMEM",
-            "quantity": 1,
-            "unit": "units"
-          },
-          {
-            "step": 13,
-            "op": "mix",
-            "pairs": [
-              {"input_a": "complexCtrl1", "input_b": "omDilCtrl1", "output": "dilutedCtrl1"},
-              {"input_a": "complexCtrl2", "input_b": "omDilCtrl2", "output": "dilutedCtrl2"},
-              {"input_a": "complexCtrl3", "input_b": "omDilCtrl3", "output": "dilutedCtrl3"},
-              {"input_a": "complexCtrl4", "input_b": "omDilCtrl4", "output": "dilutedCtrl4"},
-              {"input_a": "complexCtrl5", "input_b": "omDilCtrl5", "output": "dilutedCtrl5"},
-              {"input_a": "complexCtrl6", "input_b": "omDilCtrl6", "output": "dilutedCtrl6"},
-              {"input_a": "complexRaf1",  "input_b": "omDilRaf1",  "output": "dilutedRaf1"},
-              {"input_a": "complexRaf2",  "input_b": "omDilRaf2",  "output": "dilutedRaf2"},
-              {"input_a": "complexRaf3",  "input_b": "omDilRaf3",  "output": "dilutedRaf3"},
-              {"input_a": "complexRaf4",  "input_b": "omDilRaf4",  "output": "dilutedRaf4"},
-              {"input_a": "complexRaf5",  "input_b": "omDilRaf5",  "output": "dilutedRaf5"},
-              {"input_a": "complexRaf6",  "input_b": "omDilRaf6",  "output": "dilutedRaf6"}
-            ],
-            "duration": "30s"
-          }
-        ]
-      },
-      {
-        "phase": "DAY_1_STEPS_5_6",
-        "label": "Transfection Delivery — 24h Incubation",
-        "basic_block": "BB1",
-        "notes": "Diluted complexes passively dispensed onto each hydrophilic cell culture spot. 24h incubation for Cas9 + sgRNA expression.",
-        "operations": [
-          {
-            "step": 14,
-            "op": "mix",
-            "pairs": [
-              {"input_a": "dilutedCtrl1", "input_b": "ctrlCell1", "output": "transfectCtrl1"},
-              {"input_a": "dilutedCtrl2", "input_b": "ctrlCell2", "output": "transfectCtrl2"},
-              {"input_a": "dilutedCtrl3", "input_b": "ctrlCell3", "output": "transfectCtrl3"},
-              {"input_a": "dilutedCtrl4", "input_b": "ctrlCell4", "output": "transfectCtrl4"},
-              {"input_a": "dilutedCtrl5", "input_b": "ctrlCell5", "output": "transfectCtrl5"},
-              {"input_a": "dilutedCtrl6", "input_b": "ctrlCell6", "output": "transfectCtrl6"},
-              {"input_a": "dilutedRaf1",  "input_b": "rafCell1",  "output": "transfectRaf1"},
-              {"input_a": "dilutedRaf2",  "input_b": "rafCell2",  "output": "transfectRaf2"},
-              {"input_a": "dilutedRaf3",  "input_b": "rafCell3",  "output": "transfectRaf3"},
-              {"input_a": "dilutedRaf4",  "input_b": "rafCell4",  "output": "transfectRaf4"},
-              {"input_a": "dilutedRaf5",  "input_b": "rafCell5",  "output": "transfectRaf5"},
-              {"input_a": "dilutedRaf6",  "input_b": "rafCell6",  "output": "transfectRaf6"}
-            ],
-            "duration": "24h"
-          }
-        ]
-      },
-      {
-        "phase": "DAY_1_STEP_7",
-        "label": "Transfection-Efficiency Checkpoint (Hoechst)",
-        "basic_block": "BB1",
-        "notes": "Hoechst 33342 staining for nuclear count via CellProfiler transfection pipeline (paper Fig. 2a). Hoechst used HERE ONLY — not at Day 5 (spectral overlap with Calcein-AM violet, both ~450-461 nm). All hoechstTfx* droplets fully disposed before Day 2 to prevent contamination of Day-5 viability channel. FIX 1: manifest hoechst restored here; original .bs erroneously dispensed calceinAM instead.",
-        "operations": [
-          {
-            "step": 15,
-            "op": "dispense",
-            "outputs": [
-              "hoechstTfxCtrl1","hoechstTfxCtrl2","hoechstTfxCtrl3",
-              "hoechstTfxCtrl4","hoechstTfxCtrl5","hoechstTfxCtrl6",
-              "hoechstTfxRaf1","hoechstTfxRaf2","hoechstTfxRaf3",
-              "hoechstTfxRaf4","hoechstTfxRaf5","hoechstTfxRaf6"
-            ],
-            "manifest": "hoechst",
-            "quantity": 1,
-            "unit": "units"
-          },
-          {
-            "step": 16,
-            "op": "mix",
-            "pairs": [
-              {"input_a": "hoechstTfxCtrl1", "input_b": "transfectCtrl1", "output": "tfxStainCtrl1"},
-              {"input_a": "hoechstTfxCtrl2", "input_b": "transfectCtrl2", "output": "tfxStainCtrl2"},
-              {"input_a": "hoechstTfxCtrl3", "input_b": "transfectCtrl3", "output": "tfxStainCtrl3"},
-              {"input_a": "hoechstTfxCtrl4", "input_b": "transfectCtrl4", "output": "tfxStainCtrl4"},
-              {"input_a": "hoechstTfxCtrl5", "input_b": "transfectCtrl5", "output": "tfxStainCtrl5"},
-              {"input_a": "hoechstTfxCtrl6", "input_b": "transfectCtrl6", "output": "tfxStainCtrl6"},
-              {"input_a": "hoechstTfxRaf1",  "input_b": "transfectRaf1",  "output": "tfxStainRaf1"},
-              {"input_a": "hoechstTfxRaf2",  "input_b": "transfectRaf2",  "output": "tfxStainRaf2"},
-              {"input_a": "hoechstTfxRaf3",  "input_b": "transfectRaf3",  "output": "tfxStainRaf3"},
-              {"input_a": "hoechstTfxRaf4",  "input_b": "transfectRaf4",  "output": "tfxStainRaf4"},
-              {"input_a": "hoechstTfxRaf5",  "input_b": "transfectRaf5",  "output": "tfxStainRaf5"},
-              {"input_a": "hoechstTfxRaf6",  "input_b": "transfectRaf6",  "output": "tfxStainRaf6"}
-            ],
-            "duration": "30m"
-          },
-          {
-            "step": 17,
-            "op": "detect",
-            "module": "fluorescenceImaging",
-            "inputs_outputs": [
-              {"input": "tfxStainCtrl1", "output": "tfxEffCtrl1"},
-              {"input": "tfxStainCtrl2", "output": "tfxEffCtrl2"},
-              {"input": "tfxStainCtrl3", "output": "tfxEffCtrl3"},
-              {"input": "tfxStainCtrl4", "output": "tfxEffCtrl4"},
-              {"input": "tfxStainCtrl5", "output": "tfxEffCtrl5"},
-              {"input": "tfxStainCtrl6", "output": "tfxEffCtrl6"},
-              {"input": "tfxStainRaf1",  "output": "tfxEffRaf1"},
-              {"input": "tfxStainRaf2",  "output": "tfxEffRaf2"},
-              {"input": "tfxStainRaf3",  "output": "tfxEffRaf3"},
-              {"input": "tfxStainRaf4",  "output": "tfxEffRaf4"},
-              {"input": "tfxStainRaf5",  "output": "tfxEffRaf5"},
-              {"input": "tfxStainRaf6",  "output": "tfxEffRaf6"}
-            ],
-            "duration": "5s"
-          },
-          {
-            "step": 18,
-            "op": "dispose",
-            "targets": [
-              "tfxEffCtrl1","tfxEffCtrl2","tfxEffCtrl3","tfxEffCtrl4","tfxEffCtrl5","tfxEffCtrl6",
-              "tfxEffRaf1","tfxEffRaf2","tfxEffRaf3","tfxEffRaf4","tfxEffRaf5","tfxEffRaf6"
-            ]
-          }
-        ]
-      },
-      {
-        "phase": "DAY_2",
-        "label": "Media Refresh",
-        "basic_block": "BB1",
-        "notes": "Lipid complexes removed (drain tfxStain*). Fresh complete media dispensed and merged with cells for 24h maintenance.",
-        "operations": [
-          {
-            "step": 19,
-            "op": "drain",
-            "targets": [
-              "tfxStainCtrl1","tfxStainCtrl2","tfxStainCtrl3",
-              "tfxStainCtrl4","tfxStainCtrl5","tfxStainCtrl6",
-              "tfxStainRaf1","tfxStainRaf2","tfxStainRaf3",
-              "tfxStainRaf4","tfxStainRaf5","tfxStainRaf6"
-            ]
-          },
-          {
-            "step": 20,
-            "op": "dispense",
-            "outputs": [
-              "freshCtrl1","freshCtrl2","freshCtrl3","freshCtrl4","freshCtrl5","freshCtrl6",
-              "freshRaf1","freshRaf2","freshRaf3","freshRaf4","freshRaf5","freshRaf6"
-            ],
-            "manifest": "completeMedia",
-            "quantity": 1,
-            "unit": "units"
-          },
-          {
-            "step": 21,
-            "op": "mix",
-            "pairs": [
-              {"input_a": "freshCtrl1", "input_b": "ctrlCell1", "output": "maintainCtrl1"},
-              {"input_a": "freshCtrl2", "input_b": "ctrlCell2", "output": "maintainCtrl2"},
-              {"input_a": "freshCtrl3", "input_b": "ctrlCell3", "output": "maintainCtrl3"},
-              {"input_a": "freshCtrl4", "input_b": "ctrlCell4", "output": "maintainCtrl4"},
-              {"input_a": "freshCtrl5", "input_b": "ctrlCell5", "output": "maintainCtrl5"},
-              {"input_a": "freshCtrl6", "input_b": "ctrlCell6", "output": "maintainCtrl6"},
-              {"input_a": "freshRaf1",  "input_b": "rafCell1",  "output": "maintainRaf1"},
-              {"input_a": "freshRaf2",  "input_b": "rafCell2",  "output": "maintainRaf2"},
-              {"input_a": "freshRaf3",  "input_b": "rafCell3",  "output": "maintainRaf3"},
-              {"input_a": "freshRaf4",  "input_b": "rafCell4",  "output": "maintainRaf4"},
-              {"input_a": "freshRaf5",  "input_b": "rafCell5",  "output": "maintainRaf5"},
-              {"input_a": "freshRaf6",  "input_b": "rafCell6",  "output": "maintainRaf6"}
-            ],
-            "duration": "24h"
-          }
-        ]
-      },
-      {
-        "phase": "DAY_3_SERIAL_DILUTION",
-        "label": "Sorafenib Tosylate Serial Dilution",
-        "basic_block": "BB1",
-        "notes": "2-fold serial dilution chain: 120 → 60 → 30 → 15 → 7.5 → 0 uM. FIX 2: each step immediately splits its full product into _ctrlAliquot, _raf1Aliquot, and _carry to avoid double-use of spent variables. 0 uM is pure vehicle (no carry).",
-        "drug_concentrations": [
-          {
-            "conc_uM": 120,
-            "operations": [
-              {"op": "dispense",  "output": "drugStock",         "manifest": "sorafenib", "quantity": 1, "unit": "units"},
-              {"op": "dispense",  "output": "mediaDil1",         "manifest": "completeMedia", "quantity": 1, "unit": "units"},
-              {"op": "mix",       "input_a": "drugStock",        "input_b": "mediaDil1",   "output": "drugConc120_full", "duration": "30s"},
-              {"op": "split",     "input": "drugConc120_full",   "output": "drugConc120_split",       "into": 2},
-              {"op": "split",     "input": "drugConc120_split",  "output": "drugConc120_ctrlAliquot", "into": 2},
-              {"op": "split",     "input": "drugConc120_split",  "output": "drugConc120_raf1Aliquot", "into": 2},
-              {"op": "split",     "input": "drugConc120_full",   "output": "drugConc120_carry",       "into": 2}
-            ]
-          },
-          {
-            "conc_uM": 60,
-            "operations": [
-              {"op": "dispense",  "output": "mediaDil2",        "manifest": "completeMedia", "quantity": 1, "unit": "units"},
-              {"op": "mix",       "input_a": "drugConc120_carry","input_b": "mediaDil2",    "output": "drugConc60_full", "duration": "30s"},
-              {"op": "split",     "input": "drugConc60_full",   "output": "drugConc60_ctrlAliquot", "into": 2},
-              {"op": "split",     "input": "drugConc60_full",   "output": "drugConc60_raf1Aliquot", "into": 2},
-              {"op": "split",     "input": "drugConc60_full",   "output": "drugConc60_carry",       "into": 2}
-            ]
-          },
-          {
-            "conc_uM": 30,
-            "operations": [
-              {"op": "dispense",  "output": "mediaDil3",        "manifest": "completeMedia", "quantity": 1, "unit": "units"},
-              {"op": "mix",       "input_a": "drugConc60_carry", "input_b": "mediaDil3",    "output": "drugConc30_full", "duration": "30s"},
-              {"op": "split",     "input": "drugConc30_full",   "output": "drugConc30_ctrlAliquot", "into": 2},
-              {"op": "split",     "input": "drugConc30_full",   "output": "drugConc30_raf1Aliquot", "into": 2},
-              {"op": "split",     "input": "drugConc30_full",   "output": "drugConc30_carry",       "into": 2}
-            ]
-          },
-          {
-            "conc_uM": 15,
-            "operations": [
-              {"op": "dispense",  "output": "mediaDil4",        "manifest": "completeMedia", "quantity": 1, "unit": "units"},
-              {"op": "mix",       "input_a": "drugConc30_carry", "input_b": "mediaDil4",    "output": "drugConc15_full", "duration": "30s"},
-              {"op": "split",     "input": "drugConc15_full",   "output": "drugConc15_ctrlAliquot", "into": 2},
-              {"op": "split",     "input": "drugConc15_full",   "output": "drugConc15_raf1Aliquot", "into": 2},
-              {"op": "split",     "input": "drugConc15_full",   "output": "drugConc15_carry",       "into": 2}
-            ]
-          },
-          {
-            "conc_uM": 7.5,
-            "operations": [
-              {"op": "dispense",  "output": "mediaDil5",        "manifest": "completeMedia", "quantity": 1, "unit": "units"},
-              {"op": "mix",       "input_a": "drugConc15_carry", "input_b": "mediaDil5",    "output": "drugConc7_full", "duration": "30s"},
-              {"op": "split",     "input": "drugConc7_full",    "output": "drugConc7_ctrlAliquot", "into": 2},
-              {"op": "split",     "input": "drugConc7_full",    "output": "drugConc7_raf1Aliquot", "into": 2},
-              {"op": "split",     "input": "drugConc7_full",    "output": "drugConc7_carry",       "into": 2}
-            ]
-          },
-          {
-            "conc_uM": 0,
-            "notes": "Vehicle control — pure complete media. No carry needed (terminal dilution step).",
-            "operations": [
-              {"op": "dispense",  "output": "mediaDil6",        "manifest": "completeMedia", "quantity": 1, "unit": "units"},
-              {"op": "mix",       "input_a": "drugConc7_carry",  "input_b": "mediaDil6",    "output": "drugConc0_full", "duration": "30s"},
-              {"op": "split",     "input": "drugConc0_full",    "output": "drugConc0_ctrlAliquot", "into": 2},
-              {"op": "split",     "input": "drugConc0_full",    "output": "drugConc0_raf1Aliquot", "into": 2}
-            ]
-          }
-        ]
-      },
-      {
-        "phase": "DAY_3_TO_5_DRUG_DELIVERY",
-        "label": "Drug Delivery — 48h Incubation",
-        "basic_block": "BB1",
-        "notes": "Each site receives one aliquot at its assigned concentration. Sites 1/1 = 120 uM (highest dose); sites 6/6 = 0 uM (vehicle control, QC baseline). 48h incubation bridges Day 3 to Day 5 readout.",
-        "operations": [
-          {
-            "step": 22,
-            "op": "mix",
-            "pairs": [
-              {"input_a": "drugConc120_ctrlAliquot", "input_b": "maintainCtrl1", "output": "drugSiteCtrl1", "conc_uM": 120},
-              {"input_a": "drugConc60_ctrlAliquot",  "input_b": "maintainCtrl2", "output": "drugSiteCtrl2", "conc_uM": 60},
-              {"input_a": "drugConc30_ctrlAliquot",  "input_b": "maintainCtrl3", "output": "drugSiteCtrl3", "conc_uM": 30},
-              {"input_a": "drugConc15_ctrlAliquot",  "input_b": "maintainCtrl4", "output": "drugSiteCtrl4", "conc_uM": 15},
-              {"input_a": "drugConc7_ctrlAliquot",   "input_b": "maintainCtrl5", "output": "drugSiteCtrl5", "conc_uM": 7.5},
-              {"input_a": "drugConc0_ctrlAliquot",   "input_b": "maintainCtrl6", "output": "drugSiteCtrl6", "conc_uM": 0},
-              {"input_a": "drugConc120_raf1Aliquot", "input_b": "maintainRaf1",  "output": "drugSiteRaf1",  "conc_uM": 120},
-              {"input_a": "drugConc60_raf1Aliquot",  "input_b": "maintainRaf2",  "output": "drugSiteRaf2",  "conc_uM": 60},
-              {"input_a": "drugConc30_raf1Aliquot",  "input_b": "maintainRaf3",  "output": "drugSiteRaf3",  "conc_uM": 30},
-              {"input_a": "drugConc15_raf1Aliquot",  "input_b": "maintainRaf4",  "output": "drugSiteRaf4",  "conc_uM": 15},
-              {"input_a": "drugConc7_raf1Aliquot",   "input_b": "maintainRaf5",  "output": "drugSiteRaf5",  "conc_uM": 7.5},
-              {"input_a": "drugConc0_raf1Aliquot",   "input_b": "maintainRaf6",  "output": "drugSiteRaf6",  "conc_uM": 0}
-            ],
-            "duration": "48h"
-          }
-        ]
-      },
-      {
-        "phase": "DAY_5_VIABILITY",
-        "label": "Calcein-AM Viability Assay",
-        "basic_block": "BB1",
-        "notes": "Sole Day-5 readout. 5 uM Calcein-AM violet, 30 min incubation. No Hoechst (spectral conflict). Counts live cells via esterase activity fluorescence.",
-        "operations": [
-          {
-            "step": 23,
-            "op": "dispense",
-            "outputs": [
-              "calceinCtrl1","calceinCtrl2","calceinCtrl3","calceinCtrl4","calceinCtrl5","calceinCtrl6",
-              "calceinRaf1","calceinRaf2","calceinRaf3","calceinRaf4","calceinRaf5","calceinRaf6"
-            ],
-            "manifest": "calceinAM",
-            "quantity": 1,
-            "unit": "units"
-          },
-          {
-            "step": 24,
-            "op": "mix",
-            "pairs": [
-              {"input_a": "calceinCtrl1", "input_b": "drugSiteCtrl1", "output": "viabCtrl1"},
-              {"input_a": "calceinCtrl2", "input_b": "drugSiteCtrl2", "output": "viabCtrl2"},
-              {"input_a": "calceinCtrl3", "input_b": "drugSiteCtrl3", "output": "viabCtrl3"},
-              {"input_a": "calceinCtrl4", "input_b": "drugSiteCtrl4", "output": "viabCtrl4"},
-              {"input_a": "calceinCtrl5", "input_b": "drugSiteCtrl5", "output": "viabCtrl5"},
-              {"input_a": "calceinCtrl6", "input_b": "drugSiteCtrl6", "output": "viabCtrl6"},
-              {"input_a": "calceinRaf1",  "input_b": "drugSiteRaf1",  "output": "viabRaf1"},
-              {"input_a": "calceinRaf2",  "input_b": "drugSiteRaf2",  "output": "viabRaf2"},
-              {"input_a": "calceinRaf3",  "input_b": "drugSiteRaf3",  "output": "viabRaf3"},
-              {"input_a": "calceinRaf4",  "input_b": "drugSiteRaf4",  "output": "viabRaf4"},
-              {"input_a": "calceinRaf5",  "input_b": "drugSiteRaf5",  "output": "viabRaf5"},
-              {"input_a": "calceinRaf6",  "input_b": "drugSiteRaf6",  "output": "viabRaf6"}
-            ],
-            "duration": "30m"
-          },
-          {
-            "step": 25,
-            "op": "detect",
-            "module": "cellViabilityAssay",
-            "inputs_outputs": [
-              {"input": "viabCtrl1", "output": "signalCtrl1"},
-              {"input": "viabCtrl2", "output": "signalCtrl2"},
-              {"input": "viabCtrl3", "output": "signalCtrl3"},
-              {"input": "viabCtrl4", "output": "signalCtrl4"},
-              {"input": "viabCtrl5", "output": "signalCtrl5"},
-              {"input": "viabCtrl6", "output": "signalCtrl6"},
-              {"input": "viabRaf1",  "output": "signalRaf1"},
-              {"input": "viabRaf2",  "output": "signalRaf2"},
-              {"input": "viabRaf3",  "output": "signalRaf3"},
-              {"input": "viabRaf4",  "output": "signalRaf4"},
-              {"input": "viabRaf5",  "output": "signalRaf5"},
-              {"input": "viabRaf6",  "output": "signalRaf6"}
-            ],
-            "duration": "30s"
-          }
-        ]
-      },
-      {
-        "phase": "BB2_BB3_CTRL_QC",
-        "label": "Ctrl Arm QC Gate",
-        "basic_block": "BB2_or_BB3",
-        "branch_variable": "signalCtrl6",
-        "branch_variable_description": "Vehicle-only baseline for Ctrl arm (0 uM Sorafenib + Ctrl sgRNA). All Ctrl-arm viabilities normalised to this value.",
-        "branches": [
-          {
-            "condition": "signalCtrl6 > 0",
-            "basic_block": "BB2",
-            "compiler_label": "bsbbif_2_t",
-            "outcome": "QC PASS — data accepted",
-            "operations": [
-              {"op": "dispose", "targets": ["viabCtrl1","viabCtrl2","viabCtrl3","viabCtrl4","viabCtrl5","viabCtrl6"]}
-            ]
-          },
-          {
-            "condition": "signalCtrl6 <= 0",
-            "basic_block": "BB3",
-            "compiler_label": "bsbbif_3_f",
-            "outcome": "QC FAIL — arm flagged bad",
-            "operations": [
-              {"op": "drain", "targets": ["viabCtrl1","viabCtrl2","viabCtrl3","viabCtrl4","viabCtrl5","viabCtrl6"]}
-            ]
-          }
-        ]
-      },
-      {
-        "phase": "BB4_CTRL_QC_JOIN",
-        "label": "Ctrl Arm QC Join",
-        "basic_block": "BB4",
-        "compiler_label": "bsbbif_4_j",
-        "notes": "Dispose all Ctrl-arm signal droplets regardless of QC outcome. Distinct basic block — separates the Ctrl join from the RAF1 branch entry, producing the clean 4→5/4→6 split in the DOT graph.",
-        "operations": [
-          {
-            "op": "dispose",
-            "targets": ["signalCtrl1","signalCtrl2","signalCtrl3","signalCtrl4","signalCtrl5","signalCtrl6"]
-          }
-        ]
-      },
-      {
-        "phase": "BB5_BB6_RAF1_QC",
-        "label": "RAF1 Arm QC Gate",
-        "basic_block": "BB5_or_BB6",
-        "branch_variable": "signalRaf6",
-        "branch_variable_description": "Vehicle-only baseline for RAF1 arm (0 uM Sorafenib + RAF1_sg94 sgRNA). Independent of Ctrl arm QC.",
-        "branches": [
-          {
-            "condition": "signalRaf6 > 0",
-            "basic_block": "BB5",
-            "compiler_label": "bsbbif_5_t",
-            "outcome": "QC PASS — data accepted",
-            "operations": [
-              {"op": "dispose", "targets": ["viabRaf1","viabRaf2","viabRaf3","viabRaf4","viabRaf5","viabRaf6"]}
-            ]
-          },
-          {
-            "condition": "signalRaf6 <= 0",
-            "basic_block": "BB6",
-            "compiler_label": "bsbbif_6_f",
-            "outcome": "QC FAIL — arm flagged bad",
-            "operations": [
-              {"op": "drain", "targets": ["viabRaf1","viabRaf2","viabRaf3","viabRaf4","viabRaf5","viabRaf6"]}
-            ]
-          }
-        ]
-      },
-      {
-        "phase": "BB7_RAF1_QC_JOIN",
-        "label": "RAF1 Arm QC Join",
-        "basic_block": "BB7",
-        "compiler_label": "bsbbif_7_j",
-        "notes": "Dispose all RAF1-arm signal droplets regardless of QC outcome. Mirrors BB4 for the RAF1 arm. Falls into BB8 (terminal).",
-        "operations": [
-          {
-            "op": "dispose",
-            "targets": ["signalRaf1","signalRaf2","signalRaf3","signalRaf4","signalRaf5","signalRaf6"]
-          }
-        ]
-      },
-      {
-        "phase": "BB8_TERMINAL",
-        "label": "Final Cleanup",
-        "basic_block": "BB8",
-        "compiler_label": "finalCleanup",
-        "notes": "No instructions. Single exit node of the CFG. Compiler emits no additional DOT node since BB7 has no further operations after disposal.",
-        "operations": []
-      }
-    ],
-
-    "known_bugs_fixed": [
-      {
-        "fix_id": 1,
-        "location": "Day-1 transfection-efficiency checkpoint, hoechstTfx* dispense calls",
-        "original_error": "hoechstTfx* variables dispensed from manifest calceinAM instead of manifest hoechst",
-        "impact": "Would have dispensed Calcein-AM (cytoplasmic esterase probe, lambda_em~450nm) instead of Hoechst 33342 (nuclear stain, lambda_em~461nm). CellProfiler transfection pipeline requires Hoechst to identify and count nuclei in Module 1; using Calcein-AM would produce invalid nuclear object detection and incorrect transfection efficiency measurements.",
-        "fix": "manifest hoechst re-added to declarations; all 12 hoechstTfx* dispense calls changed from calceinAM to hoechst"
-      },
-      {
-        "fix_id": 2,
-        "location": "Day-3 Sorafenib serial dilution chain, variable reuse",
-        "original_error": "Intermediate variables (drugConc120, drugConc60, etc.) were split in two separate sections of code — once in the dilution chain and again when allocating arm-specific aliquots — causing double-use of spent fluid variables",
-        "impact": "BioScript compiler tracks fluid ownership; splitting an already-spent variable is a fluid-ownership violation that would cause a compiler error or incorrect graph generation",
-        "fix": "Each dilution step now immediately produces three named outputs (_ctrlAliquot, _raf1Aliquot, _carry) from a single split sequence. The carry feeds the next step; the two aliquots go to the Ctrl and RAF1 arms. No variable is split more than once."
-      }
-    ]
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(viabCtrl11[0])\n\tdispose(viabCtrl21[0])\n\tdispose(viabCtrl31[0])\n\tdispose(viabCtrl41[0])\n\tdispose(viabCtrl51[0])\n\tdispose(viabCtrl61[0])\nbsbbif_3_f:\n\tdispose(viabCtrl11[0])\n\tdispose(viabCtrl21[0])\n\tdispose(viabCtrl31[0])\n\tdispose(viabCtrl41[0])\n\tdispose(viabCtrl51[0])\n\tdispose(viabCtrl61[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(signalCtrl11[0])\n\tdispose(signalCtrl21[0])\n\tdispose(signalCtrl31[0])\n\tdispose(signalCtrl41[0])\n\tdispose(signalCtrl51[0])\n\tdispose(signalCtrl61[0])\n\tif signalRaf61[0] > 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nmain:\n\tctrlCell11[0] = dispense(cellSuspension)\n\tctrlCell21[0] = dispense(cellSuspension)\n\tctrlCell31[0] = dispense(cellSuspension)\n\tctrlCell41[0] = dispense(cellSuspension)\n\tctrlCell51[0] = dispense(cellSuspension)\n\tctrlCell61[0] = dispense(cellSuspension)\n\trafCell11[0] = dispense(cellSuspension)\n\trafCell21[0] = dispense(cellSuspension)\n\trafCell31[0] = dispense(cellSuspension)\n\trafCell41[0] = dispense(cellSuspension)\n\trafCell51[0] = dispense(cellSuspension)\n\trafCell61[0] = dispense(cellSuspension)\n\theat(ctrlCell11[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\theat(ctrlCell21[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\theat(ctrlCell31[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\theat(ctrlCell41[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\theat(ctrlCell51[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\theat(ctrlCell61[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\theat(rafCell11[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\theat(rafCell21[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\theat(rafCell31[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\theat(rafCell41[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\theat(rafCell51[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\theat(rafCell61[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\tlipoCtrl11[0] = dispense(lipofectamine)\n\tlipoCtrl21[0] = dispense(lipofectamine)\n\tlipoCtrl31[0] = dispense(lipofectamine)\n\tlipoCtrl41[0] = dispense(lipofectamine)\n\tlipoCtrl51[0] = dispense(lipofectamine)\n\tlipoCtrl61[0] = dispense(lipofectamine)\n\tlipoRaf11[0] = dispense(lipofectamine)\n\tlipoRaf21[0] = dispense(lipofectamine)\n\tlipoRaf31[0] = dispense(lipofectamine)\n\tlipoRaf41[0] = dispense(lipofectamine)\n\tlipoRaf51[0] = dispense(lipofectamine)\n\tlipoRaf61[0] = dispense(lipofectamine)\n\tomCtrl11[0] = dispense(optiMEM)\n\tomCtrl21[0] = dispense(optiMEM)\n\tomCtrl31[0] = dispense(optiMEM)\n\tomCtrl41[0] = dispense(optiMEM)\n\tomCtrl51[0] = dispense(optiMEM)\n\tomCtrl61[0] = dispense(optiMEM)\n\tomRaf11[0] = dispense(optiMEM)\n\tomRaf21[0] = dispense(optiMEM)\n\tomRaf31[0] = dispense(optiMEM)\n\tomRaf41[0] = dispense(optiMEM)\n\tomRaf51[0] = dispense(optiMEM)\n\tomRaf61[0] = dispense(optiMEM)\n\tlipidMixCtrl11[0] = mix(lipoCtrl11[0], omCtrl11[0]) @ 30.0SECOND\n\tlipidMixCtrl21[0] = mix(lipoCtrl21[0], omCtrl21[0]) @ 30.0SECOND\n\tlipidMixCtrl31[0] = mix(lipoCtrl31[0], omCtrl31[0]) @ 30.0SECOND\n\tlipidMixCtrl41[0] = mix(lipoCtrl41[0], omCtrl41[0]) @ 30.0SECOND\n\tlipidMixCtrl51[0] = mix(lipoCtrl51[0], omCtrl51[0]) @ 30.0SECOND\n\tlipidMixCtrl61[0] = mix(lipoCtrl61[0], omCtrl61[0]) @ 30.0SECOND\n\tlipidMixRaf11[0] = mix(lipoRaf11[0], omRaf11[0]) @ 30.0SECOND\n\tlipidMixRaf21[0] = mix(lipoRaf21[0], omRaf21[0]) @ 30.0SECOND\n\tlipidMixRaf31[0] = mix(lipoRaf31[0], omRaf31[0]) @ 30.0SECOND\n\tlipidMixRaf41[0] = mix(lipoRaf41[0], omRaf41[0]) @ 30.0SECOND\n\tlipidMixRaf51[0] = mix(lipoRaf51[0], omRaf51[0]) @ 30.0SECOND\n\tlipidMixRaf61[0] = mix(lipoRaf61[0], omRaf61[0]) @ 30.0SECOND\n\tdnaCtrl11[0] = dispense(pCRISPR_ctrl)\n\tdnaCtrl21[0] = dispense(pCRISPR_ctrl)\n\tdnaCtrl31[0] = dispense(pCRISPR_ctrl)\n\tdnaCtrl41[0] = dispense(pCRISPR_ctrl)\n\tdnaCtrl51[0] = dispense(pCRISPR_ctrl)\n\tdnaCtrl61[0] = dispense(pCRISPR_ctrl)\n\tdnaRaf11[0] = dispense(pCRISPR_RAF1)\n\tdnaRaf21[0] = dispense(pCRISPR_RAF1)\n\tdnaRaf31[0] = dispense(pCRISPR_RAF1)\n\tdnaRaf41[0] = dispense(pCRISPR_RAF1)\n\tdnaRaf51[0] = dispense(pCRISPR_RAF1)\n\tdnaRaf61[0] = dispense(pCRISPR_RAF1)\n\tp3000Ctrl11[0] = dispense(p3000Reagent)\n\tp3000Ctrl21[0] = dispense(p3000Reagent)\n\tp3000Ctrl31[0] = dispense(p3000Reagent)\n\tp3000Ctrl41[0] = dispense(p3000Reagent)\n\tp3000Ctrl51[0] = dispense(p3000Reagent)\n\tp3000Ctrl61[0] = dispense(p3000Reagent)\n\tp3000Raf11[0] = dispense(p3000Reagent)\n\tp3000Raf21[0] = dispense(p3000Reagent)\n\tp3000Raf31[0] = dispense(p3000Reagent)\n\tp3000Raf41[0] = dispense(p3000Reagent)\n\tp3000Raf51[0] = dispense(p3000Reagent)\n\tp3000Raf61[0] = dispense(p3000Reagent)\n\tomCtrl1b1[0] = dispense(optiMEM)\n\tomCtrl2b1[0] = dispense(optiMEM)\n\tomCtrl3b1[0] = dispense(optiMEM)\n\tomCtrl4b1[0] = dispense(optiMEM)\n\tomCtrl5b1[0] = dispense(optiMEM)\n\tomCtrl6b1[0] = dispense(optiMEM)\n\tomRaf1b1[0] = dispense(optiMEM)\n\tomRaf2b1[0] = dispense(optiMEM)\n\tomRaf3b1[0] = dispense(optiMEM)\n\tomRaf4b1[0] = dispense(optiMEM)\n\tomRaf5b1[0] = dispense(optiMEM)\n\tomRaf6b1[0] = dispense(optiMEM)\n\tdnaP3000Ctrl11[0] = mix(dnaCtrl11[0], p3000Ctrl11[0]) @ 30.0SECOND\n\tdnaP3000Ctrl21[0] = mix(dnaCtrl21[0], p3000Ctrl21[0]) @ 30.0SECOND\n\tdnaP3000Ctrl31[0] = mix(dnaCtrl31[0], p3000Ctrl31[0]) @ 30.0SECOND\n\tdnaP3000Ctrl41[0] = mix(dnaCtrl41[0], p3000Ctrl41[0]) @ 30.0SECOND\n\tdnaP3000Ctrl51[0] = mix(dnaCtrl51[0], p3000Ctrl51[0]) @ 30.0SECOND\n\tdnaP3000Ctrl61[0] = mix(dnaCtrl61[0], p3000Ctrl61[0]) @ 30.0SECOND\n\tdnaP3000Raf11[0] = mix(dnaRaf11[0], p3000Raf11[0]) @ 30.0SECOND\n\tdnaP3000Raf21[0] = mix(dnaRaf21[0], p3000Raf21[0]) @ 30.0SECOND\n\tdnaP3000Raf31[0] = mix(dnaRaf31[0], p3000Raf31[0]) @ 30.0SECOND\n\tdnaP3000Raf41[0] = mix(dnaRaf41[0], p3000Raf41[0]) @ 30.0SECOND\n\tdnaP3000Raf51[0] = mix(dnaRaf51[0], p3000Raf51[0]) @ 30.0SECOND\n\tdnaP3000Raf61[0] = mix(dnaRaf61[0], p3000Raf61[0]) @ 30.0SECOND\n\tdnaMixCtrl11[0] = mix(dnaP3000Ctrl11[0], omCtrl1b1[0]) @ 30.0SECOND\n\tdnaMixCtrl21[0] = mix(dnaP3000Ctrl21[0], omCtrl2b1[0]) @ 30.0SECOND\n\tdnaMixCtrl31[0] = mix(dnaP3000Ctrl31[0], omCtrl3b1[0]) @ 30.0SECOND\n\tdnaMixCtrl41[0] = mix(dnaP3000Ctrl41[0], omCtrl4b1[0]) @ 30.0SECOND\n\tdnaMixCtrl51[0] = mix(dnaP3000Ctrl51[0], omCtrl5b1[0]) @ 30.0SECOND\n\tdnaMixCtrl61[0] = mix(dnaP3000Ctrl61[0], omCtrl6b1[0]) @ 30.0SECOND\n\tdnaMixRaf11[0] = mix(dnaP3000Raf11[0], omRaf1b1[0]) @ 30.0SECOND\n\tdnaMixRaf21[0] = mix(dnaP3000Raf21[0], omRaf2b1[0]) @ 30.0SECOND\n\tdnaMixRaf31[0] = mix(dnaP3000Raf31[0], omRaf3b1[0]) @ 30.0SECOND\n\tdnaMixRaf41[0] = mix(dnaP3000Raf41[0], omRaf4b1[0]) @ 30.0SECOND\n\tdnaMixRaf51[0] = mix(dnaP3000Raf51[0], omRaf5b1[0]) @ 30.0SECOND\n\tdnaMixRaf61[0] = mix(dnaP3000Raf61[0], omRaf6b1[0]) @ 30.0SECOND\n\tcomplexCtrl11[0] = mix(lipidMixCtrl11[0], dnaMixCtrl11[0]) @ 600.0SECOND\n\tcomplexCtrl21[0] = mix(lipidMixCtrl21[0], dnaMixCtrl21[0]) @ 600.0SECOND\n\tcomplexCtrl31[0] = mix(lipidMixCtrl31[0], dnaMixCtrl31[0]) @ 600.0SECOND\n\tcomplexCtrl41[0] = mix(lipidMixCtrl41[0], dnaMixCtrl41[0]) @ 600.0SECOND\n\tcomplexCtrl51[0] = mix(lipidMixCtrl51[0], dnaMixCtrl51[0]) @ 600.0SECOND\n\tcomplexCtrl61[0] = mix(lipidMixCtrl61[0], dnaMixCtrl61[0]) @ 600.0SECOND\n\tcomplexRaf11[0] = mix(lipidMixRaf11[0], dnaMixRaf11[0]) @ 600.0SECOND\n\tcomplexRaf21[0] = mix(lipidMixRaf21[0], dnaMixRaf21[0]) @ 600.0SECOND\n\tcomplexRaf31[0] = mix(lipidMixRaf31[0], dnaMixRaf31[0]) @ 600.0SECOND\n\tcomplexRaf41[0] = mix(lipidMixRaf41[0], dnaMixRaf41[0]) @ 600.0SECOND\n\tcomplexRaf51[0] = mix(lipidMixRaf51[0], dnaMixRaf51[0]) @ 600.0SECOND\n\tcomplexRaf61[0] = mix(lipidMixRaf61[0], dnaMixRaf61[0]) @ 600.0SECOND\n\tomDilCtrl11[0] = dispense(optiMEM)\n\tomDilCtrl21[0] = dispense(optiMEM)\n\tomDilCtrl31[0] = dispense(optiMEM)\n\tomDilCtrl41[0] = dispense(optiMEM)\n\tomDilCtrl51[0] = dispense(optiMEM)\n\tomDilCtrl61[0] = dispense(optiMEM)\n\tomDilRaf11[0] = dispense(optiMEM)\n\tomDilRaf21[0] = dispense(optiMEM)\n\tomDilRaf31[0] = dispense(optiMEM)\n\tomDilRaf41[0] = dispense(optiMEM)\n\tomDilRaf51[0] = dispense(optiMEM)\n\tomDilRaf61[0] = dispense(optiMEM)\n\tdilutedCtrl11[0] = mix(complexCtrl11[0], omDilCtrl11[0]) @ 30.0SECOND\n\tdilutedCtrl21[0] = mix(complexCtrl21[0], omDilCtrl21[0]) @ 30.0SECOND\n\tdilutedCtrl31[0] = mix(complexCtrl31[0], omDilCtrl31[0]) @ 30.0SECOND\n\tdilutedCtrl41[0] = mix(complexCtrl41[0], omDilCtrl41[0]) @ 30.0SECOND\n\tdilutedCtrl51[0] = mix(complexCtrl51[0], omDilCtrl51[0]) @ 30.0SECOND\n\tdilutedCtrl61[0] = mix(complexCtrl61[0], omDilCtrl61[0]) @ 30.0SECOND\n\tdilutedRaf11[0] = mix(complexRaf11[0], omDilRaf11[0]) @ 30.0SECOND\n\tdilutedRaf21[0] = mix(complexRaf21[0], omDilRaf21[0]) @ 30.0SECOND\n\tdilutedRaf31[0] = mix(complexRaf31[0], omDilRaf31[0]) @ 30.0SECOND\n\tdilutedRaf41[0] = mix(complexRaf41[0], omDilRaf41[0]) @ 30.0SECOND\n\tdilutedRaf51[0] = mix(complexRaf51[0], omDilRaf51[0]) @ 30.0SECOND\n\tdilutedRaf61[0] = mix(complexRaf61[0], omDilRaf61[0]) @ 30.0SECOND\n\ttransfectCtrl11[0] = mix(dilutedCtrl11[0], ctrlCell11[0]) @ 86400.0SECOND\n\ttransfectCtrl21[0] = mix(dilutedCtrl21[0], ctrlCell21[0]) @ 86400.0SECOND\n\ttransfectCtrl31[0] = mix(dilutedCtrl31[0], ctrlCell31[0]) @ 86400.0SECOND\n\ttransfectCtrl41[0] = mix(dilutedCtrl41[0], ctrlCell41[0]) @ 86400.0SECOND\n\ttransfectCtrl51[0] = mix(dilutedCtrl51[0], ctrlCell51[0]) @ 86400.0SECOND\n\ttransfectCtrl61[0] = mix(dilutedCtrl61[0], ctrlCell61[0]) @ 86400.0SECOND\n\ttransfectRaf11[0] = mix(dilutedRaf11[0], rafCell11[0]) @ 86400.0SECOND\n\ttransfectRaf21[0] = mix(dilutedRaf21[0], rafCell21[0]) @ 86400.0SECOND\n\ttransfectRaf31[0] = mix(dilutedRaf31[0], rafCell31[0]) @ 86400.0SECOND\n\ttransfectRaf41[0] = mix(dilutedRaf41[0], rafCell41[0]) @ 86400.0SECOND\n\ttransfectRaf51[0] = mix(dilutedRaf51[0], rafCell51[0]) @ 86400.0SECOND\n\ttransfectRaf61[0] = mix(dilutedRaf61[0], rafCell61[0]) @ 86400.0SECOND\n\thoechstTfxCtrl11[0] = dispense(hoechst)\n\thoechstTfxCtrl21[0] = dispense(hoechst)\n\thoechstTfxCtrl31[0] = dispense(hoechst)\n\thoechstTfxCtrl41[0] = dispense(hoechst)\n\thoechstTfxCtrl51[0] = dispense(hoechst)\n\thoechstTfxCtrl61[0] = dispense(hoechst)\n\thoechstTfxRaf11[0] = dispense(hoechst)\n\thoechstTfxRaf21[0] = dispense(hoechst)\n\thoechstTfxRaf31[0] = dispense(hoechst)\n\thoechstTfxRaf41[0] = dispense(hoechst)\n\thoechstTfxRaf51[0] = dispense(hoechst)\n\thoechstTfxRaf61[0] = dispense(hoechst)\n\ttfxStainCtrl11[0] = mix(hoechstTfxCtrl11[0], transfectCtrl11[0]) @ 1800.0SECOND\n\ttfxStainCtrl21[0] = mix(hoechstTfxCtrl21[0], transfectCtrl21[0]) @ 1800.0SECOND\n\ttfxStainCtrl31[0] = mix(hoechstTfxCtrl31[0], transfectCtrl31[0]) @ 1800.0SECOND\n\ttfxStainCtrl41[0] = mix(hoechstTfxCtrl41[0], transfectCtrl41[0]) @ 1800.0SECOND\n\ttfxStainCtrl51[0] = mix(hoechstTfxCtrl51[0], transfectCtrl51[0]) @ 1800.0SECOND\n\ttfxStainCtrl61[0] = mix(hoechstTfxCtrl61[0], transfectCtrl61[0]) @ 1800.0SECOND\n\ttfxStainRaf11[0] = mix(hoechstTfxRaf11[0], transfectRaf11[0]) @ 1800.0SECOND\n\ttfxStainRaf21[0] = mix(hoechstTfxRaf21[0], transfectRaf21[0]) @ 1800.0SECOND\n\ttfxStainRaf31[0] = mix(hoechstTfxRaf31[0], transfectRaf31[0]) @ 1800.0SECOND\n\ttfxStainRaf41[0] = mix(hoechstTfxRaf41[0], transfectRaf41[0]) @ 1800.0SECOND\n\ttfxStainRaf51[0] = mix(hoechstTfxRaf51[0], transfectRaf51[0]) @ 1800.0SECOND\n\ttfxStainRaf61[0] = mix(hoechstTfxRaf61[0], transfectRaf61[0]) @ 1800.0SECOND\n\ttfxEffCtrl11[0] = detect(fluorescenceImaging, tfxStainCtrl11[0]) @ 5.0SECOND\n\ttfxEffCtrl21[0] = detect(fluorescenceImaging, tfxStainCtrl21[0]) @ 5.0SECOND\n\ttfxEffCtrl31[0] = detect(fluorescenceImaging, tfxStainCtrl31[0]) @ 5.0SECOND\n\ttfxEffCtrl41[0] = detect(fluorescenceImaging, tfxStainCtrl41[0]) @ 5.0SECOND\n\ttfxEffCtrl51[0] = detect(fluorescenceImaging, tfxStainCtrl51[0]) @ 5.0SECOND\n\ttfxEffCtrl61[0] = detect(fluorescenceImaging, tfxStainCtrl61[0]) @ 5.0SECOND\n\ttfxEffRaf11[0] = detect(fluorescenceImaging, tfxStainRaf11[0]) @ 5.0SECOND\n\ttfxEffRaf21[0] = detect(fluorescenceImaging, tfxStainRaf21[0]) @ 5.0SECOND\n\ttfxEffRaf31[0] = detect(fluorescenceImaging, tfxStainRaf31[0]) @ 5.0SECOND\n\ttfxEffRaf41[0] = detect(fluorescenceImaging, tfxStainRaf41[0]) @ 5.0SECOND\n\ttfxEffRaf51[0] = detect(fluorescenceImaging, tfxStainRaf51[0]) @ 5.0SECOND\n\ttfxEffRaf61[0] = detect(fluorescenceImaging, tfxStainRaf61[0]) @ 5.0SECOND\n\tdispose(tfxEffCtrl11[0])\n\tdispose(tfxEffCtrl21[0])\n\tdispose(tfxEffCtrl31[0])\n\tdispose(tfxEffCtrl41[0])\n\tdispose(tfxEffCtrl51[0])\n\tdispose(tfxEffCtrl61[0])\n\tdispose(tfxEffRaf11[0])\n\tdispose(tfxEffRaf21[0])\n\tdispose(tfxEffRaf31[0])\n\tdispose(tfxEffRaf41[0])\n\tdispose(tfxEffRaf51[0])\n\tdispose(tfxEffRaf61[0])\n\tdispose(tfxStainCtrl11[0])\n\tdispose(tfxStainCtrl21[0])\n\tdispose(tfxStainCtrl31[0])\n\tdispose(tfxStainCtrl41[0])\n\tdispose(tfxStainCtrl51[0])\n\tdispose(tfxStainCtrl61[0])\n\tdispose(tfxStainRaf11[0])\n\tdispose(tfxStainRaf21[0])\n\tdispose(tfxStainRaf31[0])\n\tdispose(tfxStainRaf41[0])\n\tdispose(tfxStainRaf51[0])\n\tdispose(tfxStainRaf61[0])\n\tfreshCtrl11[0] = dispense(completeMedia)\n\tfreshCtrl21[0] = dispense(completeMedia)\n\tfreshCtrl31[0] = dispense(completeMedia)\n\tfreshCtrl41[0] = dispense(completeMedia)\n\tfreshCtrl51[0] = dispense(completeMedia)\n\tfreshCtrl61[0] = dispense(completeMedia)\n\tfreshRaf11[0] = dispense(completeMedia)\n\tfreshRaf21[0] = dispense(completeMedia)\n\tfreshRaf31[0] = dispense(completeMedia)\n\tfreshRaf41[0] = dispense(completeMedia)\n\tfreshRaf51[0] = dispense(completeMedia)\n\tfreshRaf61[0] = dispense(completeMedia)\n\tmaintainCtrl11[0] = mix(freshCtrl11[0], ctrlCell11[0]) @ 86400.0SECOND\n\tmaintainCtrl21[0] = mix(freshCtrl21[0], ctrlCell21[0]) @ 86400.0SECOND\n\tmaintainCtrl31[0] = mix(freshCtrl31[0], ctrlCell31[0]) @ 86400.0SECOND\n\tmaintainCtrl41[0] = mix(freshCtrl41[0], ctrlCell41[0]) @ 86400.0SECOND\n\tmaintainCtrl51[0] = mix(freshCtrl51[0], ctrlCell51[0]) @ 86400.0SECOND\n\tmaintainCtrl61[0] = mix(freshCtrl61[0], ctrlCell61[0]) @ 86400.0SECOND\n\tmaintainRaf11[0] = mix(freshRaf11[0], rafCell11[0]) @ 86400.0SECOND\n\tmaintainRaf21[0] = mix(freshRaf21[0], rafCell21[0]) @ 86400.0SECOND\n\tmaintainRaf31[0] = mix(freshRaf31[0], rafCell31[0]) @ 86400.0SECOND\n\tmaintainRaf41[0] = mix(freshRaf41[0], rafCell41[0]) @ 86400.0SECOND\n\tmaintainRaf51[0] = mix(freshRaf51[0], rafCell51[0]) @ 86400.0SECOND\n\tmaintainRaf61[0] = mix(freshRaf61[0], rafCell61[0]) @ 86400.0SECOND\n\tdrugStock1[0] = dispense(sorafenib)\n\tmediaDil11[0] = dispense(completeMedia)\n\tdrugConc120_full1[0] = mix(drugStock1[0], mediaDil11[0]) @ 30.0SECOND\n\tdrugConc120_split1[2] = split(drugConc120_full1[0], 2)\n\tdrugConc120_ctrlAliquot1[2] = split(drugConc120_split1, 2)\n\tdrugConc120_raf1Aliquot1[2] = split(drugConc120_split1, 2)\n\tdrugConc120_carry1[2] = split(drugConc120_full1[0], 2)\n\tmediaDil21[0] = dispense(completeMedia)\n\tdrugConc60_full1[0] = mix(drugConc120_carry1[0], mediaDil21[0]) @ 30.0SECOND\n\tdrugConc60_ctrlAliquot1[2] = split(drugConc60_full1[0], 2)\n\tdrugConc60_raf1Aliquot1[2] = split(drugConc60_full1[0], 2)\n\tdrugConc60_carry1[2] = split(drugConc60_full1[0], 2)\n\tmediaDil31[0] = dispense(completeMedia)\n\tdrugConc30_full1[0] = mix(drugConc60_carry1[0], mediaDil31[0]) @ 30.0SECOND\n\tdrugConc30_ctrlAliquot1[2] = split(drugConc30_full1[0], 2)\n\tdrugConc30_raf1Aliquot1[2] = split(drugConc30_full1[0], 2)\n\tdrugConc30_carry1[2] = split(drugConc30_full1[0], 2)\n\tmediaDil41[0] = dispense(completeMedia)\n\tdrugConc15_full1[0] = mix(drugConc30_carry1[0], mediaDil41[0]) @ 30.0SECOND\n\tdrugConc15_ctrlAliquot1[2] = split(drugConc15_full1[0], 2)\n\tdrugConc15_raf1Aliquot1[2] = split(drugConc15_full1[0], 2)\n\tdrugConc15_carry1[2] = split(drugConc15_full1[0], 2)\n\tmediaDil51[0] = dispense(completeMedia)\n\tdrugConc7_full1[0] = mix(drugConc15_carry1[0], mediaDil51[0]) @ 30.0SECOND\n\tdrugConc7_ctrlAliquot1[2] = split(drugConc7_full1[0], 2)\n\tdrugConc7_raf1Aliquot1[2] = split(drugConc7_full1[0], 2)\n\tdrugConc7_carry1[2] = split(drugConc7_full1[0], 2)\n\tmediaDil61[0] = dispense(completeMedia)\n\tdrugConc0_full1[0] = mix(drugConc7_carry1[0], mediaDil61[0]) @ 30.0SECOND\n\tdrugConc0_ctrlAliquot1[2] = split(drugConc0_full1[0], 2)\n\tdrugConc0_raf1Aliquot1[2] = split(drugConc0_full1[0], 2)\n\tdrugSiteCtrl11[0] = mix(drugConc120_ctrlAliquot1[0], maintainCtrl11[0]) @ 172800.0SECOND\n\tdrugSiteCtrl21[0] = mix(drugConc60_ctrlAliquot1[0], maintainCtrl21[0]) @ 172800.0SECOND\n\tdrugSiteCtrl31[0] = mix(drugConc30_ctrlAliquot1[0], maintainCtrl31[0]) @ 172800.0SECOND\n\tdrugSiteCtrl41[0] = mix(drugConc15_ctrlAliquot1[0], maintainCtrl41[0]) @ 172800.0SECOND\n\tdrugSiteCtrl51[0] = mix(drugConc7_ctrlAliquot1[0], maintainCtrl51[0]) @ 172800.0SECOND\n\tdrugSiteCtrl61[0] = mix(drugConc0_ctrlAliquot1[0], maintainCtrl61[0]) @ 172800.0SECOND\n\tdrugSiteRaf11[0] = mix(drugConc120_raf1Aliquot1[0], maintainRaf11[0]) @ 172800.0SECOND\n\tdrugSiteRaf21[0] = mix(drugConc60_raf1Aliquot1[0], maintainRaf21[0]) @ 172800.0SECOND\n\tdrugSiteRaf31[0] = mix(drugConc30_raf1Aliquot1[0], maintainRaf31[0]) @ 172800.0SECOND\n\tdrugSiteRaf41[0] = mix(drugConc15_raf1Aliquot1[0], maintainRaf41[0]) @ 172800.0SECOND\n\tdrugSiteRaf51[0] = mix(drugConc7_raf1Aliquot1[0], maintainRaf51[0]) @ 172800.0SECOND\n\tdrugSiteRaf61[0] = mix(drugConc0_raf1Aliquot1[0], maintainRaf61[0]) @ 172800.0SECOND\n\tcalceinCtrl11[0] = dispense(calceinAM)\n\tcalceinCtrl21[0] = dispense(calceinAM)\n\tcalceinCtrl31[0] = dispense(calceinAM)\n\tcalceinCtrl41[0] = dispense(calceinAM)\n\tcalceinCtrl51[0] = dispense(calceinAM)\n\tcalceinCtrl61[0] = dispense(calceinAM)\n\tcalceinRaf11[0] = dispense(calceinAM)\n\tcalceinRaf21[0] = dispense(calceinAM)\n\tcalceinRaf31[0] = dispense(calceinAM)\n\tcalceinRaf41[0] = dispense(calceinAM)\n\tcalceinRaf51[0] = dispense(calceinAM)\n\tcalceinRaf61[0] = dispense(calceinAM)\n\tviabCtrl11[0] = mix(calceinCtrl11[0], drugSiteCtrl11[0]) @ 1800.0SECOND\n\tviabCtrl21[0] = mix(calceinCtrl21[0], drugSiteCtrl21[0]) @ 1800.0SECOND\n\tviabCtrl31[0] = mix(calceinCtrl31[0], drugSiteCtrl31[0]) @ 1800.0SECOND\n\tviabCtrl41[0] = mix(calceinCtrl41[0], drugSiteCtrl41[0]) @ 1800.0SECOND\n\tviabCtrl51[0] = mix(calceinCtrl51[0], drugSiteCtrl51[0]) @ 1800.0SECOND\n\tviabCtrl61[0] = mix(calceinCtrl61[0], drugSiteCtrl61[0]) @ 1800.0SECOND\n\tviabRaf11[0] = mix(calceinRaf11[0], drugSiteRaf11[0]) @ 1800.0SECOND\n\tviabRaf21[0] = mix(calceinRaf21[0], drugSiteRaf21[0]) @ 1800.0SECOND\n\tviabRaf31[0] = mix(calceinRaf31[0], drugSiteRaf31[0]) @ 1800.0SECOND\n\tviabRaf41[0] = mix(calceinRaf41[0], drugSiteRaf41[0]) @ 1800.0SECOND\n\tviabRaf51[0] = mix(calceinRaf51[0], drugSiteRaf51[0]) @ 1800.0SECOND\n\tviabRaf61[0] = mix(calceinRaf61[0], drugSiteRaf61[0]) @ 1800.0SECOND\n\tsignalCtrl11[0] = detect(cellViabilityAssay, viabCtrl11[0]) @ 30.0SECOND\n\tsignalCtrl21[0] = detect(cellViabilityAssay, viabCtrl21[0]) @ 30.0SECOND\n\tsignalCtrl31[0] = detect(cellViabilityAssay, viabCtrl31[0]) @ 30.0SECOND\n\tsignalCtrl41[0] = detect(cellViabilityAssay, viabCtrl41[0]) @ 30.0SECOND\n\tsignalCtrl51[0] = detect(cellViabilityAssay, viabCtrl51[0]) @ 30.0SECOND\n\tsignalCtrl61[0] = detect(cellViabilityAssay, viabCtrl61[0]) @ 30.0SECOND\n\tsignalRaf11[0] = detect(cellViabilityAssay, viabRaf11[0]) @ 30.0SECOND\n\tsignalRaf21[0] = detect(cellViabilityAssay, viabRaf21[0]) @ 30.0SECOND\n\tsignalRaf31[0] = detect(cellViabilityAssay, viabRaf31[0]) @ 30.0SECOND\n\tsignalRaf41[0] = detect(cellViabilityAssay, viabRaf41[0]) @ 30.0SECOND\n\tsignalRaf51[0] = detect(cellViabilityAssay, viabRaf51[0]) @ 30.0SECOND\n\tsignalRaf61[0] = detect(cellViabilityAssay, viabRaf61[0]) @ 30.0SECOND\n\tif signalCtrl61[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbif_5_t:\n\tdispose(viabRaf11[0])\n\tdispose(viabRaf21[0])\n\tdispose(viabRaf31[0])\n\tdispose(viabRaf41[0])\n\tdispose(viabRaf51[0])\n\tdispose(viabRaf61[0])\nbsbbif_6_f:\n\tdispose(viabRaf11[0])\n\tdispose(viabRaf21[0])\n\tdispose(viabRaf31[0])\n\tdispose(viabRaf41[0])\n\tdispose(viabRaf51[0])\n\tdispose(viabRaf61[0])\n\tjump: bsbbif_7_j\nbsbbif_7_j:\n\tdispose(signalRaf11[0])\n\tdispose(signalRaf21[0])\n\tdispose(signalRaf31[0])\n\tdispose(signalRaf41[0])\n\tdispose(signalRaf51[0])\n\tdispose(signalRaf61[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "lipofectamine",
+          "source_quote": "Step 1: Dilute Lipofectamine 3000 in Opti-MEM.",
+          "source_location": "description.txt: DAY 0 — CELL SEEDING"
+        },
+        {
+          "bs_chemical": "pCRISPR_ctrl",
+          "source_quote": "BB1 -> BB2  (signalCtrl6 > 0)",
+          "source_location": "description.txt: Edges"
+        },
+        {
+          "bs_chemical": "pCRISPR_RAF1",
+          "source_quote": "_ctrlAliquot, _raf1Aliquot, _carry.",
+          "source_location": "description.txt: MAPK/ERK assay  : IC50 for Sorafenib Tosylate"
+        },
+        {
+          "bs_chemical": "calceinAM",
+          "source_quote": "Original : hoechstTfx* variables dispensed from manifest calceinAM",
+          "source_location": "description.txt: MAPK/ERK assay  : IC50 for Sorafenib Tosylate"
+        },
+        {
+          "bs_chemical": "sorafenib",
+          "source_quote": "DAY 3 — SORAFENIB DRUG DOSING",
+          "source_location": "description.txt"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "Apply ~200 VRMS",
+          "source_location": "description.txt: DAY 0 — CELL SEEDING"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "mix for 30s.",
+          "source_location": "description.txt: DAY 3 — SORAFENIB DRUG DOSING"
+        },
+        {
+          "bs_operation": "heat",
+          "source_quote": "Incubate 30 min.",
+          "source_location": "description.txt: DAY 0 — CELL SEEDING"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "4 imaging pipeline):",
+          "source_location": "description.txt: DAY 3 — SORAFENIB DRUG DOSING"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "Dispose all signal droplets.",
+          "source_location": "description.txt: DAY 3 — SORAFENIB DRUG DOSING"
+        },
+        {
+          "bs_operation": "drain",
+          "source_quote": "bad (drain droplets).",
+          "source_location": "description.txt: DAY 3 — SORAFENIB DRUG DOSING"
+        },
+        {
+          "bs_operation": "split",
+          "source_quote": "Each variable is split exactly",
+          "source_location": "description.txt: MAPK/ERK assay  : IC50 for Sorafenib Tosylate"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "If signalCtrl6 <= 0, arm flagged",
+          "source_location": "description.txt: DAY 3 — SORAFENIB DRUG DOSING"
+        }
+      ],
+      "numeric_mismatches": []
+    },
+    "notes": "This protocol details Automated CRISPR-Cas9 RAF1 Knockout + Sorafenib Dose-Response. The assay is performed on a Digital Microfluidics (DMF) — ACE (Automated CRISPR Editing) platform. Detection and quantification are carried out using Calcein-AM violet fluorescence cell count, normalised to."
   }
 }

@@ -1,451 +1,220 @@
 {
-  "protocol": {
-    "title": "Ultra-fast, label-free isolation of circulating tumor cells from blood using spiral microfluidics",
-    "source": "Nature Protocols, Vol. 11, No. 1, pp. 134-148 (2016)",
-    "doi": "10.1038/nprot.2016.003",
-    "platform": "Spiral inertial microfluidic biochip (PDMS/glass, continuous-flow, label-free)",
-    "cell_lines": [
-      "MCF-7 (human breast cancer)",
-      "MDA-MB-231 (human breast cancer)",
-      "A549 (human lung adenocarcinoma)",
-      "SW480 (human colorectal adenocarcinoma, KRAS validation)"
-    ],
-    "objective": "Size-based, label-free isolation of viable circulating tumor cells (CTCs) from lysed whole blood using combined inertial lift force and Dean drag force in a two-loop spiral microchannel; downstream immunofluorescence staining and CTC enumeration",
-
-    "device": {
-      "type": "Spiral inertial microfluidic biochip",
-      "material": "PDMS bonded to glass slide (76 mm x 52 mm)",
-      "channel_geometry": "Two-loop spiral, rectangular cross-section",
-      "radius_of_curvature_mm": 10,
-      "channel_width_um": 500,
-      "channel_depth_um": { "target": 170, "tolerance_min": 160, "tolerance_max": 170 },
-      "inlet_split_um": {
-        "sample_outer": 75,
-        "sheath_inner": 425
-      },
-      "outlet_split_um": {
-        "ctc_inner": 150,
-        "waste_outer": 350
-      },
-      "configurations": {
-        "single_chip": {
-          "spiral_layers": 1,
-          "throughput_mL_min": 0.85,
-          "processing_time_7p5mL_min": 37.5
-        },
-        "multiplexed_3x_chip": {
-          "spiral_layers": 3,
-          "bonding": "plasma bonding + manual alignment",
-          "inlet_diameter_mm": { "bottom_layers": 4, "top_layer": 1.5 },
-          "processing_time_7p5mL_min": 12.5,
-          "sheath_flow_rate_uL_min": 2100
-        }
-      },
-      "inlets": {
-        "outer": "Blood sample (100 uL/min)",
-        "inner": "Sheath buffer (750 uL/min, single chip)"
-      },
-      "outlets": {
-        "inner": "CTC collection (150 um wide)",
-        "outer": "Waste (350 um wide)"
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "PROTOCOL DESCRIPTION\n====================\n\nTitle        : Ultra-fast, label-free isolation of circulating tumor cells from blood using spiral microfluidics\nSource Link  : https://www.nature.com/articles/nprot.2016.003\nPaper DOI    : http://dx.doi.org/10.1038/nprot.2016.003\nJournal      : Nature Protocols, Vol. 11, No. 1, pp. 134-148 (2016)\nPlatform     : Spiral inertial microfluidic biochip (PDMS/glass, continuous-flow, label-free)\n\n\nOVERVIEW\n--------\nThis protocol describes a label-free, size-based method for isolating viable circulating tumor cells\n(CTCs) from peripheral blood using a spiral inertial microfluidic biochip. CTCs -- rare cancer cells\nshed from primary or metastatic tumors into the bloodstream -- occur at frequencies as low as one cell\nper 10^7-10^9 hematological cells in metastatic cancer patients, making reliable isolation a major\ntechnical challenge.\n\nThe spiral biochip exploits the combined effect of inertial lift force (FL) and Dean drag force (FD)\nin a curvilinear microchannel. Larger CTCs (typically 15-20 um) focus near the inner wall at the\noutlet, while smaller blood cells (RBCs 3-8 um, WBCs 10-15 um, platelets 3-8 um) migrate along\nDean vortex streamlines toward the outer wall. This passive, continuous-flow separation requires no\nantibodies, magnetic beads, or external force fields.\n\nKey performance metrics:\n  - >=85% CTC recovery across multiple cancer cell lines\n  - 99.99% WBC depletion (4-log) from healthy samples\n  - 7.5 mL lysed blood processed in 37.5 min (single chip) or 12.5 min (3x multiplexed chip)\n  - CTCs collected in suspension (viable), compatible with culture, FISH, and sequencing\n\nThe protocol has been validated in clinical samples from patients with metastatic non-small-cell lung\ncancer (n=15; 10-1535 CK+ CTCs isolated) and breast cancer (n=15; 12-1275 CK+ CTCs isolated),\nwith a negative-control threshold of >7 CK+ cells per sample defining a positive patient.\n\n\nSEPARATION PHYSICS\n------------------\nThe spiral microchannel has a rectangular cross-section (500 um wide x 170 um deep) in a two-loop\nconfiguration with radius of curvature ~10 mm. Flow in the curved channel generates secondary\ncross-sectional Dean vortices perpendicular to the primary flow direction. The Dean number is:\n\n    De = Re * sqrt(DH / 2*RC)\n\nwhere Re is the Reynolds number, DH is the hydraulic diameter, and RC is the radius of curvature.\nThe Dean migration velocity is:\n\n    U_Dean = 1.8e-4 * De^1.63\n\nFor particles with diameter comparable to channel dimensions (ac/h > 0.07), inertial lift forces\n(shear-induced FL_shear and wall-induced FL_wall) direct cells to equilibrium focusing positions.\nThe balance of FL and FD results in two focusing positions near the inner channel wall for larger\nCTCs, while smaller cells disperse and follow Dean streamlines toward the outer wall.\n\nDesign parameters: 75 um sample inlet (outer) / 425 um sheath inlet (inner); 150 um CTC collection\noutlet (inner) / 350 um waste outlet (outer). Size cutoff: ~12 um (CTCs >=12 um recoverable).\n\n\nDEVICE ARCHITECTURE\n-------------------\nMaterial       : PDMS (Sylgard 184, 10:1 base:curing agent) bonded to glass slide (76 x 52 mm)\nChannel        : 500 um wide x 170 um deep (±5 um); two-loop spiral; radius ~10 mm\nFabrication    : Standard photolithography (AZ9260 photoresist, DRIE ~165 um etch depth on 6-inch\n                 silicon wafer) + soft lithography; silanization with trichloro(1H,2H,2H-perfluorooctyl)\n                 silane; plasma bonding (O2 plasma, 300 W, 2 min 30 s)\nConfigurations :\n  Single chip  : 1 spiral layer; 100 uL/min sample + 750 uL/min sheath; 7.5 mL in ~37.5 min\n  Multiplexed  : 3 PDMS layers stacked via plasma bonding + manual alignment;\n                 2100 uL/min sheath; 7.5 mL in <12.5 min (3 sorters in parallel)\nInlets         : Outer (sample, 75 um split); inner (sheath buffer, 425 um split)\nOutlets        : Inner CTC collection (150 um); outer waste (350 um)\nPunching       : 1.5 mm single layer; 4 mm bottom layers + 1.5 mm top layer (multiplexed)\nCritical       : Channel depth must be 160-170 um; depth outside tolerance causes particle focusing\n                 failure and substantially compromises enriched sample purity\n\n\nCELL LINES USED\n---------------\n- MCF-7 (human breast cancer, ATCC HTB-22)\n- MDA-MB-231 (human breast cancer, ATCC CRM-HTB-26)\n- A549 (human lung adenocarcinoma, ATCC CCL-185)\n- SW480 (human colorectal adenocarcinoma; used for KRAS codon 12 mutation sequencing validation)\nAll cultured in complete DMEM (DMEM + 10% FBS + 1% pen/strep), 37 C, 5% CO2.\n\n\nPROTOCOL STEPS\n--------------\n\nStep 1 | Device Fabrication (Off-chip, Steps 1-19)\n  Duration  : 5-7 d (mask printing) + 7-10 h (photolithography) + 1-2 d (soft lithography)\n  Details   : AutoCAD design -> mask printing -> UV lithography on AZ9260-coated silicon wafer\n              -> DRIE etching ~165 um -> silanization -> PDMS casting 10:1 w/w, 77 g, 70-80 C 2 h\n              -> peel, punch holes, O2 plasma bond to glass -> 85 C 30 min post-bond bake.\n              Multiplexed device: three PDMS molds stacked and plasma-bonded with manual alignment.\n  Note      : Not encoded in BioScript (off-chip physical fabrication).\n\nStep 2 | Chip Priming - Ethanol Sterilization (Paper Steps 20-24)\n  Reagents  : Ethanol 70% v/v in sterile deionized water\n  Operation : Flow through both inlets at 750 uL/min for 5 min\n  Purpose   : Sterilize channel interior; remove air bubbles\n  Note      : Required for downstream CTC culture. Omit Steps 22-24 for non-sterile experiments.\n\nStep 3 | Chip Priming - Sheath Buffer Coating (Paper Step 25)\n  Reagents  : 1x sterile PBS + 0.5% w/v BSA (sheath buffer)\n  Operation : Flow at 750 uL/min for 5 min\n  Purpose   : Coat PDMS microchannel walls with BSA; minimize non-specific cell adhesion\n  Note      : Wash residual ethanol from system before sample loading.\n\nStep 4 | Bubble Removal Inspection (Paper Step 26)\n  Reagents  : Sheath buffer\n  Operation : Bright-field inverted microscope inspection; increase flow rate to dislodge bubbles\n  Duration  : ~2 min\n  Critical  : If bubbles cannot be removed, discard chip and use a new one.\n\nStep 5 | QC Bead Check (Paper Step 27)\n  Reagents  : 3-6 um polystyrene bead suspension (0.1% v/v); sheath buffer\n  Flow rates: Sample 100 uL/min (outer inlet); sheath 750 uL/min (inner inlet)\n  Duration  : ~5 min run + 30 s detection\n  Imaging   : Phase-contrast microscope + high-speed camera (VisionResearch Phantom v9)\n  Pass      : 6 um beads complete Dean cycle (inner to outer wall visible); 15 um beads focus\n              tightly at inner wall at outlet region\n  Fail      : Incorrect focusing -> channel depth out of tolerance (likely DRIE error) ->\n              fabricate new master mold (new silicon wafer)\n  BioScript : beadFocusingQC detect module; branch BB2 (pass/dispose) vs BB3 (fail/drain)\n\nStep 6 | Blood Preparation - RBC Lysis (Paper Steps 28-31)\n  Reagents  : Whole blood (EDTA Vacutainer, processed within 2-4 h of collection);\n              3x ammonium chloride RBC lysis buffer (G-Bioscience, cat. no. 786650)\n  Ratio     : 1:3 v/v blood:lysis buffer\n  Temperature: 24-26 C (room temperature)\n  Duration  : 10 min on shaking platform; invert tube to mix\n  Endpoint  : Sample color changes to dark red (complete lysis)\n  Note      : If spiking with cancer cell lines, add cells before lysis step.\n              Removal of RBCs reduces cellular interactions that impair inertial focusing.\n              Cell loss from lysis + centrifugation <8%.\n\nStep 7 | Cell Pelleting and Resuspension (Paper Steps 29-31)\n  Reagents  : 1x PBS\n  Operation : Centrifuge 1000g, 5 min, room temperature; discard supernatant\n  Resuspend : In 1x PBS to 2x concentration (~14e6 nucleated cells/mL; 7.5 mL blood -> 3.75 mL PBS)\n  Storage   : On ice; process within 2-4 h at 4 C\n\nStep 8 | Spiral Biochip Processing (Paper Steps 32-37)\n  Reagents  : Lysed blood sample; sheath buffer (PBS + 0.5% BSA)\n  Flow rates: Sample 100 uL/min (outer inlet); sheath 750 uL/min (inner inlet, single chip)\n              Multiplexed: sheath 2100 uL/min\n  Duration  : ~37 min (7.5 mL, single chip); ~12 min (7.5 mL, 3x multiplexed)\n  Collection: CTCs from inner outlet into 15 mL conical tube; waste to 50 mL conical tube\n  Microscope: 10x magnification, monitor spiral outlet during run\n  Protocol  : Run sheath 2 min first to stabilize; start sample pump; allow uninterrupted run.\n  Separation: CTCs (>15 um) focus near inner wall via inertial lift; blood cells (<15 um) exit\n              outer waste outlet following Dean vortex streamlines.\n\nStep 9 | Cell Concentration (Paper Step 38-39)\n  Operation : Centrifuge collected CTC fraction at 300g, 3 min, room temperature\n  Resuspend : In ~250 uL PBS; transfer to microcentrifuge tube\n\nStep 10 | PFA Fixation (Paper Step 40)\n  Reagents  : 4% w/v paraformaldehyde in PBS\n  Duration  : 10 min at room temperature\n  Caution   : PFA is a suspected carcinogen; handle with nitrile gloves, lab coat, goggles\n  Storage   : Fixed cells can be stored overnight at 4 C in PBS\n\nStep 11 | Post-Fixation Wash (Paper Step 41)\n  Reagents  : 1-2 mL PBS + 0.5% w/v BSA\n  Operation : Centrifuge 300g, 3 min, room temperature; discard supernatant\n  Resuspend : In ~250 uL PBS\n\nStep 12 | Permeabilization (Paper Step 42)\n  Reagents  : 0.1% v/v Triton X-100 in PBS\n  Duration  : 1-5 min at room temperature (encoded as 3 min)\n  Purpose   : Solubilize plasma membrane for intracellular pan-cytokeratin antibody access\n\nStep 13 | Post-Permeabilization Wash (Paper Step 43)\n  Reagents  : 1-2 mL PBS + 0.5% w/v BSA\n  Operation : Centrifuge 300g, 3 min, room temperature; discard supernatant\n\nStep 14 | Antibody and Hoechst Staining (Paper Step 44)\n  Reagents  : FITC pan-cytokeratin 1:100 (Miltenyi Biotec Asia Pacific)\n              APC CD45 1:100 (Miltenyi Biotec Asia Pacific)\n              Hoechst 33342 1:1000 from 1 M stock (Life Technologies)\n  Incubation: 30 min on ice (4 C) in dark\n  CTC phenotype: Hoechst+, pan-CK+, CD45-, round nuclei, high nuclear-to-cytoplasmic ratio\n  Storage   : Stained cells stable overnight at 4 C in PBS under dark conditions\n\nStep 15 | Post-Staining Wash and Transfer (Paper Steps 45-46)\n  Reagents  : 1-2 mL PBS + 0.5% w/v BSA\n  Operation : Centrifuge 300g, 3 min, room temperature; discard supernatant\n  Resuspend : In ~250 uL PBS; transfer to single well of 96-well plate\n\nStep 16 | CTC Fluorescence Detection and Enumeration (Paper Step 47)\n  Platform  : Olympus IX71/IX81 inverted microscope with automated stage\n  Filters   : ET460/50m (Hoechst), ET535/50m (pan-CK FITC), ET605/70m (CD45 APC)\n  Camera    : 12-bit EM-CCD (Andor Technology iXon+885)\n  Software  : MetaMorph (1 mm x 1 mm grid well scan); ImageJ (manual threshold)\n  Manual    : 40x magnification; Hoechst+/pan-CK+/CD45- cells with round nuclei and high N/C ratio\n  Threshold : >7 CK+ cells per sample = positive patient (derived from 10 healthy volunteer controls)\n  Results   : 12-1275 CK+ breast CTCs; 10-1535 CK+ lung CTCs from clinical samples\n  BioScript : ctcDetection detect module (45 min); branch BB5 (pass/dispose) vs BB6 (fail/drain)\n\nAlternative - DNA-FISH (Box 1, Paper)\n  Duration  : 2 d\n  Probes    : Vysis ALK break-apart probe; HER2/neu probe (Abbott)\n  Fixative  : Acetic acid:methanol 1:3\n  Protocol  : Dropwise cell fixation onto slides; RNase 40 min 37 C; denature 70% formamide/2x SSC\n              80 C 10 min; dehydrate ethanol series; hybridize 42 C dark humid 16 h; wash; DAPI\n\n\nBIOSCRIPT COMPILER NOTES\n-------------------------\nBioScript file : warkiani_spiral_ctc_isolation.bs\nCompiler       : lilott8/BioScript (ANTLR4-based)\nIR output      : 7 basic blocks (BB1-BB7), 2 if/else gates, 8 CFG edges\nDAG            : warkiani_spiral_ctc_isolation_main_dag.dot\nModules        : beadFocusingQC, ctcDetection\n\nDuration conversions (BioScript supports s and m only; no h token):\n  5 min priming        ->  5m  (IR: 300.0 SECOND)\n  10 min lysis         -> 10m  (IR: 600.0 SECOND)\n  37 min spiral run    -> 37m  (IR: 2220.0 SECOND)\n  30 min antibody inc. -> 30m  (IR: 1800.0 SECOND)\n  45 min detection     -> 45m  (IR: 2700.0 SECOND)\n\nKey compiler behavior observed:\n  - drain normalizes to dispose in IR output (expected; standard compiler behavior)\n  - Self-mix pattern (ethanolPrime mixed with itself) compiled without error; represents\n    single-reagent channel flush abstraction. Future protocols should use two separately\n    dispensed variables of the same manifest to avoid the self-mix pattern.\n  - All 13 manifest entries correctly resolved as dispense sources only; no computed mix\n    variable was used as a dispense source.\n  - No variable reassignment violations; all intermediate variable names are unique.\n  - No non-ASCII characters in comments.\n\nBiological scope note:\n  This .bs file encodes the full CTC isolation and immunofluorescence staining workflow.\n  Downstream applications (FISH, KRAS sequencing, ex vivo culture, single-cell analysis)\n  are noted in the JSON metadata and description but are encoded as separate protocols.\n  The DNA-FISH protocol (Box 1) is a candidate for a separate .bs file.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module beadFocusingQC\nmodule ctcDetection\n\nmanifest PBS\nmanifest BSA_Solution\nmanifest Ethanol70\nmanifest SheathBuffer\nmanifest RBCLysisBuffer\nmanifest QCBeadSuspension\nmanifest LysedBloodSample\nmanifest Paraformaldehyde\nmanifest TritonX100\nmanifest PanCK_FITC_Antibody\nmanifest CD45_APC_Antibody\nmanifest HoechstDye\n\n// ============================================================\n// Ultra-fast, label-free isolation of circulating tumor cells\n// from blood using spiral microfluidics.\n// Warkiani, Khoo, Wu, Tay, Bhagat, Han, Lim\n// Nature Protocols, Vol. 11, No. 1, pp. 134-148 (2016)\n// DOI: 10.1038/nprot.2016.003\n//\n// Platform: spiral inertial microfluidic biochip (PDMS/glass).\n// Channel dimensions: 500 um wide x 170 um deep, two-loop\n// spiral, radius ~10 mm, two inlets (sample outer / sheath\n// inner), two outlets (CTC inner / waste outer).\n// Inlet split: 75 um sample / 425 um sheath.\n// Outlet split: 150 um CTC collection / 350 um waste.\n// Operating flow rates: sample 100 uL/min; sheath 750 uL/min\n// (single chip). Multiplexed 3x chip: sheath 2100 uL/min.\n//\n// Separation physics: combined inertial lift force (FL) and\n// Dean drag force (FD) in a curvilinear microchannel. CTCs\n// (>15 um) focus near the inner wall; RBCs, WBCs, platelets\n// (<15 um) migrate along Dean vortices toward outer wall.\n// Dean number De = Re * sqrt(DH / 2*RC).\n//\n// Sample: 7.5 mL whole blood lysed with ammonium chloride RBC\n// lysis buffer, resuspended 2x concentrated (~14e6 nucleated\n// cells/mL in 3.75 mL PBS) before spiral processing.\n// Throughput: 7.5 mL in 37.5 min (single), 12.5 min (3x).\n// Performance: >=85% CTC recovery; 99.99% WBC depletion.\n//\n// NOTE ON FABRICATION ABSTRACTION: Steps 1-19 of the paper\n// cover photolithography, DRIE, silanization, PDMS casting,\n// soft lithography, and plasma bonding. These are off-chip\n// physical fabrication steps that produce the spiral device.\n// They are abstracted in BB1 as chip priming operations,\n// consistent with BioScript conventions for prior protocols\n// in this library. The first on-chip liquid handling step is\n// chip priming (Step 20 onward in the paper procedure).\n//\n// NOTE ON SHEATH/SAMPLE DUAL-INLET: The spiral biochip has\n// two independent inlets (sheath buffer inner, sample outer).\n// BioScript `mix` abstracts the co-flow merging event at the\n// spiral inlet where the two streams combine hydrodynamically.\n// This is not a DMF droplet merge; it represents the inertial\n// focusing run where sheath and sample enter the spiral channel\n// together. The separation occurs passively along the channel\n// length via inertial and Dean forces.\n//\n// NOTE ON QC BEAD CHECK: Step 27 in the paper runs 3-6 um\n// polystyrene bead suspension (0.1% v/v) through the primed\n// device to confirm particle focusing behavior before patient\n// sample processing. The beadFocusingQC module abstracts the\n// high-speed camera / phase-contrast microscope readout at\n// the outlet region (inner wall focus = pass).\n//\n// NOTE ON IMMUNOFLUORESCENCE: Staining targets three markers:\n//   pan-CK (FITC) -- epithelial marker; CTC positive\n//   CD45 (APC)    -- leukocyte marker; CTC negative\n//   Hoechst       -- nuclear stain; all nucleated cells\n// Putative CTCs: pan-CK+, CD45-, Hoechst+, round nuclei,\n// high nuclear-to-cytoplasmic ratio.\n// Detection threshold (negative control): >7 CK+ cells/sample.\n// ctcDetection module abstracts the fluorescence enumeration\n// readout (Olympus IX71/81, ET460/50m / ET535/50m / ET605/70m\n// filter set, automated MetaMorph stage scan, ImageJ threshold).\n//\n// NOTE ON DURATIONS: BioScript duration tokens are `s` and `m`\n// only. All hour-based incubations are converted to minutes.\n//   5 min priming      = 5m\n//   10 min lysis       = 10m\n//   37.5 min run       = 37m (single spiral, 7.5 mL lysed blood)\n//   30-60 min staining = 30m (antibody incubation on ice)\n//\n// CFG STRUCTURE:\n//   BB1  main           -- chip priming, bead QC, blood prep,\n//                          spiral processing, cell collection\n//   BB2  beadPass       -- beadSignal > 0: correct focusing,\n//                          proceed to blood processing; dispose\n//   BB3  beadFail       -- beadSignal <= 0: focusing incorrect\n//                          (wrong channel depth or flow rate);\n//                          drain bead suspension, abort run\n//   BB4  beadJoin       -- join: blood prep and staining branch\n//   BB5  ctcPass        -- ctcSignal > 0: CTC enumeration valid\n//                          (>7 pan-CK+ cells); dispose all\n//   BB6  ctcFail        -- ctcSignal <= 0: no CTCs detected\n//                          (below threshold); drain stained cells\n//   BB7  finalCleanup   -- terminal: dispose QC signal, end\n// ============================================================\n\ninstructions:\n\n// ============================================================\n// BB1: main\n// ============================================================\n\n// ------------------------------------------------------------\n// CHIP PRIMING - STEP 1 (Paper Steps 20-22): Sterilize the\n//   primed spiral biochip by flowing 70% (v/v) ethanol in\n//   sterile deionized water for 5 min at 750 uL/min to\n//   remove air bubbles and sterilize the channel interior.\n//   Required for downstream cell culture applications.\n//   NOTE: Chip fabrication (Steps 1-19: photolithography,\n//   DRIE, silanization, PDMS soft lithography, plasma bonding)\n//   is performed off-chip and is not encoded here.\n// ------------------------------------------------------------\n\nethanolPrime = dispense 1 units of Ethanol70\nchannelWash  = mix ethanolPrime with ethanolPrime for 5m\n\n// ------------------------------------------------------------\n// CHIP PRIMING - STEP 2 (Paper Steps 23-25): Flush residual\n//   ethanol and coat microchannel surfaces with sheath buffer\n//   (1x sterile PBS + 0.5% w/v BSA) at 750 uL/min for 5 min.\n//   BSA coating minimises non-specific cell adhesion to the\n//   PDMS channel walls during spiral processing.\n// ------------------------------------------------------------\n\nbsaSolution    = dispense 1 units of BSA_Solution\nsheathPriming  = dispense 1 units of SheathBuffer\nsurfaceCoating = mix bsaSolution with sheathPriming for 5m\n\n// ------------------------------------------------------------\n// CHIP PRIMING - STEP 3 (Paper Step 26): Inspect for bubbles\n//   using inverted microscope (bright-field mode). Increasing\n//   sheath flow rate dislodges residual air pockets.\n//   Model as an additional sheath buffer flush.\n// ------------------------------------------------------------\n\nsheathFlush    = dispense 1 units of SheathBuffer\nbubbleRemoval  = mix surfaceCoating with sheathFlush for 2m\n\n// ------------------------------------------------------------\n// QC BEAD CHECK (Paper Step 27): Load 3-6 um polystyrene bead\n//   suspension (0.1% v/v) at 100 uL/min (sample inlet, outer\n//   wall) co-flowing with sheath buffer at 750 uL/min (inner\n//   inlet). Observe particle distribution across channel width\n//   at outlet using phase-contrast microscope + high-speed\n//   camera (VisionResearch Phantom v9).\n//   Pass criterion: 6 um beads undergo complete Dean cycle\n//   (inner -> outer wall migration visible); 15 um beads focus\n//   tightly near inner wall at outlet.\n//   NOTE: `mix` abstracts the co-flow hydrodynamic event at\n//   the spiral inlet (not a DMF electrode merge).\n// ------------------------------------------------------------\n\nbeadSuspension = dispense 1 units of QCBeadSuspension\nsheathQC       = dispense 1 units of SheathBuffer\nbeadRun        = mix beadSuspension with sheathQC for 5m\n\nbeadSignal     = detect beadFocusingQC on beadRun for 30s\n\n// ============================================================\n// BB2 / BB3: Bead focusing QC gate\n// Pass (BB2): beadSignal > 0 -> correct particle focusing\n//             confirmed (channel depth 165-170 um verified);\n//             dispose bead run and proceed to blood processing.\n// Fail (BB3): beadSignal <= 0 -> incorrect focusing (channel\n//             depth out of tolerance, <160 or >170 um due to\n//             improper DRIE); drain, abort run, fabricate new\n//             master mold (Table 1, Step 27 troubleshooting).\n// Both branches converge at BB4 (beadJoin).\n// ============================================================\n\nif (beadSignal > 0) {\n    dispose beadRun\n} else {\n    drain beadRun\n}\n\n// ============================================================\n// BB4: beadJoin\n// Dispose bead focusing QC signal. Control falls into the\n// blood preparation and spiral processing branch.\n// ============================================================\n\ndispose beadSignal\n\n// ------------------------------------------------------------\n// BLOOD PREPARATION - STEP 1 (Paper Steps 28-29): Lyse RBCs\n//   using 3x ammonium chloride RBC lysis buffer at 1:3 v/v\n//   ratio. Invert conical tube to mix. Incubate 10 min at\n//   room temperature (24-26 C) on shaking platform until\n//   sample color changes to dark red (complete lysis).\n//   NOTE: If spiking with cancer cell lines, cancer cells\n//   must be added before lysis step (Reagent Setup in paper).\n//   Lysis substantially reduces untargeted blood cells,\n//   mitigating cell-cell interactions that impair inertial\n//   focusing. Total cell loss from lysis + centrifugation <8%.\n// ------------------------------------------------------------\n\nrbcLysisBuffer = dispense 1 units of RBCLysisBuffer\nlysedBlood1    = dispense 1 units of LysedBloodSample\nlysisReaction  = mix lysedBlood1 with rbcLysisBuffer for 10m\n\n// ------------------------------------------------------------\n// BLOOD PREPARATION - STEP 2 (Paper Step 29): Pellet nucleated\n//   cells by centrifugation at 1000g for 5 min at room temp.\n//   Resuspend pellet in 1x PBS to 2x concentrated sample\n//   (~14e6 nucleated cells/mL; 7.5 mL blood -> 3.75 mL PBS).\n//   Model centrifugation as a heat step at room temperature.\n// ------------------------------------------------------------\n\npbsResuspend   = dispense 1 units of PBS\nheat lysisReaction at 25c for 5m\nresuspendedSample = mix lysisReaction with pbsResuspend for 1m\n\n// ------------------------------------------------------------\n// SPIRAL PROCESSING (Paper Steps 32-37): Co-flow lysed blood\n//   (100 uL/min, outer sample inlet) with sheath buffer\n//   (750 uL/min, inner sheath inlet) through the two-loop\n//   spiral biochip. CTCs (>15 um) focus near the inner wall\n//   via inertial lift (FL) overcoming Dean drag (FD); smaller\n//   blood cells (RBCs, WBCs, platelets, <15 um) exit from\n//   the outer waste outlet following Dean vortex streamlines.\n//   Total run: ~37 min for 7.5 mL lysed blood (single chip);\n//   <13 min for 3x multiplexed chip (sheath 2100 uL/min).\n//   CTC fraction collected from inner outlet into 15 mL tube.\n//   NOTE: `mix` abstracts the hydrodynamic co-flow separation\n//   event in the spiral channel. The CTCs continuously exit\n//   from the inner outlet during this step; this is not a\n//   discrete droplet merge but a continuous flow separation.\n// ------------------------------------------------------------\n\nsheathRun      = dispense 1 units of SheathBuffer\nspiralRun      = mix resuspendedSample with sheathRun for 37m\n\n// ------------------------------------------------------------\n// CELL CONCENTRATION (Paper Step 38): Centrifuge collected CTC\n//   fraction at 300g for 3 min at room temperature to pellet\n//   cells and remove excess volume before staining.\n//   Resuspend in ~250 uL PBS for downstream immunostaining.\n//   Model centrifugation as a heat step at room temperature.\n// ------------------------------------------------------------\n\nheat spiralRun at 25c for 3m\npbsResuspend2       = dispense 1 units of PBS\nconcentratedCells   = mix spiralRun with pbsResuspend2 for 1m\n\n// ------------------------------------------------------------\n// IMMUNOFLUORESCENCE - STEP 1 (Paper Step 40): Fix cells with\n//   4% w/v paraformaldehyde (PFA) in PBS for 10 min at room\n//   temperature. PFA crosslinks cellular proteins to preserve\n//   morphology and antigen epitopes for antibody staining.\n//   CAUTION: PFA is a suspected carcinogen; handle with PPE.\n// ------------------------------------------------------------\n\npfaFixative  = dispense 1 units of Paraformaldehyde\nfixedCells   = mix concentratedCells with pfaFixative for 10m\n\n// ------------------------------------------------------------\n// IMMUNOFLUORESCENCE - STEP 2 (Paper Step 41): Wash fixed\n//   cells with 1-2 mL PBS + 0.5% w/v BSA, centrifuge at\n//   300g for 3 min at room temperature to remove residual PFA.\n//   Resuspend in ~250 uL PBS before permeabilization.\n// ------------------------------------------------------------\n\nbsaWash1     = dispense 1 units of BSA_Solution\npbsWash1     = dispense 1 units of PBS\nwashBuffer1  = mix bsaWash1 with pbsWash1 for 30s\nheat washBuffer1 at 25c for 3m\nwashedFixed  = mix fixedCells with washBuffer1 for 1m\n\n// ------------------------------------------------------------\n// IMMUNOFLUORESCENCE - STEP 3 (Paper Step 42): Permeabilize\n//   cells with 0.1% v/v Triton X-100 in PBS for 1-5 min at\n//   room temperature. Triton X-100 solubilizes the plasma\n//   membrane to allow intracellular antibody access for\n//   pan-cytokeratin (pan-CK) staining of the cytoskeleton.\n// ------------------------------------------------------------\n\ntritonX100     = dispense 1 units of TritonX100\npermeaCells    = mix washedFixed with tritonX100 for 3m\n\n// ------------------------------------------------------------\n// IMMUNOFLUORESCENCE - STEP 4 (Paper Step 43): Wash\n//   permeabilized cells with 1-2 mL PBS + 0.5% w/v BSA,\n//   centrifuge at 300g for 3 min at room temperature to\n//   remove Triton X-100 before antibody incubation.\n// ------------------------------------------------------------\n\nbsaWash2     = dispense 1 units of BSA_Solution\npbsWash2     = dispense 1 units of PBS\nwashBuffer2  = mix bsaWash2 with pbsWash2 for 30s\nheat washBuffer2 at 25c for 3m\nwashedPermea = mix permeaCells with washBuffer2 for 1m\n\n// ------------------------------------------------------------\n// IMMUNOFLUORESCENCE - STEP 5 (Paper Step 44): Incubate cells\n//   on ice with conjugated antibody cocktail for 30 min:\n//     - FITC pan-cytokeratin (pan-CK) 1:100 -- CTC marker\n//       (CK8, CK9, CK18, CK19; epithelial cytokeratins).\n//       Miltenyi Biotec Asia Pacific. Excitation 490 nm,\n//       emission 526 nm.\n//     - APC CD45 1:100 -- leukocyte marker (WBC counter-stain\n//       to exclude contaminating WBCs from CTC count).\n//       Miltenyi Biotec Asia Pacific.\n//     - Hoechst 33342 1:1000 (1 M stock) -- nuclear stain\n//       for all nucleated cells; confirms CTC nuclei.\n//   Putative CTCs: pan-CK+, CD45-, Hoechst+, round nuclei,\n//   high nuclear-to-cytoplasmic (N/C) ratio.\n//   Incubation on ice prevents antigen internalization and\n//   non-specific binding. Model as heat at 4c for 30m.\n// ------------------------------------------------------------\n\npanCKAntibody  = dispense 1 units of PanCK_FITC_Antibody\ncd45Antibody   = dispense 1 units of CD45_APC_Antibody\nhoechstDye     = dispense 1 units of HoechstDye\n\nantibodyMix    = mix panCKAntibody with cd45Antibody for 5s\nfullStainMix   = mix antibodyMix with hoechstDye for 5s\nstainedCells   = mix washedPermea with fullStainMix for 30m\nheat stainedCells at 4c for 30m\n\n// ------------------------------------------------------------\n// IMMUNOFLUORESCENCE - STEP 6 (Paper Step 45): Wash stained\n//   cells with 1-2 mL PBS + 0.5% w/v BSA, centrifuge at\n//   300g for 3 min to remove unbound antibody. Resuspend in\n//   ~250 uL PBS and transfer to a single 96-well plate well.\n// ------------------------------------------------------------\n\nbsaWash3      = dispense 1 units of BSA_Solution\npbsWash3      = dispense 1 units of PBS\nwashBuffer3   = mix bsaWash3 with pbsWash3 for 30s\nheat washBuffer3 at 25c for 3m\nwashedStained = mix stainedCells with washBuffer3 for 1m\n\npbsFinal      = dispense 1 units of PBS\nfinalCells    = mix washedStained with pbsFinal for 30s\n\n// ------------------------------------------------------------\n// CTC DETECTION (Paper Step 47): Fluorescence enumeration of\n//   pan-CK+/CD45-/Hoechst+ cells with round nuclei and high\n//   N/C ratio. Platform: Olympus inverted microscope (IX71/81)\n//   with phase-contrast, emission filters ET460/50m (Hoechst),\n//   ET535/50m (pan-CK FITC), ET605/70m (CD45 APC); automated\n//   stage (MetaMorph); 12-bit EM-CCD camera (Andor iXon+885).\n//   Each 96-well plate well scanned in 1x1 mm grid.\n//   Threshold: >7 CK+ cells per sample = positive patient.\n//   Clinical range: 12-1275 CK+ breast CTCs; 10-1535 lung CTCs.\n//   ctcDetection module abstracts the fluorescence readout and\n//   cell classification step.\n// ------------------------------------------------------------\n\nctcSignal = detect ctcDetection on finalCells for 45m\n\n// ============================================================\n// BB5 / BB6: CTC detection gate\n// Pass (BB5): ctcSignal > 0 -> pan-CK+/CD45-/Hoechst+ cells\n//             enumerated above threshold (>7 CK+ cells);\n//             positive patient sample confirmed. Dispose.\n// Fail (BB6): ctcSignal <= 0 -> no CTCs detected above\n//             threshold (healthy donor control or run failure);\n//             drain stained cells.\n// Both branches converge at BB7 (finalCleanup).\n// ============================================================\n\nif (ctcSignal > 0) {\n    dispose finalCells\n} else {\n    drain finalCells\n}\n\n// ============================================================\n// BB7: finalCleanup (terminal)\n// Dispose CTC detection QC signal. Experiment ends.\n// Downstream options for recovered CTCs (from inner outlet\n// collected prior to staining): culture (37 C / 5% CO2),\n// DNA/RNA-FISH (ALK break-apart probe, HER2/neu), KRAS\n// codon 12 mutation by ICE-COLD PCR + Sanger sequencing,\n// single-cell analysis. These are encoded as separate protocols.\n// ============================================================\n\ndispose ctcSignal\n\n// [terminal -- no further instructions; exit node for CFG]\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "warkiani_spiral_ctc_isolation_001",
+      "protocol_name": "Ultra-fast, label-free isolation of circulating tumor cells from blood using spiral microfluidics",
+      "category": "synthetic_biology",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Ultra-fast, label-free isolation of circulating tumor cells from blood using spiral microfluidics",
+      "publisher": "Nature Protocols, Vol. 11, No. 1, pp. 134-148 (2016)",
+      "doi": "10.1038/nprot.2016.003",
+      "url": "https://www.nature.com/articles/nprot.2016.003",
+      "platform": "Spiral inertial microfluidic biochip (PDMS/glass, continuous-flow, label-free)"
+    },
+    "bioscript": {
+      "manifests": [
+        "PBS",
+        "BSA_Solution",
+        "Ethanol70",
+        "SheathBuffer",
+        "RBCLysisBuffer",
+        "QCBeadSuspension",
+        "LysedBloodSample",
+        "Paraformaldehyde",
+        "TritonX100",
+        "PanCK_FITC_Antibody",
+        "CD45_APC_Antibody",
+        "HoechstDye"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "drain",
+        "split",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": true,
+        "has_gradient": false,
+        "num_steps": 57
       }
     },
-
-    "separation_physics": {
-      "principle": "Combined inertial lift force (FL) and Dean drag force (FD) in curvilinear microchannel",
-      "dean_number_formula": "De = Re * sqrt(DH / 2*RC)",
-      "dean_velocity_formula": "U_Dean = 1.8e-4 * De^1.63",
-      "inertial_lift_force": "FL = CL * rho * G^2 * ac^4 / DH^2; CL ~0.5; G = Umax/DH; Umax ~2*UF",
-      "dean_drag_force": "FD = 3 * pi * mu * U_Dean * ac",
-      "size_cutoff_um": 12,
-      "ctc_focusing": "Inner wall (larger cells, >15 um; FL dominates over FD at outlet)",
-      "blood_cell_migration": "Outer wall (smaller cells, 3-15 um; follow Dean vortex streamlines)",
-      "cell_size_targets": {
-        "CTCs_um": "15-20",
-        "WBCs_um": "10-15",
-        "RBCs_and_platelets_um": "3-8"
-      },
-      "optimal_ac_h_ratio": 0.1,
-      "operating_reynolds_number": "20-100"
-    },
-
-    "performance": {
-      "ctc_recovery_pct": ">=85 across multiple cell lines",
-      "wbc_depletion_pct": "99.99 (from healthy samples)",
-      "wbc_depletion_log": "up to 4-log",
-      "residual_wbc_per_mL": { "median": 3109, "range": "10s to 10000s" },
-      "cell_loss_lysis_centrifugation_pct": "<8",
-      "sample_input": "7.5 mL whole blood lysed and resuspended to 3.75 mL PBS (2x concentrated)",
-      "nucleated_cell_concentration_per_mL": "~14e6",
-      "negative_control_threshold": ">7 CK+ cells per sample = positive patient",
-      "clinical_range_breast_ctc": "12-1275 CK+ cells",
-      "clinical_range_lung_ctc": "10-1535 CK+ cells"
-    },
-
-    "reagents": {
-      "sheath_buffer": "1x sterile PBS + 0.5% w/v BSA",
-      "priming_buffer": "70% v/v ethanol in sterile deionized water",
-      "rbc_lysis_buffer": "3x ammonium chloride RBC lysis buffer (G-Bioscience, cat. no. 786650); 1:3 v/v with blood",
-      "resuspension_buffer": "1x PBS (Corning, cat. no. 21-040-CV)",
-      "fixative": "4% w/v paraformaldehyde (Sigma-Aldrich, cat. no. P6148)",
-      "permeabilization_agent": "0.1% v/v Triton X-100 (Thermo Scientific, cat. no. 85111)",
-      "blocking_agent": "0.5% w/v BSA (Miltenyi Biotec, cat. no. 130-091-376) in PBS",
-      "antibodies": {
-        "pan_CK_FITC": {
-          "target": "pan-cytokeratin (CK8, CK9, CK18, CK19)",
-          "conjugate": "FITC",
-          "dilution": "1:100",
-          "supplier": "Miltenyi Biotec Asia Pacific",
-          "role": "epithelial CTC marker (positive)"
-        },
-        "CD45_APC": {
-          "target": "CD45",
-          "conjugate": "APC",
-          "dilution": "1:100",
-          "supplier": "Miltenyi Biotec Asia Pacific",
-          "role": "leukocyte counter-stain (negative for CTCs)"
-        },
-        "Hoechst_33342": {
-          "stock_concentration": "1 M",
-          "dilution": "1:1000",
-          "supplier": "Life Technologies, cat. no. 33342",
-          "role": "nuclear stain (all nucleated cells)"
-        }
-      },
-      "qc_beads": {
-        "diameters_um": [6, 10, 15],
-        "concentration_v_v": "0.1%",
-        "purpose": "Surrogate for RBCs (6 um), WBCs (10 um), CTCs (15 um) in device QC check",
-        "suppliers": [
-          "Polysciences (cat. nos. 64120, 19096): 9.51 um and 20.66 um",
-          "Bangs Laboratories: 2.02, 4.16, 9.94, 15.45 um"
-        ]
-      },
-      "pdms": "Sylgard 184 silicone elastomer kit (Dow Corning), base:curing agent 10:1 w/w",
-      "silanization_agent": "Trichloro(1H,2H,2H-perfluorooctyl)silane (Sigma-Aldrich, cat. no. 448931-10G)",
-      "cell_culture_media": {
-        "complete_DMEM": "DMEM (Life Technologies, cat. no. 11965-092) + 10% FBS + 1% pen/strep",
-        "trypsin": "0.25% w/v with EDTA (Lonza, cat. no. CC-5012)"
-      }
-    },
-
-    "steps": [
-      {
-        "id": "S1",
-        "name": "Design and mold preparation",
-        "paper_steps": "1-2",
-        "bb": null,
-        "operation": "off-chip fabrication",
-        "duration": "5-7 d",
-        "notes": "AutoCAD design submitted to vendor for mask printing. Alternatively, micromilling on aluminum or stainless steel master. Not encoded in BioScript (physical fabrication step)."
-      },
-      {
-        "id": "S2",
-        "name": "Master fabrication (photolithography)",
-        "paper_steps": "3-10",
-        "bb": null,
-        "operation": "off-chip cleanroom fabrication",
-        "duration": "7-10 h",
-        "details": {
-          "wafer": "6-inch silicon wafer",
-          "photoresist": "AZ9260, spin-coated at 500 rpm (10 s) then 3000 rpm (30 s)",
-          "prebake": "110 C for 5 min",
-          "exposure": "UV, feature-printed transparent film mask",
-          "development": "AZ400K developer, 1:4 dilution, 5 min",
-          "etching": "DRIE (STS LpX Pegasus), ~165 +/- 5 um depth",
-          "silanization": "150 uL trichloro(1H,2H,2H-perfluorooctyl)silane, vacuum desiccator, 1.5 h"
-        },
-        "critical": "Channel depth must be 160-170 um; outside tolerance causes particle focusing failure",
-        "notes": "Not encoded in BioScript (physical fabrication step)."
-      },
-      {
-        "id": "S3",
-        "name": "Soft lithography and chip production",
-        "paper_steps": "11-19",
-        "bb": null,
-        "operation": "off-chip fabrication",
-        "duration": "1-2 d",
-        "details": {
-          "pdms_ratio": "10:1 base:curing agent w/w",
-          "pdms_mass_g": 77,
-          "degassing": "vacuum desiccator, ~1 h",
-          "bake": "70-80 C, >=2 h",
-          "hole_punching": "1.5 mm puncher (single layer); 4 mm bottom + 1.5 mm top (multiplexed)",
-          "plasma_cleaning": "RF 300 W, 13.56 MHz, 100 mTorr, 2 min 30 s, 2 sccm O2, 22 C",
-          "bonding": "PDMS to glass; press 30 s with tweezers; avoid pressure over channels",
-          "post_bond_bake": "85 C hotplate or oven, 30 min"
-        },
-        "notes": "Multiplexed device: 3 PDMS molds stacked and plasma-bonded with manual alignment. Not encoded in BioScript."
-      },
-      {
-        "id": "S4",
-        "name": "Chip priming - ethanol sterilization",
-        "paper_steps": "20-24",
-        "bb": "BB1",
-        "inputs": ["Ethanol70"],
-        "operation": "mix (channel flush abstraction)",
-        "flow_rate_uL_min": 750,
-        "duration_min": 5,
-        "notes": "70% v/v ethanol in sterile deionized water; removes air bubbles and sterilizes channel interior. Required for cell culture downstream applications."
-      },
-      {
-        "id": "S5",
-        "name": "Chip priming - sheath buffer surface coating",
-        "paper_steps": "25",
-        "bb": "BB1",
-        "inputs": ["BSA_Solution", "SheathBuffer"],
-        "operation": "mix (channel flush abstraction)",
-        "sheath_buffer_composition": "1x sterile PBS + 0.5% w/v BSA",
-        "flow_rate_uL_min": 750,
-        "duration_min": 5,
-        "notes": "Coats PDMS microchannel walls with BSA to minimize non-specific cell adhesion during spiral processing."
-      },
-      {
-        "id": "S6",
-        "name": "Bubble removal inspection",
-        "paper_steps": "26",
-        "bb": "BB1",
-        "inputs": ["SheathBuffer"],
-        "operation": "mix (channel flush abstraction)",
-        "duration_min": 2,
-        "notes": "Inverted microscope inspection in bright-field mode. Increasing sheath flow rate dislodges residual air pockets. If bubbles cannot be removed, replace chip."
-      },
-      {
-        "id": "S7",
-        "name": "QC bead check",
-        "paper_steps": "27",
-        "bb": "BB1",
-        "inputs": ["QCBeadSuspension", "SheathBuffer"],
-        "operation": "mix (co-flow abstraction) + detect beadFocusingQC",
-        "sample_flow_rate_uL_min": 100,
-        "sheath_flow_rate_uL_min": 750,
-        "bead_concentration_v_v": "0.1%",
-        "duration_min": 5,
-        "detection_duration_s": 30,
-        "imaging": "Phase-contrast microscope + high-speed camera (VisionResearch Phantom v9)",
-        "pass_criterion": "6 um beads complete Dean cycle (inner to outer wall); 15 um beads focus at inner wall outlet",
-        "branch": {
-          "pass": { "condition": "beadSignal > 0", "action": "dispose(beadRun)", "bb": "BB2" },
-          "fail": { "condition": "beadSignal <= 0", "action": "drain(beadRun); fabricate new master mold", "bb": "BB3" }
-        }
-      },
-      {
-        "id": "S8",
-        "name": "RBC lysis",
-        "paper_steps": "28",
-        "bb": "BB4",
-        "inputs": ["LysedBloodSample", "RBCLysisBuffer"],
-        "operation": "mix",
-        "lysis_buffer_ratio_v_v": "1:3 (blood:lysis buffer)",
-        "temperature_C": 25,
-        "duration_min": 10,
-        "endpoint": "Sample color changes to dark red (complete lysis)",
-        "notes": "Warm blood to room temperature (24-26 C) before lysis. If spiking with cancer cell lines, add cells before lysis step. Total cell loss from lysis + centrifugation <8%."
-      },
-      {
-        "id": "S9",
-        "name": "Cell pelleting and resuspension",
-        "paper_steps": "29-31",
-        "bb": "BB4",
-        "inputs": ["PBS"],
-        "operation": "heat (centrifugation abstraction) + mix",
-        "centrifugation_g": 1000,
-        "centrifugation_duration_min": 5,
-        "temperature_C": 25,
-        "resuspension_volume_mL": 3.75,
-        "final_concentration_cells_mL": "~14e6 nucleated cells (2x concentrated)",
-        "storage": "On ice; process within 2-4 h at 4 C",
-        "notes": "7.5 mL whole blood resuspended into 3.75 mL PBS (0.5x original volume)."
-      },
-      {
-        "id": "S10",
-        "name": "Spiral biochip processing",
-        "paper_steps": "32-37",
-        "bb": "BB4",
-        "inputs": ["SheathBuffer"],
-        "operation": "mix (co-flow separation abstraction)",
-        "sample_inlet": "outer wall",
-        "sheath_inlet": "inner wall",
-        "sample_flow_rate_uL_min": 100,
-        "sheath_flow_rate_uL_min": { "single": 750, "multiplexed_3x": 2100 },
-        "processing_time_min": { "single_7p5mL": 37, "multiplexed_7p5mL": 12 },
-        "ctc_collection_outlet": "inner (150 um)",
-        "waste_outlet": "outer (350 um)",
-        "collection_tube_ctc": "15 mL conical",
-        "collection_tube_waste": "50 mL conical",
-        "microscope_magnification": "10x",
-        "notes": "Allow flow to stabilize ~1 min before collecting CTC fraction. Do not disturb setup during processing. Sheath buffer run 2 min before starting sample pump."
-      },
-      {
-        "id": "S11",
-        "name": "Cell concentration post-spiral",
-        "paper_steps": "38-39",
-        "bb": "BB4",
-        "inputs": ["PBS"],
-        "operation": "heat (centrifugation abstraction) + mix",
-        "centrifugation_g": 300,
-        "centrifugation_duration_min": 3,
-        "temperature_C": 25,
-        "resuspension_volume_uL": 250,
-        "notes": "Pellet CTCs from inner outlet collection. Resuspend in ~250 uL PBS before fixation."
-      },
-      {
-        "id": "S12",
-        "name": "PFA fixation",
-        "paper_steps": "40",
-        "bb": "BB4",
-        "inputs": ["Paraformaldehyde"],
-        "operation": "mix",
-        "pfa_concentration_pct": "4% w/v",
-        "temperature_C": 25,
-        "duration_min": 10,
-        "storage": "Fixed cells stable overnight in PBS at 4 C",
-        "caution": "PFA is a suspected carcinogen; wear gloves, lab coat, goggles"
-      },
-      {
-        "id": "S13",
-        "name": "Post-fixation wash",
-        "paper_steps": "41",
-        "bb": "BB4",
-        "inputs": ["BSA_Solution", "PBS"],
-        "operation": "mix + heat (centrifugation abstraction)",
-        "wash_volume_mL": "1-2",
-        "bsa_concentration_pct": "0.5% w/v",
-        "centrifugation_g": 300,
-        "centrifugation_duration_min": 3,
-        "temperature_C": 25,
-        "resuspension_volume_uL": 250
-      },
-      {
-        "id": "S14",
-        "name": "Triton X-100 permeabilization",
-        "paper_steps": "42",
-        "bb": "BB4",
-        "inputs": ["TritonX100"],
-        "operation": "mix",
-        "triton_concentration_pct": "0.1% v/v",
-        "temperature_C": 25,
-        "duration_min": "1-5 (encoded as 3 min)",
-        "notes": "Solubilizes plasma membrane to allow intracellular antibody access for pan-cytokeratin staining."
-      },
-      {
-        "id": "S15",
-        "name": "Post-permeabilization wash",
-        "paper_steps": "43",
-        "bb": "BB4",
-        "inputs": ["BSA_Solution", "PBS"],
-        "operation": "mix + heat (centrifugation abstraction)",
-        "wash_volume_mL": "1-2",
-        "bsa_concentration_pct": "0.5% w/v",
-        "centrifugation_g": 300,
-        "centrifugation_duration_min": 3,
-        "temperature_C": 25
-      },
-      {
-        "id": "S16",
-        "name": "Antibody and Hoechst staining",
-        "paper_steps": "44",
-        "bb": "BB4",
-        "inputs": ["PanCK_FITC_Antibody", "CD45_APC_Antibody", "HoechstDye"],
-        "operation": "mix + heat",
-        "antibody_cocktail": {
-          "pan_CK_FITC": "1:100; ex 490 nm / em 526 nm",
-          "CD45_APC": "1:100",
-          "Hoechst_33342": "1:1000 from 1 M stock"
-        },
-        "incubation_temperature_C": 4,
-        "incubation_duration_min": 30,
-        "ctc_phenotype": "pan-CK+, CD45-, Hoechst+, round nuclei, high nuclear-to-cytoplasmic ratio",
-        "storage": "Stained cells stable overnight in PBS under dark at 4 C"
-      },
-      {
-        "id": "S17",
-        "name": "Post-staining wash and transfer",
-        "paper_steps": "45-46",
-        "bb": "BB4",
-        "inputs": ["BSA_Solution", "PBS"],
-        "operation": "mix + heat (centrifugation abstraction)",
-        "wash_volume_mL": "1-2",
-        "bsa_concentration_pct": "0.5% w/v",
-        "centrifugation_g": 300,
-        "centrifugation_duration_min": 3,
-        "temperature_C": 25,
-        "final_resuspension_volume_uL": 250,
-        "transfer_destination": "Single well of 96-well plate"
-      },
-      {
-        "id": "S18",
-        "name": "CTC fluorescence detection and enumeration",
-        "paper_steps": "47",
-        "bb": "BB4",
-        "inputs": [],
-        "operation": "detect ctcDetection",
-        "detection_duration_min": 45,
-        "detection_module": "ctcDetection",
-        "imaging_platform": {
-          "microscope": "Olympus IX71/IX81 inverted, automated stage",
-          "emission_filters": ["ET460/50m (Hoechst)", "ET535/50m (pan-CK FITC)", "ET605/70m (CD45 APC)"],
-          "camera": "12-bit EM-CCD (Andor iXon+885)",
-          "software": ["MetaMorph (automated stage scan)", "ImageJ (manual threshold)"],
-          "scan_format": "1 mm x 1 mm grid per well",
-          "magnification_manual": "40x"
-        },
-        "ctc_criteria": "Hoechst+, pan-CK+, CD45-, round nuclei, high N/C ratio",
-        "negative_control": "10 healthy volunteer samples; threshold >7 CK+ cells = positive",
-        "branch": {
-          "pass": { "condition": "ctcSignal > 0", "action": "dispose(finalCells)", "bb": "BB5" },
-          "fail": { "condition": "ctcSignal <= 0", "action": "drain(finalCells)", "bb": "BB6" }
-        }
-      }
-    ],
-
-    "downstream_applications": {
-      "fish": {
-        "type": "DNA-FISH (Box 1 in paper)",
-        "probes": ["Vysis ALK break-apart FISH probe", "HER2/neu probe (Abbott)"],
-        "fixative": "Acetic acid:methanol 1:3",
-        "denaturation": "70% formamide/2x SSC, 80 C, 10 min",
-        "hybridization": "42 C, dark, humid, 16 h (overnight)",
-        "counterstain": "DAPI",
-        "duration": "2 d"
-      },
-      "sequencing": {
-        "method": "ICE-COLD PCR + Sanger sequencing",
-        "target": "KRAS codon 12 mutation",
-        "limit_of_detection": "<0.5%"
-      },
-      "culture": {
-        "conditions": "37 C, 5% CO2",
-        "notes": "CTCs viable post-isolation; suitable for ex vivo culture and drug testing"
-      },
-      "single_cell_analysis": "Compatible; CTCs in suspension, not immobilized"
-    },
-
     "cfg": {
       "basic_blocks": [
-        { "id": "BB1", "label": "main",        "type": "entry",        "content": "Chip priming (ethanol, sheath buffer, bubble removal), QC bead check, RBC lysis, cell pelleting, spiral processing, cell concentration, PFA fixation, washes, permeabilization, antibody staining, final resuspension" },
-        { "id": "BB2", "label": "bsbbif_2_t",  "type": "branch_true",  "condition": "beadSignal > 0",  "action": "dispose(beadRun)" },
-        { "id": "BB3", "label": "bsbbif_3_f",  "type": "branch_false", "condition": "beadSignal <= 0", "action": "dispose(beadRun) [drain normalized to dispose by compiler]" },
-        { "id": "BB4", "label": "bsbbif_4_j",  "type": "join",         "content": "dispose(beadSignal); blood prep and staining branch continues" },
-        { "id": "BB5", "label": "bsbbif_5_t",  "type": "branch_true",  "condition": "ctcSignal > 0",   "action": "dispose(finalCells)" },
-        { "id": "BB6", "label": "bsbbif_6_f",  "type": "branch_false", "condition": "ctcSignal <= 0",  "action": "dispose(finalCells) [drain normalized to dispose by compiler]" },
-        { "id": "BB7", "label": "bsbbif_7_j",  "type": "terminal",     "content": "dispose(ctcSignal); NOP" }
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "join"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "7",
+          "label": "bsbbif_7_j",
+          "type": "terminal"
+        }
       ],
       "edges": [
-        ["BB1","BB2"], ["BB1","BB3"],
-        ["BB2","BB4"], ["BB3","BB4"],
-        ["BB4","BB5"], ["BB4","BB6"],
-        ["BB5","BB7"], ["BB6","BB7"]
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ]
       ]
     },
-
-    "troubleshooting": [
-      { "step": 21, "problem": "Residual PDMS trapped in spiral channel", "cause": "PDMS trapped during punching", "solution": "Increase sheath buffer flow rate or replace chip" },
-      { "step": 26, "problem": "Air bubbles in spiral channel", "cause": "Bubbles in buffer or sample", "solution": "Increase sheath buffer flow rate or replace chip" },
-      { "step": 27, "problem": "Incorrect particle and cell focusing", "cause": "Channel height out of tolerance (must be 165-170 um); improper DRIE", "solution": "Fabricate new master mold" },
-      { "step": 37, "problem": "No stabilization at outlet", "cause": "Bubble in channel or incorrect flow rate", "solution": "Ensure bubble-free chip; verify flow rate and syringe diameter parameters" },
-      { "step": 37, "problem": "Clogging", "cause": "Large clusters trapped at bifurcation point", "solution": "Increase sheath flow rate or replace chip" },
-      { "step": 47, "problem": "False positives", "cause": "Insufficient blocking, expired or high antibody concentration", "solution": "Increase BSA to >=2%; reduce antibody to 1:150; use fresh antibodies" }
-    ]
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(beadRun1[0])\nbsbbif_3_f:\n\tdispose(beadRun1[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(beadSignal1[0])\n\trbcLysisBuffer1[0] = dispense(RBCLysisBuffer)\n\tlysedBlood11[0] = dispense(LysedBloodSample)\n\tlysisReaction1[0] = mix(lysedBlood11[0], rbcLysisBuffer1[0]) @ 600.0SECOND\n\tpbsResuspend1[0] = dispense(PBS)\n\theat(lysisReaction1[0]) @ 25.0CELSIUS @ 300.0SECOND\n\tresuspendedSample1[0] = mix(lysisReaction1[0], pbsResuspend1[0]) @ 60.0SECOND\n\tsheathRun1[0] = dispense(SheathBuffer)\n\tspiralRun1[0] = mix(resuspendedSample1[0], sheathRun1[0]) @ 2220.0SECOND\n\theat(spiralRun1[0]) @ 25.0CELSIUS @ 180.0SECOND\n\tpbsResuspend21[0] = dispense(PBS)\n\tconcentratedCells1[0] = mix(spiralRun1[0], pbsResuspend21[0]) @ 60.0SECOND\n\tpfaFixative1[0] = dispense(Paraformaldehyde)\n\tfixedCells1[0] = mix(concentratedCells1[0], pfaFixative1[0]) @ 600.0SECOND\n\tbsaWash11[0] = dispense(BSA_Solution)\n\tpbsWash11[0] = dispense(PBS)\n\twashBuffer11[0] = mix(bsaWash11[0], pbsWash11[0]) @ 30.0SECOND\n\theat(washBuffer11[0]) @ 25.0CELSIUS @ 180.0SECOND\n\twashedFixed1[0] = mix(fixedCells1[0], washBuffer11[0]) @ 60.0SECOND\n\ttritonX1001[0] = dispense(TritonX100)\n\tpermeaCells1[0] = mix(washedFixed1[0], tritonX1001[0]) @ 180.0SECOND\n\tbsaWash21[0] = dispense(BSA_Solution)\n\tpbsWash21[0] = dispense(PBS)\n\twashBuffer21[0] = mix(bsaWash21[0], pbsWash21[0]) @ 30.0SECOND\n\theat(washBuffer21[0]) @ 25.0CELSIUS @ 180.0SECOND\n\twashedPermea1[0] = mix(permeaCells1[0], washBuffer21[0]) @ 60.0SECOND\n\tpanCKAntibody1[0] = dispense(PanCK_FITC_Antibody)\n\tcd45Antibody1[0] = dispense(CD45_APC_Antibody)\n\thoechstDye1[0] = dispense(HoechstDye)\n\tantibodyMix1[0] = mix(panCKAntibody1[0], cd45Antibody1[0]) @ 5.0SECOND\n\tfullStainMix1[0] = mix(antibodyMix1[0], hoechstDye1[0]) @ 5.0SECOND\n\tstainedCells1[0] = mix(washedPermea1[0], fullStainMix1[0]) @ 1800.0SECOND\n\theat(stainedCells1[0]) @ 4.0CELSIUS @ 1800.0SECOND\n\tbsaWash31[0] = dispense(BSA_Solution)\n\tpbsWash31[0] = dispense(PBS)\n\twashBuffer31[0] = mix(bsaWash31[0], pbsWash31[0]) @ 30.0SECOND\n\theat(washBuffer31[0]) @ 25.0CELSIUS @ 180.0SECOND\n\twashedStained1[0] = mix(stainedCells1[0], washBuffer31[0]) @ 60.0SECOND\n\tpbsFinal1[0] = dispense(PBS)\n\tfinalCells1[0] = mix(washedStained1[0], pbsFinal1[0]) @ 30.0SECOND\n\tctcSignal1[0] = detect(ctcDetection, finalCells1[0]) @ 2700.0SECOND\n\tif ctcSignal1[0] > 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nmain:\n\tethanolPrime1[0] = dispense(Ethanol70)\n\tchannelWash1[0] = mix(ethanolPrime1[0], ethanolPrime1[0]) @ 300.0SECOND\n\tbsaSolution1[0] = dispense(BSA_Solution)\n\tsheathPriming1[0] = dispense(SheathBuffer)\n\tsurfaceCoating1[0] = mix(bsaSolution1[0], sheathPriming1[0]) @ 300.0SECOND\n\tsheathFlush1[0] = dispense(SheathBuffer)\n\tbubbleRemoval1[0] = mix(surfaceCoating1[0], sheathFlush1[0]) @ 120.0SECOND\n\tbeadSuspension1[0] = dispense(QCBeadSuspension)\n\tsheathQC1[0] = dispense(SheathBuffer)\n\tbeadRun1[0] = mix(beadSuspension1[0], sheathQC1[0]) @ 300.0SECOND\n\tbeadSignal1[0] = detect(beadFocusingQC, beadRun1[0]) @ 30.0SECOND\n\tif beadSignal1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbif_5_t:\n\tdispose(finalCells1[0])\nbsbbif_6_f:\n\tdispose(finalCells1[0])\n\tjump: bsbbif_7_j\nbsbbif_7_j:\n\tdispose(ctcSignal1[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "PBS",
+          "source_quote": "Reagents  : 1x PBS",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "Paraformaldehyde",
+          "source_quote": "Reagents  : 4% w/v paraformaldehyde in PBS",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "PanCK_FITC_Antibody",
+          "source_quote": "30 min antibody inc.",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "CD45_APC_Antibody",
+          "source_quote": "30 min antibody inc.",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "variable was used as a dispense source.",
+          "source_location": "description.txt: Key compiler behavior observed"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "Resuspend : In ~250 uL PBS",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "heat",
+          "source_quote": "Duration  : 10 min at room temperature",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "Step 16 | CTC Fluorescence Detection and Enumeration (Paper Step 47)",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "outlet (inner) / 350 um waste outlet (outer).",
+          "source_location": "description.txt: The Dean migration velocity is"
+        },
+        {
+          "bs_operation": "drain",
+          "source_quote": "- drain normalizes to dispose in IR output (expected; standard compiler behavior)",
+          "source_location": "description.txt: Key compiler behavior observed"
+        },
+        {
+          "bs_operation": "split",
+          "source_quote": "Inlets         : Outer (sample, 75 um split); inner (sheath buffer, 425 um split)",
+          "source_location": "description.txt: Configurations"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "IR output      : 7 basic blocks (BB1-BB7), 2 if/else gates, 8 CFG edges",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "reaction_temperature",
+          "note": "Description specifies room temperature vs BioScript encodes 25c — nominal ambient temperature encoding."
+        }
+      ]
+    },
+    "notes": "This protocol details Ultra-fast, label-free isolation of circulating tumor cells from blood using spiral microfluidics. The assay is performed on a Spiral inertial microfluidic biochip (PDMS/glass, continuous-flow, label-free) platform. It achieves a reported detection limit of ge bubbles."
   }
 }

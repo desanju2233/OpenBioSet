@@ -1,501 +1,243 @@
 {
-  "protocol": {
-    "name": "moazami_world_to_chip_dmf",
-    "platform": "Digital Microfluidic (DMF)",
-    "method": "World-to-chip interfacing with 3D-printed reagent delivery and closed-loop PID TEC temperature control",
-    "reference": "Moazami et al., Anal. Chem. 2019, 91, 5159-5168. DOI: 10.1021/acs.analchem.8b05754",
-    "target_organism": "E. coli DH5alpha (transformation); endoglucanase enzyme (assay)",
-    "application": "Bacterial co-transformation and enzymatic endoglucanase activity assay on DMF",
-    "modules": [
-      {
-        "id": "transformationQC",
-        "description": "Abstracts off-chip colony count QC; proxy for on-chip post-heat-shock cell viability signal"
-      },
-      {
-        "id": "endoglucanaseDetection",
-        "description": "Abstracts CLARIOStar plate reader fluorescence readout; MUF emission at 449 nm, excitation 368 nm"
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "================================================================================\nPROTOCOL: World-to-Chip DMF -- Bacterial Transformation and Enzymatic Assay\n================================================================================\n\nSOURCE LINK : https://www.shihmicrolab.ca/_files/ugd/f0a828_18be169d68164b85b204ed067c7dc1f5.pdf\nPAPER DOI   : http://dx.doi.org/10.1021/acs.analchem.8b05754\nJOURNAL     : Analytical Chemistry, 2019, Vol. 91, pp. 5159-5168\nPLATFORM    : Digital Microfluidic (DMF) -- ITO-well-DMF configuration\nTARGET      : E. coli DH5alpha (Protocol 1); Endoglucanase enzyme (Protocol 2)\nAPPLICATION : Bacterial co-transformation and enzymatic endoglucanase activity assay\n\n--------------------------------------------------------------------------------\nOVERVIEW\n--------------------------------------------------------------------------------\n\nThis paper describes two \"world-to-chip\" interface features integrated on a DMF\nplatform and demonstrates them with two biological protocols:\n\n  (1) A 3D-printed reagent delivery system: a cylindrical PLA well (400 uL\n      capacity) mated to the ITO top plate via a drilled-hole inlet, with a\n      threaded screw to deliver fluid to an ancillary reservoir on-chip. The\n      ancillary reservoir refills the main reservoir (7 uL target) after every\n      dispense, improving droplet dispensing reproducibility:\n        - RSD with well    : 11.62% (LB), 16.78% (water), 15.32% (methanol)\n        - RSD without well : 19.61% (LB), 49.29% (water), 35.41% (methanol)\n\n  (2) A closed-loop PID thermoelectric cooler (TEC): a 20x40 mm Peltier module\n      integrated below the DMF chip with an aluminum heat block, RTD sensor,\n      and Arduino Uno microcontroller. PID parameters (Kp=15, Ki=1.2, Kd=0.5)\n      modelled in MATLAB/Simulink:\n        - Rise to 42 C    : 2.1 C/s\n        - Drop to 4 C     : 1.01 C/s\n        - Steady-state    : high stability, low fluctuation\n\n  PROTOCOL 1 -- Bacterial Co-Transformation results:\n    - No control (open-loop)       : 3.67e3 CFU/ug (single), 3.17e3 (co-)\n    - PID control (ITO-DMF)        : 2.03e4 CFU/ug (single), 9.00e3 (co-)\n    - PID + well (ITO-well-DMF)    : 1.48e5 CFU/ug (single), 9.27e4 (co-)\n    - 7-fold improvement with reagent well over PID alone (p=0.007)\n    - Antibiotic selection: kanamycin (50 ug/mL) + chloramphenicol (35 ug/mL)\n\n  PROTOCOL 2 -- Enzymatic Endoglucanase Assay results:\n    - Higher temperature (30 C) produces higher MUF fluorescence vs 23 C\n    - ITO-well-DMF fluorescence significantly higher than ITO-DMF (p<0.05,\n      ANOVA two-way test) across all three substrate concentrations\n    - Enzyme: endoglucanase cleaves beta-(1,4) glycosidic bond in MUC\n    - Product: 4-methylumbelliferone (MUF); emission 449 nm, excitation 368 nm\n\n--------------------------------------------------------------------------------\nREAGENTS\n--------------------------------------------------------------------------------\n\n  ID                    DESCRIPTION                           QUANTITY / SPEC\n  --------------------  ------------------------------------  ----------------------\n  CompetentCells        E. coli DH5alpha competent cells      1 unit per droplet\n                        Thawed on ice 10 min before use\n  pFAB4876              Plasmid; GFP reporter; KanR           1 unit; 100 ng/rxn\n                        Diluted to 1 ug/uL stock              1 ug/uL stock\n  pSB1C3_RFP            Plasmid; RFP (BBa_J04450); CamR       1 unit; 100 ng/rxn\n                        Diluted to 1 ug/uL stock              1 ug/uL stock\n  CaCl2_Stock           Calcium chloride                      1 unit per droplet\n                        150 mM stock; 75 mM final on-chip\n  MUC_Substrate         4-methylumbelliferyl beta-D-          1 unit per droplet\n                        cellobioside (MUC); 40 uM stock       40 uM stock\n                        in 50 mM sodium-phosphate pH 7.0\n                        + 0.05% Pluronics F-68\n  EndoglucanaseEnzyme   Endoglucanase; cleaves beta-(1,4)     1 unit per assay area\n                        glycosidic bonds; concentration        (constant across all\n                        held constant across all conditions    three conditions)\n                        + 0.05% Pluronics F-68\n  QuenchingSolution     0.3 M glycine-NaOH pH 11.0            1 unit per assay area\n                        Stops reaction; enhances MUF\n                        fluorescence at alkaline pH\n  Buffer                50 mM sodium-phosphate pH 7.0         1 unit per droplet\n                        + 0.05% Pluronics F-68\n                        Used for MUC serial dilution\n  PluronicF68           0.05% Pluronics F-68 additive         Dissolved in all\n                        Prevents biofouling; maintains         assay solutions;\n                        droplet actuation on device            not a standalone\n                                                               dispense\n\n  NOTE: All droplet volumes are ~1 uL, dispensed at 160 V_rms, 15 kHz.\n  Reservoir target volume: 7 uL (measured by impedance, Vread = 12.9 V).\n  ITO-well-DMF: 400 uL bulk reagent per well; ancillary reservoir refills\n  main reservoir after every unit droplet dispense.\n\n--------------------------------------------------------------------------------\nMODULES\n--------------------------------------------------------------------------------\n\n  transformationQC      : Abstracts off-chip colony count QC step (Kan+Cam agar\n                          plate, 37 C overnight incubation); used as on-chip\n                          proxy for post-heat-shock cell viability signal\n\n  endoglucanaseDetection: Abstracts CLARIOStar plate reader fluorescence readout\n                          (off-chip; device placed on 96-well plate);\n                          MUF emission 449 nm, excitation 368 nm;\n                          well-scan: 15x15 matrix, 6 mm diameter, focal height\n                          4.0 mm, gain 1180; max fluorescence per droplet recorded\n\n--------------------------------------------------------------------------------\nTEMPERATURE CONTROL PARAMETERS\n--------------------------------------------------------------------------------\n\n  TEC module     : 20x40 mm Peltier (TE technology, Texas, USA)\n  Heat block     : 20x40x5 mm aluminum; 1.5 mm drilled hole for RTD sensor\n  Controller     : Arduino Uno with H-bridge driver and N-channel MOSFET\n  Control type   : Closed-loop PID (negative feedback)\n  PID parameters : Kp=15, Ki=1.2, Kd=0.5 (optimised in MATLAB/Simulink)\n\n  Thermal zones used in this protocol:\n    42 C  -- heat shock (transformation Phase 1); rise rate 2.1 C/s\n     4 C  -- cold recovery (transformation Phase 2); drop rate 1.01 C/s\n    30 C  -- enzymatic assay incubation; steady-state maintained by PID\n\n  NOTE: heat primitive in BioScript is void (no assignment). Temperature\n  control is modelled as heat statements acting on fluid variables in-place.\n\n--------------------------------------------------------------------------------\nPROTOCOL 1: MICROSCALE BACTERIAL CO-TRANSFORMATION\n--------------------------------------------------------------------------------\n\nSTEP 1 -- Dispense Competent Cells\n  Operations:\n    cellDroplet = dispense 1 units of CompetentCells\n  Notes:\n    - E. coli DH5alpha thawed on ice 10 min before use\n    - In ITO-well-DMF: 400 uL bulk cells in 3D-printed well\n    - Ancillary reservoir refills main reservoir after each dispense\n\nSTEP 2 -- Dispense Plasmid DNA Droplets\n  Operations:\n    dna1Droplet = dispense 1 units of pFAB4876\n    dna2Droplet = dispense 1 units of pSB1C3_RFP\n  Notes:\n    - pFAB4876: kanamycin selection (50 ug/mL); GFP reporter\n    - pSB1C3-RFP: chloramphenicol selection (35 ug/mL); RFP insert BBa_J04450\n    - Both diluted to 1 ug/uL; 100 ng per plasmid per reaction on-chip\n    - Co-transformation: both plasmids present simultaneously\n\nSTEP 3 -- Dispense CaCl2 Solution\n  Operations:\n    cacl2Droplet = dispense 1 units of CaCl2_Stock\n  Notes:\n    - Stock 150 mM; final concentration on-chip 75 mM (after 1:1 merge)\n    - CaCl2 critical for chemical competence and DNA uptake efficiency\n\nSTEP 4 -- Merge DNA Plasmids\n  Operations:\n    dnaMix = mix dna1Droplet with dna2Droplet for 5s\n  Notes:\n    - Sequential merging required for DMF electrode actuation\n    - Paper states \"equal volume ratio\" merge of all four components\n\nSTEP 5 -- Merge Cells with DNA Mix\n  Operations:\n    cellDnaMix = mix cellDroplet with dnaMix for 5s\n\nSTEP 6 -- Add CaCl2 to Complete Transformation Mix\n  Operations:\n    transformMix = mix cellDnaMix with cacl2Droplet for 10s\n  Notes:\n    - Final droplet contains cells, pFAB4876, pSB1C3-RFP, CaCl2 at 75 mM\n    - All four components merged in equal ~1 uL volume ratio\n\nSTEP 7 -- Heat Shock Phase 1 (42 C, 60 s)\n  Operations:\n    heat transformMix at 42c for 60s\n  Notes:\n    - Closed-loop PID TEC; rise rate 2.1 C/s\n    - Drives transient membrane pore formation for DNA uptake in DH5alpha\n    - Temperature fluctuations affect transformation efficiency (refs 37, 38)\n\nSTEP 8 -- Heat Shock Phase 2 (4 C, 180 s)\n  Operations:\n    heat transformMix at 4c for 180s\n  Notes:\n    - TEC drops to 4 C at 1.01 C/s; stops membrane disruption\n    - Stabilises DNA-cell complex; 180 s = 3 min cold recovery\n    - heat is void in BioScript; transformMix variable survives intact\n\nSTEP 9 -- Post-Transformation QC Detection and Branch\n  Operations:\n    transformSignal = detect transformationQC on transformMix for 30s\n    if (transformSignal > 0) {\n        dispose transformMix\n    } else {\n        drain transformMix\n    }\n    dispose transformSignal\n  Notes:\n    - Pass (BB2): transformSignal > 0 -> viable transformed cells detected\n    - Fail (BB3): transformSignal <= 0 -> no viable signal; drain\n    - Both branches join at BB4; enzymatic assay protocol begins after join\n    - Expected (PID + well): ~9.27e4 CFU/ug DNA for co-transformation\n    - drain vs dispose: functionally identical in lilott8/BioScript IR\n      (both emit as dispose() hardware instruction); source code uses drain\n      for fail path to preserve biological intent in dataset documentation\n\n--------------------------------------------------------------------------------\nPROTOCOL 2: ENZYMATIC ENDOGLUCANASE ASSAY\n--------------------------------------------------------------------------------\n\nSTEP 10 -- Dispense 40 uM MUC Substrate Assay Droplet\n  Operations:\n    muc40uM_Assay = dispense 1 units of MUC_Substrate\n  Notes:\n    - Dispensed first and stored untouched in assay area 1\n    - Not consumed by any dilution step\n    - All solutions contain 0.05% Pluronics F-68 additive\n\nSTEP 11 -- Prepare 20 uM MUC Assay Droplet (Direct Dilution)\n  Operations:\n    muc40_for20   = dispense 1 units of MUC_Substrate\n    buffer_for20  = dispense 1 units of Buffer\n    muc20uM_Assay = mix muc40_for20 with buffer_for20 for 5s\n  Notes:\n    - 1:1 mix: (1 unit x 40 uM) / 2 units total = 20 uM. Correct.\n    - No split used; avoids compiler split-array stranding bug (lilott8/BioScript\n      does not support array indexing; stranded split elements cause hardware\n      collision by blocking electrode routing paths)\n    - Scalar mix produces single scalar droplet; all downstream ops are 1-to-1\n\nSTEP 12 -- Prepare 10 uM MUC Assay Droplet (Explicit Buffer Chaining)\n  Operations:\n    muc40_for10 = dispense 1 units of MUC_Substrate\n    b1          = dispense 1 units of Buffer\n    b2          = dispense 1 units of Buffer\n    b3          = dispense 1 units of Buffer\n    b_mix_2     = mix b1 with b2 for 5s\n    b_mix_3     = mix b_mix_2 with b3 for 5s\n    muc10uM_Assay = mix muc40_for10 with b_mix_3 for 5s\n  Notes:\n    - Target: 1:3 dilution for 10 uM; (1 unit x 40 uM) / 4 units = 10 uM. Correct.\n    - Compiler ignores multi-unit volume scalars: \"dispense 3 units of Buffer\"\n      defaults silently to a 1-unit dispense in the IR, yielding a second 20 uM\n      droplet instead of 10 uM -- a critical concentration error.\n    - Fix: three buffer droplets (b1, b2, b3) explicitly instantiated and merged\n      into a 3-unit buffer blob (b_mix_3) before final mix with substrate.\n    - Every variable assigned and consumed exactly once; no aliasing in IR.\n\nSTEP 13 -- Dispense Enzyme Droplets\n  Operations:\n    enzymeDrop40 = dispense 1 units of EndoglucanaseEnzyme\n    enzymeDrop20 = dispense 1 units of EndoglucanaseEnzyme\n    enzymeDrop10 = dispense 1 units of EndoglucanaseEnzyme\n  Notes:\n    - Paper M&M: \"a unit droplet of enzyme solution (~1 uL) was dispensed into\n      one of three assay areas\"\n    - Enzyme concentration held constant across all three substrate conditions\n      (paper Fig. 5 caption: \"enzyme concentration remaining constant\")\n    - 1 unit per assay area regardless of substrate droplet volume\n    - In ITO-well-DMF: enzyme reservoir refilled from 3D well after each dispense\n\nSTEP 14 -- Start Reactions\n  Operations:\n    reaction40uM = mix muc40uM_Assay with enzymeDrop40 for 5s\n    reaction20uM = mix muc20uM_Assay with enzymeDrop20 for 5s\n    reaction10uM = mix muc10uM_Assay with enzymeDrop10 for 5s\n  Notes:\n    - Paper M&M: \"all three substrate-containing droplets were simultaneously\n      mixed with the enzyme droplets in the assay areas\"\n    - TEC activates at this point for closed-loop 30 C control\n\nSTEP 15 -- Incubate at 30 C for 30 min\n  Operations:\n    heat reaction40uM at 30c for 30m\n    heat reaction20uM at 30c for 30m\n    heat reaction10uM at 30c for 30m\n  Notes:\n    - Endoglucanase cleaves beta-(1,4) glycosidic bond in MUC\n    - Releases 4-methylumbelliferone (MUF) fluorophore\n    - Closed-loop PID TEC maintains 30 C steady-state\n    - All three reactions run concurrently in separate assay areas on device\n    - heat is void in BioScript; reaction variables survive intact\n\nSTEP 16 -- Quench Reactions\n  Operations:\n    quench40     = dispense 1 units of QuenchingSolution\n    quench20     = dispense 1 units of QuenchingSolution\n    quench10     = dispense 1 units of QuenchingSolution\n    quenched40uM = mix reaction40uM with quench40 for 5s\n    quenched20uM = mix reaction20uM with quench20 for 5s\n    quenched10uM = mix reaction10uM with quench10 for 5s\n  Notes:\n    - Paper M&M: \"a unit droplet of quenching solution (0.3 M glycine-NaOH,\n      pH 11.0) was mixed with each reaction droplet in the assay area\"\n    - 1 unit quench per assay area; enzyme concentration held constant so\n      quench volume is not scaled with substrate volume\n\nSTEP 17 -- Fluorescence Detection and Cleanup\n  Operations:\n    assaySignal40 = detect endoglucanaseDetection on quenched40uM for 30s\n    assaySignal20 = detect endoglucanaseDetection on quenched20uM for 30s\n    assaySignal10 = detect endoglucanaseDetection on quenched10uM for 30s\n    if (assaySignal40 > 0) {\n        dispose quenched40uM\n        dispose quenched20uM\n        dispose quenched10uM\n    } else {\n        drain quenched40uM\n        drain quenched20uM\n        drain quenched10uM\n    }\n    dispose assaySignal40\n    dispose assaySignal20\n    dispose assaySignal10\n  Notes:\n    - Off-chip readout: device placed on 96-well plate in CLARIOStar reader\n    - MUF emission 449 nm, excitation 368 nm; well-scan 15x15 matrix,\n      6 mm diameter, focal height 4.0 mm, gain 1180\n    - Maximum fluorescence intensity per droplet recorded\n    - QC gate keyed on 40 uM signal (highest expected MUF output)\n    - Pass (BB5): assaySignal40 > 0 -> valid fluorescence; dispose all\n    - Fail (BB6): assaySignal40 <= 0 -> no signal (enzyme inactive or reagent\n      failure); drain all\n    - Both branches join at BB7 (terminal); all three signal droplets disposed\n\n--------------------------------------------------------------------------------\nBIOSCRIPT COMPILER NOTES\n--------------------------------------------------------------------------------\n\n  Compiler    : lilott8/BioScript (ANTLR4-based, Python 3)\n  Target      : -t ir (Intermediate Representation + Control Flow Graph)\n  Command     : python3 main.py -d -i <file.bs> -t ir -o ./output -cfg\n\n  KNOWN COMPILER BEHAVIOURS (relevant to this protocol):\n\n  1. heat is void -- no assignment allowed.\n     WRONG : result = heat transformMix at 42c for 60s\n     RIGHT : heat transformMix at 42c for 60s\n\n  2. detect consumes its fluid operand -- variable is spent after detect.\n     Must use a distinct variable per detect call; do not reuse.\n\n  3. Multi-unit volume scalars are silently ignored.\n     \"dispense 3 units of Buffer\" generates dispense(Buffer) [0] in IR --\n     a single 1-unit dispense. To accumulate N units of a reagent, explicitly\n     instantiate N separate 1-unit dispense variables and chain with mix.\n\n  4. Split arrays cannot be partially consumed.\n     The compiler does not support array indexing syntax (e.g. arr[0], arr[1]).\n     All elements of a split array must be consumed by a single downstream\n     operation (array zip). Partial consumption leaves stranded droplets on the\n     electrode grid, blocking routing paths and causing hardware collisions.\n     Fix: avoid split for assay droplets; use direct dispense + mix instead.\n\n  5. Array zipping does not work for dispense.\n     \"dispense N units\" does not produce an N-element array. Only split\n     produces arrays. Attempting to zip a split array with a multi-unit\n     dispense results in only index [0] being mixed; remaining indices strand.\n\n  6. ASCII-only source files -- ANTLR4 FileStream rejects non-ASCII bytes.\n     All comments must use ASCII characters only. No Unicode arrows (->),\n     box-drawing characters, degree symbols, or em-dashes in source files.\n\n  CFG STRUCTURE (this protocol):\n    BB1  main          -- entry: transformation + enzymatic assay through detect\n    BB2  bsbbif_2_t    -- transform pass: dispose transformMix\n    BB3  bsbbif_3_f    -- transform fail: drain transformMix\n    BB4  bsbbif_4_j    -- join: dispose transformSignal; enzymatic assay begins\n    BB5  bsbbif_5_t    -- assay pass: dispose all quenched droplets\n    BB6  bsbbif_6_f    -- assay fail: drain all quenched droplets\n    BB7  bsbbif_7_j    -- terminal: dispose all signal droplets, NOP\n\n  CFG EDGES:\n    BB1 -> BB2 (transformSignal > 0)\n    BB1 -> BB3 (transformSignal <= 0)\n    BB2 -> BB4\n    BB3 -> BB4\n    BB4 -> BB5 (assaySignal40 > 0)\n    BB4 -> BB6 (assaySignal40 <= 0)\n    BB5 -> BB7\n    BB6 -> BB7\n\n--------------------------------------------------------------------------------\nBIOSCRIPT FILES\n--------------------------------------------------------------------------------\n\n  .bs file  : moazami_world_to_chip_dmf.bs   (BioScript source)\n  .json file: moazami_world_to_chip_dmf.json (protocol in JSON format)\n  .txt file : moazami_world_to_chip_dmf.txt  (this file)\n  .dot file : moazami_world_to_chip_dmf_main_dag.dot (CFG output)\n  .ir file  : moazami_world_to_chip_dmf.ir   (IR output)\n\n================================================================================\nEND OF PROTOCOL\n================================================================================\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module transformationQC\nmodule endoglucanaseDetection\n\nmanifest CompetentCells\nmanifest pFAB4876\nmanifest pSB1C3_RFP\nmanifest CaCl2_Stock\nmanifest LB_Media\nmanifest MUC_Substrate\nmanifest EndoglucanaseEnzyme\nmanifest QuenchingSolution\nmanifest Buffer\nmanifest PluronicF68\n\n// ============================================================\n// Integration of World-to-Chip Interfaces with Digital\n// Microfluidics for Bacterial Transformation and Enzymatic\n// Assays. Moazami et al., Anal. Chem. 2019, 91, 5159-5168.\n// DOI: 10.1021/acs.analchem.8b05754\n//\n// Two protocols are encoded in sequence:\n//\n// PROTOCOL 1: Microscale Bacterial Co-Transformation (E. coli\n//   DH5alpha with pFAB4876 [KanR] and pSB1C3-RFP [CamR]).\n//   Heat-shock protocol: 42 C for 60s, then 4 C for 180s.\n//   ITO-well-DMF configuration modelled (reagent-well refilling).\n//   Three replicate droplets (1 uL each) are merged from:\n//   competent cells + DNA plasmids + CaCl2 in equal volumes.\n//\n// PROTOCOL 2: Enzymatic Endoglucanase Assay.\n//   Enzyme: endoglucanase (cleaves beta-1,4 glycosidic bonds).\n//   Substrate: 4-methylumbelliferyl beta-D-cellobioside (MUC).\n//   Three substrate concentrations (40, 20, 10 uM) dispensed\n//   by serial dilution. Assay run at 30 C for 30 min.\n//   Quenching: 0.3 M glycine-NaOH pH 11.0.\n//   Readout: MUF fluorescence at 449 nm (excitation 368 nm).\n//   All solutions contain 0.05% Pluronics F-68 additive.\n//\n// DROPLET VOLUMES: All unit droplets are ~1 uL, dispensed at\n//   160 V_rms, 15 kHz. Reservoir target volume: 7 uL.\n//   ITO-well-DMF: 400 uL bulk reagent in 3D-printed well;\n//   ancillary reservoir refills main after every dispense.\n//\n// TEMPERATURE CONTROL: Closed-loop PID TEC (Kp=15, Ki=1.2,\n//   Kd=0.5). Heat-shock zone: 42 C; cold zone: 4 C.\n//   `heat` statements model TEC actuation.\n//\n// CFG STRUCTURE:\n//   BB1  main             -- device init; transformation protocol\n//   BB2  transformPass    -- transformSignal > 0: valid colonies;\n//                           dispose and proceed to enzymatic assay\n//   BB3  transformFail    -- transformSignal <= 0: no colonies; drain\n//   BB4  transformJoin    -- join: enzymatic assay branch begins\n//   BB5  assayPass        -- assaySignal > 0: valid fluorescence;\n//                           dispose all assay droplets\n//   BB6  assayFail        -- assaySignal <= 0: invalid; drain all\n//   BB7  finalCleanup     -- terminal: dispose all QC signals\n// ============================================================\n\ninstructions:\n\n// ============================================================\n// BB1: main\n// ============================================================\n\n// ------------------------------------------------------------\n// PROTOCOL 1 - STEP 1: Dispense competent E. coli DH5alpha\n//   cells (thawed on ice for 10 min before use).\n//   1 uL unit droplet dispensed from main reservoir (7 uL).\n//   In ITO-well-DMF: 400 uL bulk cells loaded in 3D well;\n//   ancillary reservoir refills main after each dispense.\n//\n//   Three reagent droplets are dispensed independently and\n//   then merged in steps 3-5.\n// ------------------------------------------------------------\n\ncellDroplet    = dispense 1 units of CompetentCells\n\n// ------------------------------------------------------------\n// PROTOCOL 1 - STEP 2: Dispense plasmid DNA droplets.\n//   pFAB4876: codes for GFP, selects on kanamycin (50 ug/mL).\n//   pSB1C3-RFP: selects on chloramphenicol (35 ug/mL).\n//   Each diluted to 1 ug/uL; 100 ng per reaction on-chip.\n//   Co-transformation: both plasmids present simultaneously.\n// ------------------------------------------------------------\n\ndna1Droplet    = dispense 1 units of pFAB4876\ndna2Droplet    = dispense 1 units of pSB1C3_RFP\n\n// ------------------------------------------------------------\n// PROTOCOL 1 - STEP 3: Dispense CaCl2 solution.\n//   Stock: 150 mM. Final concentration on-chip: 75 mM.\n//   CaCl2 is critical for chemical competence and DNA uptake.\n// ------------------------------------------------------------\n\ncacl2Droplet   = dispense 1 units of CaCl2_Stock\n\n// ------------------------------------------------------------\n// PROTOCOL 1 - STEP 4: Merge DNA plasmids first.\n//   1 uL pFAB4876 + 1 uL pSB1C3-RFP merged on electrode\n//   array at 160 V_rms, 15 kHz.\n// ------------------------------------------------------------\n\ndnaMix         = mix dna1Droplet with dna2Droplet for 5s\n\n// ------------------------------------------------------------\n// PROTOCOL 1 - STEP 5: Merge cells + DNA mix.\n//   Combined droplet now contains both plasmids and cells\n//   in equal volume ratio (1:1:1:1 for 4-component merge).\n// ------------------------------------------------------------\n\ncellDnaMix     = mix cellDroplet with dnaMix for 5s\n\n// ------------------------------------------------------------\n// PROTOCOL 1 - STEP 6: Add CaCl2 to complete transformation\n//   mix. Final droplet (~4 uL) contains cells, pFAB4876,\n//   pSB1C3-RFP, CaCl2 at 75 mM. Mixed for 10 s on-chip.\n// ------------------------------------------------------------\n\ntransformMix   = mix cellDnaMix with cacl2Droplet for 10s\n\n// ------------------------------------------------------------\n// PROTOCOL 1 - STEP 7: Heat shock - Phase 1 (42 C, 60 s).\n//   TEC heats reaction zone to 42 C under closed-loop PID\n//   control (Kp=15, Ki=1.2, Kd=0.5). Rise rate: 2.1 C/s.\n//   Heat shock drives DNA uptake through transient membrane\n//   pores in chemically competent DH5alpha cells.\n// ------------------------------------------------------------\n\nheat transformMix at 42c for 60s\n\n// ------------------------------------------------------------\n// PROTOCOL 1 - STEP 8: Heat shock - Phase 2 (4 C, 180 s).\n//   TEC rapidly cools to 4 C (rate: 1.01 C/s) to stop\n//   membrane disruption and stabilise DNA-cell complex.\n//   180 s = 3 min recovery at cold zone.\n// ------------------------------------------------------------\n\nheat transformMix at 4c for 180s\n\n// ------------------------------------------------------------\n// PROTOCOL 1 - STEP 9: Post-transformation QC detection.\n//   transformationQC module abstracts the off-chip colony\n//   count step (agar plate with Kan+Cam selection, 37 C\n//   overnight). On-chip: the merged droplet is sampled\n//   post-heat-shock and checked for cell viability signal\n//   as a proxy for transformation success.\n//   Expected (PID + well): ~9.27e4 CFU/ug for co-transform.\n// ------------------------------------------------------------\n\ntransformSignal = detect transformationQC on transformMix for 30s\n\n// ============================================================\n// BB2 / BB3: Transformation QC gate\n// Pass (BB2): transformSignal > 0 -> viable transformed cells\n//             detected; dispose and continue to assay branch.\n// Fail (BB3): transformSignal <= 0 -> no viable signal; drain.\n// Both branches converge at BB4 (transformJoin).\n// ============================================================\n\nif (transformSignal > 0) {\n    dispose transformMix\n} else {\n    drain transformMix\n}\n\n// ============================================================\n// BB4: transformJoin\n// Dispose transformation QC signal. Control falls into\n// enzymatic assay branch (BB5/BB6).\n// ============================================================\n\ndispose transformSignal\n\n// ============================================================\n// PROTOCOL 2: Enzymatic Endoglucanase Assay\n// ============================================================\n\n// ------------------------------------------------------------\n// PROTOCOL 2 - STEP 1: 40 uM assay droplet (1 unit substrate).\n//   Dispensed directly into assay area 1. No dilution needed.\n//   Buffer: 50 mM sodium-phosphate pH 7.0.\n//   Substrate: 4-methylumbelliferyl beta-D-cellobioside (MUC).\n//   In ITO-well-DMF: substrate reservoir refilled from 3D well.\n//   All solutions contain 0.05% Pluronics F-68 additive.\n// ------------------------------------------------------------\n\nmuc40uM_Assay  = dispense 1 units of MUC_Substrate\n\n// ------------------------------------------------------------\n// PROTOCOL 2 - STEP 2: 20 uM assay droplet (direct dilution).\n//   Dispense 1 unit of 40 uM MUC stock + 1 unit buffer.\n//   Mix 1:1 -> 2-unit droplet at 20 uM. No split needed.\n//   Concentration: (1 x 40 uM) / 2 units total = 20 uM. Correct.\n//\n//   NOTE ON COMPILER CONSTRAINT: lilott8/BioScript does not\n//   support array zipping (multi-unit dispense does not produce\n//   discrete array elements for enzyme/quench matching) and\n//   split arrays leave stranded droplets if not fully consumed.\n//   Direct dispense + mix avoids both failure modes entirely.\n//   All three assay droplets are scalar; all downstream ops\n//   are strict 1-to-1 with no array indexing required.\n// ------------------------------------------------------------\n\nmuc40_for20    = dispense 1 units of MUC_Substrate\nbuffer_for20   = dispense 1 units of Buffer\n\nmuc20uM_Assay  = mix muc40_for20 with buffer_for20 for 5s\n\n// ------------------------------------------------------------\n// PROTOCOL 2 - STEP 3: 10 uM assay droplet (direct dilution).\n//   Dispense 1 unit of 40 uM MUC stock + 3 units buffer.\n//   Mix -> 4-unit droplet at 10 uM. No split needed.\n//   Concentration: (1 x 40 uM) / 4 units total = 10 uM. Correct.\n// ------------------------------------------------------------\n\nmuc40_for10    = dispense 1 units of MUC_Substrate\n\n// Three buffer droplets instantiated explicitly (compiler ignores\n// multi-unit volume scalars; chaining is required to accumulate\n// 3 units of buffer for the correct 1:3 dilution to 10 uM).\nb1             = dispense 1 units of Buffer\nb2             = dispense 1 units of Buffer\nb3             = dispense 1 units of Buffer\n\nb_mix_2        = mix b1 with b2 for 5s\nb_mix_3        = mix b_mix_2 with b3 for 5s\n\n// Final 1:3 dilution: (1 unit x 40 uM) / 4 units total = 10 uM.\nmuc10uM_Assay  = mix muc40_for10 with b_mix_3 for 5s\n\n// ------------------------------------------------------------\n// PROTOCOL 2 - STEP 4: Dispense enzyme droplets.\n//   Paper M&M: \"a unit droplet of enzyme solution (~1 uL) was\n//   dispensed into one of three assay areas.\" Each assay area\n//   receives exactly 1 unit of enzyme regardless of substrate\n//   volume. Enzyme concentration is held constant across all\n//   three substrate concentration conditions (paper Fig. 5c\n//   caption: \"enzyme concentration remaining constant\").\n//   In ITO-well-DMF: enzyme reservoir refilled from 3D well\n//   after each dispense (ancillary reservoir refill sequence).\n// ------------------------------------------------------------\n\nenzymeDrop40   = dispense 1 units of EndoglucanaseEnzyme\nenzymeDrop20   = dispense 1 units of EndoglucanaseEnzyme\nenzymeDrop10   = dispense 1 units of EndoglucanaseEnzyme\n\n// ------------------------------------------------------------\n// PROTOCOL 2 - STEP 5: Start reactions.\n//   Merge enzyme into each substrate assay area.\n//   Paper M&M: \"all three substrate-containing droplets were\n//   simultaneously mixed with the enzyme droplets in the\n//   assay areas.\" TEC activates for closed-loop 30 C control\n//   (Kp=15, Ki=1.2, Kd=0.5).\n// ------------------------------------------------------------\n\nreaction40uM   = mix muc40uM_Assay with enzymeDrop40 for 5s\nreaction20uM   = mix muc20uM_Assay with enzymeDrop20 for 5s\nreaction10uM   = mix muc10uM_Assay with enzymeDrop10 for 5s\n\n// ------------------------------------------------------------\n// PROTOCOL 2 - STEP 6: Incubate at 30 C for 30 min (1800 s).\n//   Endoglucanase cleaves the beta-(1,4) glycosidic bond in\n//   MUC, releasing 4-methylumbelliferone (MUF) fluorophore.\n//   Closed-loop PID TEC maintains 30 C steady state.\n//   All three reactions run concurrently in separate assay\n//   areas on the same DMF device.\n// ------------------------------------------------------------\n\nheat reaction40uM at 30c for 30m\nheat reaction20uM at 30c for 30m\nheat reaction10uM at 30c for 30m\n\n// ------------------------------------------------------------\n// PROTOCOL 2 - STEP 7: Quench reactions.\n//   Quenching solution: 0.3 M glycine-NaOH, pH 11.0.\n//   1 uL quench droplet merged with each 1 uL reaction droplet\n//   in its assay area. Quenching stops enzymatic activity and\n//   enhances MUF fluorescence at alkaline pH.\n// ------------------------------------------------------------\n\n// Quench: 1 unit per assay area regardless of substrate volume.\n// Paper M&M: \"a unit droplet of quenching solution (0.3 M\n// glycine-NaOH, pH 11.0) was mixed with each reaction droplet.\"\nquench40       = dispense 1 units of QuenchingSolution\nquench20       = dispense 1 units of QuenchingSolution\nquench10       = dispense 1 units of QuenchingSolution\n\nquenched40uM   = mix reaction40uM with quench40 for 5s\nquenched20uM   = mix reaction20uM with quench20 for 5s\nquenched10uM   = mix reaction10uM with quench10 for 5s\n\n// ------------------------------------------------------------\n// PROTOCOL 2 - STEP 8: Fluorescence detection.\n//   endoglucanaseDetection module abstracts the CLARIOStar\n//   plate reader readout (off-chip step; device placed on\n//   96-well plate). MUF emission at 449 nm, excitation 368 nm.\n//   Well-scan: 15x15 matrix, 6 mm diameter, focal height 4.0 mm.\n//   Maximum fluorescence per droplet recorded.\n//   QC gate uses 40 uM droplet (highest expected signal).\n// ------------------------------------------------------------\n\nassaySignal40  = detect endoglucanaseDetection on quenched40uM for 30s\nassaySignal20  = detect endoglucanaseDetection on quenched20uM for 30s\nassaySignal10  = detect endoglucanaseDetection on quenched10uM for 30s\n\n// ============================================================\n// BB5 / BB6: Assay QC gate (keyed on 40 uM signal; highest)\n// Pass (BB5): assaySignal40 > 0 -> valid MUF fluorescence;\n//             dispose all three quenched reaction droplets.\n// Fail (BB6): assaySignal40 <= 0 -> no signal (enzyme inactive\n//             or reagent failure); drain all.\n// Both branches converge at BB7 (finalCleanup).\n// ============================================================\n\nif (assaySignal40 > 0) {\n    dispose quenched40uM\n    dispose quenched20uM\n    dispose quenched10uM\n} else {\n    drain quenched40uM\n    drain quenched20uM\n    drain quenched10uM\n}\n\n// ============================================================\n// BB7: finalCleanup (terminal)\n// Dispose all three assay QC signal droplets.\n// Experiment ends.\n// ============================================================\n\ndispose assaySignal40\ndispose assaySignal20\ndispose assaySignal10\n\n// [terminal -- no further instructions; exit node for CFG]\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "moazami_world_to_chip_dmf_001",
+      "protocol_name": "moazami_world_to_chip_dmf",
+      "category": "cell_based",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "World-to-Chip DMF -- Bacterial Transformation and Enzymatic Assay",
+      "publisher": "Analytical Chemistry, 2019, Vol. 91, pp. 5159-5168",
+      "doi": "10.1021/acs.analchem.8b05754",
+      "url": "https://www.shihmicrolab.ca/_files/ugd/f0a828_18be169d68164b85b204ed067c7dc1f5.pdf",
+      "platform": "Digital Microfluidic (DMF) -- ITO-well-DMF configuration"
+    },
+    "bioscript": {
+      "manifests": [
+        "CompetentCells",
+        "pFAB4876",
+        "pSB1C3_RFP",
+        "CaCl2_Stock",
+        "LB_Media",
+        "MUC_Substrate",
+        "EndoglucanaseEnzyme",
+        "QuenchingSolution",
+        "Buffer",
+        "PluronicF68"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "drain",
+        "split",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": true,
+        "has_gradient": false,
+        "num_steps": 51
       }
-    ],
-    "reagents": [
-      {
-        "id": "CompetentCells",
-        "description": "Chemically competent E. coli DH5alpha cells; thawed on ice 10 min before use",
-        "quantity": 1,
-        "quantity_unit": "units (~1 uL per droplet)"
-      },
-      {
-        "id": "pFAB4876",
-        "description": "Plasmid coding for GFP; kanamycin selection (50 ug/mL); diluted to 1 ug/uL; 100 ng per reaction",
-        "quantity": 1,
-        "quantity_unit": "units (~1 uL per droplet)"
-      },
-      {
-        "id": "pSB1C3_RFP",
-        "description": "Plasmid with RFP insert (BBa_J04450); chloramphenicol selection (35 ug/mL); 100 ng per reaction",
-        "quantity": 1,
-        "quantity_unit": "units (~1 uL per droplet)"
-      },
-      {
-        "id": "CaCl2_Stock",
-        "description": "CaCl2 stock at 150 mM; final on-chip concentration 75 mM; critical for chemical competence",
-        "concentration": 150,
-        "concentration_unit": "mM stock",
-        "quantity": 1,
-        "quantity_unit": "units (~1 uL per droplet)"
-      },
-      {
-        "id": "MUC_Substrate",
-        "description": "4-methylumbelliferyl beta-D-cellobioside (MUC); 40 uM stock in 50 mM sodium-phosphate pH 7.0; 0.05% Pluronics F-68 additive",
-        "concentration": 40,
-        "concentration_unit": "uM",
-        "quantity": 1,
-        "quantity_unit": "units (~1 uL per droplet)"
-      },
-      {
-        "id": "EndoglucanaseEnzyme",
-        "description": "Endoglucanase enzyme; cleaves beta-(1,4) glycosidic bonds in MUC; concentration held constant across all assay conditions; 0.05% Pluronics F-68 additive",
-        "quantity": 1,
-        "quantity_unit": "units (~1 uL per droplet)"
-      },
-      {
-        "id": "QuenchingSolution",
-        "description": "0.3 M glycine-NaOH pH 11.0; stops enzymatic activity and enhances MUF fluorescence at alkaline pH",
-        "concentration": 0.3,
-        "concentration_unit": "M",
-        "quantity": 1,
-        "quantity_unit": "units (~1 uL per droplet)"
-      },
-      {
-        "id": "Buffer",
-        "description": "50 mM sodium-phosphate pH 7.0; used for serial dilution of MUC substrate to 20 uM and 10 uM; 0.05% Pluronics F-68 additive",
-        "concentration": 50,
-        "concentration_unit": "mM",
-        "quantity": 1,
-        "quantity_unit": "units (~1 uL per droplet)"
-      },
-      {
-        "id": "PluronicF68",
-        "description": "0.05% Pluronics F-68 additive; dissolved in all assay solutions; prevents biofouling and maintains droplet actuation on device surface",
-        "concentration": 0.05,
-        "concentration_unit": "% (v/v)",
-        "quantity": null,
-        "quantity_unit": "additive; not dispensed as standalone droplet"
-      }
-    ],
-    "world_to_chip_interfaces": [
-      {
-        "id": "reagent_delivery_system",
-        "description": "3D-printed cylindrical well (8 mm OD, 45 mm height, 1 mm inlet hole; PLA material) mated to ITO top plate; 400 uL bulk reagent capacity; threaded screw delivers fluid to ancillary reservoir on-chip; ancillary reservoir refills main reservoir (7 uL target volume) via impedance-controlled actuation sequence after every dispense; eliminates manual reservoir refilling and improves droplet dispensing reproducibility (RSD reduced from 19.61% to 11.62% for LB media)",
-        "dispensing_voltage": "160 V_rms at 15 kHz"
-      },
-      {
-        "id": "TEC_temperature_control",
-        "description": "20x40 mm thermoelectric cooler (TEC/Peltier module) integrated below DMF chip; aluminum heat block (20x40x5 mm) with RTD sensor; closed-loop PID control implemented in MATLAB/Simulink; PID parameters: Kp=15, Ki=1.2, Kd=0.5; heat-shock zone: 42 C (rise rate 2.1 C/s); cold zone: 4 C (drop rate 1.01 C/s); assay zone: 30 C steady-state; 12V DC cooling fan on heat sink"
-      }
-    ],
-    "steps": [
-      {
-        "step": 1,
-        "protocol": 1,
-        "name": "Dispense competent cells",
-        "note": "E. coli DH5alpha thawed on ice 10 min before use; in ITO-well-DMF configuration, 400 uL bulk cells loaded in 3D-printed well; ancillary reservoir refills main after each dispense",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "CompetentCells",
-            "output": "cellDroplet"
-          }
+    },
+    "cfg": {
+      "basic_blocks": [
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "join"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "7",
+          "label": "bsbbif_7_j",
+          "type": "terminal"
+        }
+      ],
+      "edges": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
         ]
-      },
-      {
-        "step": 2,
-        "protocol": 1,
-        "name": "Dispense plasmid DNA droplets",
-        "note": "pFAB4876 (KanR, GFP) and pSB1C3-RFP (CamR) each diluted to 1 ug/uL; 100 ng per plasmid per reaction; co-transformation uses both plasmids simultaneously",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "pFAB4876",
-            "output": "dna1Droplet"
-          },
-          {
-            "op": "dispense",
-            "reagent": "pSB1C3_RFP",
-            "output": "dna2Droplet"
-          }
-        ]
-      },
-      {
-        "step": 3,
-        "protocol": 1,
-        "name": "Dispense CaCl2 solution",
-        "note": "CaCl2 stock 150 mM; final on-chip concentration 75 mM after merging with cells and DNA in equal volume ratio",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "CaCl2_Stock",
-            "output": "cacl2Droplet"
-          }
-        ]
-      },
-      {
-        "step": 4,
-        "protocol": 1,
-        "name": "Merge DNA plasmids",
-        "note": "Sequential merging is required for DMF; paper summarises as 'equal volume ratio' merge of all four components",
-        "operations": [
-          {
-            "op": "mix",
-            "inputs": ["dna1Droplet", "dna2Droplet"],
-            "duration": "5s",
-            "output": "dnaMix"
-          }
-        ]
-      },
-      {
-        "step": 5,
-        "protocol": 1,
-        "name": "Merge cells with DNA mix",
-        "operations": [
-          {
-            "op": "mix",
-            "inputs": ["cellDroplet", "dnaMix"],
-            "duration": "5s",
-            "output": "cellDnaMix"
-          }
-        ]
-      },
-      {
-        "step": 6,
-        "protocol": 1,
-        "name": "Add CaCl2 to complete transformation mix",
-        "note": "Final droplet contains cells, pFAB4876, pSB1C3-RFP, and CaCl2 at 75 mM; all four components in equal 1 uL volume ratio",
-        "operations": [
-          {
-            "op": "mix",
-            "inputs": ["cellDnaMix", "cacl2Droplet"],
-            "duration": "10s",
-            "output": "transformMix"
-          }
-        ]
-      },
-      {
-        "step": 7,
-        "protocol": 1,
-        "name": "Heat shock Phase 1 -- 42 C for 60 s",
-        "note": "Closed-loop PID TEC (Kp=15, Ki=1.2, Kd=0.5); rise rate 2.1 C/s; drives transient membrane pore formation for DNA uptake in chemically competent DH5alpha",
-        "operations": [
-          {
-            "op": "heat",
-            "input": "transformMix",
-            "temperature": "42c",
-            "duration": "60s"
-          }
-        ]
-      },
-      {
-        "step": 8,
-        "protocol": 1,
-        "name": "Heat shock Phase 2 -- 4 C for 180 s",
-        "note": "TEC cools to 4 C at 1.01 C/s; stops membrane disruption and stabilises DNA-cell complex; 180 s = 3 min cold recovery",
-        "operations": [
-          {
-            "op": "heat",
-            "input": "transformMix",
-            "temperature": "4c",
-            "duration": "180s"
-          }
-        ]
-      },
-      {
-        "step": 9,
-        "protocol": 1,
-        "name": "Post-transformation QC detection and branch",
-        "note": "transformationQC module abstracts off-chip colony count (Kan+Cam agar plate, 37 C overnight); on-chip proxy: post-heat-shock viability signal; expected efficiency with PID+well: ~9.27e4 CFU/ug DNA for co-transformation",
-        "operations": [
-          {
-            "op": "detect",
-            "module": "transformationQC",
-            "input": "transformMix",
-            "duration": "30s",
-            "output": "transformSignal"
-          },
-          {
-            "op": "conditional",
-            "condition": "transformSignal > 0",
-            "if_true": [
-              {
-                "op": "dispose",
-                "input": "transformMix"
-              }
-            ],
-            "if_false": [
-              {
-                "op": "drain",
-                "input": "transformMix"
-              }
-            ]
-          },
-          {
-            "op": "dispose",
-            "input": "transformSignal"
-          }
-        ]
-      },
-      {
-        "step": 10,
-        "protocol": 2,
-        "name": "Dispense 40 uM MUC substrate assay droplet",
-        "note": "Dispensed first and stored untouched in assay area 1; not consumed by any dilution step; 0.05% Pluronics F-68 in all solutions",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "MUC_Substrate",
-            "output": "muc40uM_Assay"
-          }
-        ]
-      },
-      {
-        "step": 11,
-        "protocol": 2,
-        "name": "Prepare 20 uM MUC assay droplet by direct dilution",
-        "note": "1 unit 40 uM stock + 1 unit buffer mixed 1:1; (1 unit x 40 uM) / 2 units total = 20 uM; scalar mix, no split needed; avoids compiler split-array stranding bug",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "MUC_Substrate",
-            "output": "muc40_for20"
-          },
-          {
-            "op": "dispense",
-            "reagent": "Buffer",
-            "output": "buffer_for20"
-          },
-          {
-            "op": "mix",
-            "inputs": ["muc40_for20", "buffer_for20"],
-            "duration": "5s",
-            "output": "muc20uM_Assay"
-          }
-        ]
-      },
-      {
-        "step": 12,
-        "protocol": 2,
-        "name": "Prepare 10 uM MUC assay droplet by explicit buffer chaining",
-        "note": "Target: 1:3 dilution (1 unit 40 uM stock + 3 units buffer = 10 uM). Compiler ignores multi-unit volume scalars (dispense 3 units defaults to 1 unit in IR); three buffer droplets explicitly instantiated and chained before final mix. (1 unit x 40 uM) / 4 units total = 10 uM.",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "MUC_Substrate",
-            "output": "muc40_for10"
-          },
-          {
-            "op": "dispense",
-            "reagent": "Buffer",
-            "output": "b1"
-          },
-          {
-            "op": "dispense",
-            "reagent": "Buffer",
-            "output": "b2"
-          },
-          {
-            "op": "dispense",
-            "reagent": "Buffer",
-            "output": "b3"
-          },
-          {
-            "op": "mix",
-            "inputs": ["b1", "b2"],
-            "duration": "5s",
-            "output": "b_mix_2"
-          },
-          {
-            "op": "mix",
-            "inputs": ["b_mix_2", "b3"],
-            "duration": "5s",
-            "output": "b_mix_3"
-          },
-          {
-            "op": "mix",
-            "inputs": ["muc40_for10", "b_mix_3"],
-            "duration": "5s",
-            "output": "muc10uM_Assay"
-          }
-        ]
-      },
-      {
-        "step": 13,
-        "protocol": 2,
-        "name": "Dispense enzyme droplets",
-        "note": "One unit droplet per assay area; enzyme concentration held constant across all three substrate concentration conditions (paper Fig. 5 caption); in ITO-well-DMF: enzyme reservoir refilled from 3D well after each dispense",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "EndoglucanaseEnzyme",
-            "output": "enzymeDrop40"
-          },
-          {
-            "op": "dispense",
-            "reagent": "EndoglucanaseEnzyme",
-            "output": "enzymeDrop20"
-          },
-          {
-            "op": "dispense",
-            "reagent": "EndoglucanaseEnzyme",
-            "output": "enzymeDrop10"
-          }
-        ]
-      },
-      {
-        "step": 14,
-        "protocol": 2,
-        "name": "Start reactions -- merge enzyme with substrate in each assay area",
-        "note": "Paper M&M: 'all three substrate-containing droplets were simultaneously mixed with the enzyme droplets in the assay areas'; TEC activates for closed-loop 30 C control",
-        "operations": [
-          {
-            "op": "mix",
-            "inputs": ["muc40uM_Assay", "enzymeDrop40"],
-            "duration": "5s",
-            "output": "reaction40uM"
-          },
-          {
-            "op": "mix",
-            "inputs": ["muc20uM_Assay", "enzymeDrop20"],
-            "duration": "5s",
-            "output": "reaction20uM"
-          },
-          {
-            "op": "mix",
-            "inputs": ["muc10uM_Assay", "enzymeDrop10"],
-            "duration": "5s",
-            "output": "reaction10uM"
-          }
-        ]
-      },
-      {
-        "step": 15,
-        "protocol": 2,
-        "name": "Incubate at 30 C for 30 min",
-        "note": "Endoglucanase cleaves beta-(1,4) glycosidic bond in MUC releasing MUF fluorophore; closed-loop PID TEC holds 30 C steady-state; all three reactions run concurrently in separate assay areas",
-        "operations": [
-          {
-            "op": "heat",
-            "input": "reaction40uM",
-            "temperature": "30c",
-            "duration": "30m"
-          },
-          {
-            "op": "heat",
-            "input": "reaction20uM",
-            "temperature": "30c",
-            "duration": "30m"
-          },
-          {
-            "op": "heat",
-            "input": "reaction10uM",
-            "temperature": "30c",
-            "duration": "30m"
-          }
-        ]
-      },
-      {
-        "step": 16,
-        "protocol": 2,
-        "name": "Quench reactions",
-        "note": "Paper M&M: 'a unit droplet of quenching solution (0.3 M glycine-NaOH, pH 11.0) was mixed with each reaction droplet'; 1 unit quench per assay area regardless of substrate droplet volume",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "QuenchingSolution",
-            "output": "quench40"
-          },
-          {
-            "op": "dispense",
-            "reagent": "QuenchingSolution",
-            "output": "quench20"
-          },
-          {
-            "op": "dispense",
-            "reagent": "QuenchingSolution",
-            "output": "quench10"
-          },
-          {
-            "op": "mix",
-            "inputs": ["reaction40uM", "quench40"],
-            "duration": "5s",
-            "output": "quenched40uM"
-          },
-          {
-            "op": "mix",
-            "inputs": ["reaction20uM", "quench20"],
-            "duration": "5s",
-            "output": "quenched20uM"
-          },
-          {
-            "op": "mix",
-            "inputs": ["reaction10uM", "quench10"],
-            "duration": "5s",
-            "output": "quenched10uM"
-          }
-        ]
-      },
-      {
-        "step": 17,
-        "protocol": 2,
-        "name": "Fluorescence detection and cleanup",
-        "note": "CLARIOStar plate reader (off-chip); MUF emission 449 nm, excitation 368 nm; well-scan 15x15 matrix, 6 mm diameter, focal height 4.0 mm, gain 1180; maximum fluorescence per droplet recorded; QC gate keyed on 40 uM signal (highest expected MUF output)",
-        "operations": [
-          {
-            "op": "detect",
-            "module": "endoglucanaseDetection",
-            "input": "quenched40uM",
-            "duration": "30s",
-            "output": "assaySignal40"
-          },
-          {
-            "op": "detect",
-            "module": "endoglucanaseDetection",
-            "input": "quenched20uM",
-            "duration": "30s",
-            "output": "assaySignal20"
-          },
-          {
-            "op": "detect",
-            "module": "endoglucanaseDetection",
-            "input": "quenched10uM",
-            "duration": "30s",
-            "output": "assaySignal10"
-          },
-          {
-            "op": "conditional",
-            "condition": "assaySignal40 > 0",
-            "if_true": [
-              {"op": "dispose", "input": "quenched40uM"},
-              {"op": "dispose", "input": "quenched20uM"},
-              {"op": "dispose", "input": "quenched10uM"}
-            ],
-            "if_false": [
-              {"op": "drain", "input": "quenched40uM"},
-              {"op": "drain", "input": "quenched20uM"},
-              {"op": "drain", "input": "quenched10uM"}
-            ]
-          },
-          {
-            "op": "dispose",
-            "input": "assaySignal40"
-          },
-          {
-            "op": "dispose",
-            "input": "assaySignal20"
-          },
-          {
-            "op": "dispose",
-            "input": "assaySignal10"
-          }
-        ]
-      }
-    ]
+      ]
+    },
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(transformMix1[0])\nbsbbif_3_f:\n\tdispose(transformMix1[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(transformSignal1[0])\n\tmuc40uM_Assay1[0] = dispense(MUC_Substrate)\n\tmuc40_for201[0] = dispense(MUC_Substrate)\n\tbuffer_for201[0] = dispense(Buffer)\n\tmuc20uM_Assay1[0] = mix(muc40_for201[0], buffer_for201[0]) @ 5.0SECOND\n\tmuc40_for101[0] = dispense(MUC_Substrate)\n\tb11[0] = dispense(Buffer)\n\tb21[0] = dispense(Buffer)\n\tb31[0] = dispense(Buffer)\n\tb_mix_21[0] = mix(b11[0], b21[0]) @ 5.0SECOND\n\tb_mix_31[0] = mix(b_mix_21[0], b31[0]) @ 5.0SECOND\n\tmuc10uM_Assay1[0] = mix(muc40_for101[0], b_mix_31[0]) @ 5.0SECOND\n\tenzymeDrop401[0] = dispense(EndoglucanaseEnzyme)\n\tenzymeDrop201[0] = dispense(EndoglucanaseEnzyme)\n\tenzymeDrop101[0] = dispense(EndoglucanaseEnzyme)\n\treaction40uM1[0] = mix(muc40uM_Assay1[0], enzymeDrop401[0]) @ 5.0SECOND\n\treaction20uM1[0] = mix(muc20uM_Assay1[0], enzymeDrop201[0]) @ 5.0SECOND\n\treaction10uM1[0] = mix(muc10uM_Assay1[0], enzymeDrop101[0]) @ 5.0SECOND\n\theat(reaction40uM1[0]) @ 30.0CELSIUS @ 1800.0SECOND\n\theat(reaction20uM1[0]) @ 30.0CELSIUS @ 1800.0SECOND\n\theat(reaction10uM1[0]) @ 30.0CELSIUS @ 1800.0SECOND\n\tquench401[0] = dispense(QuenchingSolution)\n\tquench201[0] = dispense(QuenchingSolution)\n\tquench101[0] = dispense(QuenchingSolution)\n\tquenched40uM1[0] = mix(reaction40uM1[0], quench401[0]) @ 5.0SECOND\n\tquenched20uM1[0] = mix(reaction20uM1[0], quench201[0]) @ 5.0SECOND\n\tquenched10uM1[0] = mix(reaction10uM1[0], quench101[0]) @ 5.0SECOND\n\tassaySignal401[0] = detect(endoglucanaseDetection, quenched40uM1[0]) @ 30.0SECOND\n\tassaySignal201[0] = detect(endoglucanaseDetection, quenched20uM1[0]) @ 30.0SECOND\n\tassaySignal101[0] = detect(endoglucanaseDetection, quenched10uM1[0]) @ 30.0SECOND\n\tif assaySignal401[0] > 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nmain:\n\tcellDroplet1[0] = dispense(CompetentCells)\n\tdna1Droplet1[0] = dispense(pFAB4876)\n\tdna2Droplet1[0] = dispense(pSB1C3_RFP)\n\tcacl2Droplet1[0] = dispense(CaCl2_Stock)\n\tdnaMix1[0] = mix(dna1Droplet1[0], dna2Droplet1[0]) @ 5.0SECOND\n\tcellDnaMix1[0] = mix(cellDroplet1[0], dnaMix1[0]) @ 5.0SECOND\n\ttransformMix1[0] = mix(cellDnaMix1[0], cacl2Droplet1[0]) @ 10.0SECOND\n\theat(transformMix1[0]) @ 42.0CELSIUS @ 60.0SECOND\n\theat(transformMix1[0]) @ 4.0CELSIUS @ 180.0SECOND\n\ttransformSignal1[0] = detect(transformationQC, transformMix1[0]) @ 30.0SECOND\n\tif transformSignal1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbif_5_t:\n\tdispose(quenched40uM1[0])\n\tdispose(quenched20uM1[0])\n\tdispose(quenched10uM1[0])\nbsbbif_6_f:\n\tdispose(quenched40uM1[0])\n\tdispose(quenched20uM1[0])\n\tdispose(quenched10uM1[0])\n\tjump: bsbbif_7_j\nbsbbif_7_j:\n\tdispose(assaySignal401[0])\n\tdispose(assaySignal201[0])\n\tdispose(assaySignal101[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "CompetentCells",
+          "source_quote": "CompetentCells        E.",
+          "source_location": "description.txt: REAGENTS"
+        },
+        {
+          "bs_chemical": "pFAB4876",
+          "source_quote": "dna1Droplet = dispense 1 units of pFAB4876",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_chemical": "pSB1C3_RFP",
+          "source_quote": "dna2Droplet = dispense 1 units of pSB1C3_RFP",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_chemical": "CaCl2_Stock",
+          "source_quote": "STEP 3 -- Dispense CaCl2 Solution",
+          "source_location": "description.txt: Notes"
+        },
+        {
+          "bs_chemical": "LB_Media",
+          "source_quote": "Target      : -t ir (Intermediate Representation + Control Flow Graph)",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "MUC_Substrate",
+          "source_quote": "muc40_for10 = dispense 1 units of MUC_Substrate",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_chemical": "EndoglucanaseEnzyme",
+          "source_quote": "enzymeDrop40 = dispense 1 units of EndoglucanaseEnzyme",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_chemical": "QuenchingSolution",
+          "source_quote": "quench40     = dispense 1 units of QuenchingSolution",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_chemical": "Buffer",
+          "source_quote": "b1          = dispense 1 units of Buffer",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_chemical": "PluronicF68",
+          "source_quote": "PluronicF68           0.05% Pluronics F-68 additive         Dissolved in all",
+          "source_location": "description.txt: REAGENTS"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "a single 1-unit dispense.",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "STEP 4 -- Merge DNA Plasmids",
+          "source_location": "description.txt: Notes"
+        },
+        {
+          "bs_operation": "heat",
+          "source_quote": "TEMPERATURE CONTROL PARAMETERS",
+          "source_location": "description.txt"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "fluorescence at alkaline pH",
+          "source_location": "description.txt: REAGENTS"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "BB2  bsbbif_2_t    -- transform pass: dispose transformMix",
+          "source_location": "description.txt: CFG STRUCTURE (this protocol)"
+        },
+        {
+          "bs_operation": "drain",
+          "source_quote": "failure); drain all",
+          "source_location": "description.txt: Notes"
+        },
+        {
+          "bs_operation": "split",
+          "source_quote": "Split arrays cannot be partially consumed.",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "if (assaySignal40 > 0) {",
+          "source_location": "description.txt: Operations"
+        }
+      ],
+      "numeric_mismatches": []
+    },
+    "notes": "This protocol details World-to-Chip DMF -- Bacterial Transformation and Enzymatic Assay. The assay is performed on a Digital Microfluidic (DMF) -- ITO-well-DMF configuration platform. Detection and quantification are carried out using device placed on 96-well plate in CLARIOStar reader."
   }
 }

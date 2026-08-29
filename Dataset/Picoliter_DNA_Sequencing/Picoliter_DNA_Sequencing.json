@@ -1,64 +1,253 @@
 {
+  "_schema": "biogpt-v4",
   "messages": [
-    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
-    { "role": "user", "content": "ASSAY TYPE: Picoliter-Scale Electrowetting Digital Microfluidic Pyrosequencing (Bead-Bound DNA Extension Coupled to ATP-Sulfurylase/Luciferase Chemiluminescent Detection)\n\nREAGENTS USED:\n  - DNA-Bound Paramagnetic Beads (target DNA template bound to streptavidin-functionalized paramagnetic beads, magnetically held at the reservoir exit)\n  - Polymerase (DNA polymerase used to catalyze template-directed nucleotide incorporation)\n  - dNTP (single deoxynucleotide triphosphate, e.g. dATP, cyclically dispensed one base at a time during sequencing-by-synthesis)\n  - APS (adenosine 5'-phosphosulfate, substrate for ATP sulfurylase)\n  - ATP Sulfurylase (enzyme converting released pyrophosphate + APS into ATP)\n  - Luciferin (D-luciferin substrate for firefly luciferase, 400 ug/mL working concentration)\n  - Luciferase (QuantiLum recombinant firefly luciferase, 1.0-2.0 ug/uL working concentration for optimal picoliter-scale signal)\n  - Wash Buffer (50 mM TRIS pH 7.6, 5.0 mM magnesium acetate, 0.5 mM EDTA, 1.0 mM DTT, 0.01-0.02% wt Tween 20, used to rinse beads between cycles and prevent cross-contamination)\n\nSTEPS:\n1. Bead loading: Dispense the DNA-bound paramagnetic bead droplet and a polymerase droplet, magnetically hold the beads at the reservoir exit, and mix to form the primed template droplet.\n2-5. Nucleotide addition (repeated once per base in the sequencing cycle): Dispense a single dNTP droplet and mix it with the bead-bound template so that, per Equation 1 (DNA + dNTP --Polymerase--> DNA-dNP + PPi), a correct incorporation releases pyrophosphate (PPi) into the droplet.\n6. ATP generation: Dispense APS and ATP sulfurylase droplets and sequentially mix them with the extension droplet so that, per Equation 2 (PPi + APS --ATP Sulfurylase--> ATP + SO4^2-), the released PPi is converted to ATP.\n7. Chemiluminescent detection: Dispense luciferin and luciferase droplets and sequentially mix them with the ATP-containing droplet so that, per Equation 3 (ATP + Luciferin + O2 --Luciferase--> AMP + PPi + Oxyluciferin + CO2 + Light), light is produced in proportion to the amount of ATP (and therefore the number of bases incorporated); observe/quantify the resulting chemiluminescence intensity with a cooled CCD camera over a fixed exposure window.\n8. Signal evaluation and bead rinse: If the detected intensity falls below the empirically determined limit-of-detection threshold (~7 nM ATP equivalent, S/N = 5), dispose of the reacted droplet and re-form the bead-bound template by mixing the magnetically-held beads with a fresh wash-buffer droplet before the next cycle, to eliminate dilution/cross-contamination effects; otherwise carry the reacted droplet forward as the template for the next nucleotide-addition cycle.\n9. Cycle repeat: Repeat steps 2-8 for each subsequent base in the sequencing run.\n10. Final rinse and disposal: After the sequencing cycles are complete, rinse the bead-bound template with successive wash-buffer droplets to remove residual reagent, then discard.\n\nINTERPRETATION: Successful pyrosequencing chemistry on the picoliter-scale device is confirmed by a linear chemiluminescence response to ATP concentration (limit of detection ~7 nM ATP, corresponding to single-nucleotide incorporation on ~2 amol of DNA in a 300 pL droplet) and by luciferase-concentration optimization (1.0-2.0 ug/uL) yielding sufficient initial peak intensity for reliable detection despite the inherently lower light output at picoliter droplet volumes, supporting the feasibility of miniaturized digital-microfluidic pyrosequencing for low-reagent-volume, field-portable DNA sequencing." },
-    { "role": "assistant", "content": "module fluorescence\n\nmanifest DNA_Beads\nmanifest Polymerase\nmanifest dATP\nmanifest APS\nmanifest ATP_Sulfurylase\nmanifest Luciferin\nmanifest Luciferase\nmanifest Wash_Buffer\n\ninstructions:\n\nbeads = dispense 1 units of DNA_Beads\npoly = dispense 5 units of Polymerase\ntemplate = mix beads with poly for 10s\n\nrepeat 4 times {\n\n    // --- nucleotide addition: DNA + dNTP --Polymerase--> DNA-dNP + PPi ---\n    nucleotide = dispense 5 units of dATP\n    template = mix template with nucleotide for 10s\n\n    // --- PPi + APS --ATP Sulfurylase--> ATP + SO4(2-) ---\n    aps = dispense 5 units of APS\n    sulfurylase = dispense 5 units of ATP_Sulfurylase\n    template = mix template with aps for 10s\n    template = mix template with sulfurylase for 10s\n\n    // --- ATP + Luciferin + O2 --Luciferase--> AMP + PPi + Oxyluciferin + CO2 + Light ---\n    luc_substrate = dispense 5 units of Luciferin\n    luc_enzyme = dispense 5 units of Luciferase\n    template = mix template with luc_substrate for 5s\n    template = mix template with luc_enzyme for 5s\n\n    signal = detect fluorescence on template for 10s\n\n    if (signal < 7) {\n        dispose template\n        wash = dispense 300 units of Wash_Buffer\n        template = mix beads with wash for 5s\n    }\n}\n\n// --- final wash / rinse cycle before disposal ---\nrepeat 2 times {\n    rinse = dispense 300 units of Wash_Buffer\n    template = mix template with rinse for 5s\n}\n\ndispose template" }
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "Source link: https://pmc.ncbi.nlm.nih.gov/articles/PMC3079775/pdf/nihms263296.pdf\nPaper DOI: https://doi.org/10.1002/biot.201000324\n\nProtocol details:\n\nASSAY TYPE: Picoliter-Scale Electrowetting Digital Microfluidic Pyrosequencing (Bead-Bound DNA Extension Coupled to ATP-Sulfurylase/Luciferase Chemiluminescent Detection)\n\nREAGENTS USED:\n  - DNA-Bound Paramagnetic Beads (target DNA template bound to streptavidin-functionalized paramagnetic beads, magnetically held at the reservoir exit)\n  - Polymerase (DNA polymerase used to catalyze template-directed nucleotide incorporation)\n  - dNTP (single deoxynucleotide triphosphate, e.g. dATP, cyclically dispensed one base at a time during sequencing-by-synthesis)\n  - APS (adenosine 5'-phosphosulfate, substrate for ATP sulfurylase)\n  - ATP Sulfurylase (enzyme converting released pyrophosphate + APS into ATP)\n  - Luciferin (D-luciferin substrate for firefly luciferase, 400 ug/mL working concentration)\n  - Luciferase (QuantiLum recombinant firefly luciferase, 1.0-2.0 ug/uL working concentration for optimal picoliter-scale signal)\n  - Wash Buffer (50 mM TRIS pH 7.6, 5.0 mM magnesium acetate, 0.5 mM EDTA, 1.0 mM DTT, 0.01-0.02% wt Tween 20, used to rinse beads between cycles and prevent cross-contamination)\n\nSTEPS:\n1. Bead loading: Dispense the DNA-bound paramagnetic bead droplet and a polymerase droplet, magnetically hold the beads at the reservoir exit, and mix to form the primed template droplet.\n2-5. Nucleotide addition (repeated once per base in the sequencing cycle): Dispense a single dNTP droplet and mix it with the bead-bound template so that, per Equation 1 (DNA + dNTP --Polymerase--> DNA-dNP + PPi), a correct incorporation releases pyrophosphate (PPi) into the droplet.\n6. ATP generation: Dispense APS and ATP sulfurylase droplets and sequentially mix them with the extension droplet so that, per Equation 2 (PPi + APS --ATP Sulfurylase--> ATP + SO4^2-), the released PPi is converted to ATP.\n7. Chemiluminescent detection: Dispense luciferin and luciferase droplets and sequentially mix them with the ATP-containing droplet so that, per Equation 3 (ATP + Luciferin + O2 --Luciferase--> AMP + PPi + Oxyluciferin + CO2 + Light), light is produced in proportion to the amount of ATP (and therefore the number of bases incorporated); observe/quantify the resulting chemiluminescence intensity with a cooled CCD camera over a fixed exposure window.\n8. Signal evaluation and bead rinse: If the detected intensity falls below the empirically determined limit-of-detection threshold (~7 nM ATP equivalent, S/N = 5), dispose of the reacted droplet and re-form the bead-bound template by mixing the magnetically-held beads with a fresh wash-buffer droplet before the next cycle, to eliminate dilution/cross-contamination effects; otherwise carry the reacted droplet forward as the template for the next nucleotide-addition cycle.\n9. Cycle repeat: Repeat steps 2-8 for each subsequent base in the sequencing run.\n10. Final rinse and disposal: After the sequencing cycles are complete, rinse the bead-bound template with successive wash-buffer droplets to remove residual reagent, then discard.\n\nINTERPRETATION: Successful pyrosequencing chemistry on the picoliter-scale device is confirmed by a linear chemiluminescence response to ATP concentration (limit of detection ~7 nM ATP, corresponding to single-nucleotide incorporation on ~2 amol of DNA in a 300 pL droplet) and by luciferase-concentration optimization (1.0-2.0 ug/uL) yielding sufficient initial peak intensity for reliable detection despite the inherently lower light output at picoliter droplet volumes, supporting the feasibility of miniaturized digital-microfluidic pyrosequencing for low-reagent-volume, field-portable DNA sequencing.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest DNA_Beads\nmanifest Polymerase\nmanifest dATP\nmanifest APS\nmanifest ATP_Sulfurylase\nmanifest Luciferin\nmanifest Luciferase\nmanifest Wash_Buffer\n\ninstructions:\n\nbeads = dispense 1 units of DNA_Beads\npoly = dispense 5 units of Polymerase\ntemplate = mix beads with poly for 10s\n\nrepeat 4 times {\n\n    // --- nucleotide addition: DNA + dNTP --Polymerase--> DNA-dNP + PPi ---\n    nucleotide = dispense 5 units of dATP\n    template = mix template with nucleotide for 10s\n\n    // --- PPi + APS --ATP Sulfurylase--> ATP + SO4(2-) ---\n    aps = dispense 5 units of APS\n    sulfurylase = dispense 5 units of ATP_Sulfurylase\n    template = mix template with aps for 10s\n    template = mix template with sulfurylase for 10s\n\n    // --- ATP + Luciferin + O2 --Luciferase--> AMP + PPi + Oxyluciferin + CO2 + Light ---\n    luc_substrate = dispense 5 units of Luciferin\n    luc_enzyme = dispense 5 units of Luciferase\n    template = mix template with luc_substrate for 5s\n    template = mix template with luc_enzyme for 5s\n\n    signal = detect fluorescence on template for 10s\n\n    if (signal < 7) {\n        dispose template\n        wash = dispense 300 units of Wash_Buffer\n        template = mix beads with wash for 5s\n    }\n}\n\n// --- final wash / rinse cycle before disposal ---\nrepeat 2 times {\n    rinse = dispense 300 units of Wash_Buffer\n    template = mix template with rinse for 5s\n}\n\ndispose template\n"
+    }
   ],
   "metadata": {
-    "protocol_id": "dmf_pyrosequencing_picoliter_001",
-    "bs_file": "tests/test_cases/pyrosequencing/pyrosequencing_picoliter_dmf.bs",
-    "protocol_name": "Picoliter DNA Sequencing Chemistry on an Electrowetting-based Digital Microfluidic Platform (Ferguson Welch et al. 2011)",
-    "category": "dna_sequencing_assay",
-    "chemicals": [
-      "DNA_Beads",
-      "Polymerase",
-      "dATP",
-      "APS",
-      "ATP_Sulfurylase",
-      "Luciferin",
-      "Luciferase",
-      "Wash_Buffer"
-    ],
-    "operations": [
-      "dispense",
-      "mix",
-      "detect",
-      "if",
-      "repeat",
-      "dispose"
-    ],
-    "validation_score": 0.0,
-    "validated": false,
-    "validation_status": "pending_v2",
-    "adaptation_status": "adapted_authored",
-    "sources": [
-      { "type": "original_protocol", "title": "Picoliter DNA Sequencing Chemistry on an Electrowetting-based Digital Microfluidic Platform", "publisher": "Biotechnology Journal", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3079775/pdf/nihms263296.pdf", "doi": "10.1002/biot.201000324" }
-    ],
-    "notes": "The authored BioScript code combines the paper's three conceptual pyrosequencing reactions (Equations 1-3: polymerase extension releasing PPi, ATP-sulfurylase-mediated PPi-to-ATP conversion, and luciferase-driven chemiluminescence) into a single per-base cycle, repeated 4 times to represent sequential nucleotide additions, mirroring the bead-hold/reagent-add/split-and-detect workflow described qualitatively in the paper (Section 1, Introduction, and Section 3.2 on magnetic bead manipulation) rather than any single explicitly tabulated experimental run. Because BioScript's grammar does not support iterating over a list of distinct reagents, the four natural nucleotides (dATP/dCTP/dGTP/dTTP) are represented by a single re-dispensed 'dATP' manifest inside the repeat block rather than being unrolled into four distinct per-base branches; a full four-base unroll would be a straightforward but longer extension. The detection threshold used in the 'if (signal < 7)' branch is a stand-in for the paper's reported 7 nM ATP limit of detection (Section 3.3.3, S/N=5), not a literal reproduction of the paper's raw intensity units. Because the compiler requires every assignment to be produced by an actual operation (dispense/mix/detect), the droplet carried forward each cycle is always reassigned via an explicit 'mix' rather than a bare variable alias, so that both the successful-reaction path and the failed-reaction/rewash path converge on a single 'template' droplet handle at the top of the next loop iteration. The magnetic bead-well manipulation used experimentally to control bead concentration per droplet (Section 3.2, Figures 4-6, COMSOL magnet-geometry simulations) and the bead-count/dispensing statistics (Section 3.1, Figure 3) have no corresponding BioScript primitive (no magnet/hold-in-place operation exists in the grammar) and are not modeled; only the core per-cycle extension/ATP-generation/chemiluminescent-detection chemistry and bead rinse/carryover logic are captured here.",
+    "identity": {
+      "protocol_id": "dmf_pyrosequencing_picoliter_001",
+      "protocol_name": "Picoliter DNA Sequencing Chemistry on an Electrowetting-based Digital Microfluidic Platform (Ferguson Welch et al. 2011)",
+      "category": "nucleic_acid_amplification",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Picoliter-Scale Electrowetting Digital Microfluidic Pyrosequencing (Bead-Bound DNA Extension Coupled to ATP-Sulfurylase/Luciferase Chemiluminescent Detection)",
+      "publisher": null,
+      "doi": "10.1002/biot.201000324",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3079775/pdf/nihms263296.pdf",
+      "platform": "Digital Microfluidics (DMF)"
+    },
+    "bioscript": {
+      "manifests": [
+        "DNA_Beads",
+        "Polymerase",
+        "dATP",
+        "APS",
+        "ATP_Sulfurylase",
+        "Luciferin",
+        "Luciferase",
+        "Wash_Buffer"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "detect",
+        "dispose",
+        "repeat",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": true,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 20
+      }
+    },
+    "cfg": {
+      "basic_blocks": [
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbr_2_h",
+          "type": "sequential"
+        },
+        {
+          "id": "3",
+          "label": "3",
+          "type": "sequential"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "6",
+          "label": "6",
+          "type": "sequential"
+        },
+        {
+          "id": "7",
+          "label": "bsbbr_7_h",
+          "type": "sequential"
+        },
+        {
+          "id": "8",
+          "label": "8",
+          "type": "sequential"
+        },
+        {
+          "id": "9",
+          "label": "9",
+          "type": "terminal"
+        }
+      ],
+      "edges": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "2",
+          "3"
+        ],
+        [
+          "2",
+          "6"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "3",
+          "5"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "5",
+          "2"
+        ],
+        [
+          "6",
+          "7"
+        ],
+        [
+          "7",
+          "8"
+        ],
+        [
+          "7",
+          "9"
+        ],
+        [
+          "8",
+          "7"
+        ]
+      ]
+    },
+    "ir": {
+      "content": "main:\n\tbeads1[0] = dispense(DNA_Beads)\n\tpoly1[0] = dispense(Polymerase)\n\ttemplate1[0] = mix(beads1[0], poly1[0]) @ 10.0SECOND\nbsbbr_2_h:\n\tPHI REPEAT_41 = {REPEAT_40,REPEAT_42}\n\tPHI wash1 = {wash0,wash3}\n\tPHI aps1 = {aps0,aps2}\n\tPHI sulfurylase1 = {sulfurylase0,sulfurylase2}\n\tPHI luc_enzyme1 = {luc_enzyme0,luc_enzyme2}\n\tPHI luc_substrate1 = {luc_substrate0,luc_substrate2}\n\tPHI nucleotide1 = {nucleotide0,nucleotide2}\n\tPHI signal1 = {signal0,signal2}\n\tPHI template2 = {template1,template9}\n\tif REPEAT_41[0] > 0\t|\ttrue: jump bsbbr_3_t\t|\tfalse: jump bsbbr_6_f\nbsbbr_3_t:\n\tnucleotide2[0] = dispense(dATP)\n\ttemplate3[0] = mix(template2[0], nucleotide2[0]) @ 10.0SECOND\n\taps2[0] = dispense(APS)\n\tsulfurylase2[0] = dispense(ATP_Sulfurylase)\n\ttemplate4[0] = mix(template3[0], aps2[0]) @ 10.0SECOND\n\ttemplate5[0] = mix(template4[0], sulfurylase2[0]) @ 10.0SECOND\n\tluc_substrate2[0] = dispense(Luciferin)\n\tluc_enzyme2[0] = dispense(Luciferase)\n\ttemplate6[0] = mix(template5[0], luc_substrate2[0]) @ 5.0SECOND\n\ttemplate7[0] = mix(template6[0], luc_enzyme2[0]) @ 5.0SECOND\n\tsignal2[0] = detect(fluorescence, template7[0]) @ 10.0SECOND\n\tif signal2[0] < 7\t|\ttrue: jump bsbbif_4_t\t|\tfalse: jump bsbbif_5_f\nbsbbif_4_t:\n\tdispose(template7[0])\n\twash2[0] = dispense(Wash_Buffer)\n\ttemplate8[0] = mix(beads1[0], wash2[0]) @ 5.0SECOND\nbsbbif_5_f:\n\tPHI wash3 = {wash1,wash2}\n\tPHI template9 = {template7,template8}\n\tREPEAT_42[0] = REPEAT_41[0] - 1\n\tjump: bsbbr_2_h\nbsbbr_6_f:\nbsbbr_7_h:\n\tPHI rinse1 = {rinse0,rinse2}\n\tPHI REPEAT_21 = {REPEAT_20,REPEAT_22}\n\tPHI template10 = {template2,template11}\n\tif REPEAT_21[0] > 0\t|\ttrue: jump bsbbr_8_t\t|\tfalse: jump bsbbr_9_f\nbsbbr_8_t:\n\trinse2[0] = dispense(Wash_Buffer)\n\ttemplate11[0] = mix(template10[0], rinse2[0]) @ 5.0SECOND\n\tREPEAT_22[0] = REPEAT_21[0] - 1\nbsbbr_9_f:\n\tdispose(template10[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
     "evidence": {
       "chemical_evidence": [
-        { "bs_chemical": "DNA_Beads", "source_quote": "Bead-bound DNA is magnetically held in a single location, and wash or reagent droplets added or split from it", "source_location": "Abstract" },
-        { "bs_chemical": "Polymerase", "source_quote": "DNA+dNTP --Polymerase--> DNA-dNP+PPi", "source_location": "Section 1, Equation 1" },
-        { "bs_chemical": "APS", "source_quote": "PPi+APS --ATP Sulfurylase--> ATP+SO4(2-)", "source_location": "Section 1, Equation 2" },
-        { "bs_chemical": "ATP_Sulfurylase", "source_quote": "The released pyrophosphate is then converted to adenosine triphosphate (ATP) via a reaction with adenosine 5'-phosphosulfate (APS) and ATP sulfurylase", "source_location": "Section 1" },
-        { "bs_chemical": "Luciferin", "source_quote": "ATP+Luciferin+O2 --Luciferase--> AMP+PPi+Oxyluciferin+CO2+Light", "source_location": "Section 1, Equation 3" },
-        { "bs_chemical": "Luciferase", "source_quote": "the substrate solution consisted of 400 ug/mL luciferin ... the enzyme solution contained the specified concentration of luciferase", "source_location": "Section 3.3.1, Reaction conditions" },
-        { "bs_chemical": "Wash_Buffer", "source_quote": "reagents can be added and excess split away without loss of the DNA ... The DNA beads can also be rinsed with a few successive droplets of buffer to prevent cross-contamination", "source_location": "Section 1" }
+        {
+          "bs_chemical": "DNA_Beads",
+          "source_quote": "Bead-bound DNA is magnetically held in a single location, and wash or reagent droplets added or split from it",
+          "source_location": "Abstract"
+        },
+        {
+          "bs_chemical": "Polymerase",
+          "source_quote": "DNA+dNTP --Polymerase--> DNA-dNP+PPi",
+          "source_location": "Section 1, Equation 1"
+        },
+        {
+          "bs_chemical": "APS",
+          "source_quote": "PPi+APS --ATP Sulfurylase--> ATP+SO4(2-)",
+          "source_location": "Section 1, Equation 2"
+        },
+        {
+          "bs_chemical": "ATP_Sulfurylase",
+          "source_quote": "The released pyrophosphate is then converted to adenosine triphosphate (ATP) via a reaction with adenosine 5'-phosphosulfate (APS) and ATP sulfurylase",
+          "source_location": "Section 1"
+        },
+        {
+          "bs_chemical": "Luciferin",
+          "source_quote": "ATP+Luciferin+O2 --Luciferase--> AMP+PPi+Oxyluciferin+CO2+Light",
+          "source_location": "Section 1, Equation 3"
+        },
+        {
+          "bs_chemical": "Luciferase",
+          "source_quote": "the substrate solution consisted of 400 ug/mL luciferin ... the enzyme solution contained the specified concentration of luciferase",
+          "source_location": "Section 3.3.1, Reaction conditions"
+        },
+        {
+          "bs_chemical": "Wash_Buffer",
+          "source_quote": "reagents can be added and excess split away without loss of the DNA ... The DNA beads can also be rinsed with a few successive droplets of buffer to prevent cross-contamination",
+          "source_location": "Section 1"
+        }
       ],
       "operation_evidence": [
-        { "bs_operation": "template = mix template with nucleotide for 10s", "source_quote": "The nucleotides are individually added to a primed template strand and cycled as the sequencing progresses", "source_location": "Section 1" },
-        { "bs_operation": "template = mix template with aps for 10s / template = mix template with sulfurylase for 10s", "source_quote": "The released pyrophosphate is then converted to adenosine triphosphate (ATP) via a reaction with adenosine 5'-phosphosulfate (APS) and ATP sulfurylase", "source_location": "Section 1, Equation 2" },
-        { "bs_operation": "template = mix template with luc_substrate for 5s / template = mix template with luc_enzyme for 5s", "source_quote": "after which the ATP will react with firefly luciferase, luciferin and oxygen to produce light", "source_location": "Section 1, Equation 3" },
-        { "bs_operation": "signal = detect fluorescence on template for 10s", "source_quote": "Camera settings were 8x8 pixel binning, and 10 s exposure time. All reactions were started precisely at the beginning of the 10 s window", "source_location": "Section 3.3.1, Reaction conditions" },
-        { "bs_operation": "if (signal < 7) { dispose template; wash = dispense 300 units of Wash_Buffer; template = mix beads with wash for 5s }", "source_quote": "the limit of detection for these circumstances was calculated to be 7 nM ATP (S/N=5)", "source_location": "Section 3.3.3, ATP concentration variation" },
-        { "bs_operation": "repeat 2 times { rinse = dispense 300 units of Wash_Buffer; template = mix template with rinse for 5s }", "source_quote": "The DNA beads can also be rinsed with a few successive droplets of buffer to prevent cross-contamination", "source_location": "Section 1" }
+        {
+          "bs_operation": "template = mix template with nucleotide for 10s",
+          "source_quote": "The nucleotides are individually added to a primed template strand and cycled as the sequencing progresses",
+          "source_location": "Section 1"
+        },
+        {
+          "bs_operation": "template = mix template with aps for 10s / template = mix template with sulfurylase for 10s",
+          "source_quote": "The released pyrophosphate is then converted to adenosine triphosphate (ATP) via a reaction with adenosine 5'-phosphosulfate (APS) and ATP sulfurylase",
+          "source_location": "Section 1, Equation 2"
+        },
+        {
+          "bs_operation": "template = mix template with luc_substrate for 5s / template = mix template with luc_enzyme for 5s",
+          "source_quote": "after which the ATP will react with firefly luciferase, luciferin and oxygen to produce light",
+          "source_location": "Section 1, Equation 3"
+        },
+        {
+          "bs_operation": "signal = detect fluorescence on template for 10s",
+          "source_quote": "Camera settings were 8x8 pixel binning, and 10 s exposure time. All reactions were started precisely at the beginning of the 10 s window",
+          "source_location": "Section 3.3.1, Reaction conditions"
+        },
+        {
+          "bs_operation": "if (signal < 7) { dispose template; wash = dispense 300 units of Wash_Buffer; template = mix beads with wash for 5s }",
+          "source_quote": "the limit of detection for these circumstances was calculated to be 7 nM ATP (S/N=5)",
+          "source_location": "Section 3.3.3, ATP concentration variation"
+        },
+        {
+          "bs_operation": "repeat 2 times { rinse = dispense 300 units of Wash_Buffer; template = mix template with rinse for 5s }",
+          "source_quote": "The DNA beads can also be rinsed with a few successive droplets of buffer to prevent cross-contamination",
+          "source_location": "Section 1"
+        }
       ],
       "numeric_mismatches": [
-        { "field": "repeat 4 times with re-dispensed 'dATP'", "note": "The paper cycles through all four natural nucleotides (A/C/G/T) sequentially during pyrosequencing-by-synthesis; BioScript cannot iterate over a heterogeneous reagent list, so a single re-dispensed dATP manifest stands in for one generic base-addition cycle repeated 4 times, rather than four explicitly distinct per-base branches." },
-        { "field": "if (signal < 7)", "note": "The paper's 7 nM ATP limit-of-detection (S/N=5, Section 3.3.3) is used as a proxy numeric threshold for the detect() intensity comparison; the paper does not itself define a control-flow branch on this value, since the reported experiments (Figures 7-8) characterize detection limits and luciferase optimization independently rather than as part of a live sequencing decision loop." },
-        { "field": "template = mix beads with wash for 5s (rewash branch)", "note": "The paper describes magnetic bead-holding and buffer rinsing qualitatively (Section 1, Section 3.2) but does not report an explicit droplet-level rewash timing; 5s is an illustrative duration consistent with the paper's other short mixing/incubation steps, not a literal reported value." },
-        { "field": "magnetic bead-well manipulation (Section 3.2, Figures 4-6) and bead-count dispensing statistics (Section 3.1, Figure 3)", "note": "Not modeled. These are device-characterization/simulation experiments (COMSOL magnet-geometry optimization, bead-per-droplet statistics) rather than steps of the core sequencing chemistry itself, and BioScript's grammar exposes no magnetic-hold or bead-counting primitive, so they fall outside the scope of this translation." }
+        {
+          "field": "repeat 4 times with re-dispensed 'dATP'",
+          "note": "The paper cycles through all four natural nucleotides (A/C/G/T) sequentially during pyrosequencing-by-synthesis; BioScript cannot iterate over a heterogeneous reagent list, so a single re-dispensed dATP manifest stands in for one generic base-addition cycle repeated 4 times, rather than four explicitly distinct per-base branches."
+        },
+        {
+          "field": "if (signal < 7)",
+          "note": "The paper's 7 nM ATP limit-of-detection (S/N=5, Section 3.3.3) is used as a proxy numeric threshold for the detect() intensity comparison; the paper does not itself define a control-flow branch on this value, since the reported experiments (Figures 7-8) characterize detection limits and luciferase optimization independently rather than as part of a live sequencing decision loop."
+        },
+        {
+          "field": "template = mix beads with wash for 5s (rewash branch)",
+          "note": "The paper describes magnetic bead-holding and buffer rinsing qualitatively (Section 1, Section 3.2) but does not report an explicit droplet-level rewash timing; 5s is an illustrative duration consistent with the paper's other short mixing/incubation steps, not a literal reported value."
+        },
+        {
+          "field": "magnetic bead-well manipulation (Section 3.2, Figures 4-6) and bead-count dispensing statistics (Section 3.1, Figure 3)",
+          "note": "Not modeled. These are device-characterization/simulation experiments (COMSOL magnet-geometry optimization, bead-per-droplet statistics) rather than steps of the core sequencing chemistry itself, and BioScript's grammar exposes no magnetic-hold or bead-counting primitive, so they fall outside the scope of this translation."
+        }
       ]
-    }
+    },
+    "notes": "This protocol details Picoliter-Scale Electrowetting Digital Microfluidic Pyrosequencing (Bead-Bound DNA Extension Coupled to ATP-Sulfurylase/Luciferase Chemiluminescent Detection). The assay is performed on a Digital Microfluidics (DMF) platform. Key reagents used in the assay include DNA-Bound Paramagnetic Beads and Polymerase."
   }
 }

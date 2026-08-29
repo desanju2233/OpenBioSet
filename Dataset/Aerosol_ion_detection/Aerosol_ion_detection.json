@@ -1,60 +1,313 @@
 {
+  "_schema": "biogpt-v4",
   "messages": [
-    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
-    { "role": "user", "content": "ASSAY TYPE: Digital Microfluidics for Aerosol Impaction, Extraction, and Colorimetric Detection of Inorganic Ions (Sulfate, Nitrate, Ammonium)\n\nREAGENTS USED:\n  - Ambient/Laboratory-Generated Aerosol Sample (impacted directly onto the digital microfluidic chip surface via an integrated 5-nozzle inertial impactor, 1 L/min air flow)\n  - Distilled Water (sub-microliter scanning/extraction droplet, ~0.5 uL)\n  - Methylthymol Blue (MTB) - Barium Reagent (sulfate colorimetric assay, competitive complexation, detected at 608 nm)\n  - Ammonium Colorimetric Reagent (detected at 365 nm)\n  - Nitrate Colorimetric Reagent (acidic reagent, detected at 540 nm)\n  - Sulfate/Ammonium/Nitrate Liquid Standards (six concentrations each, dispensed from on-chip reservoirs to build calibration curves)\n\nSTEPS:\n1. Aerosol Collection: Air is drawn through five inertial-impactor nozzles (0.24 mm diameter, 1 L/min total flow) built into the chip's top plate, depositing particles >100 nm in diameter directly onto the CYTOP-coated actuation electrodes of the bottom plate (collection efficiency >95% for particles >100 nm).\n2. Extraction: After the air flow is stopped, a sub-microliter distilled-water droplet is dispensed from an on-chip reservoir in oil, actuated through the oil/air interface, and scanned twice across the five-electrode impaction area to fully dissolve the deposited aerosol into a single concentrated extract droplet.\n3. Sulfate Calibration: Six standard sulfate concentrations are sequentially dispensed and each mixed with the MTB-Ba reagent; the resulting droplet is actuated between two horizontal optical fibers and absorbance is measured at 608 nm to build a calibration curve (LOD ~11 ppm).\n4. Sulfate Sample Measurement: The aerosol extract droplet is mixed with the MTB-Ba reagent and absorbance is measured at 608 nm; the mixed droplet is then discarded.\n5. Ammonium Calibration: Six standard ammonium concentrations are sequentially dispensed and each mixed with the ammonium reagent; absorbance is measured at 365 nm to build a calibration curve (LOD ~0.256 ppm).\n6. Ammonium Sample Measurement: The aerosol extract droplet is mixed with the ammonium reagent and absorbance is measured at 365 nm; the mixed droplet is then discarded.\n7. Nitrate Calibration (unstable): Six standard nitrate concentrations are sequentially dispensed and each mixed with the acidic nitrate reagent; because a precipitate forms over the first 3-4 minutes, droplets are held ~150 s post-mixing before absorbance is measured at 540 nm (nonzero y-intercept observed, indicating reduced sensitivity).\n8. Nitrate Sample Measurement: The aerosol extract droplet is mixed with the nitrate reagent, held 150 s, and absorbance is measured at 540 nm; the mixed droplet is then discarded, and the extract droplet itself is discarded once all three assays are complete.\n\nINTERPRETATION: Successful ion quantification is confirmed by linear calibration curves (R^2 ~0.95-0.98) for sulfate and ammonium comparable to off-chip Tecan plate-reader results, on-chip limits of detection of 11 ppm (sulfate) and 0.256 ppm (ammonium) sufficient for converted air-concentration LODs of 0.275 ug/m3 and 6.5 ng/m3 respectively at 1 L/min for 1 h sampling, negligible cross-ion interference, and an unresolved precipitate-driven artifact that prevents stable nitrate quantification on-chip despite a linear off-chip response." },
-    { "role": "assistant", "content": "module absorbance\n\nmanifest distilled_water\nmanifest mtb_ba_reagent\nmanifest ammonium_reagent\nmanifest nitrate_reagent\nmanifest sulfate_standard\nmanifest ammonium_standard\nmanifest nitrate_standard\nmanifest aerosol_sample\n\ninstructions:\n\n// ---- Aerosol collection & extraction ----\n// A scanning droplet is dispensed in oil, transported through the\n// oil/air interface, and passed twice across the 5-electrode\n// impaction area to dissolve the deposited aerosol particles.\nextract = dispense 1 units of aerosol_sample\n\nrepeat 2 times {\n    extract = mix extract with extract for 30s\n}\n\n// ==================================================================\n// Sulfate assay (Methylthymol Blue - Barium complex, 608 nm)\n// Six standard concentrations run to build the calibration curve,\n// then the collected aerosol extract is measured against it.\n// ==================================================================\nrepeat 6 times {\n    su_std = dispense 1 units of sulfate_standard\n    mtb = dispense 1 units of mtb_ba_reagent\n    su_cal = mix su_std with mtb for 10s\n    su_cal_reading = detect absorbance on su_cal for 5s\n    dispose su_cal\n}\n\nmtb_sample = dispense 1 units of mtb_ba_reagent\nsu_mix = mix extract with mtb_sample for 10s\nsulfate_reading = detect absorbance on su_mix for 5s\n\nif (sulfate_reading >= 11) {\n    dispose su_mix\n}\n\n// ==================================================================\n// Ammonium assay (colorimetric, 365 nm)\n// Same calibration + sample measurement pattern as sulfate.\n// ==================================================================\nrepeat 6 times {\n    nh4_std = dispense 1 units of ammonium_standard\n    nh4_reagent = dispense 1 units of ammonium_reagent\n    nh4_cal = mix nh4_std with nh4_reagent for 10s\n    nh4_cal_reading = detect absorbance on nh4_cal for 5s\n    dispose nh4_cal\n}\n\nnh4_reagent_sample = dispense 1 units of ammonium_reagent\nnh4_mix = mix extract with nh4_reagent_sample for 10s\nammonium_reading = detect absorbance on nh4_mix for 5s\n\nif (ammonium_reading >= 0.256) {\n    dispose nh4_mix\n}\n\n// ==================================================================\n// Nitrate assay (540 nm) - unstable on-chip due to precipitate\n// formation from the acidic reagent; measurement is attempted but\n// flagged/discarded rather than trusted, per the paper's findings.\n// ==================================================================\nrepeat 6 times {\n    no3_std = dispense 1 units of nitrate_standard\n    no3_reagent = dispense 1 units of nitrate_reagent\n    no3_cal = mix no3_std with no3_reagent for 10s\n    heat no3_cal at 25c for 150s\n    no3_cal_reading = detect absorbance on no3_cal for 5s\n    dispose no3_cal\n}\n\nno3_reagent_sample = dispense 1 units of nitrate_reagent\nno3_mix = mix extract with no3_reagent_sample for 10s\nheat no3_mix at 25c for 150s\nnitrate_reading = detect absorbance on no3_mix for 5s\ndispose no3_mix\n\ndispose extract" }
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "Source link: https://www.mdpi.com/1424-8220/20/5/1281/pdf\nPaper DOI: https://doi.org/10.3390/s20051281\n\nProtocol details:\n\nASSAY TYPE: Digital Microfluidics for Aerosol Impaction, Extraction, and Colorimetric Detection of Inorganic Ions (Sulfate, Nitrate, Ammonium)\n\nREAGENTS USED:\n  - Ambient/Laboratory-Generated Aerosol Sample (impacted directly onto the digital microfluidic chip surface via an integrated 5-nozzle inertial impactor, 1 L/min air flow)\n  - Distilled Water (sub-microliter scanning/extraction droplet, ~0.5 uL)\n  - Methylthymol Blue (MTB) - Barium Reagent (sulfate colorimetric assay, competitive complexation, detected at 608 nm)\n  - Ammonium Colorimetric Reagent (detected at 365 nm)\n  - Nitrate Colorimetric Reagent (acidic reagent, detected at 540 nm)\n  - Sulfate/Ammonium/Nitrate Liquid Standards (six concentrations each, dispensed from on-chip reservoirs to build calibration curves)\n\nSTEPS:\n1. Aerosol Collection: Air is drawn through five inertial-impactor nozzles (0.24 mm diameter, 1 L/min total flow) built into the chip's top plate, depositing particles >100 nm in diameter directly onto the CYTOP-coated actuation electrodes of the bottom plate (collection efficiency >95% for particles >100 nm).\n2. Extraction: After the air flow is stopped, a sub-microliter distilled-water droplet is dispensed from an on-chip reservoir in oil, actuated through the oil/air interface, and scanned twice across the five-electrode impaction area to fully dissolve the deposited aerosol into a single concentrated extract droplet.\n3. Sulfate Calibration: Six standard sulfate concentrations are sequentially dispensed and each mixed with the MTB-Ba reagent; the resulting droplet is actuated between two horizontal optical fibers and absorbance is measured at 608 nm to build a calibration curve (LOD ~11 ppm).\n4. Sulfate Sample Measurement: The aerosol extract droplet is mixed with the MTB-Ba reagent and absorbance is measured at 608 nm; the mixed droplet is then discarded.\n5. Ammonium Calibration: Six standard ammonium concentrations are sequentially dispensed and each mixed with the ammonium reagent; absorbance is measured at 365 nm to build a calibration curve (LOD ~0.256 ppm).\n6. Ammonium Sample Measurement: The aerosol extract droplet is mixed with the ammonium reagent and absorbance is measured at 365 nm; the mixed droplet is then discarded.\n7. Nitrate Calibration (unstable): Six standard nitrate concentrations are sequentially dispensed and each mixed with the acidic nitrate reagent; because a precipitate forms over the first 3-4 minutes, droplets are held ~150 s post-mixing before absorbance is measured at 540 nm (nonzero y-intercept observed, indicating reduced sensitivity).\n8. Nitrate Sample Measurement: The aerosol extract droplet is mixed with the nitrate reagent, held 150 s, and absorbance is measured at 540 nm; the mixed droplet is then discarded, and the extract droplet itself is discarded once all three assays are complete.\n\nINTERPRETATION: Successful ion quantification is confirmed by linear calibration curves (R^2 ~0.95-0.98) for sulfate and ammonium comparable to off-chip Tecan plate-reader results, on-chip limits of detection of 11 ppm (sulfate) and 0.256 ppm (ammonium) sufficient for converted air-concentration LODs of 0.275 ug/m3 and 6.5 ng/m3 respectively at 1 L/min for 1 h sampling, negligible cross-ion interference, and an unresolved precipitate-driven artifact that prevents stable nitrate quantification on-chip despite a linear off-chip response.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module absorbance\n\nmanifest distilled_water\nmanifest mtb_ba_reagent\nmanifest ammonium_reagent\nmanifest nitrate_reagent\nmanifest sulfate_standard\nmanifest ammonium_standard\nmanifest nitrate_standard\nmanifest aerosol_sample\n\ninstructions:\n\n// ---- Aerosol collection & extraction ----\n// A scanning droplet is dispensed in oil, transported through the\n// oil/air interface, and passed twice across the 5-electrode\n// impaction area to dissolve the deposited aerosol particles.\nextract = dispense 1 units of aerosol_sample\n\nrepeat 2 times {\n    extract = mix extract with extract for 30s\n}\n\n// ==================================================================\n// Sulfate assay (Methylthymol Blue - Barium complex, 608 nm)\n// Six standard concentrations run to build the calibration curve,\n// then the collected aerosol extract is measured against it.\n// ==================================================================\nrepeat 6 times {\n    su_std = dispense 1 units of sulfate_standard\n    mtb = dispense 1 units of mtb_ba_reagent\n    su_cal = mix su_std with mtb for 10s\n    su_cal_reading = detect absorbance on su_cal for 5s\n    dispose su_cal\n}\n\nmtb_sample = dispense 1 units of mtb_ba_reagent\nsu_mix = mix extract with mtb_sample for 10s\nsulfate_reading = detect absorbance on su_mix for 5s\n\nif (sulfate_reading >= 11) {\n    dispose su_mix\n}\n\n// ==================================================================\n// Ammonium assay (colorimetric, 365 nm)\n// Same calibration + sample measurement pattern as sulfate.\n// ==================================================================\nrepeat 6 times {\n    nh4_std = dispense 1 units of ammonium_standard\n    nh4_reagent = dispense 1 units of ammonium_reagent\n    nh4_cal = mix nh4_std with nh4_reagent for 10s\n    nh4_cal_reading = detect absorbance on nh4_cal for 5s\n    dispose nh4_cal\n}\n\nnh4_reagent_sample = dispense 1 units of ammonium_reagent\nnh4_mix = mix extract with nh4_reagent_sample for 10s\nammonium_reading = detect absorbance on nh4_mix for 5s\n\nif (ammonium_reading >= 0.256) {\n    dispose nh4_mix\n}\n\n// ==================================================================\n// Nitrate assay (540 nm) - unstable on-chip due to precipitate\n// formation from the acidic reagent; measurement is attempted but\n// flagged/discarded rather than trusted, per the paper's findings.\n// ==================================================================\nrepeat 6 times {\n    no3_std = dispense 1 units of nitrate_standard\n    no3_reagent = dispense 1 units of nitrate_reagent\n    no3_cal = mix no3_std with no3_reagent for 10s\n    heat no3_cal at 25c for 150s\n    no3_cal_reading = detect absorbance on no3_cal for 5s\n    dispose no3_cal\n}\n\nno3_reagent_sample = dispense 1 units of nitrate_reagent\nno3_mix = mix extract with no3_reagent_sample for 10s\nheat no3_mix at 25c for 150s\nnitrate_reading = detect absorbance on no3_mix for 5s\ndispose no3_mix\n\ndispose extract\n"
+    }
   ],
   "metadata": {
-    "protocol_id": "dmf_aerosol_inorganic_ion_detection_001",
-    "bs_file": "tests/test_cases/aerosol_ion_detection/aerosol_ion_detection.bs",
-    "protocol_name": "Digital Microfluidics for the Detection of Selected Inorganic Ions in Aerosols (Huang et al. 2020)",
-    "category": "environmental_monitoring_assay",
-    "chemicals": [
-      "distilled_water",
-      "mtb_ba_reagent",
-      "ammonium_reagent",
-      "nitrate_reagent",
-      "sulfate_standard",
-      "ammonium_standard",
-      "nitrate_standard",
-      "aerosol_sample"
-    ],
-    "operations": [
-      "dispense",
-      "mix",
-      "heat",
-      "detect",
-      "repeat",
-      "if",
-      "dispose"
-    ],
-    "validation_score": 0.0,
-    "validated": false,
-    "validation_status": "pending_v2",
-    "adaptation_status": "adapted_authored",
-    "sources": [
-      { "type": "original_protocol", "title": "Digital Microfluidics for the Detection of Selected Inorganic Ions in Aerosols", "publisher": "Sensors (MDPI)", "url": "https://www.mdpi.com/1424-8220/20/5/1281/pdf", "doi": "10.3390/s20051281" }
-    ],
-    "notes": "The authored BioScript code is a direct translation of the paper's on-chip aerosol collection/extraction/detection pipeline (Section 2, Figure 2: dispense, transport, collection, mixing, absorbance detection) and the multianalyte calibration procedure of Section 3.2 (six standard concentrations per analyte). Because BioScript's grammar exposes no dedicated inertial-impaction or physical air-sampling primitive, the external aerosol impaction step (5-nozzle impactor, 1 L/min flow, collection efficiency data of Section 3.1/Figure 8) is not itself modeled; only the on-chip extraction droplet that dissolves the deposit (the 'aerosol_sample' manifest, scanned twice per the paper's two-pass dissolution) is captured. The detection modality in the paper is colorimetric spectrophotometry via on-chip optical fibers (fixed wavelengths 365/540/608 nm), not fluorescence, so 'module absorbance' is used in place of the fluorescence module seen in other translated protocols, since BioScript's grammar accepts an arbitrary detect-module identifier rather than hardcoding one. The nitrate branch is modeled with an added 150s heat/hold step (at ambient 25c) reflecting the paper's report that stable absorbance was only reached ~150s after mixing due to precipitate formation from the acidic reagent; the paper explicitly states nitrate measurements were unstable and unreliable on-chip, so the nitrate branch is retained structurally (per the six-concentration calibration pattern used for sulfate/ammonium) but its output is not gated by an LOD-based if/dispose check, unlike the sulfate and ammonium branches, reflecting that no trustworthy on-chip nitrate LOD was established.",
+    "identity": {
+      "protocol_id": "dmf_aerosol_inorganic_ion_detection_001",
+      "protocol_name": "Digital Microfluidics for the Detection of Selected Inorganic Ions in Aerosols (Huang et al. 2020)",
+      "category": "environmental_sensing_assay",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Digital Microfluidics for Aerosol Impaction, Extraction, and Colorimetric Detection of Inorganic Ions (Sulfate, Nitrate, Ammonium)",
+      "publisher": null,
+      "doi": "10.3390/s20051281",
+      "url": "https://www.mdpi.com/1424-8220/20/5/1281/pdf",
+      "platform": "Digital Microfluidics (DMF)"
+    },
+    "bioscript": {
+      "manifests": [
+        "distilled_water",
+        "mtb_ba_reagent",
+        "ammonium_reagent",
+        "nitrate_reagent",
+        "sulfate_standard",
+        "ammonium_standard",
+        "nitrate_standard",
+        "aerosol_sample"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "repeat",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": true,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 32
+      }
+    },
+    "cfg": {
+      "basic_blocks": [
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbr_2_h",
+          "type": "sequential"
+        },
+        {
+          "id": "3",
+          "label": "3",
+          "type": "sequential"
+        },
+        {
+          "id": "4",
+          "label": "4",
+          "type": "sequential"
+        },
+        {
+          "id": "5",
+          "label": "bsbbr_5_h",
+          "type": "sequential"
+        },
+        {
+          "id": "6",
+          "label": "6",
+          "type": "sequential"
+        },
+        {
+          "id": "7",
+          "label": "7",
+          "type": "sequential"
+        },
+        {
+          "id": "8",
+          "label": "bsbbif_8_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "9",
+          "label": "bsbbif_9_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "10",
+          "label": "bsbbr_10_h",
+          "type": "sequential"
+        },
+        {
+          "id": "11",
+          "label": "11",
+          "type": "sequential"
+        },
+        {
+          "id": "12",
+          "label": "12",
+          "type": "sequential"
+        },
+        {
+          "id": "13",
+          "label": "bsbbif_13_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "14",
+          "label": "bsbbif_14_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "15",
+          "label": "bsbbr_15_h",
+          "type": "sequential"
+        },
+        {
+          "id": "16",
+          "label": "16",
+          "type": "sequential"
+        },
+        {
+          "id": "17",
+          "label": "17",
+          "type": "terminal"
+        }
+      ],
+      "edges": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "2",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "2"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "5",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "5"
+        ],
+        [
+          "7",
+          "8"
+        ],
+        [
+          "7",
+          "9"
+        ],
+        [
+          "8",
+          "9"
+        ],
+        [
+          "9",
+          "10"
+        ],
+        [
+          "10",
+          "11"
+        ],
+        [
+          "10",
+          "12"
+        ],
+        [
+          "11",
+          "10"
+        ],
+        [
+          "12",
+          "13"
+        ],
+        [
+          "12",
+          "14"
+        ],
+        [
+          "13",
+          "14"
+        ],
+        [
+          "14",
+          "15"
+        ],
+        [
+          "15",
+          "16"
+        ],
+        [
+          "15",
+          "17"
+        ],
+        [
+          "16",
+          "15"
+        ]
+      ]
+    },
+    "ir": {
+      "content": "main:\n\textract1[0] = dispense(aerosol_sample)\nbsbbr_2_h:\n\tPHI REPEAT_21 = {REPEAT_20,REPEAT_22}\n\tPHI extract2 = {extract1,extract3}\n\tif REPEAT_21[0] > 0\t|\ttrue: jump bsbbr_3_t\t|\tfalse: jump bsbbr_4_f\nbsbbr_3_t:\n\textract3[0] = mix(extract2[0], extract2[0]) @ 30.0SECOND\n\tREPEAT_22[0] = REPEAT_21[0] - 1\nbsbbr_4_f:\nbsbbr_5_h:\n\tPHI su_std1 = {su_std0,su_std2}\n\tPHI su_cal1 = {su_cal0,su_cal2}\n\tPHI su_cal_reading1 = {su_cal_reading0,su_cal_reading2}\n\tPHI mtb1 = {mtb0,mtb2}\n\tPHI REPEAT_61 = {REPEAT_60,REPEAT_62}\n\tif REPEAT_61[0] > 0\t|\ttrue: jump bsbbr_6_t\t|\tfalse: jump bsbbr_7_f\nbsbbr_6_t:\n\tsu_std2[0] = dispense(sulfate_standard)\n\tmtb2[0] = dispense(mtb_ba_reagent)\n\tsu_cal2[0] = mix(su_std2[0], mtb2[0]) @ 10.0SECOND\n\tsu_cal_reading2[0] = detect(absorbance, su_cal2[0]) @ 5.0SECOND\n\tdispose(su_cal2[0])\n\tREPEAT_62[0] = REPEAT_61[0] - 1\nbsbbr_7_f:\n\tmtb_sample1[0] = dispense(mtb_ba_reagent)\n\tsu_mix1[0] = mix(extract2[0], mtb_sample1[0]) @ 10.0SECOND\n\tsulfate_reading1[0] = detect(absorbance, su_mix1[0]) @ 5.0SECOND\n\tif sulfate_reading1[0] >= 11\t|\ttrue: jump bsbbif_8_t\t|\tfalse: jump bsbbif_9_f\nbsbbif_8_t:\n\tdispose(su_mix1[0])\nbsbbif_9_f:\n\tPHI su_mix2 = {su_mix1,su_mix}\nbsbbr_10_h:\n\tPHI nh4_reagent1 = {nh4_reagent0,nh4_reagent2}\n\tPHI nh4_cal1 = {nh4_cal0,nh4_cal2}\n\tPHI nh4_cal_reading1 = {nh4_cal_reading0,nh4_cal_reading2}\n\tPHI nh4_std1 = {nh4_std0,nh4_std2}\n\tPHI REPEAT_63 = {REPEAT_61,REPEAT_64}\n\tif REPEAT_63[0] > 0\t|\ttrue: jump bsbbr_11_t\t|\tfalse: jump bsbbr_12_f\nbsbbr_11_t:\n\tnh4_std2[0] = dispense(ammonium_standard)\n\tnh4_reagent2[0] = dispense(ammonium_reagent)\n\tnh4_cal2[0] = mix(nh4_std2[0], nh4_reagent2[0]) @ 10.0SECOND\n\tnh4_cal_reading2[0] = detect(absorbance, nh4_cal2[0]) @ 5.0SECOND\n\tdispose(nh4_cal2[0])\n\tREPEAT_64[0] = REPEAT_63[0] - 1\nbsbbr_12_f:\n\tnh4_reagent_sample1[0] = dispense(ammonium_reagent)\n\tnh4_mix1[0] = mix(extract2[0], nh4_reagent_sample1[0]) @ 10.0SECOND\n\tammonium_reading1[0] = detect(absorbance, nh4_mix1[0]) @ 5.0SECOND\n\tif ammonium_reading1[0] >= 0.256\t|\ttrue: jump bsbbif_13_t\t|\tfalse: jump bsbbif_14_f\nbsbbif_13_t:\n\tdispose(nh4_mix1[0])\nbsbbif_14_f:\n\tPHI nh4_mix2 = {nh4_mix1,nh4_mix}\nbsbbr_15_h:\n\tPHI no3_std1 = {no3_std0,no3_std2}\n\tPHI no3_cal1 = {no3_cal0,no3_cal2}\n\tPHI no3_cal_reading1 = {no3_cal_reading0,no3_cal_reading2}\n\tPHI no3_reagent1 = {no3_reagent0,no3_reagent2}\n\tPHI REPEAT_65 = {REPEAT_63,REPEAT_66}\n\tif REPEAT_65[0] > 0\t|\ttrue: jump bsbbr_16_t\t|\tfalse: jump bsbbr_17_f\nbsbbr_16_t:\n\tno3_std2[0] = dispense(nitrate_standard)\n\tno3_reagent2[0] = dispense(nitrate_reagent)\n\tno3_cal2[0] = mix(no3_std2[0], no3_reagent2[0]) @ 10.0SECOND\n\theat(no3_cal2[0]) @ 25.0CELSIUS @ 150.0SECOND\n\tno3_cal_reading2[0] = detect(absorbance, no3_cal2[0]) @ 5.0SECOND\n\tdispose(no3_cal2[0])\n\tREPEAT_66[0] = REPEAT_65[0] - 1\nbsbbr_17_f:\n\tno3_reagent_sample1[0] = dispense(nitrate_reagent)\n\tno3_mix1[0] = mix(extract2[0], no3_reagent_sample1[0]) @ 10.0SECOND\n\theat(no3_mix1[0]) @ 25.0CELSIUS @ 150.0SECOND\n\tnitrate_reading1[0] = detect(absorbance, no3_mix1[0]) @ 5.0SECOND\n\tdispose(no3_mix1[0])\n\tdispose(extract2[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
     "evidence": {
       "chemical_evidence": [
-        { "bs_chemical": "aerosol_sample", "source_quote": "the deposited air particles are densely concentrated in well-defined deposits", "source_location": "Abstract / Section 2" },
-        { "bs_chemical": "distilled_water", "source_quote": "a droplet of water is dispensed in an oil medium from a reservoir and moved through an oil/air interface", "source_location": "Section 2, paragraph on impaction/extraction cycle" },
-        { "bs_chemical": "mtb_ba_reagent", "source_quote": "the methylthymol blue (MTB) assay is based on competition between MTB and sulfate for barium ions", "source_location": "Section 3.2.1" },
-        { "bs_chemical": "nitrate_reagent", "source_quote": "the hypothesis is that the acidic reagent in the nitrate assay attacks the coating material", "source_location": "Section 3.2.2" }
+        {
+          "bs_chemical": "aerosol_sample",
+          "source_quote": "the deposited air particles are densely concentrated in well-defined deposits",
+          "source_location": "Abstract / Section 2"
+        },
+        {
+          "bs_chemical": "distilled_water",
+          "source_quote": "a droplet of water is dispensed in an oil medium from a reservoir and moved through an oil/air interface",
+          "source_location": "Section 2, paragraph on impaction/extraction cycle"
+        },
+        {
+          "bs_chemical": "mtb_ba_reagent",
+          "source_quote": "the methylthymol blue (MTB) assay is based on competition between MTB and sulfate for barium ions",
+          "source_location": "Section 3.2.1"
+        },
+        {
+          "bs_chemical": "nitrate_reagent",
+          "source_quote": "the hypothesis is that the acidic reagent in the nitrate assay attacks the coating material",
+          "source_location": "Section 3.2.2"
+        }
       ],
       "operation_evidence": [
-        { "bs_operation": "repeat 2 times { extract = mix extract with extract for 30s }", "source_quote": "this droplet then performed two scans across the entire impaction area, which completely dissolved the deposited aerosols", "source_location": "Section 3.1, end of paragraph" },
-        { "bs_operation": "repeat 6 times { su_std = dispense ...; su_cal = mix ...; detect absorbance ... }", "source_quote": "six different concentrations of standards were chosen for each assay and sequentially dispensed from on-chip reservoirs", "source_location": "Section 3.2.1" },
-        { "bs_operation": "heat no3_cal at 25c for 150s", "source_quote": "if five relatively more stable measurements at 150 s after mixing are taken, the absorbance and concentration do have the linear relationship", "source_location": "Section 3.2.2" },
-        { "bs_operation": "if (sulfate_reading >= 11) { dispose su_mix }", "source_quote": "limits of detection (LOD) in the final droplet were determined to be 11 ppm for sulfate and 0.26 ppm for ammonium", "source_location": "Abstract" }
+        {
+          "bs_operation": "repeat 2 times { extract = mix extract with extract for 30s }",
+          "source_quote": "this droplet then performed two scans across the entire impaction area, which completely dissolved the deposited aerosols",
+          "source_location": "Section 3.1, end of paragraph"
+        },
+        {
+          "bs_operation": "repeat 6 times { su_std = dispense ...; su_cal = mix ...; detect absorbance ... }",
+          "source_quote": "six different concentrations of standards were chosen for each assay and sequentially dispensed from on-chip reservoirs",
+          "source_location": "Section 3.2.1"
+        },
+        {
+          "bs_operation": "heat no3_cal at 25c for 150s",
+          "source_quote": "if five relatively more stable measurements at 150 s after mixing are taken, the absorbance and concentration do have the linear relationship",
+          "source_location": "Section 3.2.2"
+        },
+        {
+          "bs_operation": "if (sulfate_reading >= 11) { dispose su_mix }",
+          "source_quote": "limits of detection (LOD) in the final droplet were determined to be 11 ppm for sulfate and 0.26 ppm for ammonium",
+          "source_location": "Abstract"
+        }
       ],
       "numeric_mismatches": [
-        { "field": "external aerosol impaction not modeled", "note": "The 5-nozzle inertial impactor, its fluid-mechanical design parameters (Reynolds number 3132.7, d50 = 162.7 nm), and the chip-to-world chamber collection-efficiency experiments (Figure 6, Figure 8) describe a physical air-sampling apparatus upstream of the chip; BioScript has no primitive for aerosol impaction itself, so the protocol begins at the on-chip extraction droplet." },
-        { "field": "if-gated dispose logic on sulfate/ammonium readings", "note": "The thresholds used (>=11 ppm sulfate, >=0.256 ppm ammonium) are the paper's reported LOD values, but the paper does not describe a keep/discard decision branch at these thresholds; the if/dispose structure is invented to fit BioScript's conditional-dispose pattern, not drawn directly from the text." },
-        { "field": "extract volume", "note": "The paper specifies a ~0.5 uL extraction droplet volume (Vw = 0.5 uL) and a 1:1 mixing ratio with reagents; BioScript's 'units' fields use a normalized value of 1 for all dispense operations rather than the paper's literal microliter volumes, consistent with the relative-volume convention used in the reference translations." },
-        { "field": "circular/back-and-forth droplet actuation during optical-fiber measurement", "note": "The paper describes the droplet being moved back and forth through the gap between two optical fibers multiple times during measurement (Figure 9); BioScript has no primitive for spatial actuation patterns, so this is folded into the plain 'detect absorbance ... for 5s' step with no positional detail." }
+        {
+          "field": "external aerosol impaction not modeled",
+          "note": "The 5-nozzle inertial impactor, its fluid-mechanical design parameters (Reynolds number 3132.7, d50 = 162.7 nm), and the chip-to-world chamber collection-efficiency experiments (Figure 6, Figure 8) describe a physical air-sampling apparatus upstream of the chip; BioScript has no primitive for aerosol impaction itself, so the protocol begins at the on-chip extraction droplet."
+        },
+        {
+          "field": "if-gated dispose logic on sulfate/ammonium readings",
+          "note": "The thresholds used (>=11 ppm sulfate, >=0.256 ppm ammonium) are the paper's reported LOD values, but the paper does not describe a keep/discard decision branch at these thresholds; the if/dispose structure is invented to fit BioScript's conditional-dispose pattern, not drawn directly from the text."
+        },
+        {
+          "field": "extract volume",
+          "note": "The paper specifies a ~0.5 uL extraction droplet volume (Vw = 0.5 uL) and a 1:1 mixing ratio with reagents; BioScript's 'units' fields use a normalized value of 1 for all dispense operations rather than the paper's literal microliter volumes, consistent with the relative-volume convention used in the reference translations."
+        },
+        {
+          "field": "circular/back-and-forth droplet actuation during optical-fiber measurement",
+          "note": "The paper describes the droplet being moved back and forth through the gap between two optical fibers multiple times during measurement (Figure 9); BioScript has no primitive for spatial actuation patterns, so this is folded into the plain 'detect absorbance ... for 5s' step with no positional detail."
+        }
       ]
-    }
+    },
+    "notes": "This protocol details Digital Microfluidics for Aerosol Impaction, Extraction, and Colorimetric Detection of Inorganic Ions (Sulfate, Nitrate, Ammonium). The assay is performed on a Digital Microfluidics (DMF) platform. It achieves a reported detection limit of ~11 ppm)."
   }
 }

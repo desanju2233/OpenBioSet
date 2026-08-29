@@ -1,378 +1,469 @@
 {
-  "protocol": {
-    "title": "OrganoID: A Versatile Deep Learning Platform for Tracking and Analysis of Single-Organoid Dynamics",
-    "source": "PLoS Comput Biol 18(11): e1010584 (2022)",
-    "doi": "10.1371/journal.pcbi.1010584",
-    "platform": "Organoid culture (Matrigel dome, 24-well plate) + brightfield / PI fluorescence timelapse microscopy + OrganoID deep learning image analysis pipeline",
-    "cell_lines": ["PDAC organoids (human pancreatic ductal adenocarcinoma, two patients)"],
-    "objective": "Gemcitabine dose-response experiment on PDAC organoids: 72 h timelapse brightfield + PI fluorescence imaging, OrganoID pixel-by-pixel segmentation and single-organoid tracking, per-organoid PI fluorescence normalisation, morphological feature extraction (circularity, solidity, eccentricity), and MTS endpoint viability benchmarking",
-
-    "device": {
-      "culture_format": "24-well plate",
-      "matrix": "Matrigel (Corning, growth factor reduced)",
-      "dome_volume_uL": 40,
-      "media_overlay_volume_uL": 500,
-      "microscope": "Inverted brightfield / fluorescence microscope",
-      "imaging_mode": ["brightfield", "PI fluorescence (ex 488 nm / em 617 nm)"],
-      "imaging_interval_h": 4,
-      "imaging_duration_h": 72,
-      "frames_per_well": 18,
-      "image_resolution_pixels": "512x512 (resized by OrganoID pre-processing)"
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
     },
-
-    "reagents": {
-      "organoid_source": "Human PDAC patient-derived organoids (passage 3-8)",
-      "matrix": "Matrigel (ice-cold; domes polymerised at 37 C for 20 min)",
-      "complete_media": "Advanced DMEM/F12 + 10% FBS + EGF + Noggin + R-spondin1 + Wnt3a",
-      "drug": {
-        "name": "Gemcitabine (dFdC)",
-        "approved": "FDA-approved nucleoside analogue for pancreatic cancer",
-        "mechanism": "Inhibits ribonucleotide reductase and DNA synthesis (RNA/DNA synthesis interference)",
-        "stock_concentration": "10 mM in DMSO",
-        "vehicle": "DMSO, 0.1% v/v final in all conditions",
-        "concentrations_nM": [0, 3, 10, 30, 100, 300, 1000],
-        "replicates_per_condition": 6
-      },
-      "viability_stain": {
-        "name": "Propidium iodide (PI)",
-        "concentration_ug_mL": 1,
-        "ex_nm": 488,
-        "em_nm": 617,
-        "labels": "dead / necrotic cells",
-        "addition": "added to all wells at time of drug treatment; continuous labelling throughout imaging"
-      },
-      "mts_reagent": {
-        "name": "MTS ((3-(4,5-dimethylthiazol-2-yl)-5-(3-carboxymethoxyphenyl)-2-(4-sulfophenyl)-2H-tetrazolium))",
-        "readout_nm": 490,
-        "role": "Gold-standard endpoint cell viability assay; metabolically active cells reduce MTS to formazan",
-        "incubation_h": 4
+    {
+      "role": "user",
+      "content": "PROTOCOL DESCRIPTION\n====================\n\nTitle        : OrganoID: A Versatile Deep Learning Platform for Tracking and Analysis of Single-Organoid Dynamics\nSource Link  : https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1010584\nPaper DOI    : https://doi.org/10.1371/journal.pcbi.1010584\nJournal      : PLoS Computational Biology, 2022, Vol. 18, Issue 11, Article e1010584\nPlatform     : Organoid culture (Matrigel dome, 24-well plate) + brightfield / PI fluorescence\n               timelapse microscopy + OrganoID deep learning image analysis pipeline\n\n\nOVERVIEW\n--------\nThis protocol describes a gemcitabine dose-response experiment on human PDAC (pancreatic ductal\nadenocarcinoma) patient-derived organoids, designed to demonstrate OrganoID -- a robust, open-source\ndeep learning platform for automated pixel-by-pixel organoid detection, identification, and\nlongitudinal single-organoid tracking in brightfield and phase-contrast microscopy images.\n\nThe protocol is divided into four functional phases:\n  1. Organoid embedding in Matrigel and pre-treatment equilibration (24 h)\n  2. Gemcitabine dose-response treatment (7 conditions: 0, 3, 10, 30, 100, 300, 1000 nM)\n     with concurrent PI fluorescence labelling and 72 h brightfield timelapse imaging\n  3. OrganoID automated analysis: U-Net inference, Canny edge + watershed identification,\n     Munkres Hungarian tracking, per-organoid PI normalisation, and morphological feature\n     extraction (circularity, solidity, eccentricity)\n  4. MTS endpoint viability assay (gold standard EC50 benchmark) and morphology QC\n\nOrganoID achieves >95% organoid count agreement and >97% area agreement with manual\nsegmentation, maintains >89% single-organoid tracking accuracy over 92 h, and resolves\ndose-response EC50 values (via area-normalised PI fluorescence: 24.45 nM) that closely\napproach the MTS gold standard (26.13 nM), without fluorescent cell labelling.\n\n\nDEVICE / PLATFORM ARCHITECTURE\n--------------------------------\nCulture format    : 24-well plate; 40 uL Matrigel domes per well; 500 uL media overlay.\nMatrix            : Matrigel (Corning, growth factor reduced); ice-cold resuspension;\n                    polymerisation at 37 C for 20 min before media overlay.\nComplete media    : Advanced DMEM/F12 + 10% FBS + EGF + Noggin + R-spondin1 + Wnt3a.\nMicroscope        : Inverted brightfield / fluorescence microscope.\nImaging channels  : Brightfield (organoid morphology); PI fluorescence (ex 488 nm / em 617 nm).\nImaging interval  : Every 4 h over 72 h (18 frames per well per condition).\nImage resolution  : 512x512 pixels (auto-resized by OrganoID pre-processing).\n\n\nORGANOID SOURCE\n---------------\nCell type    : Human PDAC patient-derived organoids (two patients).\nPassage      : 3-8.\nDensity      : ~500 organoids/mL in ice-cold Matrigel.\nPre-culture  : 24 h equilibration at 37 C / 5% CO2 in complete media before drug addition.\n\n\nREAGENTS\n--------\nDrug           : Gemcitabine (dFdC); FDA-approved nucleoside analogue; inhibits\n                 ribonucleotide reductase and DNA/RNA synthesis; 10 mM DMSO stock.\nConcentrations : 0 (DMSO vehicle), 3, 10, 30, 100, 300, 1000 nM; n=6 replicates/condition.\nVehicle        : DMSO at 0.1% v/v final (matched across all conditions).\nViability stain: Propidium iodide (PI); 1 ug/mL; added at time of drug treatment;\n                 labels dead/necrotic cells; continuous labelling throughout imaging.\n                 Excitation 488 nm / emission 617 nm.\nMTS reagent    : (3-(4,5-dimethylthiazol-2-yl)-5-(3-carboxymethoxyphenyl)-2-(4-sulfophenyl)-\n                 2H-tetrazolium); readout at 490 nm; run on fresh organoid aliquot at endpoint;\n                 4 h incubation at 37 C.\n\n\nORGANOID ID PIPELINE\n--------------------\nLanguage           : Python.\nNeural network     : Keras (TensorFlow backend); modified U-Net architecture.\nFilters (layer 1)  : 8 (vs 64 in original U-Net; 98% parameter reduction).\nTrainable params   : <500,000.\nActivation (hidden): ELU (exponential linear unit; avoids vanishing gradient problems).\nActivation (output): Sigmoid (normalised organoid probability per pixel).\nPreprocessing      : Auto-contrast and resize to 512x512 pixels.\n\nTraining:\n  Dataset        : 66 manually labelled brightfield / phase-contrast images (PDAC, 2 patients).\n  Split          : 52 training pairs / 14 validation pairs.\n  Augmentation   : Augmentor package (rotation, zoom, elastic distortion, shear); 2000 images.\n  Optimizer      : Adam (learning rate 0.001).\n  Loss           : Unweighted binary cross-entropy.\n  Weight init    : He method.\n  Dropout        : 12.5% neuron weights zeroed after each batch.\n  Batch size     : 8 augmented images per backpropagation round.\n  Early stopping : Halt once 10 epochs pass with no improvement in validation loss.\n  Convergence    : 37 epochs; validation cross-entropy loss minimum 0.088 at 8 filters.\n\nIdentification pipeline (single-organoid resolution):\n  Step 1: Threshold detection image at 0.5; morphological opening to remove noise.\n  Step 2: Canny edge detection on raw network prediction image\n          (Sobel filter; Gaussian sigma=2; Thi=0.05, Tlo=0.005).\n  Step 3: Remove Canny edges from thresholded image to mark organoid centres.\n  Step 4: Watershed transform (centres as basin initialisers; prediction image as\n          inverted heightmap). Libraries: scipy, scikit-image.\n  Step 5: Discard detections with total area < 200 pixels.\n\nTracking module:\n  Algorithm     : Munkres variant of the Hungarian algorithm.\n  Cost function : Inverse of shared pixel count between consecutive detections.\n  Pseudo-assign : Extra matrix rows/columns for missing or newly appearing organoids.\n  Accuracy      : >89% (fraction of organoids correctly matched at each frame) over 92 h.\n  Robustness    : Accuracy unaffected when frames discarded to simulate 12 h interval.\n\nPerformance (test dataset):\n  PDAC IOU (mean +/- SD)         : 0.74 +/- 0.081 (benchmark >= 0.5)\n  ACC  IOU                       : 0.78 +/- 0.09\n  Colon IOU                      : 0.72 +/- 0.08\n  Lung  IOU                      : 0.87 +/- 0.04\n  Mouse small intestine IOU      : 0.70 +/- 0.15\n  Organoid count CCC             : 0.95 (95% CI 0.89-0.98)\n  Organoid area CCC              : 0.97 (95% CI 0.96-0.97)\n  False positive rate (bubbles)  : 4.2%\n  Segmentation speed             : ~300 ms per image (Intel i7-9750H 2.6GHz, <200 MB RAM)\n\n\nPROTOCOL STEPS\n--------------\n\nStep 1 | Organoid Embedding in Matrigel\n  Reagents    : PDAC organoids (~500/mL), Matrigel (ice-cold, growth factor reduced)\n  Operation   : Resuspend organoids in ice-cold Matrigel; seed 40 uL domes per well\n  Gelation    : 37 C for 20 min (heat at 37 C for 20 min in BioScript)\n  Purpose     : Creates 3D extracellular environment recapitulating in situ tumour matrix.\n                mix abstracts the resuspension and dome-seeding step (no DMF mixing).\n\nStep 2 | Media Overlay and Pre-Treatment Equilibration\n  Reagents    : Complete media (500 uL per well)\n  Operation   : Overlay after Matrigel gelation; equilibrate at 37 C / 5% CO2 for 24 h\n  Duration    : 24 h = 1440 min (heat at 37 C for 1440 min in BioScript)\n  Purpose     : Allows organoids to adapt to culture conditions before drug challenge.\n\nStep 3 | Vehicle Control Treatment (0 nM Gemcitabine)\n  Reagents    : CompleteMedia, DMSO vehicle (0.1% v/v final), PropidiumIodide (1 ug/mL)\n  Operation   : Mix drug/vehicle into media; add PI; image at 37 C every 4 h for 72 h\n  Duration    : 72 h = 4320 min (heat at 37 C for 4320 min in BioScript)\n  Detection   : organoidDetection module; 30 s\n  QC branch   : controlSignal > 0 → dispose (organoids detected, growing normally; experiment valid)\n                controlSignal <= 0 → drain (no organoids in control; experiment setup failure)\n  Notes       : heat + organoidDetection together abstract the full 18-frame timelapse run\n                with concurrent OrganoID U-Net inference and tracking.\n\nStep 4 | 3 nM Gemcitabine Treatment\n  Reagents    : CompleteMedia, Gemcitabine_3nM, PropidiumIodide\n  Duration    : 72 h = 4320 min\n  QC branch   : signal3nM > 0 → dispose; signal3nM <= 0 → drain\n  Notes       : Lowest dose; minimal effect on area or count (Fig 3B).\n\nStep 5 | 10 nM Gemcitabine Treatment\n  Reagents    : CompleteMedia, Gemcitabine_10nM, PropidiumIodide\n  Duration    : 72 h = 4320 min\n  QC branch   : signal10nM > 0 → dispose; signal10nM <= 0 → drain\n  Notes       : Organoid count begins to fall sharply above 10 nM (Fig 3B bottom).\n\nStep 6 | 30 nM Gemcitabine Treatment\n  Reagents    : CompleteMedia, Gemcitabine_30nM, PropidiumIodide\n  Duration    : 72 h = 4320 min\n  QC branch   : signal30nM > 0 → dispose; signal30nM <= 0 → drain\n  Notes       : Clearest representative dose in paper (Fig 3A): organoid area initially\n                rises (early growth) then falls; count drops; PI fluorescence rises\n                proportionally to concentration.\n\nStep 7 | 100 nM Gemcitabine Treatment\n  Reagents    : CompleteMedia, Gemcitabine_100nM, PropidiumIodide\n  Duration    : 72 h = 4320 min\n  QC branch   : signal100nM > 0 → dispose; signal100nM <= 0 → drain\n  Notes       : Without area normalisation, total PI at 100 nM paradoxically exceeds\n                1000 nM signal (Fig 3C top). OrganoID per-organoid area normalisation\n                corrects this discrepancy (Fig 3C bottom), aligning responses correctly.\n\nStep 8 | 300 nM Gemcitabine Treatment\n  Reagents    : CompleteMedia, Gemcitabine_300nM, PropidiumIodide\n  Duration    : 72 h = 4320 min\n  QC branch   : signal300nM > 0 → dispose; signal300nM <= 0 → drain\n\nStep 9 | 1000 nM Gemcitabine Treatment\n  Reagents    : CompleteMedia, Gemcitabine_1000nM, PropidiumIodide\n  Duration    : 72 h = 4320 min\n  QC branch   : signal1000nM > 0 → dispose; signal1000nM <= 0 → drain\n  Notes       : Highest dose. Essentially all organoids killed by 48 h. Circularity and\n                solidity decrease markedly; eccentricity increases, reflecting disrupted\n                organoid architecture (moderate-to-large Cohen d effect sizes; Fig 3E).\n                Gemcitabine interference with RNA/DNA synthesis (ref 40) likely disrupts\n                cell turnover and structural protein production.\n\nStep 10 | MTS Endpoint Viability Assay (Gold Standard)\n  Reagents    : Fresh PDAC organoids, MatrigelMatrix, CompleteMedia, MTS reagent\n  Operation   : Re-embed fresh organoid aliquot; overlay media; incubate MTS 4 h at 37 C\n  Duration    : Gelation 20 min + MTS incubation 4 h = 240 min (heat at 37 C for 240 min)\n  Detection   : mtsViabilityDetection module (490 nm absorbance); 30 s\n  QC branch   : mtsSignal > 0 → dispose (valid formazan signal; proceed to morphology)\n                mtsSignal <= 0 → drain (MTS failure; reagent or instrument issue)\n  Result      : MTS EC50 = 26.13 nM (Fig 3D; gold-standard reference)\n  Notes       : Run on fresh organoid aliquot, not timelapse wells. Off-device 4-parameter\n                logistic dose-response curve fitting determines EC50 per readout type.\n\nStep 11 | Single-Organoid Morphology Analysis\n  Reagents    : Fresh PDAC organoids, MatrigelMatrix, CompleteMedia\n  Operation   : Re-embed; overlay media; detect morphological features on reference well\n  Detection   : morphologyAnalysis module; 60 s\n  QC branch   : morphologySignal > 0 → dispose (metrics computed; pipeline operational)\n                morphologySignal <= 0 → drain (segmentation returned no organoids; pipeline failure)\n  Metrics computed (scikit-image regionprops on OrganoID labeled masks):\n    Circularity  : Inverse ratio of organoid perimeter to perimeter of perfect circle\n                   with equal area. Decreases with gemcitabine dose. EC50 = 28.47 nM.\n    Solidity     : Ratio of organoid area to convex hull area.\n                   Decreases with gemcitabine dose. EC50 = 27.05 nM.\n    Eccentricity : Elliptical deviation from a perfect circle.\n                   Increases with gemcitabine dose. EC50 = 18.08 nM.\n    Effect size  : Cohen's d statistic (difference in means / pooled SD) computed across\n                   all pairwise concentration combinations (Fig 3E heatmap).\n  Normalisation: Tracking-based per-organoid normalisation (each organoid normalised to\n                 its own first-detection value) significantly reduces CV vs batch\n                 normalisation: fluorescence (p=2e-30), area (p=2e-29),\n                 perimeter (p=2e-63) -- Welch t-test (Fig S6).\n\n\nDOSE-RESPONSE SUMMARY\n---------------------\n  Readout                        EC50 (nM)   Notes\n  ----------------------------------------------------------------------\n  MTS viability (gold standard)  26.13       Off-chip endpoint assay; reference\n  Organoid area (OrganoID)       12.67       Underestimates; no death-size correction\n  Total PI fluorescence          16.95       Underestimates; not normalised to organoid size\n  Area-normalised PI (OrganoID)  24.45       Closest to MTS; per-organoid tracking normalisation\n  Circularity (OrganoID)         28.47       Morphological; sigmoidal dose-response (Fig S7)\n  Solidity (OrganoID)            27.05       Morphological; sigmoidal dose-response (Fig S7)\n  Eccentricity (OrganoID)        18.08       Morphological; sigmoidal dose-response (Fig S7)\n\n\nBIOSCRIPT COMPILER NOTES\n-------------------------\nBioScript file : matthews_organoid_organoid_id.bs\nCompiler       : lilott8/BioScript (ANTLR4-based)\nIR output      : 28 basic blocks (BB1-BB28), 11 if/else gates, 36 CFG edges\nDAG            : matthews_organoid_organoid_id_main_dag.dot\nDuration units : All durations converted to minutes (m) for compiler compatibility\n                 (BioScript supports s and m only; h token not supported)\n                 72 h  -> 4320 m  (timelapse imaging; IR: 259200.0 SECOND)\n                 24 h  -> 1440 m  (equilibration; IR: 86400.0 SECOND)\n                 20 min -> 20 m   (Matrigel gelation; IR: 1200.0 SECOND)\n                  4 h  -> 240 m   (MTS incubation; IR: 14400.0 SECOND)\nModules        : organoidDetection, propidiumIodideDetection,\n                 mtsViabilityDetection, morphologyAnalysis\nBiological scope note:\n  cultureDomes is the shared embedded organoid droplet used across all 7 treatment\n  condition arms. Each treatment arm re-uses cultureDomes as the mix input, reflecting\n  the single-batch organoid preparation described in the paper. MTS and morphology\n  QC steps use independently dispensed fresh organoid aliquots (mtsOrganoids,\n  morphOrganoids) to avoid contaminating the timelapse wells.\nTimelapse abstraction note:\n  BioScript does not support loop constructs. The 72 h timelapse (18 frames at 4 h\n  intervals) is abstracted as a single heat at 37 C for 4320 m per condition arm.\n  The organoidDetection module abstracts the full OrganoID pipeline run post-incubation:\n  U-Net inference on all frames, Canny + watershed single-organoid identification,\n  and Munkres Hungarian tracking across frames.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module organoidDetection\nmodule propidiumIodideDetection\nmodule mtsViabilityDetection\nmodule morphologyAnalysis\n\nmanifest PDAC_Organoids\nmanifest Gemcitabine_3nM\nmanifest Gemcitabine_10nM\nmanifest Gemcitabine_30nM\nmanifest Gemcitabine_100nM\nmanifest Gemcitabine_300nM\nmanifest Gemcitabine_1000nM\nmanifest PropidiumIodide\nmanifest MatrigelMatrix\nmanifest CompleteMedia\nmanifest DMSO_Vehicle\n\n// ============================================================\n// OrganoID: A Versatile Deep Learning Platform for Tracking\n// and Analysis of Single-Organoid Dynamics.\n// Matthews JM, Schuster B, Kashaf SS, et al.\n// PLoS Comput Biol 18(11): e1010584 (2022).\n// DOI: 10.1371/journal.pcbi.1010584\n//\n// Protocol: Gemcitabine dose-response experiment on PDAC\n// (pancreatic ductal adenocarcinoma) organoids. Organoids\n// are cultured in Matrigel, treated with a serial dilution\n// of gemcitabine (3 nM - 1000 nM), and imaged every 4 hours\n// over 72 hours in brightfield + PI fluorescence channels.\n// OrganoID platform segments and tracks individual organoids\n// pixel-by-pixel across timelapse frames, normalises PI\n// fluorescence by organoid area, and computes morphological\n// features (circularity, solidity, eccentricity). A gold-\n// standard MTS viability assay is run at endpoint.\n//\n// NOTE ON BIOLOGICAL SCOPE:\n// Six gemcitabine concentrations (3, 10, 30, 100, 300,\n// 1000 nM) plus a 0 nM vehicle control (DMSO) are tested\n// (n=6 replicates per condition; paper Fig. 3, S6-S7 Fig).\n// This BioScript file encodes the full 7-condition experiment\n// in sequence. Each condition block: (1) embed organoids in\n// Matrigel, (2) add drug / vehicle, (3) add PI stain,\n// (4) image for 72 h (modelled as `heat` at 37 C for 4320m),\n// (5) detect PI signal, (6) branch on viability signal.\n// The MTS assay and final morphology analysis are encoded\n// after all treatment arms converge at the endpoint join.\n//\n// NOTE ON TIMELAPSE ABSTRACTION:\n// The paper images every 4 h over 72 h (18 frames per well).\n// BioScript does not natively support loop constructs. The\n// 72 h incubation period with continuous imaging is therefore\n// abstracted as a single `heat` step (37 C, 4320m = 72 h).\n// The `organoidDetection` module abstracts the OrganoID\n// U-Net inference (pixel-by-pixel segmentation, watershed\n// identification, Munkres tracking) run on all acquired frames.\n//\n// NOTE ON DURATION TOKENS:\n// lilott8/BioScript accepts `s` (seconds) and `m` (minutes)\n// only. All hour-level durations are converted to minutes:\n//   72 h  = 4320 m  (imaging + incubation)\n//   4 h   = 240 m   (MTS endpoint assay)\n//\n// CFG STRUCTURE:\n//   BB1  main              -- embed organoids; 7 treatment arms\n//                             (0 nM control + 6 drug conditions)\n//   BB2  controlPass       -- controlSignal > 0: viable control;\n//                             dispose and proceed to drug arms\n//   BB3  controlFail       -- controlSignal <= 0: experiment fail;\n//                             drain control; flag abort\n//   BB4  controlJoin       -- join: 3 nM treatment arm begins\n//   BB5  drug3Pass         -- 3 nM PI signal > 0: dispose\n//   BB6  drug3Fail         -- 3 nM PI signal <= 0: drain\n//   BB7  drug3Join         -- join: 10 nM treatment arm begins\n//   BB8  drug10Pass        -- 10 nM PI signal > 0: dispose\n//   BB9  drug10Fail        -- 10 nM PI signal <= 0: drain\n//   BB10 drug10Join        -- join: 30 nM treatment arm begins\n//   BB11 drug30Pass        -- 30 nM PI signal > 0: dispose\n//   BB12 drug30Fail        -- 30 nM PI signal <= 0: drain\n//   BB13 drug30Join        -- join: 100 nM treatment arm begins\n//   BB14 drug100Pass       -- 100 nM PI signal > 0: dispose\n//   BB15 drug100Fail       -- 100 nM PI signal <= 0: drain\n//   BB16 drug100Join       -- join: 300 nM treatment arm begins\n//   BB17 drug300Pass       -- 300 nM PI signal > 0: dispose\n//   BB18 drug300Fail       -- 300 nM PI signal <= 0: drain\n//   BB19 drug300Join       -- join: 1000 nM treatment arm begins\n//   BB20 drug1000Pass      -- 1000 nM PI signal > 0: dispose\n//   BB21 drug1000Fail      -- 1000 nM PI signal <= 0: drain\n//   BB22 drug1000Join      -- join: endpoint MTS + morphology\n//   BB23 mtsPass           -- mtsSignal > 0: valid endpoint;\n//                             dispose; run morphology QC\n//   BB24 mtsFail           -- mtsSignal <= 0: invalid endpoint;\n//                             drain all endpoint samples\n//   BB25 morphologyPass    -- morphologySignal > 0: valid shape\n//                             metrics; dispose\n//   BB26 morphologyFail    -- morphologySignal <= 0: invalid;\n//                             drain morphology sample\n//   BB27 finalCleanup      -- terminal: dispose all QC signals\n// ============================================================\n\ninstructions:\n\n// ============================================================\n// BB1: main\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 1: Embed PDAC organoids in Matrigel matrix.\n//   Organoids (passage 3-8) resuspended in ice-cold Matrigel\n//   at ~500 organoids/mL. 40 uL domes seeded per well in a\n//   24-well plate and polymerised at 37 C for 20 min before\n//   media overlay. BioScript `mix` abstracts the embedding\n//   and dome-formation step (no DMF electrode mixing).\n//   Matrigel dome solidification modelled as `heat` at 37 C\n//   for 20 min.\n//\n//   NOTE: All 7 treatment conditions use the same organoid\n//   batch. Embedding step is shared; media + drug additions\n//   are condition-specific from STEP 3 onwards.\n// ------------------------------------------------------------\n\norganoidBatch   = dispense 1 units of PDAC_Organoids\nmatrigelBase    = dispense 1 units of MatrigelMatrix\n\nembeddedOrganoids = mix organoidBatch with matrigelBase for 5s\n\n// Matrigel polymerisation: 37 C for 20 min.\nheat embeddedOrganoids at 37c for 20m\n\n// ------------------------------------------------------------\n// STEP 2: Overlay with complete growth media and equilibrate.\n//   500 uL complete media (Advanced DMEM/F12 + 10% FBS +\n//   EGF + Noggin + R-spondin1 + Wnt3a) added after gelation.\n//   Organoids equilibrated at 37 C / 5% CO2 for 24 h before\n//   drug addition. 24 h = 1440 min.\n// ------------------------------------------------------------\n\nbaseMedia       = dispense 1 units of CompleteMedia\ncultureDomes    = mix embeddedOrganoids with baseMedia for 2s\n\n// 24 h pre-treatment equilibration at 37 C.\nheat cultureDomes at 37c for 1440m\n\n// ------------------------------------------------------------\n// STEP 3 (0 nM CONTROL): Vehicle-treated control condition.\n//   DMSO vehicle added at equivalent volume to highest drug\n//   condition (0.1% v/v final DMSO). Propidium iodide (PI)\n//   added at 1 ug/mL final concentration to all wells for\n//   continuous dead-cell labelling throughout imaging.\n//   PI: excitation 488 nm / emission 617 nm.\n// ------------------------------------------------------------\n\ncontrolMedia    = dispense 1 units of CompleteMedia\ndmsoVehicle     = dispense 1 units of DMSO_Vehicle\npiStainCtrl     = dispense 1 units of PropidiumIodide\n\ncontrolDrug     = mix controlMedia with dmsoVehicle for 5s\ncontrolWell     = mix cultureDomes with controlDrug for 5s\ncontrolWellPI   = mix controlWell with piStainCtrl for 2s\n\n// ------------------------------------------------------------\n// STEP 4 (0 nM CONTROL): 72 h timelapse imaging at 37 C.\n//   Brightfield images acquired every 4 h (18 frames total).\n//   PI fluorescence channel co-acquired at each timepoint.\n//   `heat` at 37 C for 4320 m abstracts the full 72 h\n//   incubation + concurrent timelapse imaging run.\n//   organoidDetection module abstracts:\n//     (i)  OrganoID U-Net inference on each brightfield frame\n//     (ii) Canny edge + watershed single-organoid identification\n//     (iii) Munkres Hungarian tracking across frames\n//   Outputs: per-organoid area, count, PI fluorescence,\n//   circularity, solidity, eccentricity trajectories.\n// ------------------------------------------------------------\n\nheat controlWellPI at 37c for 4320m\n\ncontrolSignal   = detect organoidDetection on controlWellPI for 30s\n\n// ============================================================\n// BB2 / BB3: Control viability QC gate\n// Pass (BB2): controlSignal > 0 -> organoids detected and\n//             growing normally in vehicle control; proceed.\n// Fail (BB3): controlSignal <= 0 -> no organoids detected\n//             in control (experiment setup failure); drain.\n// Both branches converge at BB4 (controlJoin).\n// ============================================================\n\nif (controlSignal > 0) {\n    dispose controlWellPI\n} else {\n    drain controlWellPI\n}\n\n// ============================================================\n// BB4: controlJoin\n// Dispose control QC signal. Proceed to 3 nM drug arm.\n// ============================================================\n\ndispose controlSignal\n\n// ------------------------------------------------------------\n// STEP 5 (3 nM GEMCITABINE): Lowest dose treatment arm.\n//   Gemcitabine: FDA-approved nucleoside analogue (dFdC),\n//   inhibits ribonucleotide reductase and DNA synthesis.\n//   Serial dilutions prepared in complete media from 10 mM\n//   DMSO stock. Final DMSO: 0.1% v/v in all conditions.\n//   PI added at same concentration as control (1 ug/mL).\n// ------------------------------------------------------------\n\nmedia3nM        = dispense 1 units of CompleteMedia\ndrug3nM         = dispense 1 units of Gemcitabine_3nM\npi3nM           = dispense 1 units of PropidiumIodide\n\ntreatMedia3     = mix media3nM with drug3nM for 5s\nwell3nM         = mix cultureDomes with treatMedia3 for 5s\nwell3nMpi       = mix well3nM with pi3nM for 2s\n\nheat well3nMpi at 37c for 4320m\n\nsignal3nM       = detect organoidDetection on well3nMpi for 30s\n\n// ============================================================\n// BB5 / BB6: 3 nM arm QC gate\n// ============================================================\n\nif (signal3nM > 0) {\n    dispose well3nMpi\n} else {\n    drain well3nMpi\n}\n\n// ============================================================\n// BB7: drug3Join\n// ============================================================\n\ndispose signal3nM\n\n// ------------------------------------------------------------\n// STEP 6 (10 nM GEMCITABINE)\n// ------------------------------------------------------------\n\nmedia10nM       = dispense 1 units of CompleteMedia\ndrug10nM        = dispense 1 units of Gemcitabine_10nM\npi10nM          = dispense 1 units of PropidiumIodide\n\ntreatMedia10    = mix media10nM with drug10nM for 5s\nwell10nM        = mix cultureDomes with treatMedia10 for 5s\nwell10nMpi      = mix well10nM with pi10nM for 2s\n\nheat well10nMpi at 37c for 4320m\n\nsignal10nM      = detect organoidDetection on well10nMpi for 30s\n\n// ============================================================\n// BB8 / BB9: 10 nM arm QC gate\n// ============================================================\n\nif (signal10nM > 0) {\n    dispose well10nMpi\n} else {\n    drain well10nMpi\n}\n\n// ============================================================\n// BB10: drug10Join\n// ============================================================\n\ndispose signal10nM\n\n// ------------------------------------------------------------\n// STEP 7 (30 nM GEMCITABINE)\n//   Paper reports the clearest dose-response phenotype at\n//   30 nM (Fig 3A): organoid area increases initially then\n//   decreases; organoid count drops sharply above 10 nM.\n//   PI fluorescence rises proportionally to concentration.\n// ------------------------------------------------------------\n\nmedia30nM       = dispense 1 units of CompleteMedia\ndrug30nM        = dispense 1 units of Gemcitabine_30nM\npi30nM          = dispense 1 units of PropidiumIodide\n\ntreatMedia30    = mix media30nM with drug30nM for 5s\nwell30nM        = mix cultureDomes with treatMedia30 for 5s\nwell30nMpi      = mix well30nM with pi30nM for 2s\n\nheat well30nMpi at 37c for 4320m\n\nsignal30nM      = detect organoidDetection on well30nMpi for 30s\n\n// ============================================================\n// BB11 / BB12: 30 nM arm QC gate\n// ============================================================\n\nif (signal30nM > 0) {\n    dispose well30nMpi\n} else {\n    drain well30nMpi\n}\n\n// ============================================================\n// BB13: drug30Join\n// ============================================================\n\ndispose signal30nM\n\n// ------------------------------------------------------------\n// STEP 8 (100 nM GEMCITABINE)\n//   At 100 nM the PI total fluorescence signal is paradoxically\n//   stronger than at 1000 nM (Fig 3C). OrganoID's per-organoid\n//   area normalisation corrects this discrepancy (Fig 3C\n//   bottom), aligning 100 nM and 1000 nM responses correctly.\n// ------------------------------------------------------------\n\nmedia100nM      = dispense 1 units of CompleteMedia\ndrug100nM       = dispense 1 units of Gemcitabine_100nM\npi100nM         = dispense 1 units of PropidiumIodide\n\ntreatMedia100   = mix media100nM with drug100nM for 5s\nwell100nM       = mix cultureDomes with treatMedia100 for 5s\nwell100nMpi     = mix well100nM with pi100nM for 2s\n\nheat well100nMpi at 37c for 4320m\n\nsignal100nM     = detect organoidDetection on well100nMpi for 30s\n\n// ============================================================\n// BB14 / BB15: 100 nM arm QC gate\n// ============================================================\n\nif (signal100nM > 0) {\n    dispose well100nMpi\n} else {\n    drain well100nMpi\n}\n\n// ============================================================\n// BB16: drug100Join\n// ============================================================\n\ndispose signal100nM\n\n// ------------------------------------------------------------\n// STEP 9 (300 nM GEMCITABINE)\n// ------------------------------------------------------------\n\nmedia300nM      = dispense 1 units of CompleteMedia\ndrug300nM       = dispense 1 units of Gemcitabine_300nM\npi300nM         = dispense 1 units of PropidiumIodide\n\ntreatMedia300   = mix media300nM with drug300nM for 5s\nwell300nM       = mix cultureDomes with treatMedia300 for 5s\nwell300nMpi     = mix well300nM with pi300nM for 2s\n\nheat well300nMpi at 37c for 4320m\n\nsignal300nM     = detect organoidDetection on well300nMpi for 30s\n\n// ============================================================\n// BB17 / BB18: 300 nM arm QC gate\n// ============================================================\n\nif (signal300nM > 0) {\n    dispose well300nMpi\n} else {\n    drain well300nMpi\n}\n\n// ============================================================\n// BB19: drug300Join\n// ============================================================\n\ndispose signal300nM\n\n// ------------------------------------------------------------\n// STEP 10 (1000 nM GEMCITABINE): Highest dose arm.\n//   At 1000 nM essentially all organoids are killed; area\n//   and count drop to near-zero by 48 h. Circularity and\n//   solidity decrease markedly; eccentricity increases,\n//   reflecting disrupted, irregular organoid architecture\n//   (Cohen's d effect sizes shown in paper Fig. 3E).\n// ------------------------------------------------------------\n\nmedia1000nM     = dispense 1 units of CompleteMedia\ndrug1000nM      = dispense 1 units of Gemcitabine_1000nM\npi1000nM        = dispense 1 units of PropidiumIodide\n\ntreatMedia1000  = mix media1000nM with drug1000nM for 5s\nwell1000nM      = mix cultureDomes with treatMedia1000 for 5s\nwell1000nMpi    = mix well1000nM with pi1000nM for 2s\n\nheat well1000nMpi at 37c for 4320m\n\nsignal1000nM    = detect organoidDetection on well1000nMpi for 30s\n\n// ============================================================\n// BB20 / BB21: 1000 nM arm QC gate\n// ============================================================\n\nif (signal1000nM > 0) {\n    dispose well1000nMpi\n} else {\n    drain well1000nMpi\n}\n\n// ============================================================\n// BB22: drug1000Join\n// All six drug treatment arms + control have completed.\n// Endpoint assays begin: MTS viability + morphology analysis.\n// ============================================================\n\ndispose signal1000nM\n\n// ------------------------------------------------------------\n// STEP 11: MTS endpoint viability assay (gold standard).\n//   MTS reagent: (3-(4,5-dimethylthiazol-2-yl)-5-(3-carboxy-\n//   methoxyphenyl)-2-(4-sulfophenyl)-2H-tetrazolium).\n//   Metabolically active cells reduce MTS to formazan\n//   (absorbance 490 nm). Used as reference EC50 benchmark.\n//   Paper reports MTS EC50 = 26.13 nM (Fig. 3D).\n//   Assay incubation: 4 h at 37 C = 240 min.\n//\n//   NOTE: MTS is run on a fresh organoid aliquot from the\n//   same batch (endpoint only), not on the timelapse wells.\n//   `mtsViabilityDetection` abstracts the 490 nm absorbance\n//   readout across all drug concentrations at endpoint.\n//   Only one representative endpoint droplet (vehicle control\n//   matched fresh organoids) is encoded here for the QC gate;\n//   the dose-response curve fitting is an off-device analysis.\n// ------------------------------------------------------------\n\nmtsOrganoids    = dispense 1 units of PDAC_Organoids\nmtsMatrix       = dispense 1 units of MatrigelMatrix\nmtsMedia        = dispense 1 units of CompleteMedia\n\nmtsEmbedded     = mix mtsOrganoids with mtsMatrix for 5s\nheat mtsEmbedded at 37c for 20m\n\nmtsWell         = mix mtsEmbedded with mtsMedia for 2s\n\n// MTS incubation: 4 h at 37 C (= 240 min).\nheat mtsWell at 37c for 240m\n\nmtsSignal       = detect mtsViabilityDetection on mtsWell for 30s\n\n// ============================================================\n// BB23 / BB24: MTS endpoint QC gate\n// Pass (BB23): mtsSignal > 0 -> valid formazan absorbance\n//              detected; dispose MTS well; run morphology.\n// Fail (BB24): mtsSignal <= 0 -> MTS assay failure (reagent\n//              or instrument issue); drain MTS well.\n// Both branches converge at BB25/BB26 (morphology gate).\n// ============================================================\n\nif (mtsSignal > 0) {\n    dispose mtsWell\n} else {\n    drain mtsWell\n}\n\n// ------------------------------------------------------------\n// STEP 12: Single-organoid morphology analysis.\n//   OrganoID computes per-organoid shape metrics from the\n//   timelapse segmentation masks for each treatment condition:\n//     - Circularity: inverse ratio of organoid perimeter to\n//       perimeter of a perfect circle with equal area.\n//       (Higher = rounder; decreases with gemcitabine dose.)\n//     - Solidity: ratio of organoid area to its convex hull.\n//       (Higher = more compact; decreases with drug dose.)\n//     - Eccentricity: elliptical deviation from a circle.\n//       (Increases with drug dose; reflects disorganised shape.)\n//   Sigmoidal dose-response EC50 (paper Fig. S7):\n//     Circularity EC50  = 28.47 nM\n//     Solidity EC50     = 27.05 nM\n//     Eccentricity EC50 = 18.08 nM\n//   Cohen's d effect sizes computed across concentration pairs\n//   (paper Fig. 3E). Moderate-to-large effects at EC50 crossing.\n//\n//   `morphologyAnalysis` module abstracts the scikit-image\n//   regionprops computation on OrganoID-labeled organoid masks,\n//   plus Cohen's d statistic calculation across conditions.\n//\n//   NOTE: Morphology QC uses a fresh brightfield image of the\n//   vehicle-control well at endpoint as a reference sample\n//   to verify the segmentation pipeline is still operational.\n// ------------------------------------------------------------\n\nmorphMedia      = dispense 1 units of CompleteMedia\nmorphOrganoids  = dispense 1 units of PDAC_Organoids\nmorphMatrix     = dispense 1 units of MatrigelMatrix\n\nmorphEmbedded   = mix morphOrganoids with morphMatrix for 5s\nheat morphEmbedded at 37c for 20m\n\nmorphWell       = mix morphEmbedded with morphMedia for 2s\n\nmorphologySignal = detect morphologyAnalysis on morphWell for 60s\n\n// ============================================================\n// BB25 / BB26: Morphology QC gate\n// Pass (BB25): morphologySignal > 0 -> circularity, solidity,\n//              and eccentricity metrics successfully computed\n//              by OrganoID; dispose morphology reference well.\n// Fail (BB26): morphologySignal <= 0 -> morphology pipeline\n//              failure (segmentation returned no organoids in\n//              reference image); drain morphology well.\n// Both branches converge at BB27 (finalCleanup).\n// ============================================================\n\nif (morphologySignal > 0) {\n    dispose morphWell\n} else {\n    drain morphWell\n}\n\n// ============================================================\n// BB27: finalCleanup (terminal)\n// Dispose all remaining QC signal droplets.\n// Experiment ends. Off-device analysis:\n//   - EC50 curve fitting (organoid area, PI fluorescence,\n//     area-normalised PI, MTS) using 4-parameter logistic.\n//   - Cohen's d effect size heatmaps (Fig. 3E).\n//   - Tracking accuracy assessment vs manual ground truth.\n// ============================================================\n\ndispose mtsSignal\ndispose morphologySignal\n\n// [terminal -- no further instructions; exit node for CFG]\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "matthews_organoid_organoid_id_001",
+      "protocol_name": "OrganoID: A Versatile Deep Learning Platform for Tracking and Analysis of Single-Organoid Dynamics",
+      "category": "synthetic_biology",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "OrganoID: A Versatile Deep Learning Platform for Tracking and Analysis of Single-Organoid Dynamics",
+      "publisher": "PLoS Computational Biology, 2022, Vol. 18, Issue 11, Article e1010584",
+      "doi": "10.1371/journal.pcbi.1010584",
+      "url": "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1010584",
+      "platform": "Organoid culture (Matrigel dome, 24-well plate) + brightfield / PI fluorescence"
+    },
+    "bioscript": {
+      "manifests": [
+        "PDAC_Organoids",
+        "Gemcitabine_3nM",
+        "Gemcitabine_10nM",
+        "Gemcitabine_30nM",
+        "Gemcitabine_100nM",
+        "Gemcitabine_300nM",
+        "Gemcitabine_1000nM",
+        "PropidiumIodide",
+        "MatrigelMatrix",
+        "CompleteMedia",
+        "DMSO_Vehicle"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "drain",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 105
       }
     },
-
-    "organoid_id_pipeline": {
-      "language": "Python",
-      "neural_network_interface": "Keras (TensorFlow backend)",
-      "architecture": "Modified U-Net",
-      "filters_first_layer": 8,
-      "trainable_parameters": "<500000 (98% reduction vs original U-Net with 64 filters)",
-      "activation_hidden": "ELU (exponential linear unit)",
-      "activation_output": "Sigmoid",
-      "image_preprocessing": "Auto-contrast and resize to 512x512 pixels",
-      "training": {
-        "dataset_images": 66,
-        "training_pairs": 52,
-        "validation_pairs": 14,
-        "organoid_type": "Human PDAC (two patients)",
-        "augmentation": "Augmentor package: rotation, zoom, elastic distortion, shear (2000 augmented images)",
-        "optimizer": "Adam (lr=0.001)",
-        "loss_function": "Unweighted binary cross-entropy",
-        "weight_initialisation": "He method",
-        "dropout": "12.5% neuron weights zeroed after each batch",
-        "batch_size": 8,
-        "early_stopping": "10 epochs with no improvement in validation loss",
-        "epochs_to_convergence": 37
-      },
-      "identification_pipeline": {
-        "step1": "Threshold detection image at 0.5",
-        "step2": "Morphological opening to remove weak/noisy predictions",
-        "step3": "Canny edge detection on raw network prediction image (Sobel filter, Gaussian sigma=2, Thi=0.05, Tlo=0.005)",
-        "step4": "Remove edges from thresholded image to mark organoid centres",
-        "step5": "Watershed transform (centres as basin initialisers, prediction image as inverted heightmap)",
-        "step6": "Discard organoids with total area < 200 pixels",
-        "libraries": ["scipy", "scikit-image"]
-      },
-      "tracking": {
-        "algorithm": "Munkres variant of the Hungarian algorithm",
-        "cost_function": "Inverse of number of shared pixels between two detections",
-        "pseudo_assignments": "Additional rows/columns in cost matrix for missing or newly detected organoids",
-        "accuracy_pct": ">89 (over 92 h experiment)",
-        "frame_interval_sensitivity": "Accuracy unaffected when frames discarded to simulate 12 h interval"
-      },
-      "performance_metrics": {
-        "detection_IOU_PDAC": { "mean": 0.74, "sd": 0.081, "benchmark": 0.5 },
-        "detection_IOU_ACC":  { "mean": 0.78, "sd": 0.09 },
-        "detection_IOU_colon":{ "mean": 0.72, "sd": 0.08 },
-        "detection_IOU_lung": { "mean": 0.87, "sd": 0.04 },
-        "detection_IOU_mouse_SI": { "mean": 0.70, "sd": 0.15 },
-        "count_CCC": { "value": 0.95, "CI_95": "0.89-0.98" },
-        "area_CCC":  { "value": 0.97, "CI_95": "0.96-0.97" },
-        "false_positive_rate_air_bubbles_pct": 4.2,
-        "segmentation_time_ms_per_image": "~300",
-        "cpu": "Intel i7-9750H 2.6GHz",
-        "ram_usage_MB": "<200"
-      }
-    },
-
-    "steps": [
-      {
-        "id": "S1",
-        "name": "Organoid embedding in Matrigel",
-        "bb": "BB1",
-        "inputs": ["PDAC_Organoids", "MatrigelMatrix"],
-        "operation": "mix",
-        "mix_duration_s": 5,
-        "organoid_density_per_mL": "~500",
-        "dome_volume_uL": 40,
-        "polymerisation_temperature_C": 37,
-        "polymerisation_duration_min": 20,
-        "notes": "Organoids resuspended in ice-cold Matrigel; 40 uL domes seeded per well. mix abstracts the resuspension and dome-seeding step. heat at 37 C for 20 min abstracts gelation."
-      },
-      {
-        "id": "S2",
-        "name": "Media overlay and pre-treatment equilibration",
-        "bb": "BB1",
-        "inputs": ["CompleteMedia"],
-        "operation": "mix + heat",
-        "media_volume_uL": 500,
-        "equilibration_temperature_C": 37,
-        "equilibration_duration_h": 24,
-        "equilibration_duration_min": 1440,
-        "notes": "500 uL complete media overlaid after Matrigel gelation. 24 h equilibration at 37 C / 5% CO2 before drug addition. heat at 37 C for 1440 min."
-      },
-      {
-        "id": "S3",
-        "name": "Vehicle control treatment (0 nM gemcitabine)",
-        "bb": "BB1",
-        "inputs": ["CompleteMedia", "DMSO_Vehicle", "PropidiumIodide"],
-        "operation": "mix",
-        "final_dmso_pct_v_v": 0.1,
-        "pi_concentration_ug_mL": 1,
-        "imaging_temperature_C": 37,
-        "imaging_duration_h": 72,
-        "imaging_duration_min": 4320,
-        "detection_module": "organoidDetection",
-        "detection_duration_s": 30,
-        "branch": {
-          "pass": { "condition": "controlSignal > 0", "action": "dispose(controlWellPI)", "bb": "BB2" },
-          "fail": { "condition": "controlSignal <= 0", "action": "drain(controlWellPI)",  "bb": "BB3" }
-        },
-        "notes": "heat at 37 C for 4320 min abstracts 72 h timelapse imaging (18 frames, every 4 h). organoidDetection abstracts U-Net inference, Canny edge + watershed identification, and Munkres tracking across all 18 frames."
-      },
-      {
-        "id": "S4",
-        "name": "3 nM gemcitabine treatment",
-        "bb": "BB4",
-        "inputs": ["CompleteMedia", "Gemcitabine_3nM", "PropidiumIodide"],
-        "operation": "mix + heat + detect",
-        "drug_concentration_nM": 3,
-        "imaging_duration_h": 72,
-        "imaging_duration_min": 4320,
-        "detection_module": "organoidDetection",
-        "detection_duration_s": 30,
-        "branch": {
-          "pass": { "condition": "signal3nM > 0", "action": "dispose(well3nMpi)", "bb": "BB5" },
-          "fail": { "condition": "signal3nM <= 0", "action": "drain(well3nMpi)",  "bb": "BB6" }
-        },
-        "notes": "Lowest dose; paper (Fig 3B) shows minimal effect on area or count at 3 nM."
-      },
-      {
-        "id": "S5",
-        "name": "10 nM gemcitabine treatment",
-        "bb": "BB7",
-        "inputs": ["CompleteMedia", "Gemcitabine_10nM", "PropidiumIodide"],
-        "operation": "mix + heat + detect",
-        "drug_concentration_nM": 10,
-        "imaging_duration_h": 72,
-        "imaging_duration_min": 4320,
-        "detection_module": "organoidDetection",
-        "detection_duration_s": 30,
-        "branch": {
-          "pass": { "condition": "signal10nM > 0", "action": "dispose(well10nMpi)", "bb": "BB8"  },
-          "fail": { "condition": "signal10nM <= 0", "action": "drain(well10nMpi)",  "bb": "BB9"  }
-        },
-        "notes": "Count begins to fall sharply above 10 nM (Fig 3B bottom)."
-      },
-      {
-        "id": "S6",
-        "name": "30 nM gemcitabine treatment",
-        "bb": "BB10",
-        "inputs": ["CompleteMedia", "Gemcitabine_30nM", "PropidiumIodide"],
-        "operation": "mix + heat + detect",
-        "drug_concentration_nM": 30,
-        "imaging_duration_h": 72,
-        "imaging_duration_min": 4320,
-        "detection_module": "organoidDetection",
-        "detection_duration_s": 30,
-        "branch": {
-          "pass": { "condition": "signal30nM > 0", "action": "dispose(well30nMpi)", "bb": "BB11" },
-          "fail": { "condition": "signal30nM <= 0", "action": "drain(well30nMpi)",  "bb": "BB12" }
-        },
-        "notes": "Clearest representative dose in paper (Fig 3A): area initially rises then falls; PI fluorescence rises proportionally."
-      },
-      {
-        "id": "S7",
-        "name": "100 nM gemcitabine treatment",
-        "bb": "BB13",
-        "inputs": ["CompleteMedia", "Gemcitabine_100nM", "PropidiumIodide"],
-        "operation": "mix + heat + detect",
-        "drug_concentration_nM": 100,
-        "imaging_duration_h": 72,
-        "imaging_duration_min": 4320,
-        "detection_module": "organoidDetection",
-        "detection_duration_s": 30,
-        "branch": {
-          "pass": { "condition": "signal100nM > 0", "action": "dispose(well100nMpi)", "bb": "BB14" },
-          "fail": { "condition": "signal100nM <= 0", "action": "drain(well100nMpi)",  "bb": "BB15" }
-        },
-        "notes": "Without area normalisation, total PI fluorescence at 100 nM paradoxically exceeds 1000 nM signal (Fig 3C top). OrganoID per-organoid area normalisation corrects this discrepancy (Fig 3C bottom)."
-      },
-      {
-        "id": "S8",
-        "name": "300 nM gemcitabine treatment",
-        "bb": "BB16",
-        "inputs": ["CompleteMedia", "Gemcitabine_300nM", "PropidiumIodide"],
-        "operation": "mix + heat + detect",
-        "drug_concentration_nM": 300,
-        "imaging_duration_h": 72,
-        "imaging_duration_min": 4320,
-        "detection_module": "organoidDetection",
-        "detection_duration_s": 30,
-        "branch": {
-          "pass": { "condition": "signal300nM > 0", "action": "dispose(well300nMpi)", "bb": "BB17" },
-          "fail": { "condition": "signal300nM <= 0", "action": "drain(well300nMpi)",  "bb": "BB18" }
-        }
-      },
-      {
-        "id": "S9",
-        "name": "1000 nM gemcitabine treatment",
-        "bb": "BB19",
-        "inputs": ["CompleteMedia", "Gemcitabine_1000nM", "PropidiumIodide"],
-        "operation": "mix + heat + detect",
-        "drug_concentration_nM": 1000,
-        "imaging_duration_h": 72,
-        "imaging_duration_min": 4320,
-        "detection_module": "organoidDetection",
-        "detection_duration_s": 30,
-        "branch": {
-          "pass": { "condition": "signal1000nM > 0", "action": "dispose(well1000nMpi)", "bb": "BB20" },
-          "fail": { "condition": "signal1000nM <= 0", "action": "drain(well1000nMpi)",  "bb": "BB21" }
-        },
-        "notes": "Highest dose. Essentially all organoids killed by 48 h. Circularity and solidity decrease markedly; eccentricity increases (Fig 3E, moderate-to-large Cohen d effect sizes)."
-      },
-      {
-        "id": "S10",
-        "name": "MTS endpoint viability assay",
-        "bb": "BB22",
-        "inputs": ["PDAC_Organoids", "MatrigelMatrix", "CompleteMedia"],
-        "operation": "mix + heat + detect",
-        "assay_reagent": "MTS",
-        "readout_nm": 490,
-        "incubation_temperature_C": 37,
-        "incubation_duration_h": 4,
-        "incubation_duration_min": 240,
-        "detection_module": "mtsViabilityDetection",
-        "detection_duration_s": 30,
-        "result_EC50_nM": 26.13,
-        "branch": {
-          "pass": { "condition": "mtsSignal > 0", "action": "dispose(mtsWell)", "bb": "BB23" },
-          "fail": { "condition": "mtsSignal <= 0", "action": "drain(mtsWell)",  "bb": "BB24" }
-        },
-        "notes": "Run on a fresh organoid aliquot from the same batch (endpoint only, not timelapse wells). MTS EC50 = 26.13 nM used as gold-standard reference (Fig 3D). Organoid area alone underestimates EC50 to 12.67 nM; total PI fluorescence underestimates to 16.95 nM; area-normalised PI fluorescence gives 24.45 nM (closest to MTS standard)."
-      },
-      {
-        "id": "S11",
-        "name": "Single-organoid morphology analysis",
-        "bb": "BB25",
-        "inputs": ["PDAC_Organoids", "MatrigelMatrix", "CompleteMedia"],
-        "operation": "mix + heat + detect",
-        "detection_module": "morphologyAnalysis",
-        "detection_duration_s": 60,
-        "metrics": {
-          "circularity": {
-            "definition": "Inverse ratio of organoid perimeter to perimeter of a perfect circle with equal area",
-            "direction_with_drug": "Decreases at higher gemcitabine concentrations",
-            "EC50_nM": 28.47
-          },
-          "solidity": {
-            "definition": "Ratio of organoid area to its convex hull area",
-            "direction_with_drug": "Decreases at higher gemcitabine concentrations",
-            "EC50_nM": 27.05
-          },
-          "eccentricity": {
-            "definition": "Elliptical deviation from a perfect circle",
-            "direction_with_drug": "Increases at higher gemcitabine concentrations (disrupted morphology)",
-            "EC50_nM": 18.08
-          },
-          "effect_size_metric": "Cohen's d statistic (ratio of difference in means to pooled SD)",
-          "effect_sizes": "Moderate to large across EC50-crossing concentration pairs (Fig 3E)"
-        },
-        "branch": {
-          "pass": { "condition": "morphologySignal > 0", "action": "dispose(morphWell)", "bb": "BB26" },
-          "fail": { "condition": "morphologySignal <= 0", "action": "drain(morphWell)",  "bb": "BB27" }
-        },
-        "notes": "morphologyAnalysis abstracts scikit-image regionprops computation on OrganoID-labeled segmentation masks plus Cohen d calculation. Dose-response EC50 values from sigmoidal fits (Fig S7). Tracking-based per-organoid normalisation significantly reduces CV for area and fluorescence (p=2e-30 and p=2e-29 respectively; Welch t-test, Fig S6)."
-      }
-    ],
-
-    "dose_response_results": {
-      "mts_ec50_nM": 26.13,
-      "organoid_area_ec50_nM": 12.67,
-      "total_pi_fluorescence_ec50_nM": 16.95,
-      "area_normalised_pi_ec50_nM": 24.45,
-      "circularity_ec50_nM": 28.47,
-      "solidity_ec50_nM": 27.05,
-      "eccentricity_ec50_nM": 18.08,
-      "tracking_accuracy_pct": ">89",
-      "tracking_experiment_duration_h": 92,
-      "normalisation_cv_reduction": {
-        "fluorescence_p": "2e-30",
-        "area_p": "2e-29",
-        "perimeter_p": "2e-63",
-        "test": "Welch t-test"
-      }
-    },
-
     "cfg": {
       "basic_blocks": [
-        { "id": "BB1",  "label": "main",           "type": "entry",        "contents": "embed organoids; equilibrate; all 7 treatment conditions + timelapse imaging" },
-        { "id": "BB2",  "label": "bsbbif_2_t",     "type": "branch_true",  "condition": "controlSignal > 0",   "action": "dispose(controlWellPI)" },
-        { "id": "BB3",  "label": "bsbbif_3_f",     "type": "branch_false", "condition": "controlSignal <= 0",  "action": "drain(controlWellPI)" },
-        { "id": "BB4",  "label": "bsbbif_4_j",     "type": "join",         "contents": "dispose controlSignal; dispense 3 nM arm" },
-        { "id": "BB5",  "label": "bsbbif_5_t",     "type": "branch_true",  "condition": "signal3nM > 0",       "action": "dispose(well3nMpi)" },
-        { "id": "BB6",  "label": "bsbbif_6_f",     "type": "branch_false", "condition": "signal3nM <= 0",      "action": "drain(well3nMpi)" },
-        { "id": "BB7",  "label": "bsbbif_7_j",     "type": "join",         "contents": "dispose signal3nM; dispense 10 nM arm" },
-        { "id": "BB8",  "label": "bsbbif_8_t",     "type": "branch_true",  "condition": "signal10nM > 0",      "action": "dispose(well10nMpi)" },
-        { "id": "BB9",  "label": "bsbbif_9_f",     "type": "branch_false", "condition": "signal10nM <= 0",     "action": "drain(well10nMpi)" },
-        { "id": "BB10", "label": "bsbbif_10_j",    "type": "join",         "contents": "dispose signal10nM; dispense 30 nM arm" },
-        { "id": "BB11", "label": "bsbbif_11_t",    "type": "branch_true",  "condition": "signal30nM > 0",      "action": "dispose(well30nMpi)" },
-        { "id": "BB12", "label": "bsbbif_12_f",    "type": "branch_false", "condition": "signal30nM <= 0",     "action": "drain(well30nMpi)" },
-        { "id": "BB13", "label": "bsbbif_13_j",    "type": "join",         "contents": "dispose signal30nM; dispense 100 nM arm" },
-        { "id": "BB14", "label": "bsbbif_14_t",    "type": "branch_true",  "condition": "signal100nM > 0",     "action": "dispose(well100nMpi)" },
-        { "id": "BB15", "label": "bsbbif_15_f",    "type": "branch_false", "condition": "signal100nM <= 0",    "action": "drain(well100nMpi)" },
-        { "id": "BB16", "label": "bsbbif_16_j",    "type": "join",         "contents": "dispose signal100nM; dispense 300 nM arm" },
-        { "id": "BB17", "label": "bsbbif_17_t",    "type": "branch_true",  "condition": "signal300nM > 0",     "action": "dispose(well300nMpi)" },
-        { "id": "BB18", "label": "bsbbif_18_f",    "type": "branch_false", "condition": "signal300nM <= 0",    "action": "drain(well300nMpi)" },
-        { "id": "BB19", "label": "bsbbif_19_j",    "type": "join",         "contents": "dispose signal300nM; dispense 1000 nM arm" },
-        { "id": "BB20", "label": "bsbbif_20_t",    "type": "branch_true",  "condition": "signal1000nM > 0",    "action": "dispose(well1000nMpi)" },
-        { "id": "BB21", "label": "bsbbif_21_f",    "type": "branch_false", "condition": "signal1000nM <= 0",   "action": "drain(well1000nMpi)" },
-        { "id": "BB22", "label": "bsbbif_22_j",    "type": "join",         "contents": "dispose signal1000nM; MTS assay dispense + heat + detect" },
-        { "id": "BB23", "label": "bsbbif_23_t",    "type": "branch_true",  "condition": "mtsSignal > 0",       "action": "dispose(mtsWell)" },
-        { "id": "BB24", "label": "bsbbif_24_f",    "type": "branch_false", "condition": "mtsSignal <= 0",      "action": "drain(mtsWell)" },
-        { "id": "BB25", "label": "bsbbif_25_j",    "type": "join",         "contents": "morphology dispense + heat + detect" },
-        { "id": "BB26", "label": "bsbbif_26_t",    "type": "branch_true",  "condition": "morphologySignal > 0","action": "dispose(morphWell)" },
-        { "id": "BB27", "label": "bsbbif_27_f",    "type": "branch_false", "condition": "morphologySignal <= 0","action": "drain(morphWell)" },
-        { "id": "BB28", "label": "bsbbif_28_j",    "type": "terminal",     "contents": "dispose mtsSignal; dispose morphologySignal; NOP" }
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "join"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "7",
+          "label": "bsbbif_7_j",
+          "type": "join"
+        },
+        {
+          "id": "8",
+          "label": "bsbbif_8_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "9",
+          "label": "bsbbif_9_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "10",
+          "label": "bsbbif_10_j",
+          "type": "join"
+        },
+        {
+          "id": "11",
+          "label": "bsbbif_11_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "12",
+          "label": "bsbbif_12_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "13",
+          "label": "bsbbif_13_j",
+          "type": "join"
+        },
+        {
+          "id": "14",
+          "label": "bsbbif_14_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "15",
+          "label": "bsbbif_15_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "16",
+          "label": "bsbbif_16_j",
+          "type": "join"
+        },
+        {
+          "id": "17",
+          "label": "bsbbif_17_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "18",
+          "label": "bsbbif_18_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "19",
+          "label": "bsbbif_19_j",
+          "type": "join"
+        },
+        {
+          "id": "20",
+          "label": "bsbbif_20_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "21",
+          "label": "bsbbif_21_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "22",
+          "label": "bsbbif_22_j",
+          "type": "join"
+        },
+        {
+          "id": "23",
+          "label": "bsbbif_23_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "24",
+          "label": "bsbbif_24_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "25",
+          "label": "bsbbif_25_j",
+          "type": "join"
+        },
+        {
+          "id": "26",
+          "label": "bsbbif_26_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "27",
+          "label": "bsbbif_27_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "28",
+          "label": "bsbbif_28_j",
+          "type": "terminal"
+        }
       ],
       "edges": [
-        ["BB1","BB2"],  ["BB1","BB3"],
-        ["BB2","BB4"],  ["BB3","BB4"],
-        ["BB4","BB5"],  ["BB4","BB6"],
-        ["BB5","BB7"],  ["BB6","BB7"],
-        ["BB7","BB8"],  ["BB7","BB9"],
-        ["BB8","BB10"], ["BB9","BB10"],
-        ["BB10","BB11"],["BB10","BB12"],
-        ["BB11","BB13"],["BB12","BB13"],
-        ["BB13","BB14"],["BB13","BB15"],
-        ["BB14","BB16"],["BB15","BB16"],
-        ["BB16","BB17"],["BB16","BB18"],
-        ["BB17","BB19"],["BB18","BB19"],
-        ["BB19","BB20"],["BB19","BB21"],
-        ["BB20","BB22"],["BB21","BB22"],
-        ["BB22","BB23"],["BB22","BB24"],
-        ["BB23","BB25"],["BB24","BB25"],
-        ["BB25","BB26"],["BB25","BB27"],
-        ["BB26","BB28"],["BB27","BB28"]
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ],
+        [
+          "7",
+          "8"
+        ],
+        [
+          "7",
+          "9"
+        ],
+        [
+          "8",
+          "10"
+        ],
+        [
+          "9",
+          "10"
+        ],
+        [
+          "10",
+          "11"
+        ],
+        [
+          "10",
+          "12"
+        ],
+        [
+          "11",
+          "13"
+        ],
+        [
+          "12",
+          "13"
+        ],
+        [
+          "13",
+          "14"
+        ],
+        [
+          "13",
+          "15"
+        ],
+        [
+          "14",
+          "16"
+        ],
+        [
+          "15",
+          "16"
+        ],
+        [
+          "16",
+          "17"
+        ],
+        [
+          "16",
+          "18"
+        ],
+        [
+          "17",
+          "19"
+        ],
+        [
+          "18",
+          "19"
+        ],
+        [
+          "19",
+          "20"
+        ],
+        [
+          "19",
+          "21"
+        ],
+        [
+          "20",
+          "22"
+        ],
+        [
+          "21",
+          "22"
+        ],
+        [
+          "22",
+          "23"
+        ],
+        [
+          "22",
+          "24"
+        ],
+        [
+          "23",
+          "25"
+        ],
+        [
+          "24",
+          "25"
+        ],
+        [
+          "25",
+          "26"
+        ],
+        [
+          "25",
+          "27"
+        ],
+        [
+          "26",
+          "28"
+        ],
+        [
+          "27",
+          "28"
+        ]
       ]
-    }
+    },
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(controlWellPI1[0])\nbsbbif_3_f:\n\tdispose(controlWellPI1[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(controlSignal1[0])\n\tmedia3nM1[0] = dispense(CompleteMedia)\n\tdrug3nM1[0] = dispense(Gemcitabine_3nM)\n\tpi3nM1[0] = dispense(PropidiumIodide)\n\ttreatMedia31[0] = mix(media3nM1[0], drug3nM1[0]) @ 5.0SECOND\n\twell3nM1[0] = mix(cultureDomes1[0], treatMedia31[0]) @ 5.0SECOND\n\twell3nMpi1[0] = mix(well3nM1[0], pi3nM1[0]) @ 2.0SECOND\n\theat(well3nMpi1[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tsignal3nM1[0] = detect(organoidDetection, well3nMpi1[0]) @ 30.0SECOND\n\tif signal3nM1[0] > 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nmain:\n\torganoidBatch1[0] = dispense(PDAC_Organoids)\n\tmatrigelBase1[0] = dispense(MatrigelMatrix)\n\tembeddedOrganoids1[0] = mix(organoidBatch1[0], matrigelBase1[0]) @ 5.0SECOND\n\theat(embeddedOrganoids1[0]) @ 37.0CELSIUS @ 1200.0SECOND\n\tbaseMedia1[0] = dispense(CompleteMedia)\n\tcultureDomes1[0] = mix(embeddedOrganoids1[0], baseMedia1[0]) @ 2.0SECOND\n\theat(cultureDomes1[0]) @ 37.0CELSIUS @ 86400.0SECOND\n\tcontrolMedia1[0] = dispense(CompleteMedia)\n\tdmsoVehicle1[0] = dispense(DMSO_Vehicle)\n\tpiStainCtrl1[0] = dispense(PropidiumIodide)\n\tcontrolDrug1[0] = mix(controlMedia1[0], dmsoVehicle1[0]) @ 5.0SECOND\n\tcontrolWell1[0] = mix(cultureDomes1[0], controlDrug1[0]) @ 5.0SECOND\n\tcontrolWellPI1[0] = mix(controlWell1[0], piStainCtrl1[0]) @ 2.0SECOND\n\theat(controlWellPI1[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tcontrolSignal1[0] = detect(organoidDetection, controlWellPI1[0]) @ 30.0SECOND\n\tif controlSignal1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbif_5_t:\n\tdispose(well3nMpi1[0])\nbsbbif_6_f:\n\tdispose(well3nMpi1[0])\n\tjump: bsbbif_7_j\nbsbbif_7_j:\n\tdispose(signal3nM1[0])\n\tmedia10nM1[0] = dispense(CompleteMedia)\n\tdrug10nM1[0] = dispense(Gemcitabine_10nM)\n\tpi10nM1[0] = dispense(PropidiumIodide)\n\ttreatMedia101[0] = mix(media10nM1[0], drug10nM1[0]) @ 5.0SECOND\n\twell10nM1[0] = mix(cultureDomes1[0], treatMedia101[0]) @ 5.0SECOND\n\twell10nMpi1[0] = mix(well10nM1[0], pi10nM1[0]) @ 2.0SECOND\n\theat(well10nMpi1[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tsignal10nM1[0] = detect(organoidDetection, well10nMpi1[0]) @ 30.0SECOND\n\tif signal10nM1[0] > 0\t|\ttrue: jump bsbbif_8_t\t|\tfalse: jump bsbbif_9_f\nbsbbif_8_t:\n\tdispose(well10nMpi1[0])\nbsbbif_9_f:\n\tdispose(well10nMpi1[0])\n\tjump: bsbbif_10_j\nbsbbif_10_j:\n\tdispose(signal10nM1[0])\n\tmedia30nM1[0] = dispense(CompleteMedia)\n\tdrug30nM1[0] = dispense(Gemcitabine_30nM)\n\tpi30nM1[0] = dispense(PropidiumIodide)\n\ttreatMedia301[0] = mix(media30nM1[0], drug30nM1[0]) @ 5.0SECOND\n\twell30nM1[0] = mix(cultureDomes1[0], treatMedia301[0]) @ 5.0SECOND\n\twell30nMpi1[0] = mix(well30nM1[0], pi30nM1[0]) @ 2.0SECOND\n\theat(well30nMpi1[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tsignal30nM1[0] = detect(organoidDetection, well30nMpi1[0]) @ 30.0SECOND\n\tif signal30nM1[0] > 0\t|\ttrue: jump bsbbif_11_t\t|\tfalse: jump bsbbif_12_f\nbsbbif_11_t:\n\tdispose(well30nMpi1[0])\nbsbbif_12_f:\n\tdispose(well30nMpi1[0])\n\tjump: bsbbif_13_j\nbsbbif_13_j:\n\tdispose(signal30nM1[0])\n\tmedia100nM1[0] = dispense(CompleteMedia)\n\tdrug100nM1[0] = dispense(Gemcitabine_100nM)\n\tpi100nM1[0] = dispense(PropidiumIodide)\n\ttreatMedia1001[0] = mix(media100nM1[0], drug100nM1[0]) @ 5.0SECOND\n\twell100nM1[0] = mix(cultureDomes1[0], treatMedia1001[0]) @ 5.0SECOND\n\twell100nMpi1[0] = mix(well100nM1[0], pi100nM1[0]) @ 2.0SECOND\n\theat(well100nMpi1[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tsignal100nM1[0] = detect(organoidDetection, well100nMpi1[0]) @ 30.0SECOND\n\tif signal100nM1[0] > 0\t|\ttrue: jump bsbbif_14_t\t|\tfalse: jump bsbbif_15_f\nbsbbif_14_t:\n\tdispose(well100nMpi1[0])\nbsbbif_15_f:\n\tdispose(well100nMpi1[0])\n\tjump: bsbbif_16_j\nbsbbif_16_j:\n\tdispose(signal100nM1[0])\n\tmedia300nM1[0] = dispense(CompleteMedia)\n\tdrug300nM1[0] = dispense(Gemcitabine_300nM)\n\tpi300nM1[0] = dispense(PropidiumIodide)\n\ttreatMedia3001[0] = mix(media300nM1[0], drug300nM1[0]) @ 5.0SECOND\n\twell300nM1[0] = mix(cultureDomes1[0], treatMedia3001[0]) @ 5.0SECOND\n\twell300nMpi1[0] = mix(well300nM1[0], pi300nM1[0]) @ 2.0SECOND\n\theat(well300nMpi1[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tsignal300nM1[0] = detect(organoidDetection, well300nMpi1[0]) @ 30.0SECOND\n\tif signal300nM1[0] > 0\t|\ttrue: jump bsbbif_17_t\t|\tfalse: jump bsbbif_18_f\nbsbbif_17_t:\n\tdispose(well300nMpi1[0])\nbsbbif_18_f:\n\tdispose(well300nMpi1[0])\n\tjump: bsbbif_19_j\nbsbbif_19_j:\n\tdispose(signal300nM1[0])\n\tmedia1000nM1[0] = dispense(CompleteMedia)\n\tdrug1000nM1[0] = dispense(Gemcitabine_1000nM)\n\tpi1000nM1[0] = dispense(PropidiumIodide)\n\ttreatMedia10001[0] = mix(media1000nM1[0], drug1000nM1[0]) @ 5.0SECOND\n\twell1000nM1[0] = mix(cultureDomes1[0], treatMedia10001[0]) @ 5.0SECOND\n\twell1000nMpi1[0] = mix(well1000nM1[0], pi1000nM1[0]) @ 2.0SECOND\n\theat(well1000nMpi1[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tsignal1000nM1[0] = detect(organoidDetection, well1000nMpi1[0]) @ 30.0SECOND\n\tif signal1000nM1[0] > 0\t|\ttrue: jump bsbbif_20_t\t|\tfalse: jump bsbbif_21_f\nbsbbif_20_t:\n\tdispose(well1000nMpi1[0])\nbsbbif_21_f:\n\tdispose(well1000nMpi1[0])\n\tjump: bsbbif_22_j\nbsbbif_22_j:\n\tdispose(signal1000nM1[0])\n\tmtsOrganoids1[0] = dispense(PDAC_Organoids)\n\tmtsMatrix1[0] = dispense(MatrigelMatrix)\n\tmtsMedia1[0] = dispense(CompleteMedia)\n\tmtsEmbedded1[0] = mix(mtsOrganoids1[0], mtsMatrix1[0]) @ 5.0SECOND\n\theat(mtsEmbedded1[0]) @ 37.0CELSIUS @ 1200.0SECOND\n\tmtsWell1[0] = mix(mtsEmbedded1[0], mtsMedia1[0]) @ 2.0SECOND\n\theat(mtsWell1[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\tmtsSignal1[0] = detect(mtsViabilityDetection, mtsWell1[0]) @ 30.0SECOND\n\tif mtsSignal1[0] > 0\t|\ttrue: jump bsbbif_23_t\t|\tfalse: jump bsbbif_24_f\nbsbbif_23_t:\n\tdispose(mtsWell1[0])\nbsbbif_24_f:\n\tdispose(mtsWell1[0])\n\tjump: bsbbif_25_j\nbsbbif_25_j:\n\tmorphMedia1[0] = dispense(CompleteMedia)\n\tmorphOrganoids1[0] = dispense(PDAC_Organoids)\n\tmorphMatrix1[0] = dispense(MatrigelMatrix)\n\tmorphEmbedded1[0] = mix(morphOrganoids1[0], morphMatrix1[0]) @ 5.0SECOND\n\theat(morphEmbedded1[0]) @ 37.0CELSIUS @ 1200.0SECOND\n\tmorphWell1[0] = mix(morphEmbedded1[0], morphMedia1[0]) @ 2.0SECOND\n\tmorphologySignal1[0] = detect(morphologyAnalysis, morphWell1[0]) @ 60.0SECOND\n\tif morphologySignal1[0] > 0\t|\ttrue: jump bsbbif_26_t\t|\tfalse: jump bsbbif_27_f\nbsbbif_26_t:\n\tdispose(morphWell1[0])\nbsbbif_27_f:\n\tdispose(morphWell1[0])\n\tjump: bsbbif_28_j\nbsbbif_28_j:\n\tdispose(mtsSignal1[0])\n\tdispose(morphologySignal1[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "PDAC_Organoids",
+          "source_quote": "Essentially all organoids killed by 48 h.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "Gemcitabine_3nM",
+          "source_quote": "Decreases with gemcitabine dose.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "Gemcitabine_10nM",
+          "source_quote": "Decreases with gemcitabine dose.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "Gemcitabine_30nM",
+          "source_quote": "Decreases with gemcitabine dose.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "Gemcitabine_100nM",
+          "source_quote": "Decreases with gemcitabine dose.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "Gemcitabine_300nM",
+          "source_quote": "Decreases with gemcitabine dose.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "Gemcitabine_1000nM",
+          "source_quote": "Decreases with gemcitabine dose.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "PropidiumIodide",
+          "source_quote": "Reagents    : CompleteMedia, Gemcitabine_3nM, PropidiumIodide",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "MatrigelMatrix",
+          "source_quote": "Reagents    : Fresh PDAC organoids, MatrigelMatrix, CompleteMedia",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "CompleteMedia",
+          "source_quote": "Reagents    : CompleteMedia, Gemcitabine_3nM, PropidiumIodide",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "DMSO_Vehicle",
+          "source_quote": "Step 3 | Vehicle Control Treatment (0 nM Gemcitabine)",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "Notes       : Run on fresh organoid aliquot, not timelapse wells.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "Each treatment arm re-uses cultureDomes as the mix input, reflecting",
+          "source_location": "description.txt: Biological scope note"
+        },
+        {
+          "bs_operation": "heat",
+          "source_quote": "polymerisation at 37 C for 20 min before media overlay.",
+          "source_location": "description.txt: DEVICE / PLATFORM ARCHITECTURE"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "1000 nM signal (Fig 3C top).",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "Step 5: Discard detections with total area < 200 pixels.",
+          "source_location": "description.txt: Training"
+        },
+        {
+          "bs_operation": "drain",
+          "source_quote": "QC branch   : signal3nM > 0 → dispose; signal3nM <= 0 → drain",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "False positive rate (bubbles)  : 4.2%",
+          "source_location": "description.txt: Performance (test dataset)"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 24 hour(s) vs BioScript encodes 1440m — converted hours to minutes for BioScript grammar compatibility."
+        },
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 72 hour(s) vs BioScript encodes 4320m — converted hours to minutes for BioScript grammar compatibility."
+        }
+      ]
+    },
+    "notes": "This protocol details OrganoID: A Versatile Deep Learning Platform for Tracking and Analysis of Single-Organoid Dynamics. The assay is performed on a Organoid culture (Matrigel dome, 24-well plate) + brightfield / PI fluorescence platform. The protocol enables reliable sample processing for synthetic biology."
   }
 }

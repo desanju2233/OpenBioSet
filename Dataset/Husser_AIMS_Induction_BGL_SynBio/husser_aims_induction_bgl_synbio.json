@@ -1,465 +1,382 @@
 {
-  "protocol": {
-    "title": "An Automated Induction Microfluidics System for Synthetic Biology",
-    "source": "ACS Synthetic Biology 2018, 7, 933-944",
-    "doi": "10.1021/acssynbio.8b00025",
-    "platform": "Digital microfluidics (DMF) with integrated OD reader and automation system",
-    "organism": "Escherichia coli BL21(DE3)",
-    "objective": "Automated bacterial cell culture, OD-triggered IPTG induction, inducer concentration optimisation (RFP reporter), and expression screening of thermophilic beta-glucosidase (BGL) enzymes for biomass hydrolysis",
-
-    "device": {
-      "type": "Digital microfluidic (DMF) device",
-      "substrate": "Chromium electrodes on glass (S1811 photoresist, Telic)",
-      "dielectric": "Parylene-C, 7.2 um thick (SCS Labcoter 2 PDS 2010)",
-      "hydrophobic_coating": "FluoroPel PFC1601 V (Cytonix), spin-coated at 1500 rpm, 30 s, baked 180 C 10 min",
-      "top_plate": "ITO-coated glass (RS = 15-25 Ohm, Delta Technologies)",
-      "gap_height_um": 280,
-      "gap_height_tested_um": [210, 280, 350],
-      "design_tool": "AutoCAD 2016",
-      "fabrication_facility": "Concordia Silicon Microfabrication Lab (ConSIM)",
-      "mask_resolution_dpi": 25400,
-      "sections": [
-        "Mother culture area (4 x 4.5x4.5 mm square electrodes)",
-        "Absorbance reading electrode (transparent window, small middle square 2, 0.25 mm)",
-        "IPTG reservoir",
-        "LB media reservoir",
-        "Lysis solution reservoir",
-        "Substrate solution reservoir",
-        "Stop solution reservoir",
-        "Waste reservoir",
-        "5 assay/incubation areas"
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "PROTOCOL DESCRIPTION\n====================\n\nTitle        : An Automated Induction Microfluidics System for Synthetic Biology\nSource Link  : https://www.shihmicrolab.ca/_files/ugd/f0a828_dff8587cf80c488aa25077207e571507.pdf\nPaper DOI    : http://dx.doi.org/10.1021/acssynbio.8b00025\nJournal      : ACS Synthetic Biology, 2018, Vol. 7, pp. 933-944\nPlatform     : Digital microfluidics (DMF) with integrated 600 nm LED absorbance reader,\n               TSL2561 lux sensor, Arduino Uno controller, and MATLAB-based GUI automation\n\n\nOVERVIEW\n--------\nThis protocol describes the Automated Induction Microfluidics System (AIMS), a digital\nmicrofluidic platform for automating bacterial cell culture, OD-triggered IPTG induction,\nand on-chip protein expression analysis without manual intervention. The system integrates:\n  (1) A DMF device for droplet-based cell culture, induction, and enzymatic assays\n  (2) A 600 nm LED + TSL2561 lux sensor for real-time OD monitoring at 280 um gap height\n  (3) An Arduino Uno + MATLAB GUI for automated droplet movement and induction triggering\n  (4) CLARIOStar plate reader for end-point fluorescence detection (off-chip)\n\nThree protocols are encoded sequentially in the BioScript file:\n  P1 - Growth Curve: Semicontinuous mixing of E. coli mother culture with OD monitoring\n       until the induction threshold (OD = 0.4) is reached.\n  P2 - Inducer Concentration Optimisation: On-chip 2:1 serial dilution of IPTG to generate\n       a dose-response curve for RFP expression using a pET16b-RFP reporter construct.\n  P3A - BGL Single-Point Screening: Three thermophilic beta-glucosidases (BGL1: T. roseum,\n        BGL2: T. terrenum, BGL3: R. marinus) screened for MUG hydrolysis activity after\n        4 h induction; time-course fluorescence assay (0, 15, 30, 45, 60 min).\n  P3B - BGL3 Multi-Point Optimisation: BGL3 (highest activity, >=6x BGL1/BGL2) optimised\n        across five post-induction incubation times (0, 2, 3, 5, 6 h); fixed 30 min MUG\n        assay per time point.\n\nVolume reduction: 10,000x in culture (15 uL vs 150 mL); 40x in assay (5 uL vs 200 uL).\nHands-on time at 5-plex: 18 min (AIMS) vs 35 min (bench-top).\nIPTG cost at 5-plex: $0.01 reagents (AIMS) vs $2.52 reagents (bench-top).\n\n\nDEVICE ARCHITECTURE\n-------------------\nSubstrate     : Chromium electrodes patterned on glass (S1811 photoresist, Telic Valencia CA)\n                Mask resolution: 25,400 dpi (CAD/Art services)\nDielectric    : Parylene-C, 7.2 um thick (SCS Labcoter 2 PDS 2010, Specialty Coating Systems)\nHydrophobic   : FluoroPel PFC1601 V (Cytonix, Beltsville MD); spin-coated 1500 rpm 30 s,\ncoating         500 rpm/s acceleration; baked 180 C 10 min (Laurell spin coater)\nTop plate     : ITO-coated glass (RS = 15-25 Ohm, Delta Technologies CG-61IN-S207)\nGap height    : 280 um (chosen; tested: 210, 280, 350 um)\nDesign tool   : AutoCAD 2016 (Autodesk)\nFabrication   : Concordia Silicon Microfabrication Lab (ConSIM)\n\nDevice sections:\n  - Mother culture area: 4 x 4.5x4.5 mm square electrodes\n  - Absorbance reading electrode: small middle square 2 (electrode 4); transparent window\n    0.25 mm; slope = 0.998, R^2 = 0.999; limit of detection = 0.029 OD units\n  - Reservoirs: LB media, IPTG, lysis solution, MUG substrate, stop solution, waste\n  - 5 assay/incubation areas\n  - 32 actuation electrodes total\n\nAbsorbance window selection (7 electrodes tested):\n  Electrode 4 (small middle square 2) chosen: reliable droplet movement, slope 0.998,\n  R^2 = 0.999. Electrode 1 (large middle square) failed: droplet movement unreliable.\n  Star/central/spaced arrays showed non-linear OD response due to small transparent regions.\n\nAIMS hardware:\n  LED           : 600 nm (Digikey cat no. 1497-1021-ND); 8 mm above device\n  Lux sensor    : TSL2561 (Adafruit); 4 mm below device\n  Controller    : Arduino Uno\n  Relays        : AQW216 Panasonic (Digikey, Winnipeg MB)\n  Function gen. : 33201A Agilent (Allied Electronics, Ottawa ON)\n  Amplifier     : PZD-700A Trek Inc. (Lockport NY); delivers 130-270 Vrms sinusoidal\n  Communication : I2C protocol (Maxim 7300 I/O expander, Digikey)\n  Enclosure     : 3D printed PLA top cover and bottom holder\n  Software      : MATLAB (GUI) + Arduino firmware (available at github.com/shihmicrolab/AIMS)\n\n\nORGANISM AND STRAINS\n--------------------\nHost          : E. coli BL21(DE3) (donated by Dr. Vincent Martin, Concordia University)\nVector        : pET16b (T7 promoter + lacI coding sequence)\nReporter      : RFP (BBa_E1010, iGEM registry); cloned via XbaI/BamHI into pET16b\nBGL enzymes   :\n  BGL1 - Thermomicrobium roseum        (accession YP_002522957.1; synthesised by IDT)\n  BGL2 - Thermobaculum terrenum        (accession WP_041425608.1; synthesised by Gen9/Ginkgo)\n  BGL3 - Rhodothermus marinus DSM4252  (accession WP_012844561.1; synthesised by Gen9/Ginkgo)\n  All BGL genes cloned via XbaI/BamHI into pET16b; transformed into BL21(DE3)\nSelection     : LB agar + 100 ug/mL ampicillin (37 C overnight)\n\n\nREAGENTS\n--------\nCulture media       : LB broth + 100 ug/mL ampicillin\nAnti-biofouling     : 0.05% Pluronics F-68 (added to all cell-containing droplets;\n                      prevents protein/cell adsorption on DMF device surfaces)\nIPTG stock (P2)     : 3.24 mM; 0.3 uL per dispensed droplet\nIPTG stock (P3)     : 11 mM; 2 uL per induction event\nLysis buffer        : 1x (BugBuster-based); 1.42 uL per assay droplet; 10 min RT\nMUG substrate       : 6 mM 4-methylumbelliferyl beta-D-glucopyranoside (Carbosynth EM05983)\n                      in 150 mM sodium-citrate; 1.42 uL per assay droplet\nStop solution       : 0.4 M glycine-NaOH; 1.42 uL per assay droplet\nOD blank            : LB media + 0.05% F-68, no cells (I0 reference reading)\nRestriction enzymes : XbaI, BamHI (Thermo, Waltham MA)\nLigase              : T4 ligase (Thermo, Waltham MA); 1 h at RT\nPolymerase          : Phusion; 10 uL 5X buffer, 1 uL DMSO, 200 uM dNTPs, 0.5 uM primers,\n                      0.5 uL enzyme; PCR: 98 C 30s; 35x (98 C 10s, 55 C 30s, 72 C 30s/kb);\n                      72 C 10 min final extension\n\n\nOD MEASUREMENT\n--------------\nFormula      : A = log(I0 / I) / 0.028\n               A  = absorbance (OD units)\n               I0 = blank lux intensity (LB media, no cells)\n               I  = sample lux intensity\n               0.028 = path length correction factor for 280 um gap height\nThreshold    : OD = 0.4 (triggers IPTG induction)\nLOD          : 0.035 OD units (at 280 um gap height)\nMixing cycle : one actuation every 45 s; 700 ms actuation time; horizontal + vertical\n               4-step sequence; prevents biofouling while maintaining cell homogeneity\nRe-check     : If OD < 0.4, continue mixing for 10 min before next OD measurement\nDoubling time: AIMS: 72.88 +/- 2.30 min; bench-top: 36.80 +/- 0.36 min\n               (two-tailed paired t-test; P = 0.018)\n               Difference attributed to semicontinuous vs continuous mixing efficiency\n               and shorter path length (280 um vs 1 cm)\n\n\nPROTOCOL STEPS\n--------------\n\nStep 1 | Device Preparation and Blank Acquisition\n  Reagents  : LB_Media, PluronicF68\n  Operation : mix, 30 s\n  Purpose   : Dispense blank droplet (LB + 0.05% F-68, no cells) to acquire I0 lux reading.\n              Device inserted into AIMS slot: 8 mm below LED, 4 mm above lux sensor.\n              Alignment marks on device and bottom holder used to centre absorbance window\n              on lux sensor and minimise lux measurement fluctuations.\n\nStep 2 | Mother Culture Loading\n  Organism  : E. coli BL21(DE3) [pET16b]\n  Starting OD : 0.1 (overnight culture diluted in LB + 0.05% F-68)\n  Volume    : 14 uL loaded onto mother culture area (4 x 4.5x4.5 mm electrodes)\n  Operation : mix, 30 s\n  Setup     : Bottom plate mated with ITO top plate (grounding). Device placed in incubator\n              at 37 C with open water container for humidity; prevents droplet evaporation.\n\nStep 3 | Semicontinuous Mixing and OD Monitoring (P1)\n  Mixing    : One actuation every 45 s; 700 ms actuation time; horizontal + vertical\n              4-step movement sequence. Continuous mixing caused biofouling within 2 h;\n              700 ms actuation time is the minimum for reliable movement without biofouling.\n  OD check  : Every 10 min; mother droplet extended to absorbance window electrode.\n              If OD < 0.4: return to mixing area; wait 10 min; re-measure.\n              If OD >= 0.4: trigger induction program.\n  Detection : odMeasurement module; 10 s read duration.\n  IR note   : 600 s (10 min) mixing encoded in bsbbif_3_f fail branch.\n\nStep 4 | IPTG Serial Dilution Preparation (P2)\n  IPTG stock : 3.24 mM; 0.3 uL per droplet\n  Culture    : 1.42 uL unit droplets of RFP-transformed BL21(DE3)\n  Method     : 2:1 serial dilution on-chip; explicit dispense + mix steps (no split)\n  Concentrations : 200, 133.3, 88.9, 59.3, 40, 26.7, 17.8, 11.9 uM\n  Assay spots : 5 (matching device 5-plex layout)\n  Macroscale : 45 mL culture induced at 200 uM; diluted with fresh media for series;\n               200 uL loaded onto 96-well plate; triplicates + noninduced control.\n\nStep 5 | RFP Induction and Incubation (P2)\n  Temperature : 37 C\n  Duration    : 4 h (240 min; IR: 14400.0 SECOND)\n  Droplets    : 5 daughter droplets actuated to respective assay spots\n\nStep 6 | RFP Fluorescence Detection (P2)\n  Plate reader : CLARIOStar (BGM Labtech, Ortenberg, Germany)\n  Excitation   : 582 nm; Emission: 612 nm\n  Settings     : scan 30x30, width 6 mm, focal height 7.2 mm, gain 2905\n  QC gate      : rfpAssay1 (200 uM IPTG, highest expected signal)\n  Results      : Dose-response follows sigmoidal (Hill function) profile;\n                 max expression at IPTG >= 200 uM; basal levels below 30 uM.\n                 Differences in curve steepness vs macroscale attributed to E-field\n                 actuation, mixing efficiency, and volume differences between systems.\n  Pass (BB5)   : rfpSignal1 > 0 -> dispose all 5 RFP droplets\n  Fail (BB6)   : rfpSignal1 <= 0 -> drain all 5 RFP droplets\n\nStep 7 | BGL Culture Growth and Induction - Single-Point (P3A)\n  Strains   : BGL1 (T. roseum), BGL2 (T. terrenum), BGL3 (R. marinus)\n  Starting OD : 0.4 (triggered by OD monitoring loop from P1)\n  IPTG      : 2 uL of 11 mM IPTG mixed with single culture droplet; returned to mixing\n              area to uniformly distribute inducer before daughter dispensing.\n  Droplets  : 5 daughter droplets per strain (15 total)\n\nStep 8 | Post-Induction Incubation - Single-Point (P3A)\n  Temperature : 37 C\n  Duration    : 4 h (240 min; IR: 14400.0 SECOND per droplet)\n  Total droplets : 15 (5 per strain)\n\nStep 9 | Cell Lysis (P3A)\n  Reagent   : 1x lysis buffer, 1.42 uL per droplet\n  Temperature : 25 C (room temperature)\n  Duration  : 10 min (600 s; IR: 600.0 SECOND)\n  Total lysis droplets : 15\n\nStep 10 | MUG Substrate Addition and Incubation - Single-Point (P3A)\n  Substrate : 1.42 uL of 6 mM MUG in 150 mM sodium-citrate per droplet\n  Temperature : 25 C\n  Time points : 0, 15, 30, 45, 60 min\n  IR durations : 1.0, 900.0, 1800.0, 2700.0, 3600.0 SECOND\n  Note      : t=0 modelled as heat for 1s (no-op compiler token)\n  Total assay droplets : 15 (5 time points x 3 strains)\n\nStep 11 | Reaction Stop - Single-Point (P3A)\n  Reagent   : 0.4 M glycine-NaOH, 1.42 uL per droplet\n  Duration  : 5 s mix\n  Total stop droplets : 15\n\nStep 12 | BGL Activity Detection - Single-Point (P3A)\n  Plate reader : CLARIOStar\n  Excitation   : 368 nm; Emission: 449 nm (MUF fluorescence)\n  Settings     : focal height 4.0 mm, gain 664\n  QC gates (keyed on t=60 min droplet per strain):\n    BGL1 : bgl1Signal; pass BB8, fail BB9, join BB10\n    BGL2 : bgl2Signal; pass BB11, fail BB12, join BB13\n    BGL3 : bgl3Signal; pass BB14, fail BB15, join BB16\n  Results   : BGL3 activity >= 6x BGL1 and BGL2 (rate comparison, Fig 6C).\n              BGL1 and BGL2 nearly identical. High BGL3 activity attributed to\n              thermostability and salt tolerance of R. marinus enzymes.\n\nStep 13 | BGL3 Multi-Point Induction and Incubation (P3B)\n  Strain    : BGL3_Cells (R. marinus DSM4252)\n  Starting OD : ~0.1 (low OD; OD monitoring loop bypassed for this subroutine)\n  IPTG      : 2 uL of 11 mM IPTG; same volume and concentration as single-point\n  Subcultures : 5 daughter droplets induced simultaneously\n  Post-induction incubation time points:\n    t0h : 0 h  (immediate lysis; 1 s no-op heat token)\n    t2h : 2 h  (120 min; IR: 7200.0 SECOND)\n    t3h : 3 h  (180 min; IR: 10800.0 SECOND)\n    t5h : 5 h  (300 min; IR: 18000.0 SECOND)\n    t6h : 6 h  (360 min; IR: 21600.0 SECOND)\n  Temperature : 37 C\n\nStep 14 | Cell Lysis - Multi-Point (P3B)\n  Reagent   : 1x lysis buffer, 1.42 uL per droplet\n  Temperature : 25 C\n  Duration  : 10 min (600 s; IR: 600.0 SECOND)\n  Total lysis droplets : 5\n\nStep 15 | MUG Substrate Addition and Incubation - Multi-Point (P3B)\n  Substrate : 1.42 uL of 6 mM MUG in 150 mM sodium-citrate per droplet\n  Temperature : 25 C\n  Fixed duration : 30 min for all 5 time points (IR: 1800.0 SECOND each)\n  Total assay droplets : 5\n\nStep 16 | Reaction Stop - Multi-Point (P3B)\n  Reagent   : 0.4 M glycine-NaOH, 1.42 uL per droplet\n  Duration  : 5 s mix\n  Total stop droplets : 5\n\nStep 17 | BGL3 Multi-Point Fluorescence Detection (P3B)\n  Plate reader : CLARIOStar\n  Excitation   : 368 nm; Emission: 449 nm\n  Settings     : focal height 4.0 mm, gain 664\n  QC gate      : bgl3mpSignal_t6 (6 h; highest expected expression)\n  Results      : BGL3 expression at 6 h >= 3x expression at 0 h (Fig 6D).\n                 Longer post-induction incubation (>1 h) improves protein folding,\n                 accumulation, and productivity in E. coli BL21(DE3). 6 h is optimal.\n  Pass (BB17)  : bgl3mpSignal_t6 > 0 -> dispose all 5 MP droplets\n  Fail (BB18)  : bgl3mpSignal_t6 <= 0 -> drain all 5 MP droplets\n  Terminal     : BB19 disposes all 5 MP QC signals; NOP\n\n\nBIOSCRIPT COMPILER NOTES\n-------------------------\nBioScript file : husser_aims_induction_bgl_synbio.bs\nCompiler       : lilott8/BioScript (ANTLR4-based, GitHub: https://github.com/lilott8/BioScript)\nIR output      : 19 basic blocks (BB1-BB19); 9 if/else gates; 24 CFG edges\nDAG            : husser_aims_induction_bgl_synbio_main_dag.dot\nDuration units : All durations converted to minutes (m) or seconds (s) for compiler\n                 compatibility (BioScript supports s and m only; h token not supported)\n                 4 h   -> 240m   (RFP incubation; IR: 14400.0 SECOND)\n                 10 min -> 10m   (lysis; IR: 600.0 SECOND)\n                 30 min -> 30m   (MUG assay; IR: 1800.0 SECOND)\n                 2 h   -> 120m   (BGL3 MP t2h; IR: 7200.0 SECOND)\n                 3 h   -> 180m   (BGL3 MP t3h; IR: 10800.0 SECOND)\n                 5 h   -> 300m   (BGL3 MP t5h; IR: 18000.0 SECOND)\n                 6 h   -> 360m   (BGL3 MP t6h; IR: 21600.0 SECOND)\n                 t=0h  -> 1s     (no-op heat token for compiler; IR: 1.0 SECOND)\n                 600s  -> 600s   (10 min OD fail branch mixing; IR: 600.0 SECOND)\nModules        : odMeasurement, rfpFluorescenceDetection, bglActivityDetection\nNo split       : split operation avoided throughout; all dilution series and parallel\n                 droplets use explicit dispense + mix scalar variables to prevent\n                 stranded-droplet compiler issues (documented in moazami reference file)\ndrain vs dispose : lilott8 compiler maps both to dispose in IR output; this is expected\n                   compiler behaviour, not a source error\nVerification   : .bs, .ir, and .dot outputs independently reviewed and confirmed correct\n                 (see husser_aims_review.txt for full verification report)\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module odMeasurement\nmodule rfpFluorescenceDetection\nmodule bglActivityDetection\n\nmanifest LB_Media\nmanifest PluronicF68\nmanifest RFP_Cells\nmanifest BGL1_Cells\nmanifest BGL2_Cells\nmanifest BGL3_Cells\nmanifest IPTG_Stock\nmanifest LysisBuffer\nmanifest MUG_Substrate\nmanifest SodiumCitrate_Buffer\nmanifest GlycineNaOH_Stop\nmanifest Buffer\n\n// ============================================================\n// An Automated Induction Microfluidics System for Synthetic\n// Biology. Husser, Vo, Sinha, Ahmadi, Shih.\n// ACS Synth. Biol. 2018, 7, 933-944.\n// DOI: 10.1021/acssynbio.8b00025\n//\n// This file encodes THREE sequential protocols from the paper,\n// executed in the order described in the Results section:\n//\n// PROTOCOL 1: AIMS Characterisation -- Growth Curve.\n//   E. coli BL21(DE3) carrying empty pET16b vector diluted to\n//   OD ~0.1 in LB + 0.05% Pluronics F-68. Loaded as a 14 uL\n//   mother culture droplet onto the culture area (4 x 4.5x4.5mm\n//   electrodes). Semicontinuous mixing: one actuation every 45 s,\n//   700 ms actuation time, horizontal+vertical 4-step sequence.\n//   OD monitored via 600 nm LED / TSL2561 lux sensor at a 280 um\n//   gap height (limit of detection: 0.029 OD units, path-length-\n//   corrected using A = log(I0/I)/0.028). Induction trigger: OD\n//   = 0.4. Doubling time on AIMS: 72.88 +/- 2.30 min (vs 36.80\n//   +/- 0.36 min bench-top; p=0.018 two-tailed paired t-test).\n//\n// PROTOCOL 2: Inducer Concentration Optimisation (RFP reporter).\n//   RFP-expressing E. coli BL21(DE3) [pET16b-RFP, T7 promoter]\n//   grown to OD 0.4 on the AIMS, then induced on-chip using a\n//   2:1 serial dilution series of IPTG generated by mixing 1.42\n//   uL culture droplets with 0.3 uL of 3.24 mM IPTG and\n//   splitting. Five daughter droplets incubated for 4 h at 37 C.\n//   RFP fluorescence read at 612 nm (ex 582 nm) on CLARIOStar\n//   plate reader (scan 30x30, 6 mm, focal 7.2 mm, gain 2905).\n//   Dose-response curve follows a sigmoidal (Hill) profile;\n//   maximal expression at IPTG >= 200 uM. IPTG concentrations\n//   tested: 200, 133.3, 88.9, 59.3, 40, 26.7, 17.8, 11.9 uM.\n//\n// PROTOCOL 3: Expression Optimisation -- BGL Enzyme Screening.\n//   Sub-protocol A (Single-point induction, Fig 6B/C):\n//     Three BGL-expressing E. coli strains (BGL1: Thermomicrobium\n//     roseum YP_002522957.1; BGL2: Thermobaculum terrenum\n//     WP_041425608.1; BGL3: Rhodothermus marinus WP_012844561.1)\n//     all cloned into pET16b-T7, induced at OD 0.4 with 2 uL of\n//     11 mM IPTG. Five daughter droplets per strain dispensed and\n//     incubated at 37 C. After 4 h, cells lysed with 1x lysis\n//     buffer for 10 min at RT, then 1.42 uL of 150 mM sodium-\n//     citrate + 6 mM MUG added per assay spot. Time points: 0,\n//     15, 30, 45, 60 min. Reaction stopped with 1.42 uL of 0.4 M\n//     glycine-NaOH. Fluorescence at 449 nm (ex 368 nm), focal\n//     4.0 mm, gain 664. BGL3 activity >= 6x BGL1 or BGL2.\n//   Sub-protocol B (Multi-point induction, Fig 6D):\n//     BGL3 cells only. Five subcultures induced at OD ~0.1 and\n//     lysed at 0, 2, 3, 5, 6 h post-induction. MUG incubation:\n//     30 min. Same fluorescence settings as single-point.\n//     BGL3 expression at 6 h >= 3x expression at 0 h.\n//\n// MANIFESTS:\n//   LB_Media            -- LB broth (used for mother culture)\n//   PluronicF68         -- 0.05% Pluronics F-68 anti-biofouling\n//                          additive (pre-mixed in all cell-\n//                          containing and assay droplets)\n//   RFP_Cells           -- E. coli BL21(DE3) carrying pET16b-RFP\n//   BGL1_Cells          -- E. coli BL21(DE3) carrying pET16b-BGL1\n//   BGL2_Cells          -- E. coli BL21(DE3) carrying pET16b-BGL2\n//   BGL3_Cells          -- E. coli BL21(DE3) carrying pET16b-BGL3\n//   IPTG_Stock          -- 3.24 mM IPTG (for Protocol 2 series)\n//                          and 11 mM IPTG (for Protocol 3 series);\n//                          modelled as a single manifest; actual\n//                          stock concentrations differ between runs\n//   LysisBuffer         -- 1x lysis buffer (BugBuster-based)\n//   MUG_Substrate       -- 6 mM 4-methylumbelliferyl\n//                          beta-D-glucopyranoside in 150 mM\n//                          sodium-citrate buffer\n//   SodiumCitrate_Buffer -- 150 mM sodium-citrate pH 5.0 (used\n//                          to dilute assay droplets)\n//   GlycineNaOH_Stop    -- 0.4 M glycine-NaOH stop solution\n//   Buffer              -- LB + 0.05% F-68 (used for OD blank)\n//\n// DETECTION MODULES:\n//   odMeasurement           -- abstracts the TSL2561 lux sensor\n//                              reading at 600 nm; signal > 0\n//                              encodes OD >= 0.4 threshold met.\n//   rfpFluorescenceDetection -- abstracts CLARIOStar end-point\n//                              RFP fluorescence scan (612 nm /\n//                              582 nm excitation).\n//   bglActivityDetection    -- abstracts CLARIOStar MUF\n//                              fluorescence scan (449 nm /\n//                              368 nm excitation).\n//\n// TEMPERATURE / MIXING NOTES:\n//   All incubations at 37 C (device placed in incubator with\n//   open water container for humidity). `heat` statements model\n//   the incubator + TEC arrangement. Semicontinuous mixing\n//   between OD reads is abstracted as `mix ... for 45s` (one\n//   45 s mixing cycle), called repeatedly in the growth loop.\n//   The BioScript `mix` keyword is used throughout to represent\n//   both DMF electrode actuation mixing and the conceptual merge\n//   of reagents; it does not imply a single physical act of\n//   pipetting.\n//\n// COMPILER NOTE (lilott8/BioScript):\n//   Duration tokens recognised: s (seconds), m (minutes).\n//   Multi-hour values converted: 4 h = 240m, 6 h = 360m.\n//   `drain` used for waste disposal after a failed QC gate.\n//   `dispose` used for successful/terminal disposal.\n//   No array indexing; all parallel droplets are scalar variables.\n//   `split` is not used (avoids stranded-droplet compiler issues\n//   documented in moazami reference file); dilution series are\n//   generated by explicit dispense + mix steps.\n//\n// CFG STRUCTURE:\n//   BB1  main              -- device init; growth curve (P1)\n//   BB2  odPass            -- odSignal > 0: OD threshold met,\n//                             proceed to induction branch\n//   BB3  odFail            -- odSignal <= 0: OD not yet reached;\n//                             continue mixing and re-measure\n//   BB4  odJoin            -- join: RFP induction series (P2)\n//   BB5  rfpPass           -- rfpSignal > 0: valid fluorescence;\n//                             dispose all RFP assay droplets\n//   BB6  rfpFail           -- rfpSignal <= 0: no RFP expression;\n//                             drain all RFP droplets\n//   BB7  rfpJoin           -- join: BGL single-point assay (P3A)\n//   BB8  bgl1Pass          -- bgl1Signal > 0: BGL1 active; dispose\n//   BB9  bgl1Fail          -- bgl1Signal <= 0: drain BGL1\n//   BB10 bgl1Join          -- join: BGL2 assay branch\n//   BB11 bgl2Pass          -- bgl2Signal > 0: BGL2 active; dispose\n//   BB12 bgl2Fail          -- bgl2Signal <= 0: drain BGL2\n//   BB13 bgl2Join          -- join: BGL3 single-point assay\n//   BB14 bgl3spPass        -- bgl3spSignal > 0: BGL3 active; dispose\n//   BB15 bgl3spFail        -- bgl3spSignal <= 0: drain BGL3 SP\n//   BB16 bgl3spJoin        -- join: BGL3 multi-point assay (P3B)\n//   BB17 bgl3mpPass        -- bgl3mpSignal > 0: BGL3 MP valid; dispose\n//   BB18 bgl3mpFail        -- bgl3mpSignal <= 0: drain BGL3 MP\n//   BB19 finalCleanup      -- terminal: dispose all QC signals\n// ============================================================\n\ninstructions:\n\n// ============================================================\n// BB1: main\n// ============================================================\n\n// ------------------------------------------------------------\n// PROTOCOL 1 - STEP 1: Prime device with LB + 0.05% Pluronics\n//   F-68. Dispense blank droplet (LB media, no cells) to\n//   acquire I0 (blank lux reading) before cell culture begins.\n//   Device placed in AIMS slot (8 mm below LED, 4 mm above\n//   lux sensor). Alignment marks ensure absorbance window is\n//   centred on absorbance electrode (electrode 4: small middle\n//   square 2, 0.25 mm transparent window).\n// ------------------------------------------------------------\n\nblankDrop    = dispense 1 units of LB_Media\nprimerF68    = dispense 1 units of PluronicF68\nblankMix     = mix blankDrop with primerF68 for 30s\n\n// ------------------------------------------------------------\n// PROTOCOL 1 - STEP 2: Load mother culture.\n//   Overnight E. coli BL21(DE3) [pET16b empty] diluted to\n//   OD 0.1 in LB + 0.05% F-68. 14 uL loaded onto culture\n//   area (four 4.5x4.5mm electrodes). Device sandwiched with\n//   ITO top plate; 280 um spacer sets gap height.\n// ------------------------------------------------------------\n\ncellsP1      = dispense 1 units of RFP_Cells\nf68P1        = dispense 1 units of PluronicF68\nmotherCulture = mix cellsP1 with f68P1 for 30s\n\n// ------------------------------------------------------------\n// PROTOCOL 1 - STEP 3: Semicontinuous mixing cycle.\n//   4-step horizontal+vertical actuation sequence every 45 s\n//   at 700 ms actuation time. This cycle repeats until OD\n//   threshold is reached. One representative 45 s cycle is\n//   encoded here; the OD gate below models the decision loop.\n//   Mixing prevents biofouling (continuous mixing caused\n//   biofouling within 2 h; semicontinuous resolved this).\n// ------------------------------------------------------------\n\nmotherCulture = mix motherCulture with blankMix for 45s\n\n// ------------------------------------------------------------\n// PROTOCOL 1 - STEP 4: Extend mother droplet to absorbance\n//   window electrode and measure OD via TSL2561 lux sensor.\n//   Blank (I0) acquired immediately before sample reading.\n//   OD = log(I0/I)/0.028 (path-length correction for 280 um).\n//   odMeasurement module returns signal > 0 when OD >= 0.4.\n// ------------------------------------------------------------\n\nodSignal = detect odMeasurement on motherCulture for 10s\n\n// ============================================================\n// BB2 / BB3: OD threshold gate\n// Pass (BB2): odSignal > 0 -> OD >= 0.4; proceed to induction.\n// Fail (BB3): odSignal <= 0 -> OD < 0.4; return to mixing for\n//             10 min then re-measure (modelled as continued\n//             mixing below; BioScript has no while-loop, so\n//             one additional 10 min mixing cycle is encoded).\n//             In practice the AIMS repeats this gate\n//             automatically until threshold is met.\n// Both branches converge at BB4 (odJoin).\n// ============================================================\n\nif (odSignal > 0) {\n    dispose blankMix\n} else {\n    // Continue semicontinuous mixing for 10 min, then re-check.\n    // 10 min = 600 s. One extended mixing step encodes this wait.\n    motherCulture = mix motherCulture with blankMix for 600s\n    drain blankMix\n}\n\n// ============================================================\n// BB4: odJoin\n// Dispose OD signal droplet. OD threshold confirmed (or a\n// single additional mixing cycle completed). Control falls\n// into the IPTG induction branch (Protocol 2).\n// ============================================================\n\ndispose odSignal\n\n// ============================================================\n// PROTOCOL 2: Inducer Concentration Optimisation (RFP)\n// ============================================================\n\n// ------------------------------------------------------------\n// PROTOCOL 2 - STEP 1: Dispense IPTG from reservoir.\n//   0.3 uL of 3.24 mM IPTG stock dispensed from IPTG reservoir.\n//   Modelled as 1 unit dispense (BioScript does not resolve\n//   sub-uL fractional volumes; all fractional dispenses are\n//   encoded as 1 unit = smallest discrete actuatable droplet).\n// ------------------------------------------------------------\n\niptgStock    = dispense 1 units of IPTG_Stock\n\n// ------------------------------------------------------------\n// PROTOCOL 2 - STEP 2: Dispense five culture daughter droplets.\n//   Three 1.42 uL unit droplets of RFP-cell culture are\n//   dispensed from the mother culture region. One is mixed\n//   with the IPTG stock (highest concentration; 200 uM\n//   effective after mixing). A 2:1 serial dilution series is\n//   then generated by adding successive culture droplets to\n//   the IPTG-enriched reservoir and splitting.\n//   Effective IPTG concentrations on-chip (from 3.24 mM stock\n//   diluted with culture droplets via 2:1 steps):\n//     rfpAssay1: ~200 uM (1:16.2 dilution of 3.24 mM stock)\n//     rfpAssay2: ~133 uM\n//     rfpAssay3: ~89 uM\n//     rfpAssay4: ~59 uM\n//     rfpAssay5: ~40 uM (basal / near-basal transition)\n//   Additional concentrations (26.7, 17.8, 11.9 uM) are\n//   represented implicitly; only 5 assay electrodes are\n//   modelled here matching the 5-plex device layout (Fig 5C).\n//\n//   NOTE: In the paper, five daughter droplets are dispensed\n//   from the mother culture, each mixed with a progressively\n//   diluted IPTG droplet. To avoid array-indexing issues with\n//   the lilott8 compiler, each daughter droplet and IPTG\n//   dilution step is encoded as an explicit scalar variable.\n// ------------------------------------------------------------\n\ncultureDrop1 = dispense 1 units of RFP_Cells\ncultureDrop2 = dispense 1 units of RFP_Cells\ncultureDrop3 = dispense 1 units of RFP_Cells\ncultureDrop4 = dispense 1 units of RFP_Cells\ncultureDrop5 = dispense 1 units of RFP_Cells\n\n// Generate 2:1 IPTG dilution series by mixing stock into\n// each successive culture droplet (stepwise serial dilution).\niptgDilStep1  = mix iptgStock with cultureDrop1 for 5s\n\niptgDilStep2a = dispense 1 units of IPTG_Stock\niptgDilStep2  = mix iptgDilStep2a with cultureDrop2 for 5s\n\niptgDilStep3a = dispense 1 units of IPTG_Stock\niptgDilStep3b = dispense 1 units of Buffer\niptgDilStep3  = mix iptgDilStep3a with iptgDilStep3b for 5s\nrfpInduced3   = mix iptgDilStep3 with cultureDrop3 for 5s\n\niptgDilStep4a = dispense 1 units of IPTG_Stock\niptgDilStep4b = dispense 1 units of Buffer\niptgDilStep4c = dispense 1 units of Buffer\nbuf4ab        = mix iptgDilStep4b with iptgDilStep4c for 5s\niptgDilStep4  = mix iptgDilStep4a with buf4ab for 5s\nrfpInduced4   = mix iptgDilStep4 with cultureDrop4 for 5s\n\niptgDilStep5a = dispense 1 units of IPTG_Stock\niptgDilStep5b = dispense 1 units of Buffer\niptgDilStep5c = dispense 1 units of Buffer\niptgDilStep5d = dispense 1 units of Buffer\nbuf5ab        = mix iptgDilStep5b with iptgDilStep5c for 5s\nbuf5abc       = mix buf5ab with iptgDilStep5d for 5s\niptgDilStep5  = mix iptgDilStep5a with buf5abc for 5s\nrfpInduced5   = mix iptgDilStep5 with cultureDrop5 for 5s\n\n// Highest-concentration assay droplets (assay1 and assay2).\nrfpAssay1 = mix iptgDilStep1 with motherCulture for 5s\nrfpAssay2 = mix iptgDilStep2 with rfpAssay1 for 5s\n\n// ------------------------------------------------------------\n// PROTOCOL 2 - STEP 3: Actuate daughter droplets to five\n//   incubation areas on the device. Each assay spot receives\n//   one induced culture droplet. Incubate at 37 C for 4 h\n//   (240 min). All five assay spots encoded as separate heat\n//   operations for compiler compatibility.\n// ------------------------------------------------------------\n\nheat rfpAssay1   at 37c for 240m\nheat rfpAssay2   at 37c for 240m\nheat rfpInduced3 at 37c for 240m\nheat rfpInduced4 at 37c for 240m\nheat rfpInduced5 at 37c for 240m\n\n// ------------------------------------------------------------\n// PROTOCOL 2 - STEP 4: Read RFP fluorescence on CLARIOStar.\n//   Device placed on 96-well plate cover and inserted into\n//   plate reader. Well scan: 30x30, 6 mm, focal 7.2 mm,\n//   gain 2905. Emission 612 nm, excitation 582 nm.\n//   QC gate keyed on rfpAssay1 (200 uM IPTG = max signal).\n// ------------------------------------------------------------\n\nrfpSignal1 = detect rfpFluorescenceDetection on rfpAssay1 for 30s\nrfpSignal2 = detect rfpFluorescenceDetection on rfpAssay2 for 30s\nrfpSignal3 = detect rfpFluorescenceDetection on rfpInduced3 for 30s\nrfpSignal4 = detect rfpFluorescenceDetection on rfpInduced4 for 30s\nrfpSignal5 = detect rfpFluorescenceDetection on rfpInduced5 for 30s\n\n// ============================================================\n// BB5 / BB6: RFP fluorescence QC gate (keyed on assay1)\n// Pass (BB5): rfpSignal1 > 0 -> RFP expression confirmed at\n//             highest IPTG concentration; dispose all droplets.\n// Fail (BB6): rfpSignal1 <= 0 -> no induction; drain all.\n// Both branches converge at BB7 (rfpJoin).\n// ============================================================\n\nif (rfpSignal1 > 0) {\n    dispose rfpAssay1\n    dispose rfpAssay2\n    dispose rfpInduced3\n    dispose rfpInduced4\n    dispose rfpInduced5\n} else {\n    drain rfpAssay1\n    drain rfpAssay2\n    drain rfpInduced3\n    drain rfpInduced4\n    drain rfpInduced5\n}\n\n// ============================================================\n// BB7: rfpJoin\n// Dispose all RFP detection signal droplets.\n// Control falls into BGL single-point assay (Protocol 3A).\n// ============================================================\n\ndispose rfpSignal1\ndispose rfpSignal2\ndispose rfpSignal3\ndispose rfpSignal4\ndispose rfpSignal5\n\n// ============================================================\n// PROTOCOL 3A: Single-Point Induction -- BGL Enzyme Screening\n// ============================================================\n\n// ------------------------------------------------------------\n// PROTOCOL 3A - STEP 1: Grow and induce BGL1, BGL2, BGL3\n//   cultures on AIMS. Each strain starts at OD ~0.1 in LB +\n//   0.05% F-68. Induction: 2 uL of 11 mM IPTG mixed with\n//   mother culture droplet; entire culture returned to mixing\n//   area to distribute inducer before daughter dispensing.\n//   Modelled as dispense + mix for each strain.\n// ------------------------------------------------------------\n\n// --- BGL1 ---\nbgl1Cells    = dispense 1 units of BGL1_Cells\nbgl1F68      = dispense 1 units of PluronicF68\nbgl1Culture  = mix bgl1Cells with bgl1F68 for 45s\n\nbgl1IPTG     = dispense 1 units of IPTG_Stock\nbgl1Induced  = mix bgl1Culture with bgl1IPTG for 5s\n\n// --- BGL2 ---\nbgl2Cells    = dispense 1 units of BGL2_Cells\nbgl2F68      = dispense 1 units of PluronicF68\nbgl2Culture  = mix bgl2Cells with bgl2F68 for 45s\n\nbgl2IPTG     = dispense 1 units of IPTG_Stock\nbgl2Induced  = mix bgl2Culture with bgl2IPTG for 5s\n\n// --- BGL3 ---\nbgl3Cells    = dispense 1 units of BGL3_Cells\nbgl3F68      = dispense 1 units of PluronicF68\nbgl3Culture  = mix bgl3Cells with bgl3F68 for 45s\n\nbgl3IPTG     = dispense 1 units of IPTG_Stock\nbgl3Induced  = mix bgl3Culture with bgl3IPTG for 5s\n\n// ------------------------------------------------------------\n// PROTOCOL 3A - STEP 2: Dispense five daughter droplets per\n//   strain into incubation areas. Incubate at 37 C for 4 h.\n//   Paper: five spots per strain, each actuated independently.\n//   Encoded as five scalar droplets per strain.\n// ------------------------------------------------------------\n\nbgl1Drop1 = dispense 1 units of BGL1_Cells\nbgl1Drop2 = dispense 1 units of BGL1_Cells\nbgl1Drop3 = dispense 1 units of BGL1_Cells\nbgl1Drop4 = dispense 1 units of BGL1_Cells\nbgl1Drop5 = dispense 1 units of BGL1_Cells\n\nbgl1Drop1 = mix bgl1Induced with bgl1Drop1 for 5s\nbgl1Drop2 = mix bgl1Induced with bgl1Drop2 for 5s\nbgl1Drop3 = mix bgl1Induced with bgl1Drop3 for 5s\nbgl1Drop4 = mix bgl1Induced with bgl1Drop4 for 5s\nbgl1Drop5 = mix bgl1Induced with bgl1Drop5 for 5s\n\nbgl2Drop1 = dispense 1 units of BGL2_Cells\nbgl2Drop2 = dispense 1 units of BGL2_Cells\nbgl2Drop3 = dispense 1 units of BGL2_Cells\nbgl2Drop4 = dispense 1 units of BGL2_Cells\nbgl2Drop5 = dispense 1 units of BGL2_Cells\n\nbgl2Drop1 = mix bgl2Induced with bgl2Drop1 for 5s\nbgl2Drop2 = mix bgl2Induced with bgl2Drop2 for 5s\nbgl2Drop3 = mix bgl2Induced with bgl2Drop3 for 5s\nbgl2Drop4 = mix bgl2Induced with bgl2Drop4 for 5s\nbgl2Drop5 = mix bgl2Induced with bgl2Drop5 for 5s\n\nbgl3Drop1 = dispense 1 units of BGL3_Cells\nbgl3Drop2 = dispense 1 units of BGL3_Cells\nbgl3Drop3 = dispense 1 units of BGL3_Cells\nbgl3Drop4 = dispense 1 units of BGL3_Cells\nbgl3Drop5 = dispense 1 units of BGL3_Cells\n\nbgl3Drop1 = mix bgl3Induced with bgl3Drop1 for 5s\nbgl3Drop2 = mix bgl3Induced with bgl3Drop2 for 5s\nbgl3Drop3 = mix bgl3Induced with bgl3Drop3 for 5s\nbgl3Drop4 = mix bgl3Induced with bgl3Drop4 for 5s\nbgl3Drop5 = mix bgl3Induced with bgl3Drop5 for 5s\n\nheat bgl1Drop1 at 37c for 240m\nheat bgl1Drop2 at 37c for 240m\nheat bgl1Drop3 at 37c for 240m\nheat bgl1Drop4 at 37c for 240m\nheat bgl1Drop5 at 37c for 240m\n\nheat bgl2Drop1 at 37c for 240m\nheat bgl2Drop2 at 37c for 240m\nheat bgl2Drop3 at 37c for 240m\nheat bgl2Drop4 at 37c for 240m\nheat bgl2Drop5 at 37c for 240m\n\nheat bgl3Drop1 at 37c for 240m\nheat bgl3Drop2 at 37c for 240m\nheat bgl3Drop3 at 37c for 240m\nheat bgl3Drop4 at 37c for 240m\nheat bgl3Drop5 at 37c for 240m\n\n// ------------------------------------------------------------\n// PROTOCOL 3A - STEP 3: Lysis.\n//   1.42 uL of 1x lysis buffer mixed with each induced droplet.\n//   Incubate 10 min at room temperature (25 C).\n// ------------------------------------------------------------\n\nlysis1_bgl1 = dispense 1 units of LysisBuffer\nlysis2_bgl1 = dispense 1 units of LysisBuffer\nlysis3_bgl1 = dispense 1 units of LysisBuffer\nlysis4_bgl1 = dispense 1 units of LysisBuffer\nlysis5_bgl1 = dispense 1 units of LysisBuffer\n\nlysed1_bgl1 = mix bgl1Drop1 with lysis1_bgl1 for 10m\nlysed2_bgl1 = mix bgl1Drop2 with lysis2_bgl1 for 10m\nlysed3_bgl1 = mix bgl1Drop3 with lysis3_bgl1 for 10m\nlysed4_bgl1 = mix bgl1Drop4 with lysis4_bgl1 for 10m\nlysed5_bgl1 = mix bgl1Drop5 with lysis5_bgl1 for 10m\n\nlysis1_bgl2 = dispense 1 units of LysisBuffer\nlysis2_bgl2 = dispense 1 units of LysisBuffer\nlysis3_bgl2 = dispense 1 units of LysisBuffer\nlysis4_bgl2 = dispense 1 units of LysisBuffer\nlysis5_bgl2 = dispense 1 units of LysisBuffer\n\nlysed1_bgl2 = mix bgl2Drop1 with lysis1_bgl2 for 10m\nlysed2_bgl2 = mix bgl2Drop2 with lysis2_bgl2 for 10m\nlysed3_bgl2 = mix bgl2Drop3 with lysis3_bgl2 for 10m\nlysed4_bgl2 = mix bgl2Drop4 with lysis4_bgl2 for 10m\nlysed5_bgl2 = mix bgl2Drop5 with lysis5_bgl2 for 10m\n\nlysis1_bgl3 = dispense 1 units of LysisBuffer\nlysis2_bgl3 = dispense 1 units of LysisBuffer\nlysis3_bgl3 = dispense 1 units of LysisBuffer\nlysis4_bgl3 = dispense 1 units of LysisBuffer\nlysis5_bgl3 = dispense 1 units of LysisBuffer\n\nlysed1_bgl3 = mix bgl3Drop1 with lysis1_bgl3 for 10m\nlysed2_bgl3 = mix bgl3Drop2 with lysis2_bgl3 for 10m\nlysed3_bgl3 = mix bgl3Drop3 with lysis3_bgl3 for 10m\nlysed4_bgl3 = mix bgl3Drop4 with lysis4_bgl3 for 10m\nlysed5_bgl3 = mix bgl3Drop5 with lysis5_bgl3 for 10m\n\n// ------------------------------------------------------------\n// PROTOCOL 3A - STEP 4: MUG substrate addition and incubation.\n//   1.42 uL of 150 mM sodium-citrate + 6 mM MUG added to each\n//   lysed assay droplet. Time points encode 0, 15, 30, 45, 60\n//   min incubation. Paper: five droplets per strain assayed at\n//   five time points. To avoid exponential code expansion,\n//   MUG droplets are dispensed into all spots simultaneously\n//   and the incubation durations are encoded per time point\n//   (0m, 15m, 30m, 45m, 60m) using explicit heat statements.\n//   BGL1 and BGL2 use the same time-point structure; BGL3\n//   likewise. Each heat step represents one time-point duration.\n// ------------------------------------------------------------\n\n// BGL1 MUG substrate addition (five time points)\nmug1_bgl1_t0  = dispense 1 units of MUG_Substrate\nmug1_bgl1_t15 = dispense 1 units of MUG_Substrate\nmug1_bgl1_t30 = dispense 1 units of MUG_Substrate\nmug1_bgl1_t45 = dispense 1 units of MUG_Substrate\nmug1_bgl1_t60 = dispense 1 units of MUG_Substrate\n\nassay1_bgl1_t0  = mix lysed1_bgl1 with mug1_bgl1_t0  for 5s\nassay1_bgl1_t15 = mix lysed2_bgl1 with mug1_bgl1_t15 for 5s\nassay1_bgl1_t30 = mix lysed3_bgl1 with mug1_bgl1_t30 for 5s\nassay1_bgl1_t45 = mix lysed4_bgl1 with mug1_bgl1_t45 for 5s\nassay1_bgl1_t60 = mix lysed5_bgl1 with mug1_bgl1_t60 for 5s\n\nheat assay1_bgl1_t0  at 25c for 1s\nheat assay1_bgl1_t15 at 25c for 15m\nheat assay1_bgl1_t30 at 25c for 30m\nheat assay1_bgl1_t45 at 25c for 45m\nheat assay1_bgl1_t60 at 25c for 60m\n\n// BGL2 MUG substrate addition (five time points)\nmug1_bgl2_t0  = dispense 1 units of MUG_Substrate\nmug1_bgl2_t15 = dispense 1 units of MUG_Substrate\nmug1_bgl2_t30 = dispense 1 units of MUG_Substrate\nmug1_bgl2_t45 = dispense 1 units of MUG_Substrate\nmug1_bgl2_t60 = dispense 1 units of MUG_Substrate\n\nassay1_bgl2_t0  = mix lysed1_bgl2 with mug1_bgl2_t0  for 5s\nassay1_bgl2_t15 = mix lysed2_bgl2 with mug1_bgl2_t15 for 5s\nassay1_bgl2_t30 = mix lysed3_bgl2 with mug1_bgl2_t30 for 5s\nassay1_bgl2_t45 = mix lysed4_bgl2 with mug1_bgl2_t45 for 5s\nassay1_bgl2_t60 = mix lysed5_bgl2 with mug1_bgl2_t60 for 5s\n\nheat assay1_bgl2_t0  at 25c for 1s\nheat assay1_bgl2_t15 at 25c for 15m\nheat assay1_bgl2_t30 at 25c for 30m\nheat assay1_bgl2_t45 at 25c for 45m\nheat assay1_bgl2_t60 at 25c for 60m\n\n// BGL3 single-point MUG (five time points; same structure)\nmug1_bgl3_t0  = dispense 1 units of MUG_Substrate\nmug1_bgl3_t15 = dispense 1 units of MUG_Substrate\nmug1_bgl3_t30 = dispense 1 units of MUG_Substrate\nmug1_bgl3_t45 = dispense 1 units of MUG_Substrate\nmug1_bgl3_t60 = dispense 1 units of MUG_Substrate\n\nassay1_bgl3_t0  = mix lysed1_bgl3 with mug1_bgl3_t0  for 5s\nassay1_bgl3_t15 = mix lysed2_bgl3 with mug1_bgl3_t15 for 5s\nassay1_bgl3_t30 = mix lysed3_bgl3 with mug1_bgl3_t30 for 5s\nassay1_bgl3_t45 = mix lysed4_bgl3 with mug1_bgl3_t45 for 5s\nassay1_bgl3_t60 = mix lysed5_bgl3 with mug1_bgl3_t60 for 5s\n\nheat assay1_bgl3_t0  at 25c for 1s\nheat assay1_bgl3_t15 at 25c for 15m\nheat assay1_bgl3_t30 at 25c for 30m\nheat assay1_bgl3_t45 at 25c for 45m\nheat assay1_bgl3_t60 at 25c for 60m\n\n// ------------------------------------------------------------\n// PROTOCOL 3A - STEP 5: Stop reaction with glycine-NaOH.\n//   1.42 uL of 0.4 M glycine-NaOH added to each assay droplet.\n//   Quenching stops BGL activity and raises pH for MUF signal.\n// ------------------------------------------------------------\n\nstop1_bgl1_t0  = dispense 1 units of GlycineNaOH_Stop\nstop1_bgl1_t15 = dispense 1 units of GlycineNaOH_Stop\nstop1_bgl1_t30 = dispense 1 units of GlycineNaOH_Stop\nstop1_bgl1_t45 = dispense 1 units of GlycineNaOH_Stop\nstop1_bgl1_t60 = dispense 1 units of GlycineNaOH_Stop\n\nstopped_bgl1_t0  = mix assay1_bgl1_t0  with stop1_bgl1_t0  for 5s\nstopped_bgl1_t15 = mix assay1_bgl1_t15 with stop1_bgl1_t15 for 5s\nstopped_bgl1_t30 = mix assay1_bgl1_t30 with stop1_bgl1_t30 for 5s\nstopped_bgl1_t45 = mix assay1_bgl1_t45 with stop1_bgl1_t45 for 5s\nstopped_bgl1_t60 = mix assay1_bgl1_t60 with stop1_bgl1_t60 for 5s\n\nstop1_bgl2_t0  = dispense 1 units of GlycineNaOH_Stop\nstop1_bgl2_t15 = dispense 1 units of GlycineNaOH_Stop\nstop1_bgl2_t30 = dispense 1 units of GlycineNaOH_Stop\nstop1_bgl2_t45 = dispense 1 units of GlycineNaOH_Stop\nstop1_bgl2_t60 = dispense 1 units of GlycineNaOH_Stop\n\nstopped_bgl2_t0  = mix assay1_bgl2_t0  with stop1_bgl2_t0  for 5s\nstopped_bgl2_t15 = mix assay1_bgl2_t15 with stop1_bgl2_t15 for 5s\nstopped_bgl2_t30 = mix assay1_bgl2_t30 with stop1_bgl2_t30 for 5s\nstopped_bgl2_t45 = mix assay1_bgl2_t45 with stop1_bgl2_t45 for 5s\nstopped_bgl2_t60 = mix assay1_bgl2_t60 with stop1_bgl2_t60 for 5s\n\nstop1_bgl3_t0  = dispense 1 units of GlycineNaOH_Stop\nstop1_bgl3_t15 = dispense 1 units of GlycineNaOH_Stop\nstop1_bgl3_t30 = dispense 1 units of GlycineNaOH_Stop\nstop1_bgl3_t45 = dispense 1 units of GlycineNaOH_Stop\nstop1_bgl3_t60 = dispense 1 units of GlycineNaOH_Stop\n\nstopped_bgl3_t0  = mix assay1_bgl3_t0  with stop1_bgl3_t0  for 5s\nstopped_bgl3_t15 = mix assay1_bgl3_t15 with stop1_bgl3_t15 for 5s\nstopped_bgl3_t30 = mix assay1_bgl3_t30 with stop1_bgl3_t30 for 5s\nstopped_bgl3_t45 = mix assay1_bgl3_t45 with stop1_bgl3_t45 for 5s\nstopped_bgl3_t60 = mix assay1_bgl3_t60 with stop1_bgl3_t60 for 5s\n\n// ------------------------------------------------------------\n// PROTOCOL 3A - STEP 6: Fluorescence detection.\n//   Device placed on 96-well plate cover; CLARIOStar scan.\n//   Emission 449 nm, excitation 368 nm, focal 4.0 mm, gain 664.\n//   QC gate keyed on BGL1 t=60 min (highest activity in BGL1\n//   that confirms the assay ran; BGL3 is expected to be higher\n//   but both are compared in the paper against BGL1 as baseline).\n// ------------------------------------------------------------\n\nbgl1Signal = detect bglActivityDetection on stopped_bgl1_t60 for 30s\nbgl2Signal = detect bglActivityDetection on stopped_bgl2_t60 for 30s\nbgl3Signal = detect bglActivityDetection on stopped_bgl3_t60 for 30s\n\n// ============================================================\n// BB8 / BB9: BGL1 activity QC gate\n// Pass (BB8): bgl1Signal > 0 -> BGL1 active; dispose all t-pts.\n// Fail (BB9): bgl1Signal <= 0 -> drain all BGL1 droplets.\n// Both branches converge at BB10 (bgl1Join).\n// ============================================================\n\nif (bgl1Signal > 0) {\n    dispose stopped_bgl1_t0\n    dispose stopped_bgl1_t15\n    dispose stopped_bgl1_t30\n    dispose stopped_bgl1_t45\n    dispose stopped_bgl1_t60\n} else {\n    drain stopped_bgl1_t0\n    drain stopped_bgl1_t15\n    drain stopped_bgl1_t30\n    drain stopped_bgl1_t45\n    drain stopped_bgl1_t60\n}\n\n// ============================================================\n// BB10: bgl1Join\n// Dispose BGL1 QC signal. Control falls into BGL2 QC gate.\n// ============================================================\n\ndispose bgl1Signal\n\n// ============================================================\n// BB11 / BB12: BGL2 activity QC gate\n// ============================================================\n\nif (bgl2Signal > 0) {\n    dispose stopped_bgl2_t0\n    dispose stopped_bgl2_t15\n    dispose stopped_bgl2_t30\n    dispose stopped_bgl2_t45\n    dispose stopped_bgl2_t60\n} else {\n    drain stopped_bgl2_t0\n    drain stopped_bgl2_t15\n    drain stopped_bgl2_t30\n    drain stopped_bgl2_t45\n    drain stopped_bgl2_t60\n}\n\n// ============================================================\n// BB13: bgl2Join\n// ============================================================\n\ndispose bgl2Signal\n\n// ============================================================\n// BB14 / BB15: BGL3 single-point activity QC gate\n// ============================================================\n\nif (bgl3Signal > 0) {\n    dispose stopped_bgl3_t0\n    dispose stopped_bgl3_t15\n    dispose stopped_bgl3_t30\n    dispose stopped_bgl3_t45\n    dispose stopped_bgl3_t60\n} else {\n    drain stopped_bgl3_t0\n    drain stopped_bgl3_t15\n    drain stopped_bgl3_t30\n    drain stopped_bgl3_t45\n    drain stopped_bgl3_t60\n}\n\n// ============================================================\n// BB16: bgl3spJoin\n// Dispose BGL3 single-point QC signal.\n// Control falls into BGL3 multi-point assay (Protocol 3B).\n// ============================================================\n\ndispose bgl3Signal\n\n// ============================================================\n// PROTOCOL 3B: Multi-Point Induction -- BGL3 Optimisation\n// ============================================================\n\n// ------------------------------------------------------------\n// PROTOCOL 3B - STEP 1: Grow BGL3 culture on AIMS from OD ~0.1.\n//   Same conditions as single-point protocol. Induce with 11 mM\n//   IPTG at OD ~0.1 (low OD multi-point protocol; paper Section\n//   \"In the multipoint induction assay, a culture of low OD\n//   (~0.1) was grown and induced with the same volume and\n//   concentration as in the single-point program.\")\n// ------------------------------------------------------------\n\nbgl3mpCells   = dispense 1 units of BGL3_Cells\nbgl3mpF68     = dispense 1 units of PluronicF68\nbgl3mpCulture = mix bgl3mpCells with bgl3mpF68 for 45s\n\nbgl3mpIPTG    = dispense 1 units of IPTG_Stock\nbgl3mpInduced = mix bgl3mpCulture with bgl3mpIPTG for 5s\n\n// ------------------------------------------------------------\n// PROTOCOL 3B - STEP 2: Dispense five subculture droplets.\n//   Post-induction incubation time points: 0, 2, 3, 5, 6 h.\n//   Each subculture is incubated at 37 C for its respective\n//   duration before lysis. Durations in minutes:\n//     t0h  = 0 min  (immediate lysis after induction)\n//     t2h  = 120 min\n//     t3h  = 180 min\n//     t5h  = 300 min\n//     t6h  = 360 min\n// ------------------------------------------------------------\n\nbgl3mp_t0h = dispense 1 units of BGL3_Cells\nbgl3mp_t2h = dispense 1 units of BGL3_Cells\nbgl3mp_t3h = dispense 1 units of BGL3_Cells\nbgl3mp_t5h = dispense 1 units of BGL3_Cells\nbgl3mp_t6h = dispense 1 units of BGL3_Cells\n\nbgl3mp_t0h = mix bgl3mpInduced with bgl3mp_t0h for 5s\nbgl3mp_t2h = mix bgl3mpInduced with bgl3mp_t2h for 5s\nbgl3mp_t3h = mix bgl3mpInduced with bgl3mp_t3h for 5s\nbgl3mp_t5h = mix bgl3mpInduced with bgl3mp_t5h for 5s\nbgl3mp_t6h = mix bgl3mpInduced with bgl3mp_t6h for 5s\n\n// t0h: lysis immediately (no incubation); `heat for 1s` used\n//      as a no-op heat token to satisfy compiler expectations.\nheat bgl3mp_t0h at 37c for 1s\nheat bgl3mp_t2h at 37c for 120m\nheat bgl3mp_t3h at 37c for 180m\nheat bgl3mp_t5h at 37c for 300m\nheat bgl3mp_t6h at 37c for 360m\n\n// ------------------------------------------------------------\n// PROTOCOL 3B - STEP 3: Lysis (10 min at RT for all droplets).\n// ------------------------------------------------------------\n\nlysisMP_t0 = dispense 1 units of LysisBuffer\nlysisMP_t2 = dispense 1 units of LysisBuffer\nlysisMP_t3 = dispense 1 units of LysisBuffer\nlysisMP_t5 = dispense 1 units of LysisBuffer\nlysisMP_t6 = dispense 1 units of LysisBuffer\n\nlysedMP_t0 = mix bgl3mp_t0h with lysisMP_t0 for 10m\nlysedMP_t2 = mix bgl3mp_t2h with lysisMP_t2 for 10m\nlysedMP_t3 = mix bgl3mp_t3h with lysisMP_t3 for 10m\nlysedMP_t5 = mix bgl3mp_t5h with lysisMP_t5 for 10m\nlysedMP_t6 = mix bgl3mp_t6h with lysisMP_t6 for 10m\n\n// ------------------------------------------------------------\n// PROTOCOL 3B - STEP 4: MUG substrate addition.\n//   30 min incubation (all time points use 30 min MUG assay,\n//   fixed substrate concentration: 6 mM MUG, 150 mM sodium-\n//   citrate). This is consistent with paper statement:\n//   \"each droplet was incubated with MUG for 30 min.\"\n// ------------------------------------------------------------\n\nmugMP_t0 = dispense 1 units of MUG_Substrate\nmugMP_t2 = dispense 1 units of MUG_Substrate\nmugMP_t3 = dispense 1 units of MUG_Substrate\nmugMP_t5 = dispense 1 units of MUG_Substrate\nmugMP_t6 = dispense 1 units of MUG_Substrate\n\nassayMP_t0 = mix lysedMP_t0 with mugMP_t0 for 5s\nassayMP_t2 = mix lysedMP_t2 with mugMP_t2 for 5s\nassayMP_t3 = mix lysedMP_t3 with mugMP_t3 for 5s\nassayMP_t5 = mix lysedMP_t5 with mugMP_t5 for 5s\nassayMP_t6 = mix lysedMP_t6 with mugMP_t6 for 5s\n\nheat assayMP_t0 at 25c for 30m\nheat assayMP_t2 at 25c for 30m\nheat assayMP_t3 at 25c for 30m\nheat assayMP_t5 at 25c for 30m\nheat assayMP_t6 at 25c for 30m\n\n// ------------------------------------------------------------\n// PROTOCOL 3B - STEP 5: Stop reaction.\n// ------------------------------------------------------------\n\nstopMP_t0 = dispense 1 units of GlycineNaOH_Stop\nstopMP_t2 = dispense 1 units of GlycineNaOH_Stop\nstopMP_t3 = dispense 1 units of GlycineNaOH_Stop\nstopMP_t5 = dispense 1 units of GlycineNaOH_Stop\nstopMP_t6 = dispense 1 units of GlycineNaOH_Stop\n\nstoppedMP_t0 = mix assayMP_t0 with stopMP_t0 for 5s\nstoppedMP_t2 = mix assayMP_t2 with stopMP_t2 for 5s\nstoppedMP_t3 = mix assayMP_t3 with stopMP_t3 for 5s\nstoppedMP_t5 = mix assayMP_t5 with stopMP_t5 for 5s\nstoppedMP_t6 = mix assayMP_t6 with stopMP_t6 for 5s\n\n// ------------------------------------------------------------\n// PROTOCOL 3B - STEP 6: Fluorescence detection.\n//   Same CLARIOStar settings as single-point (449 nm / 368 nm,\n//   focal 4.0 mm, gain 664). QC gate keyed on t6h (expected\n//   maximum expression; paper Fig 6D: BGL3 at 6 h >= 3x at 0 h).\n// ------------------------------------------------------------\n\nbgl3mpSignal_t0 = detect bglActivityDetection on stoppedMP_t0 for 30s\nbgl3mpSignal_t2 = detect bglActivityDetection on stoppedMP_t2 for 30s\nbgl3mpSignal_t3 = detect bglActivityDetection on stoppedMP_t3 for 30s\nbgl3mpSignal_t5 = detect bglActivityDetection on stoppedMP_t5 for 30s\nbgl3mpSignal_t6 = detect bglActivityDetection on stoppedMP_t6 for 30s\n\n// ============================================================\n// BB17 / BB18: BGL3 multi-point QC gate (keyed on t6h signal)\n// Pass (BB17): bgl3mpSignal_t6 > 0 -> valid BGL3 expression\n//              at 6 h; dispose all multi-point droplets.\n// Fail (BB18): bgl3mpSignal_t6 <= 0 -> drain all.\n// Both branches converge at BB19 (finalCleanup).\n// ============================================================\n\nif (bgl3mpSignal_t6 > 0) {\n    dispose stoppedMP_t0\n    dispose stoppedMP_t2\n    dispose stoppedMP_t3\n    dispose stoppedMP_t5\n    dispose stoppedMP_t6\n} else {\n    drain stoppedMP_t0\n    drain stoppedMP_t2\n    drain stoppedMP_t3\n    drain stoppedMP_t5\n    drain stoppedMP_t6\n}\n\n// ============================================================\n// BB19: finalCleanup (terminal)\n// Dispose all remaining QC signal droplets.\n// Experiment ends.\n// ============================================================\n\ndispose bgl3mpSignal_t0\ndispose bgl3mpSignal_t2\ndispose bgl3mpSignal_t3\ndispose bgl3mpSignal_t5\ndispose bgl3mpSignal_t6\n\n// [terminal -- no further instructions; exit node for CFG]\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "husser_aims_induction_bgl_synbio_001",
+      "protocol_name": "An Automated Induction Microfluidics System for Synthetic Biology",
+      "category": "synthetic_biology",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "An Automated Induction Microfluidics System for Synthetic Biology",
+      "publisher": "ACS Synthetic Biology, 2018, Vol. 7, pp. 933-944",
+      "doi": "10.1021/acssynbio.8b00025",
+      "url": "https://www.shihmicrolab.ca/_files/ugd/f0a828_dff8587cf80c488aa25077207e571507.pdf",
+      "platform": "Digital microfluidics (DMF) with integrated 600 nm LED absorbance reader,"
+    },
+    "bioscript": {
+      "manifests": [
+        "LB_Media",
+        "PluronicF68",
+        "RFP_Cells",
+        "BGL1_Cells",
+        "BGL2_Cells",
+        "BGL3_Cells",
+        "IPTG_Stock",
+        "LysisBuffer",
+        "MUG_Substrate",
+        "SodiumCitrate_Buffer",
+        "GlycineNaOH_Stop",
+        "Buffer"
       ],
-      "absorbance_window": {
-        "chosen_electrode": "Small middle square 2 (electrode 4)",
-        "transparent_window_mm": 0.25,
-        "slope": 0.998,
-        "r_squared": 0.999,
-        "electrodes_tested": 7,
-        "limit_of_detection_OD": 0.029
-      },
-      "actuation_electrodes": 32
-    },
-
-    "aims_hardware": {
-      "led_wavelength_nm": 600,
-      "led_part": "Digikey Cat no. 1497-1021-ND",
-      "lux_sensor": "TSL2561 (Adafruit)",
-      "led_to_device_distance_mm": 8,
-      "device_to_sensor_distance_mm": 4,
-      "microcontroller": "Arduino Uno",
-      "control_software": "MATLAB (custom GUI)",
-      "high_voltage_relays": "AQW216 Panasonic (Digikey)",
-      "function_generator": "33201A Agilent (Allied Electronics)",
-      "amplifier": "PZD-700A Trek Inc.",
-      "voltage_applied_Vrms": "130-270",
-      "communication_protocol": "I2C (Maxim 7300 I/O expander)",
-      "enclosure": "3D printed PLA (top cover + bottom holder)",
-      "github": "https://github.com/shihmicrolab/AIMS"
-    },
-
-    "reagents": {
-      "cell_culture_media": "LB broth (Sigma) + 100 ug/mL ampicillin",
-      "anti_biofouling_additive": "Pluronics F-68, 0.05% (prevents protein/cell adsorption on DMF device)",
-      "inducer": {
-        "name": "IPTG (isopropyl beta-D-1-thiogalactopyranoside)",
-        "stock_concentration_mM_protocol2": 3.24,
-        "stock_concentration_mM_protocol3": 11,
-        "volume_dispensed_protocol2_uL": 0.3,
-        "volume_dispensed_protocol3_uL": 2
-      },
-      "reporter": {
-        "gene": "RFP (BBa_E1010, iGEM registry)",
-        "vector": "pET16b (T7 promoter + lacI)",
-        "host": "E. coli BL21(DE3)"
-      },
-      "bgl_enzymes": {
-        "BGL1": {
-          "organism": "Thermomicrobium roseum",
-          "accession": "YP_002522957.1",
-          "source": "IDT (synthesised as linear DNA fragment)"
-        },
-        "BGL2": {
-          "organism": "Thermobaculum terrenum",
-          "accession": "WP_041425608.1",
-          "source": "Gen9 (now Ginkgo Bioworks)"
-        },
-        "BGL3": {
-          "organism": "Rhodothermus marinus DSM4252",
-          "accession": "WP_012844561.1",
-          "source": "Gen9 (now Ginkgo Bioworks)"
-        }
-      },
-      "bgl_substrate": {
-        "name": "4-methylumbelliferyl beta-D-glucopyranoside (MUG)",
-        "supplier": "Carbosynth, cat no. EM05983",
-        "concentration_mM": 6,
-        "buffer": "150 mM sodium-citrate"
-      },
-      "lysis_solution": "1x BugBuster-based lysis buffer",
-      "stop_solution": {
-        "composition": "0.4 M glycine-NaOH",
-        "purpose": "Stop BGL enzymatic reaction; raise pH to enhance MUF fluorescence"
-      },
-      "restriction_enzymes": ["XbaI", "BamHI (Thermo, Waltham MA)"],
-      "ligase": "T4 ligase (Thermo, Waltham MA)",
-      "polymerase": "Phusion polymerase",
-      "miniprep_kit": "BioBasic cat no. BS413",
-      "gel_extraction_kit": "BioBasic cat no. BS354"
-    },
-
-    "od_measurement": {
-      "formula": "A = log(I0/I) / 0.028",
-      "I0": "blank lux reading (LB media, no cells)",
-      "I": "sample lux reading",
-      "path_length_correction_factor": 0.028,
-      "path_length_um": 280,
-      "induction_threshold_OD": 0.4,
-      "limit_of_detection_OD": 0.035,
-      "monitoring_interval_min": 10,
-      "mixing_actuation_interval_s": 45,
-      "mixing_actuation_duration_ms": 700,
-      "mixing_direction": "horizontal + vertical 4-step sequence",
-      "doubling_time_AIMS_min": { "mean": 72.88, "sd": 2.30 },
-      "doubling_time_benchtop_min": { "mean": 36.80, "sd": 0.36 },
-      "p_value": 0.018,
-      "test": "two-tailed paired t-test"
-    },
-
-    "steps": [
-      {
-        "id": "S1",
-        "name": "Device preparation and blank acquisition",
-        "bb": "BB1",
-        "protocol": "P1 - Growth Curve",
-        "inputs": ["LB_Media", "PluronicF68"],
-        "operation": "mix",
-        "duration_s": 30,
-        "notes": "Blank droplet (LB + 0.05% F-68, no cells) dispensed to acquire I0 lux reading. Device inserted into AIMS slot: 8 mm below 600 nm LED, 4 mm above TSL2561 lux sensor. Alignment marks on device and bottom holder centre absorbance window on lux sensor."
-      },
-      {
-        "id": "S2",
-        "name": "Mother culture loading",
-        "bb": "BB1",
-        "protocol": "P1 - Growth Curve",
-        "cell_line": "E. coli BL21(DE3) [pET16b]",
-        "starting_OD": 0.1,
-        "culture_volume_uL": 14,
-        "inputs": ["RFP_Cells", "PluronicF68"],
-        "operation": "mix",
-        "duration_s": 30,
-        "gap_height_um": 280,
-        "temperature_C": 37,
-        "humidity": "open water container in incubator to prevent droplet evaporation",
-        "notes": "Overnight culture diluted to OD 0.1 in LB + 0.05% F-68. 14 uL loaded onto mother culture area (four 4.5x4.5 mm electrodes). Bottom plate mated with ITO top plate for grounding."
-      },
-      {
-        "id": "S3",
-        "name": "Semicontinuous mixing and OD monitoring",
-        "bb": "BB1",
-        "protocol": "P1 - Growth Curve",
-        "operation": "mix + detect",
-        "mixing_cycle_interval_s": 45,
-        "mixing_actuation_duration_ms": 700,
-        "mixing_pattern": "horizontal + vertical 4-step sequence",
-        "od_check_interval_min": 10,
-        "od_threshold": 0.4,
-        "detection_module": "odMeasurement",
-        "detection_duration_s": 10,
-        "branch": {
-          "pass": { "condition": "odSignal > 0 (OD >= 0.4)", "action": "dispose blankMix; proceed to induction", "bb": "BB2" },
-          "fail": { "condition": "odSignal <= 0 (OD < 0.4)", "action": "continue mixing 10 min; re-measure", "bb": "BB3" }
-        },
-        "notes": "Continuous mixing caused biofouling within 2 h; semicontinuous resolved this. 700 ms actuation time is the minimum for reliable droplet movement without biofouling."
-      },
-      {
-        "id": "S4",
-        "name": "IPTG serial dilution series preparation",
-        "bb": "BB4",
-        "protocol": "P2 - Inducer Concentration Optimisation",
-        "inputs": ["IPTG_Stock (3.24 mM)", "RFP_Cells", "Buffer"],
-        "operation": "dispense + mix (2:1 serial dilution)",
-        "iptg_stock_concentration_mM": 3.24,
-        "iptg_volume_per_droplet_uL": 0.3,
-        "culture_droplet_volume_uL": 1.42,
-        "effective_concentrations_uM": [200, 133.3, 88.9, 59.3, 40, 26.7, 17.8, 11.9],
-        "assay_spots": 5,
-        "dilution_method": "2:1 serial dilution on-chip; successive culture droplets mixed into IPTG-enriched reservoir",
-        "notes": "Macroscale control: 45 mL of culture induced at 200 uM; diluted with fresh media to generate concentration series. On-chip: 2:1 serial dilutions generated by explicit dispense + mix steps (no split operations)."
-      },
-      {
-        "id": "S5",
-        "name": "RFP induction and incubation",
-        "bb": "BB4",
-        "protocol": "P2 - Inducer Concentration Optimisation",
-        "operation": "heat",
-        "temperature_C": 37,
-        "duration_min": 240,
-        "duration_s": 14400,
-        "assay_spots": 5,
-        "notes": "Five daughter droplets actuated to respective assay spots. Incubated in AIMS setup at 37 C for 4 h."
-      },
-      {
-        "id": "S6",
-        "name": "RFP fluorescence detection",
-        "bb": "BB4",
-        "protocol": "P2 - Inducer Concentration Optimisation",
-        "operation": "detect",
-        "detection_module": "rfpFluorescenceDetection",
-        "detection_duration_s": 30,
-        "plate_reader": "CLARIOStar (BGM Labtech, Ortenberg, Germany)",
-        "excitation_nm": 582,
-        "emission_nm": 612,
-        "scan_matrix": "30x30",
-        "scan_width_mm": 6,
-        "focal_height_mm": 7.2,
-        "gain": 2905,
-        "qc_gate_keyed_on": "rfpAssay1 (200 uM IPTG, highest expected signal)",
-        "results": {
-          "dose_response_profile": "Sigmoidal (Hill function)",
-          "max_expression_threshold_uM": 200,
-          "basal_expression_below_uM": 30,
-          "note": "Both macroscale and AIMS show sigmoidal profile; differences in steepness attributed to volume, E-field actuation, and mixing efficiency differences"
-        },
-        "branch": {
-          "pass": { "condition": "rfpSignal1 > 0", "action": "dispose all 5 RFP droplets", "bb": "BB5" },
-          "fail": { "condition": "rfpSignal1 <= 0", "action": "drain all 5 RFP droplets", "bb": "BB6" }
-        }
-      },
-      {
-        "id": "S7",
-        "name": "BGL culture growth and induction (single-point)",
-        "bb": "BB7",
-        "protocol": "P3A - BGL Single-Point Screening",
-        "strains": ["BGL1_Cells", "BGL2_Cells", "BGL3_Cells"],
-        "operation": "dispense + mix",
-        "starting_OD": 0.4,
-        "iptg_volume_uL": 2,
-        "iptg_concentration_mM": 11,
-        "daughter_droplets_per_strain": 5,
-        "notes": "2 uL of 11 mM IPTG mixed with single culture droplet; returned to culture mixing area to distribute inducer uniformly before daughter droplet dispensing."
-      },
-      {
-        "id": "S8",
-        "name": "BGL post-induction incubation (single-point)",
-        "bb": "BB7",
-        "protocol": "P3A - BGL Single-Point Screening",
-        "operation": "heat",
-        "temperature_C": 37,
-        "duration_min": 240,
-        "duration_s": 14400,
-        "droplets_per_strain": 5,
-        "total_droplets": 15,
-        "notes": "Five daughter droplets per strain actuated to respective incubation spots. Incubated at 37 C for 4 h."
-      },
-      {
-        "id": "S9",
-        "name": "Cell lysis",
-        "bb": "BB7",
-        "protocol": "P3A - BGL Single-Point Screening",
-        "inputs": ["LysisBuffer"],
-        "operation": "mix",
-        "lysis_volume_uL": 1.42,
-        "temperature_C": 25,
-        "duration_min": 10,
-        "duration_s": 600,
-        "total_lysis_droplets": 15,
-        "notes": "1.42 uL of 1x lysis buffer mixed with each induced droplet. 10 min incubation at room temperature."
-      },
-      {
-        "id": "S10",
-        "name": "MUG substrate addition and incubation (single-point)",
-        "bb": "BB7",
-        "protocol": "P3A - BGL Single-Point Screening",
-        "inputs": ["MUG_Substrate (6 mM in 150 mM sodium-citrate)"],
-        "substrate_volume_uL": 1.42,
-        "operation": "mix + heat",
-        "temperature_C": 25,
-        "time_points_min": [0, 15, 30, 45, 60],
-        "time_points_s": [1, 900, 1800, 2700, 3600],
-        "notes": "1.42 uL of 150 mM sodium-citrate + 6 mM MUG added to each lysed droplet. t=0 modelled as 1 s heat (no-op token for compiler). Five time points per strain, 15 assay droplets total."
-      },
-      {
-        "id": "S11",
-        "name": "Reaction stop (single-point)",
-        "bb": "BB7",
-        "protocol": "P3A - BGL Single-Point Screening",
-        "inputs": ["GlycineNaOH_Stop (0.4 M)"],
-        "stop_volume_uL": 1.42,
-        "operation": "mix",
-        "duration_s": 5,
-        "total_stop_droplets": 15,
-        "notes": "0.4 M glycine-NaOH stop solution added to each assay droplet to quench BGL activity and raise pH for enhanced MUF fluorescence."
-      },
-      {
-        "id": "S12",
-        "name": "BGL activity fluorescence detection (single-point)",
-        "bb": "BB7-BB16",
-        "protocol": "P3A - BGL Single-Point Screening",
-        "operation": "detect",
-        "detection_module": "bglActivityDetection",
-        "detection_duration_s": 30,
-        "plate_reader": "CLARIOStar (BGM Labtech)",
-        "excitation_nm": 368,
-        "emission_nm": 449,
-        "focal_height_mm": 4.0,
-        "gain": 664,
-        "results": {
-          "BGL1_vs_BGL2": "Nearly identical activity rates",
-          "BGL3_vs_BGL1": "At least 6x higher activity rate",
-          "hypothesis": "Higher salt concentrations at neutral pH 7.0 induce higher activity in Rhodothermus marinus enzymes; thermostable organisms maintain enzyme function at standard conditions"
-        },
-        "qc_gates": [
-          { "gate": "BGL1", "keyed_on": "stopped_bgl1_t60", "pass_bb": "BB8",  "fail_bb": "BB9",  "join_bb": "BB10" },
-          { "gate": "BGL2", "keyed_on": "stopped_bgl2_t60", "pass_bb": "BB11", "fail_bb": "BB12", "join_bb": "BB13" },
-          { "gate": "BGL3", "keyed_on": "stopped_bgl3_t60", "pass_bb": "BB14", "fail_bb": "BB15", "join_bb": "BB16" }
-        ]
-      },
-      {
-        "id": "S13",
-        "name": "BGL3 multi-point induction and incubation",
-        "bb": "BB16",
-        "protocol": "P3B - BGL3 Multi-Point Optimisation",
-        "strains": ["BGL3_Cells"],
-        "starting_OD": 0.1,
-        "iptg_volume_uL": 2,
-        "iptg_concentration_mM": 11,
-        "operation": "dispense + mix + heat",
-        "post_induction_time_points_h": [0, 2, 3, 5, 6],
-        "post_induction_time_points_min": [0, 120, 180, 300, 360],
-        "post_induction_time_points_s": [1, 7200, 10800, 18000, 21600],
-        "temperature_C": 37,
-        "notes": "BGL3 cells induced at low OD (~0.1); OD monitoring loop bypassed for this subroutine. Five subcultures incubated for 0, 2, 3, 5, 6 h before lysis. t=0h modelled as 1 s heat no-op."
-      },
-      {
-        "id": "S14",
-        "name": "Cell lysis (multi-point)",
-        "bb": "BB16",
-        "protocol": "P3B - BGL3 Multi-Point Optimisation",
-        "inputs": ["LysisBuffer"],
-        "operation": "mix",
-        "lysis_volume_uL": 1.42,
-        "temperature_C": 25,
-        "duration_min": 10,
-        "duration_s": 600,
-        "total_lysis_droplets": 5
-      },
-      {
-        "id": "S15",
-        "name": "MUG substrate addition and incubation (multi-point)",
-        "bb": "BB16",
-        "protocol": "P3B - BGL3 Multi-Point Optimisation",
-        "inputs": ["MUG_Substrate (6 mM in 150 mM sodium-citrate)"],
-        "substrate_volume_uL": 1.42,
-        "operation": "mix + heat",
-        "temperature_C": 25,
-        "fixed_mug_incubation_min": 30,
-        "fixed_mug_incubation_s": 1800,
-        "notes": "All five subcultures incubated with MUG for a fixed 30 min. Paper: 'each droplet was incubated with MUG for 30 min.'"
-      },
-      {
-        "id": "S16",
-        "name": "Reaction stop (multi-point)",
-        "bb": "BB16",
-        "protocol": "P3B - BGL3 Multi-Point Optimisation",
-        "inputs": ["GlycineNaOH_Stop (0.4 M)"],
-        "stop_volume_uL": 1.42,
-        "operation": "mix",
-        "duration_s": 5,
-        "total_stop_droplets": 5
-      },
-      {
-        "id": "S17",
-        "name": "BGL3 multi-point fluorescence detection",
-        "bb": "BB16-BB19",
-        "protocol": "P3B - BGL3 Multi-Point Optimisation",
-        "operation": "detect",
-        "detection_module": "bglActivityDetection",
-        "detection_duration_s": 30,
-        "plate_reader": "CLARIOStar (BGM Labtech)",
-        "excitation_nm": 368,
-        "emission_nm": 449,
-        "focal_height_mm": 4.0,
-        "gain": 664,
-        "qc_gate_keyed_on": "bgl3mpSignal_t6 (6 h; highest expected expression)",
-        "results": {
-          "BGL3_6h_vs_0h": "At least 3x higher expression at 6 h",
-          "conclusion": "Longer post-induction incubation (>1 h) increases protein folding, accumulation, and productivity in E. coli; 6 h is optimal for BGL3"
-        },
-        "branch": {
-          "pass": { "condition": "bgl3mpSignal_t6 > 0", "action": "dispose all 5 MP droplets", "bb": "BB17" },
-          "fail": { "condition": "bgl3mpSignal_t6 <= 0", "action": "drain all 5 MP droplets",   "bb": "BB18" }
-        }
-      }
-    ],
-
-    "volume_comparison": {
-      "culture_volume_microscale_uL": 15,
-      "culture_volume_macroscale_mL": 150,
-      "reduction_fold_culture": 10000,
-      "assay_volume_microscale_uL": 5,
-      "assay_volume_macroscale_uL": 200,
-      "reduction_fold_assay": 40
-    },
-
-    "cost_comparison": {
-      "multiplexing_5": {
-        "macroscale_reagents_USD": 2.52,
-        "macroscale_total_USD": 8.02,
-        "macroscale_pipetting_steps": 32,
-        "macroscale_hands_on_min": 35,
-        "AIMS_reagents_USD": 0.01,
-        "AIMS_total_USD": 4.51,
-        "AIMS_pipetting_steps": 18,
-        "AIMS_hands_on_min": 18
-      },
-      "multiplexing_100_estimated": {
-        "macroscale_reagents_USD": 18.83,
-        "macroscale_total_USD": 24.33,
-        "macroscale_pipetting_steps": 621,
-        "macroscale_hands_on_min": 370,
-        "AIMS_reagents_USD": 0.24,
-        "AIMS_total_USD": 4.74,
-        "AIMS_pipetting_steps": 135,
-        "AIMS_hands_on_min": 50
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "drain",
+        "split",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": true,
+        "has_gradient": false,
+        "num_steps": 342
       }
     },
-
     "cfg": {
       "basic_blocks": [
-        { "id": "BB1",  "label": "main",          "type": "entry",        "protocol": "P1" },
-        { "id": "BB2",  "label": "bsbbif_2_t",    "type": "branch_true",  "condition": "odSignal > 0 (OD >= 0.4)",    "action": "dispose(blankMix); proceed to P2" },
-        { "id": "BB3",  "label": "bsbbif_3_f",    "type": "branch_false", "condition": "odSignal <= 0 (OD < 0.4)",   "action": "mix 600s; drain(blankMix)" },
-        { "id": "BB4",  "label": "bsbbif_4_j",    "type": "join",         "protocol": "P2" },
-        { "id": "BB5",  "label": "bsbbif_5_t",    "type": "branch_true",  "condition": "rfpSignal1 > 0",             "action": "dispose all 5 RFP droplets" },
-        { "id": "BB6",  "label": "bsbbif_6_f",    "type": "branch_false", "condition": "rfpSignal1 <= 0",            "action": "drain all 5 RFP droplets" },
-        { "id": "BB7",  "label": "bsbbif_7_j",    "type": "join",         "protocol": "P3A" },
-        { "id": "BB8",  "label": "bsbbif_8_t",    "type": "branch_true",  "condition": "bgl1Signal > 0",             "action": "dispose all BGL1 t-point droplets" },
-        { "id": "BB9",  "label": "bsbbif_9_f",    "type": "branch_false", "condition": "bgl1Signal <= 0",            "action": "drain all BGL1 t-point droplets" },
-        { "id": "BB10", "label": "bsbbif_10_j",   "type": "join" },
-        { "id": "BB11", "label": "bsbbif_11_t",   "type": "branch_true",  "condition": "bgl2Signal > 0",             "action": "dispose all BGL2 t-point droplets" },
-        { "id": "BB12", "label": "bsbbif_12_f",   "type": "branch_false", "condition": "bgl2Signal <= 0",            "action": "drain all BGL2 t-point droplets" },
-        { "id": "BB13", "label": "bsbbif_13_j",   "type": "join" },
-        { "id": "BB14", "label": "bsbbif_14_t",   "type": "branch_true",  "condition": "bgl3Signal > 0",             "action": "dispose all BGL3 SP t-point droplets" },
-        { "id": "BB15", "label": "bsbbif_15_f",   "type": "branch_false", "condition": "bgl3Signal <= 0",            "action": "drain all BGL3 SP t-point droplets" },
-        { "id": "BB16", "label": "bsbbif_16_j",   "type": "join",         "protocol": "P3B" },
-        { "id": "BB17", "label": "bsbbif_17_t",   "type": "branch_true",  "condition": "bgl3mpSignal_t6 > 0",        "action": "dispose all BGL3 MP droplets" },
-        { "id": "BB18", "label": "bsbbif_18_f",   "type": "branch_false", "condition": "bgl3mpSignal_t6 <= 0",       "action": "drain all BGL3 MP droplets" },
-        { "id": "BB19", "label": "bsbbif_19_j",   "type": "terminal",     "action": "dispose all MP QC signals; NOP" }
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "join"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "7",
+          "label": "bsbbif_7_j",
+          "type": "join"
+        },
+        {
+          "id": "8",
+          "label": "bsbbif_8_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "9",
+          "label": "bsbbif_9_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "10",
+          "label": "bsbbif_10_j",
+          "type": "join"
+        },
+        {
+          "id": "11",
+          "label": "bsbbif_11_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "12",
+          "label": "bsbbif_12_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "13",
+          "label": "bsbbif_13_j",
+          "type": "join"
+        },
+        {
+          "id": "14",
+          "label": "bsbbif_14_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "15",
+          "label": "bsbbif_15_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "16",
+          "label": "bsbbif_16_j",
+          "type": "join"
+        },
+        {
+          "id": "17",
+          "label": "bsbbif_17_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "18",
+          "label": "bsbbif_18_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "19",
+          "label": "bsbbif_19_j",
+          "type": "terminal"
+        }
       ],
       "edges": [
-        ["BB1","BB2"],  ["BB1","BB3"],
-        ["BB2","BB4"],  ["BB3","BB4"],
-        ["BB4","BB5"],  ["BB4","BB6"],
-        ["BB5","BB7"],  ["BB6","BB7"],
-        ["BB7","BB8"],  ["BB7","BB9"],
-        ["BB8","BB10"], ["BB9","BB10"],
-        ["BB10","BB11"],["BB10","BB12"],
-        ["BB11","BB13"],["BB12","BB13"],
-        ["BB13","BB14"],["BB13","BB15"],
-        ["BB14","BB16"],["BB15","BB16"],
-        ["BB16","BB17"],["BB16","BB18"],
-        ["BB17","BB19"],["BB18","BB19"]
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ],
+        [
+          "7",
+          "8"
+        ],
+        [
+          "7",
+          "9"
+        ],
+        [
+          "8",
+          "10"
+        ],
+        [
+          "9",
+          "10"
+        ],
+        [
+          "10",
+          "11"
+        ],
+        [
+          "10",
+          "12"
+        ],
+        [
+          "11",
+          "13"
+        ],
+        [
+          "12",
+          "13"
+        ],
+        [
+          "13",
+          "14"
+        ],
+        [
+          "13",
+          "15"
+        ],
+        [
+          "14",
+          "16"
+        ],
+        [
+          "15",
+          "16"
+        ],
+        [
+          "16",
+          "17"
+        ],
+        [
+          "16",
+          "18"
+        ],
+        [
+          "17",
+          "19"
+        ],
+        [
+          "18",
+          "19"
+        ]
       ]
-    }
+    },
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(blankMix1[0])\nbsbbif_3_f:\n\tmotherCulture3[0] = mix(motherCulture2[0], blankMix1[0]) @ 600.0SECOND\n\tdispose(blankMix1[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(odSignal1[0])\n\tiptgStock1[0] = dispense(IPTG_Stock)\n\tcultureDrop11[0] = dispense(RFP_Cells)\n\tcultureDrop21[0] = dispense(RFP_Cells)\n\tcultureDrop31[0] = dispense(RFP_Cells)\n\tcultureDrop41[0] = dispense(RFP_Cells)\n\tcultureDrop51[0] = dispense(RFP_Cells)\n\tiptgDilStep11[0] = mix(iptgStock1[0], cultureDrop11[0]) @ 5.0SECOND\n\tiptgDilStep2a1[0] = dispense(IPTG_Stock)\n\tiptgDilStep21[0] = mix(iptgDilStep2a1[0], cultureDrop21[0]) @ 5.0SECOND\n\tiptgDilStep3a1[0] = dispense(IPTG_Stock)\n\tiptgDilStep3b1[0] = dispense(Buffer)\n\tiptgDilStep31[0] = mix(iptgDilStep3a1[0], iptgDilStep3b1[0]) @ 5.0SECOND\n\trfpInduced31[0] = mix(iptgDilStep31[0], cultureDrop31[0]) @ 5.0SECOND\n\tiptgDilStep4a1[0] = dispense(IPTG_Stock)\n\tiptgDilStep4b1[0] = dispense(Buffer)\n\tiptgDilStep4c1[0] = dispense(Buffer)\n\tbuf4ab1[0] = mix(iptgDilStep4b1[0], iptgDilStep4c1[0]) @ 5.0SECOND\n\tiptgDilStep41[0] = mix(iptgDilStep4a1[0], buf4ab1[0]) @ 5.0SECOND\n\trfpInduced41[0] = mix(iptgDilStep41[0], cultureDrop41[0]) @ 5.0SECOND\n\tiptgDilStep5a1[0] = dispense(IPTG_Stock)\n\tiptgDilStep5b1[0] = dispense(Buffer)\n\tiptgDilStep5c1[0] = dispense(Buffer)\n\tiptgDilStep5d1[0] = dispense(Buffer)\n\tbuf5ab1[0] = mix(iptgDilStep5b1[0], iptgDilStep5c1[0]) @ 5.0SECOND\n\tbuf5abc1[0] = mix(buf5ab1[0], iptgDilStep5d1[0]) @ 5.0SECOND\n\tiptgDilStep51[0] = mix(iptgDilStep5a1[0], buf5abc1[0]) @ 5.0SECOND\n\trfpInduced51[0] = mix(iptgDilStep51[0], cultureDrop51[0]) @ 5.0SECOND\n\trfpAssay11[0] = mix(iptgDilStep11[0], motherCulture4[0]) @ 5.0SECOND\n\trfpAssay21[0] = mix(iptgDilStep21[0], rfpAssay11[0]) @ 5.0SECOND\n\theat(rfpAssay11[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(rfpAssay21[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(rfpInduced31[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(rfpInduced41[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(rfpInduced51[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\trfpSignal11[0] = detect(rfpFluorescenceDetection, rfpAssay11[0]) @ 30.0SECOND\n\trfpSignal21[0] = detect(rfpFluorescenceDetection, rfpAssay21[0]) @ 30.0SECOND\n\trfpSignal31[0] = detect(rfpFluorescenceDetection, rfpInduced31[0]) @ 30.0SECOND\n\trfpSignal41[0] = detect(rfpFluorescenceDetection, rfpInduced41[0]) @ 30.0SECOND\n\trfpSignal51[0] = detect(rfpFluorescenceDetection, rfpInduced51[0]) @ 30.0SECOND\n\tif rfpSignal11[0] > 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nmain:\n\tblankDrop1[0] = dispense(LB_Media)\n\tprimerF681[0] = dispense(PluronicF68)\n\tblankMix1[0] = mix(blankDrop1[0], primerF681[0]) @ 30.0SECOND\n\tcellsP11[0] = dispense(RFP_Cells)\n\tf68P11[0] = dispense(PluronicF68)\n\tmotherCulture1[0] = mix(cellsP11[0], f68P11[0]) @ 30.0SECOND\n\tmotherCulture2[0] = mix(motherCulture1[0], blankMix1[0]) @ 45.0SECOND\n\todSignal1[0] = detect(odMeasurement, motherCulture2[0]) @ 10.0SECOND\n\tif odSignal1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbif_5_t:\n\tdispose(rfpAssay11[0])\n\tdispose(rfpAssay21[0])\n\tdispose(rfpInduced31[0])\n\tdispose(rfpInduced41[0])\n\tdispose(rfpInduced51[0])\nbsbbif_6_f:\n\tdispose(rfpAssay11[0])\n\tdispose(rfpAssay21[0])\n\tdispose(rfpInduced31[0])\n\tdispose(rfpInduced41[0])\n\tdispose(rfpInduced51[0])\n\tjump: bsbbif_7_j\nbsbbif_7_j:\n\tdispose(rfpSignal11[0])\n\tdispose(rfpSignal21[0])\n\tdispose(rfpSignal31[0])\n\tdispose(rfpSignal41[0])\n\tdispose(rfpSignal51[0])\n\tbgl1Cells1[0] = dispense(BGL1_Cells)\n\tbgl1F681[0] = dispense(PluronicF68)\n\tbgl1Culture1[0] = mix(bgl1Cells1[0], bgl1F681[0]) @ 45.0SECOND\n\tbgl1IPTG1[0] = dispense(IPTG_Stock)\n\tbgl1Induced1[0] = mix(bgl1Culture1[0], bgl1IPTG1[0]) @ 5.0SECOND\n\tbgl2Cells1[0] = dispense(BGL2_Cells)\n\tbgl2F681[0] = dispense(PluronicF68)\n\tbgl2Culture1[0] = mix(bgl2Cells1[0], bgl2F681[0]) @ 45.0SECOND\n\tbgl2IPTG1[0] = dispense(IPTG_Stock)\n\tbgl2Induced1[0] = mix(bgl2Culture1[0], bgl2IPTG1[0]) @ 5.0SECOND\n\tbgl3Cells1[0] = dispense(BGL3_Cells)\n\tbgl3F681[0] = dispense(PluronicF68)\n\tbgl3Culture1[0] = mix(bgl3Cells1[0], bgl3F681[0]) @ 45.0SECOND\n\tbgl3IPTG1[0] = dispense(IPTG_Stock)\n\tbgl3Induced1[0] = mix(bgl3Culture1[0], bgl3IPTG1[0]) @ 5.0SECOND\n\tbgl1Drop11[0] = dispense(BGL1_Cells)\n\tbgl1Drop21[0] = dispense(BGL1_Cells)\n\tbgl1Drop31[0] = dispense(BGL1_Cells)\n\tbgl1Drop41[0] = dispense(BGL1_Cells)\n\tbgl1Drop51[0] = dispense(BGL1_Cells)\n\tbgl1Drop12[0] = mix(bgl1Induced1[0], bgl1Drop11[0]) @ 5.0SECOND\n\tbgl1Drop22[0] = mix(bgl1Induced1[0], bgl1Drop21[0]) @ 5.0SECOND\n\tbgl1Drop32[0] = mix(bgl1Induced1[0], bgl1Drop31[0]) @ 5.0SECOND\n\tbgl1Drop42[0] = mix(bgl1Induced1[0], bgl1Drop41[0]) @ 5.0SECOND\n\tbgl1Drop52[0] = mix(bgl1Induced1[0], bgl1Drop51[0]) @ 5.0SECOND\n\tbgl2Drop11[0] = dispense(BGL2_Cells)\n\tbgl2Drop21[0] = dispense(BGL2_Cells)\n\tbgl2Drop31[0] = dispense(BGL2_Cells)\n\tbgl2Drop41[0] = dispense(BGL2_Cells)\n\tbgl2Drop51[0] = dispense(BGL2_Cells)\n\tbgl2Drop12[0] = mix(bgl2Induced1[0], bgl2Drop11[0]) @ 5.0SECOND\n\tbgl2Drop22[0] = mix(bgl2Induced1[0], bgl2Drop21[0]) @ 5.0SECOND\n\tbgl2Drop32[0] = mix(bgl2Induced1[0], bgl2Drop31[0]) @ 5.0SECOND\n\tbgl2Drop42[0] = mix(bgl2Induced1[0], bgl2Drop41[0]) @ 5.0SECOND\n\tbgl2Drop52[0] = mix(bgl2Induced1[0], bgl2Drop51[0]) @ 5.0SECOND\n\tbgl3Drop11[0] = dispense(BGL3_Cells)\n\tbgl3Drop21[0] = dispense(BGL3_Cells)\n\tbgl3Drop31[0] = dispense(BGL3_Cells)\n\tbgl3Drop41[0] = dispense(BGL3_Cells)\n\tbgl3Drop51[0] = dispense(BGL3_Cells)\n\tbgl3Drop12[0] = mix(bgl3Induced1[0], bgl3Drop11[0]) @ 5.0SECOND\n\tbgl3Drop22[0] = mix(bgl3Induced1[0], bgl3Drop21[0]) @ 5.0SECOND\n\tbgl3Drop32[0] = mix(bgl3Induced1[0], bgl3Drop31[0]) @ 5.0SECOND\n\tbgl3Drop42[0] = mix(bgl3Induced1[0], bgl3Drop41[0]) @ 5.0SECOND\n\tbgl3Drop52[0] = mix(bgl3Induced1[0], bgl3Drop51[0]) @ 5.0SECOND\n\theat(bgl1Drop12[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl1Drop22[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl1Drop32[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl1Drop42[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl1Drop52[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl2Drop12[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl2Drop22[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl2Drop32[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl2Drop42[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl2Drop52[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl3Drop12[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl3Drop22[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl3Drop32[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl3Drop42[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\theat(bgl3Drop52[0]) @ 37.0CELSIUS @ 14400.0SECOND\n\tlysis1_bgl11[0] = dispense(LysisBuffer)\n\tlysis2_bgl11[0] = dispense(LysisBuffer)\n\tlysis3_bgl11[0] = dispense(LysisBuffer)\n\tlysis4_bgl11[0] = dispense(LysisBuffer)\n\tlysis5_bgl11[0] = dispense(LysisBuffer)\n\tlysed1_bgl11[0] = mix(bgl1Drop12[0], lysis1_bgl11[0]) @ 600.0SECOND\n\tlysed2_bgl11[0] = mix(bgl1Drop22[0], lysis2_bgl11[0]) @ 600.0SECOND\n\tlysed3_bgl11[0] = mix(bgl1Drop32[0], lysis3_bgl11[0]) @ 600.0SECOND\n\tlysed4_bgl11[0] = mix(bgl1Drop42[0], lysis4_bgl11[0]) @ 600.0SECOND\n\tlysed5_bgl11[0] = mix(bgl1Drop52[0], lysis5_bgl11[0]) @ 600.0SECOND\n\tlysis1_bgl21[0] = dispense(LysisBuffer)\n\tlysis2_bgl21[0] = dispense(LysisBuffer)\n\tlysis3_bgl21[0] = dispense(LysisBuffer)\n\tlysis4_bgl21[0] = dispense(LysisBuffer)\n\tlysis5_bgl21[0] = dispense(LysisBuffer)\n\tlysed1_bgl21[0] = mix(bgl2Drop12[0], lysis1_bgl21[0]) @ 600.0SECOND\n\tlysed2_bgl21[0] = mix(bgl2Drop22[0], lysis2_bgl21[0]) @ 600.0SECOND\n\tlysed3_bgl21[0] = mix(bgl2Drop32[0], lysis3_bgl21[0]) @ 600.0SECOND\n\tlysed4_bgl21[0] = mix(bgl2Drop42[0], lysis4_bgl21[0]) @ 600.0SECOND\n\tlysed5_bgl21[0] = mix(bgl2Drop52[0], lysis5_bgl21[0]) @ 600.0SECOND\n\tlysis1_bgl31[0] = dispense(LysisBuffer)\n\tlysis2_bgl31[0] = dispense(LysisBuffer)\n\tlysis3_bgl31[0] = dispense(LysisBuffer)\n\tlysis4_bgl31[0] = dispense(LysisBuffer)\n\tlysis5_bgl31[0] = dispense(LysisBuffer)\n\tlysed1_bgl31[0] = mix(bgl3Drop12[0], lysis1_bgl31[0]) @ 600.0SECOND\n\tlysed2_bgl31[0] = mix(bgl3Drop22[0], lysis2_bgl31[0]) @ 600.0SECOND\n\tlysed3_bgl31[0] = mix(bgl3Drop32[0], lysis3_bgl31[0]) @ 600.0SECOND\n\tlysed4_bgl31[0] = mix(bgl3Drop42[0], lysis4_bgl31[0]) @ 600.0SECOND\n\tlysed5_bgl31[0] = mix(bgl3Drop52[0], lysis5_bgl31[0]) @ 600.0SECOND\n\tmug1_bgl1_t01[0] = dispense(MUG_Substrate)\n\tmug1_bgl1_t151[0] = dispense(MUG_Substrate)\n\tmug1_bgl1_t301[0] = dispense(MUG_Substrate)\n\tmug1_bgl1_t451[0] = dispense(MUG_Substrate)\n\tmug1_bgl1_t601[0] = dispense(MUG_Substrate)\n\tassay1_bgl1_t01[0] = mix(lysed1_bgl11[0], mug1_bgl1_t01[0]) @ 5.0SECOND\n\tassay1_bgl1_t151[0] = mix(lysed2_bgl11[0], mug1_bgl1_t151[0]) @ 5.0SECOND\n\tassay1_bgl1_t301[0] = mix(lysed3_bgl11[0], mug1_bgl1_t301[0]) @ 5.0SECOND\n\tassay1_bgl1_t451[0] = mix(lysed4_bgl11[0], mug1_bgl1_t451[0]) @ 5.0SECOND\n\tassay1_bgl1_t601[0] = mix(lysed5_bgl11[0], mug1_bgl1_t601[0]) @ 5.0SECOND\n\theat(assay1_bgl1_t01[0]) @ 25.0CELSIUS @ 1.0SECOND\n\theat(assay1_bgl1_t151[0]) @ 25.0CELSIUS @ 900.0SECOND\n\theat(assay1_bgl1_t301[0]) @ 25.0CELSIUS @ 1800.0SECOND\n\theat(assay1_bgl1_t451[0]) @ 25.0CELSIUS @ 2700.0SECOND\n\theat(assay1_bgl1_t601[0]) @ 25.0CELSIUS @ 3600.0SECOND\n\tmug1_bgl2_t01[0] = dispense(MUG_Substrate)\n\tmug1_bgl2_t151[0] = dispense(MUG_Substrate)\n\tmug1_bgl2_t301[0] = dispense(MUG_Substrate)\n\tmug1_bgl2_t451[0] = dispense(MUG_Substrate)\n\tmug1_bgl2_t601[0] = dispense(MUG_Substrate)\n\tassay1_bgl2_t01[0] = mix(lysed1_bgl21[0], mug1_bgl2_t01[0]) @ 5.0SECOND\n\tassay1_bgl2_t151[0] = mix(lysed2_bgl21[0], mug1_bgl2_t151[0]) @ 5.0SECOND\n\tassay1_bgl2_t301[0] = mix(lysed3_bgl21[0], mug1_bgl2_t301[0]) @ 5.0SECOND\n\tassay1_bgl2_t451[0] = mix(lysed4_bgl21[0], mug1_bgl2_t451[0]) @ 5.0SECOND\n\tassay1_bgl2_t601[0] = mix(lysed5_bgl21[0], mug1_bgl2_t601[0]) @ 5.0SECOND\n\theat(assay1_bgl2_t01[0]) @ 25.0CELSIUS @ 1.0SECOND\n\theat(assay1_bgl2_t151[0]) @ 25.0CELSIUS @ 900.0SECOND\n\theat(assay1_bgl2_t301[0]) @ 25.0CELSIUS @ 1800.0SECOND\n\theat(assay1_bgl2_t451[0]) @ 25.0CELSIUS @ 2700.0SECOND\n\theat(assay1_bgl2_t601[0]) @ 25.0CELSIUS @ 3600.0SECOND\n\tmug1_bgl3_t01[0] = dispense(MUG_Substrate)\n\tmug1_bgl3_t151[0] = dispense(MUG_Substrate)\n\tmug1_bgl3_t301[0] = dispense(MUG_Substrate)\n\tmug1_bgl3_t451[0] = dispense(MUG_Substrate)\n\tmug1_bgl3_t601[0] = dispense(MUG_Substrate)\n\tassay1_bgl3_t01[0] = mix(lysed1_bgl31[0], mug1_bgl3_t01[0]) @ 5.0SECOND\n\tassay1_bgl3_t151[0] = mix(lysed2_bgl31[0], mug1_bgl3_t151[0]) @ 5.0SECOND\n\tassay1_bgl3_t301[0] = mix(lysed3_bgl31[0], mug1_bgl3_t301[0]) @ 5.0SECOND\n\tassay1_bgl3_t451[0] = mix(lysed4_bgl31[0], mug1_bgl3_t451[0]) @ 5.0SECOND\n\tassay1_bgl3_t601[0] = mix(lysed5_bgl31[0], mug1_bgl3_t601[0]) @ 5.0SECOND\n\theat(assay1_bgl3_t01[0]) @ 25.0CELSIUS @ 1.0SECOND\n\theat(assay1_bgl3_t151[0]) @ 25.0CELSIUS @ 900.0SECOND\n\theat(assay1_bgl3_t301[0]) @ 25.0CELSIUS @ 1800.0SECOND\n\theat(assay1_bgl3_t451[0]) @ 25.0CELSIUS @ 2700.0SECOND\n\theat(assay1_bgl3_t601[0]) @ 25.0CELSIUS @ 3600.0SECOND\n\tstop1_bgl1_t01[0] = dispense(GlycineNaOH_Stop)\n\tstop1_bgl1_t151[0] = dispense(GlycineNaOH_Stop)\n\tstop1_bgl1_t301[0] = dispense(GlycineNaOH_Stop)\n\tstop1_bgl1_t451[0] = dispense(GlycineNaOH_Stop)\n\tstop1_bgl1_t601[0] = dispense(GlycineNaOH_Stop)\n\tstopped_bgl1_t01[0] = mix(assay1_bgl1_t01[0], stop1_bgl1_t01[0]) @ 5.0SECOND\n\tstopped_bgl1_t151[0] = mix(assay1_bgl1_t151[0], stop1_bgl1_t151[0]) @ 5.0SECOND\n\tstopped_bgl1_t301[0] = mix(assay1_bgl1_t301[0], stop1_bgl1_t301[0]) @ 5.0SECOND\n\tstopped_bgl1_t451[0] = mix(assay1_bgl1_t451[0], stop1_bgl1_t451[0]) @ 5.0SECOND\n\tstopped_bgl1_t601[0] = mix(assay1_bgl1_t601[0], stop1_bgl1_t601[0]) @ 5.0SECOND\n\tstop1_bgl2_t01[0] = dispense(GlycineNaOH_Stop)\n\tstop1_bgl2_t151[0] = dispense(GlycineNaOH_Stop)\n\tstop1_bgl2_t301[0] = dispense(GlycineNaOH_Stop)\n\tstop1_bgl2_t451[0] = dispense(GlycineNaOH_Stop)\n\tstop1_bgl2_t601[0] = dispense(GlycineNaOH_Stop)\n\tstopped_bgl2_t01[0] = mix(assay1_bgl2_t01[0], stop1_bgl2_t01[0]) @ 5.0SECOND\n\tstopped_bgl2_t151[0] = mix(assay1_bgl2_t151[0], stop1_bgl2_t151[0]) @ 5.0SECOND\n\tstopped_bgl2_t301[0] = mix(assay1_bgl2_t301[0], stop1_bgl2_t301[0]) @ 5.0SECOND\n\tstopped_bgl2_t451[0] = mix(assay1_bgl2_t451[0], stop1_bgl2_t451[0]) @ 5.0SECOND\n\tstopped_bgl2_t601[0] = mix(assay1_bgl2_t601[0], stop1_bgl2_t601[0]) @ 5.0SECOND\n\tstop1_bgl3_t01[0] = dispense(GlycineNaOH_Stop)\n\tstop1_bgl3_t151[0] = dispense(GlycineNaOH_Stop)\n\tstop1_bgl3_t301[0] = dispense(GlycineNaOH_Stop)\n\tstop1_bgl3_t451[0] = dispense(GlycineNaOH_Stop)\n\tstop1_bgl3_t601[0] = dispense(GlycineNaOH_Stop)\n\tstopped_bgl3_t01[0] = mix(assay1_bgl3_t01[0], stop1_bgl3_t01[0]) @ 5.0SECOND\n\tstopped_bgl3_t151[0] = mix(assay1_bgl3_t151[0], stop1_bgl3_t151[0]) @ 5.0SECOND\n\tstopped_bgl3_t301[0] = mix(assay1_bgl3_t301[0], stop1_bgl3_t301[0]) @ 5.0SECOND\n\tstopped_bgl3_t451[0] = mix(assay1_bgl3_t451[0], stop1_bgl3_t451[0]) @ 5.0SECOND\n\tstopped_bgl3_t601[0] = mix(assay1_bgl3_t601[0], stop1_bgl3_t601[0]) @ 5.0SECOND\n\tbgl1Signal1[0] = detect(bglActivityDetection, stopped_bgl1_t601[0]) @ 30.0SECOND\n\tbgl2Signal1[0] = detect(bglActivityDetection, stopped_bgl2_t601[0]) @ 30.0SECOND\n\tbgl3Signal1[0] = detect(bglActivityDetection, stopped_bgl3_t601[0]) @ 30.0SECOND\n\tif bgl1Signal1[0] > 0\t|\ttrue: jump bsbbif_8_t\t|\tfalse: jump bsbbif_9_f\nbsbbif_8_t:\n\tdispose(stopped_bgl1_t01[0])\n\tdispose(stopped_bgl1_t151[0])\n\tdispose(stopped_bgl1_t301[0])\n\tdispose(stopped_bgl1_t451[0])\n\tdispose(stopped_bgl1_t601[0])\nbsbbif_9_f:\n\tdispose(stopped_bgl1_t01[0])\n\tdispose(stopped_bgl1_t151[0])\n\tdispose(stopped_bgl1_t301[0])\n\tdispose(stopped_bgl1_t451[0])\n\tdispose(stopped_bgl1_t601[0])\n\tjump: bsbbif_10_j\nbsbbif_10_j:\n\tdispose(bgl1Signal1[0])\n\tif bgl2Signal1[0] > 0\t|\ttrue: jump bsbbif_11_t\t|\tfalse: jump bsbbif_12_f\nbsbbif_11_t:\n\tdispose(stopped_bgl2_t01[0])\n\tdispose(stopped_bgl2_t151[0])\n\tdispose(stopped_bgl2_t301[0])\n\tdispose(stopped_bgl2_t451[0])\n\tdispose(stopped_bgl2_t601[0])\nbsbbif_12_f:\n\tdispose(stopped_bgl2_t01[0])\n\tdispose(stopped_bgl2_t151[0])\n\tdispose(stopped_bgl2_t301[0])\n\tdispose(stopped_bgl2_t451[0])\n\tdispose(stopped_bgl2_t601[0])\n\tjump: bsbbif_13_j\nbsbbif_13_j:\n\tdispose(bgl2Signal1[0])\n\tif bgl3Signal1[0] > 0\t|\ttrue: jump bsbbif_14_t\t|\tfalse: jump bsbbif_15_f\nbsbbif_14_t:\n\tdispose(stopped_bgl3_t01[0])\n\tdispose(stopped_bgl3_t151[0])\n\tdispose(stopped_bgl3_t301[0])\n\tdispose(stopped_bgl3_t451[0])\n\tdispose(stopped_bgl3_t601[0])\nbsbbif_15_f:\n\tdispose(stopped_bgl3_t01[0])\n\tdispose(stopped_bgl3_t151[0])\n\tdispose(stopped_bgl3_t301[0])\n\tdispose(stopped_bgl3_t451[0])\n\tdispose(stopped_bgl3_t601[0])\n\tjump: bsbbif_16_j\nbsbbif_16_j:\n\tdispose(bgl3Signal1[0])\n\tbgl3mpCells1[0] = dispense(BGL3_Cells)\n\tbgl3mpF681[0] = dispense(PluronicF68)\n\tbgl3mpCulture1[0] = mix(bgl3mpCells1[0], bgl3mpF681[0]) @ 45.0SECOND\n\tbgl3mpIPTG1[0] = dispense(IPTG_Stock)\n\tbgl3mpInduced1[0] = mix(bgl3mpCulture1[0], bgl3mpIPTG1[0]) @ 5.0SECOND\n\tbgl3mp_t0h1[0] = dispense(BGL3_Cells)\n\tbgl3mp_t2h1[0] = dispense(BGL3_Cells)\n\tbgl3mp_t3h1[0] = dispense(BGL3_Cells)\n\tbgl3mp_t5h1[0] = dispense(BGL3_Cells)\n\tbgl3mp_t6h1[0] = dispense(BGL3_Cells)\n\tbgl3mp_t0h2[0] = mix(bgl3mpInduced1[0], bgl3mp_t0h1[0]) @ 5.0SECOND\n\tbgl3mp_t2h2[0] = mix(bgl3mpInduced1[0], bgl3mp_t2h1[0]) @ 5.0SECOND\n\tbgl3mp_t3h2[0] = mix(bgl3mpInduced1[0], bgl3mp_t3h1[0]) @ 5.0SECOND\n\tbgl3mp_t5h2[0] = mix(bgl3mpInduced1[0], bgl3mp_t5h1[0]) @ 5.0SECOND\n\tbgl3mp_t6h2[0] = mix(bgl3mpInduced1[0], bgl3mp_t6h1[0]) @ 5.0SECOND\n\theat(bgl3mp_t0h2[0]) @ 37.0CELSIUS @ 1.0SECOND\n\theat(bgl3mp_t2h2[0]) @ 37.0CELSIUS @ 7200.0SECOND\n\theat(bgl3mp_t3h2[0]) @ 37.0CELSIUS @ 10800.0SECOND\n\theat(bgl3mp_t5h2[0]) @ 37.0CELSIUS @ 18000.0SECOND\n\theat(bgl3mp_t6h2[0]) @ 37.0CELSIUS @ 21600.0SECOND\n\tlysisMP_t01[0] = dispense(LysisBuffer)\n\tlysisMP_t21[0] = dispense(LysisBuffer)\n\tlysisMP_t31[0] = dispense(LysisBuffer)\n\tlysisMP_t51[0] = dispense(LysisBuffer)\n\tlysisMP_t61[0] = dispense(LysisBuffer)\n\tlysedMP_t01[0] = mix(bgl3mp_t0h2[0], lysisMP_t01[0]) @ 600.0SECOND\n\tlysedMP_t21[0] = mix(bgl3mp_t2h2[0], lysisMP_t21[0]) @ 600.0SECOND\n\tlysedMP_t31[0] = mix(bgl3mp_t3h2[0], lysisMP_t31[0]) @ 600.0SECOND\n\tlysedMP_t51[0] = mix(bgl3mp_t5h2[0], lysisMP_t51[0]) @ 600.0SECOND\n\tlysedMP_t61[0] = mix(bgl3mp_t6h2[0], lysisMP_t61[0]) @ 600.0SECOND\n\tmugMP_t01[0] = dispense(MUG_Substrate)\n\tmugMP_t21[0] = dispense(MUG_Substrate)\n\tmugMP_t31[0] = dispense(MUG_Substrate)\n\tmugMP_t51[0] = dispense(MUG_Substrate)\n\tmugMP_t61[0] = dispense(MUG_Substrate)\n\tassayMP_t01[0] = mix(lysedMP_t01[0], mugMP_t01[0]) @ 5.0SECOND\n\tassayMP_t21[0] = mix(lysedMP_t21[0], mugMP_t21[0]) @ 5.0SECOND\n\tassayMP_t31[0] = mix(lysedMP_t31[0], mugMP_t31[0]) @ 5.0SECOND\n\tassayMP_t51[0] = mix(lysedMP_t51[0], mugMP_t51[0]) @ 5.0SECOND\n\tassayMP_t61[0] = mix(lysedMP_t61[0], mugMP_t61[0]) @ 5.0SECOND\n\theat(assayMP_t01[0]) @ 25.0CELSIUS @ 1800.0SECOND\n\theat(assayMP_t21[0]) @ 25.0CELSIUS @ 1800.0SECOND\n\theat(assayMP_t31[0]) @ 25.0CELSIUS @ 1800.0SECOND\n\theat(assayMP_t51[0]) @ 25.0CELSIUS @ 1800.0SECOND\n\theat(assayMP_t61[0]) @ 25.0CELSIUS @ 1800.0SECOND\n\tstopMP_t01[0] = dispense(GlycineNaOH_Stop)\n\tstopMP_t21[0] = dispense(GlycineNaOH_Stop)\n\tstopMP_t31[0] = dispense(GlycineNaOH_Stop)\n\tstopMP_t51[0] = dispense(GlycineNaOH_Stop)\n\tstopMP_t61[0] = dispense(GlycineNaOH_Stop)\n\tstoppedMP_t01[0] = mix(assayMP_t01[0], stopMP_t01[0]) @ 5.0SECOND\n\tstoppedMP_t21[0] = mix(assayMP_t21[0], stopMP_t21[0]) @ 5.0SECOND\n\tstoppedMP_t31[0] = mix(assayMP_t31[0], stopMP_t31[0]) @ 5.0SECOND\n\tstoppedMP_t51[0] = mix(assayMP_t51[0], stopMP_t51[0]) @ 5.0SECOND\n\tstoppedMP_t61[0] = mix(assayMP_t61[0], stopMP_t61[0]) @ 5.0SECOND\n\tbgl3mpSignal_t01[0] = detect(bglActivityDetection, stoppedMP_t01[0]) @ 30.0SECOND\n\tbgl3mpSignal_t21[0] = detect(bglActivityDetection, stoppedMP_t21[0]) @ 30.0SECOND\n\tbgl3mpSignal_t31[0] = detect(bglActivityDetection, stoppedMP_t31[0]) @ 30.0SECOND\n\tbgl3mpSignal_t51[0] = detect(bglActivityDetection, stoppedMP_t51[0]) @ 30.0SECOND\n\tbgl3mpSignal_t61[0] = detect(bglActivityDetection, stoppedMP_t61[0]) @ 30.0SECOND\n\tif bgl3mpSignal_t61[0] > 0\t|\ttrue: jump bsbbif_17_t\t|\tfalse: jump bsbbif_18_f\nbsbbif_17_t:\n\tdispose(stoppedMP_t01[0])\n\tdispose(stoppedMP_t21[0])\n\tdispose(stoppedMP_t31[0])\n\tdispose(stoppedMP_t51[0])\n\tdispose(stoppedMP_t61[0])\nbsbbif_18_f:\n\tdispose(stoppedMP_t01[0])\n\tdispose(stoppedMP_t21[0])\n\tdispose(stoppedMP_t31[0])\n\tdispose(stoppedMP_t51[0])\n\tdispose(stoppedMP_t61[0])\n\tjump: bsbbif_19_j\nbsbbif_19_j:\n\tdispose(bgl3mpSignal_t01[0])\n\tdispose(bgl3mpSignal_t21[0])\n\tdispose(bgl3mpSignal_t31[0])\n\tdispose(bgl3mpSignal_t51[0])\n\tdispose(bgl3mpSignal_t61[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "LB_Media",
+          "source_quote": "Reagents  : LB_Media, PluronicF68",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "PluronicF68",
+          "source_quote": "Reagents  : LB_Media, PluronicF68",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "RFP_Cells",
+          "source_quote": "Strain    : BGL3_Cells (R.",
+          "source_location": "description.txt: QC gates (keyed on t=60 min droplet per strain)"
+        },
+        {
+          "bs_chemical": "BGL1_Cells",
+          "source_quote": "Strains   : BGL1 (T.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "BGL2_Cells",
+          "source_quote": "BGL2: T.",
+          "source_location": "description.txt: OVERVIEW"
+        },
+        {
+          "bs_chemical": "BGL3_Cells",
+          "source_quote": "terrenum, BGL3: R.",
+          "source_location": "description.txt: OVERVIEW"
+        },
+        {
+          "bs_chemical": "IPTG_Stock",
+          "source_quote": "IPTG stock : 3.24 mM; 0.3 uL per droplet",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "MUG_Substrate",
+          "source_quote": "Step 15 | MUG Substrate Addition and Incubation - Multi-Point (P3B)",
+          "source_location": "description.txt: Post-induction incubation time points"
+        },
+        {
+          "bs_chemical": "GlycineNaOH_Stop",
+          "source_quote": "Total stop droplets : 5",
+          "source_location": "description.txt: Post-induction incubation time points"
+        },
+        {
+          "bs_chemical": "Buffer",
+          "source_quote": "Reagent   : 1x lysis buffer, 1.42 uL per droplet",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "droplets use explicit dispense + mix scalar variables to prevent",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "Duration  : 5 s mix",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "heat",
+          "source_quote": "Temperature : 37 C",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "A  = absorbance (OD units)",
+          "source_location": "description.txt: OD MEASUREMENT"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "Pass (BB5)   : rfpSignal1 > 0 -> dispose all 5 RFP droplets",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "drain",
+          "source_quote": "Fail (BB6)   : rfpSignal1 <= 0 -> drain all 5 RFP droplets",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "split",
+          "source_quote": "600s  -> 600s   (10 min OD fail branch mixing; IR: 600.0 SECOND)",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "If OD >= 0.4: trigger induction program.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 4 hour(s) vs BioScript encodes 240m — converted hours to minutes for BioScript grammar compatibility."
+        },
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 6 hour(s) vs BioScript encodes 360m — converted hours to minutes for BioScript grammar compatibility."
+        },
+        {
+          "field": "reaction_temperature",
+          "note": "Description specifies room temperature vs BioScript encodes 4c — nominal ambient temperature encoding."
+        }
+      ]
+    },
+    "notes": "This protocol details An Automated Induction Microfluidics System for Synthetic Biology. The assay is performed on a Digital microfluidics (DMF) with integrated 600 nm LED absorbance reader platform. It achieves a reported detection limit of = 0."
   }
 }

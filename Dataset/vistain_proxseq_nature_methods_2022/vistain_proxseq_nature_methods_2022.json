@@ -1,528 +1,288 @@
 {
-  "protocol": {
-    "title": "Quantification of Extracellular Proteins, Protein Complexes and mRNAs in Single Cells by Proximity Sequencing",
-    "source": "Nature Methods, Vol. 19, December 2022, pp. 1578-1589",
-    "doi": "10.1038/s41592-022-01684-z",
-    "platform": "Proximity Ligation Assay (PLA) combined with single-cell RNA sequencing (scRNA-seq); plate-based (Smart-seq2) and droplet-based (Drop-seq / 10x Genomics Chromium) pipelines",
-    "cell_lines": [
-      "Jurkat (human T cell leukemia; T cell model)",
-      "Raji (human B cell lymphoma; B cell model)",
-      "Human peripheral blood mononuclear cells (PBMCs; primary)",
-      "Primary human macrophages (purchased from STEMCELL Technologies)"
-    ],
-    "objective": "Simultaneous measurement of extracellular proteins, pairwise protein complexes (up to n^2 per cell), and whole-transcriptome mRNAs in thousands of single cells using DNA-conjugated antibody probe pairs and proximity ligation, with downstream scRNA-seq readout",
-
-    "method_overview": {
-      "probe_design": {
-        "probe_types": ["Probe A (antibody-oligomer conjugate)", "Probe B (antibody-oligomer conjugate)"],
-        "conjugation": "DBCO-PEG4-NHS ester chemistry; antibodies reacted with DBCO in DMSO (10:1 v/v); azide-functionalized PLA oligomer (IDT) clicked overnight at 4C",
-        "oligomer_to_antibody_ratio": "Measured by UV-Vis (Nanodrop); 1-2 ug DBCO-conjugated antibody at 3-13 uM combined with 80 uM azide oligomer",
-        "pla_product_length_bp": 119,
-        "connector_hybridization_bases": 20,
-        "probe_range_nm": "53.8-73.7 (spans typical protein complex dimensions)",
-        "universal_connector_region": "Enables any probe A to ligate with any probe B; only ligated products PCR-amplifiable",
-        "pla_product_features": ["UMI region (PCR bias correction)", "Probe A barcode", "Probe B barcode", "3-prime poly-A tail (capture)", "PCR primer binding site"],
-        "long_term_storage": "Reaction mixture brought to 50% glycerol/PBS (Sigma Aldrich) at 4C"
-      },
-      "ligation_solution": {
-        "hepes_mM": 50,
-        "hepes_pH": 7.5,
-        "mgcl2_mM": 10,
-        "ratp_mM": 1,
-        "connector_oligomer_nM": 9.5,
-        "connector_oligomer_supplier": "IDT; sequence TTTCACGACACGACACGATTTAGGTC",
-        "t4_ligase_U_mL": 130,
-        "t4_ligase_supplier": "NEB"
-      },
-      "multiplexing_scaling": "Number of measurable pairwise protein complexes scales quadratically with number of targeted proteins (n^2 PLA products + n protein estimates per cell)",
-      "sequencing_readout": "PLA products captured by poly-A tail alongside mRNA in same scRNA-seq library; unligated probes discarded during library prep (>90% probes found ligated; Extended Data Fig. 4b)"
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
     },
-
-    "reagents": {
-      "probe_binding_buffer": "PBS + 0.1% BSA (Thermo Scientific) + 0.1 mg/mL sonicated salmon sperm DNA (Invitrogen) + 6.7 nM each isotype control",
-      "probe_concentration_per_pair_nM": 5,
-      "probe_A_nM": 2.5,
-      "probe_B_nM": 2.5,
-      "wash_buffer": "1% BSA/PBS",
-      "fc_blocker": "TruStain FcX (BioLegend); 5 uL per 95 uL 1% BSA/PBS",
-      "rnase_inhibitor": "NEB; 1:1000 dilution added to all buffers in PBMC arm",
-      "pi_stain": "Propidium iodide (Invitrogen); 1 ug/mL final concentration for live/dead gating",
-      "lysis_buffer_plate": "Smart-seq2 lysis buffer: 0.1% Triton X-100, 1 U/uL RNase inhibitor murine (NEB), 2.5 mM dNTPs, 2.5 uM SmartSeq2_oligodTVN, 2.5 uM SmartSeq2_oligodTGT in water; 4 uL per well",
-      "lysis_buffer_fixed_cells": "Modified Smart-seq2: 0.1% Triton X-100, 1000 U/mL RNase inhibitor murine (NEB), 20 U/mL proteinase K (NEB), 2.5 mM dNTPs, 2.5 uM SmartSeq2_oligodTVN, 2.5 uM SmartSeq2_oligodTGT in TE buffer; 6 uL per well",
-      "fixative": "4% paraformaldehyde (PFA, ChemCruz); 15 min room temperature",
-      "dropseq_beads": "ChemGenes Macosko-2011-10(V+); barcoded beads for Drop-seq encapsulation",
-      "oil_phase_dropseq": "HFE7500 + 2% fluorosurfactant",
-      "dead_cell_removal": "Miltenyi Biotec Dead Cell Removal Kit (130-090-101); used in 10x arm only",
-      "stimuli_macrophage": {
-        "LPS": { "concentration_ng_mL": 100, "target_receptor": "TLR4", "pathway": "NF-kB" },
-        "PAM": { "full_name": "Pam2CSK4", "concentration_ng_mL": 40, "target_receptor": "TLR2", "pathway": "NF-kB" }
+    {
+      "role": "user",
+      "content": "PROTOCOL DESCRIPTION\n====================\n\nTitle        : Quantification of Extracellular Proteins, Protein Complexes and mRNAs in Single Cells by Proximity Sequencing\nSource Link  : https://www.nature.com/articles/s41592-022-01684-z\nPaper DOI    : https://doi.org/10.1038/s41592-022-01684-z\nJournal      : Nature Methods, Vol. 19, December 2022, pp. 1578-1589\nPlatform     : Proximity Ligation Assay (PLA) combined with single-cell RNA sequencing (scRNA-seq);\n               plate-based (Smart-seq2 / 96-well) and droplet-based (Drop-seq / 10x Genomics Chromium) pipelines\n\n\nOVERVIEW\n--------\nThis protocol describes Prox-seq (proximity sequencing), a method for simultaneous single-cell\nmeasurement of extracellular proteins, pairwise protein complexes (up to n^2 per cell), and\nwhole-transcriptome mRNAs, using pairs of DNA-conjugated antibodies called Prox-seq probes. When\ntwo probes bind proteins that are in physical proximity on the cell surface, their oligonucleotide\ntails are ligated by T4 ligase via a universal connector region, producing a PLA product that\nuniquely encodes the identities of both proteins. Only ligated products are captured and amplified\nduring downstream library preparation; unligated probes are automatically discarded. PLA products\nare read out by next-generation sequencing alongside cDNA, enabling multimodal single-cell analysis.\n\nThe protocol is organised into three experimental arms that share probe design, ligation chemistry,\nand sequencing infrastructure but differ in cell type, panel size, and library preparation platform:\n\n  ARM 1 | Jurkat / Raji T cell / B cell validation (Drop-seq, 11-protein panel)\n           Validates Prox-seq accuracy; confirms cell-type-specific PLA products; measures\n           protein expression correlation with flow cytometry (Spearman rho = 0.88).\n\n  ARM 2 | Human PBMC 38-marker panel (plate-based Smart-seq2 + 10x Genomics)\n           Scales Prox-seq to 741 potential protein complexes; discovers the CD9-CD8 protein\n           complex on naive CD8+ T cells as a novel interaction not previously described.\n\n  ARM 3 | Primary human macrophage TLR signalling panel (plate-based, PFA-fixed cells)\n           15 NF-kB pathway surface proteins (225 PLA products); LPS, PAM, or both stimulation\n           at 5 min, 2 h, and 12 h; demonstrates additive signal integration, CD36 co-receptor\n           activity, and identification of signalling inputs from receptor complex dynamics.\n\nThe complete Prox-seq workflow (probe incubation through sequencing library) takes approximately\n1.5-3 hours of hands-on processing per sample batch depending on the arm.\n\n\nPROBE DESIGN AND CHEMISTRY\n---------------------------\nEach protein target requires two Prox-seq probes: Probe A and Probe B, each consisting of a\nmonoclonal antibody conjugated to a single-stranded DNA oligomer.\n\nConjugation method:\n  - Antibodies concentrated and buffer-exchanged into PBS using 50,000 MWCO concentrator (EMD Millipore)\n  - Reacted with DBCO-PEG4-NHS ester (Sigma, 764019) in DMSO at 10:1 v/v DBCO:antibody solution\n  - Incubated on ice for 1-2 h; purified through 50,000 MWCO concentrator\n  - Antibody-to-DBCO ratio measured by UV-Vis (Nanodrop)\n  - 1-2 ug DBCO-conjugated antibody (3-13 uM) combined with 80 uM azide-functionalized PLA\n    oligomer (IDT) in PBS; allowed to react overnight at 4 C (click chemistry)\n  - Long-term storage: reaction brought to 50% glycerol/PBS (Sigma Aldrich) at 4 C\n\nPLA product structure (119 bp total):\n  5' [PCR handle] -- [UMI] -- [Probe A barcode] -- [1st half connector] --\n     [2nd half connector] -- [Probe B barcode] -- [Poly-A tail] 3'\n  - 20 bases hybridise to connector oligomer to enable proximity ligation\n  - UMI region corrects for PCR bias\n  - Two barcode regions identify both proteins in each PLA product\n  - 3' poly-A tail enables capture in poly-A-based scRNA-seq workflows\n  - Universal connector region allows any Probe A to ligate with any Probe B\n\nPhysical range: 53.8-73.7 nm (estimated from ssDNA/dsDNA persistence length; spans typical\nprotein complex dimensions, ~10-50 nm)\n\nLigation solution (per reaction):\n  - 50 mM HEPES pH 7.5\n  - 10 mM MgCl2\n  - 1 mM rATP (New England Biolabs)\n  - 9.5 nM connector oligomer (IDT; sequence: TTTCACGACACGACACGATTTAGGTC)\n  - 130 U/mL T4 ligase (NEB)\n  - Volume: 100 uL (PBMC/macrophage arms); 300 uL (Jurkat/Raji arm)\n\nLigation efficiency: >90% of Prox-seq probes found ligated with other probes\n(Extended Data Fig. 4b), explaining high concordance with flow cytometry.\n\n\nCELL LINES AND PRIMARY CELLS\n-----------------------------\n- Jurkat (human T cell leukemia): model T cell line for ARM 1 validation.\n  Cultured in RPMI + 10% FBS (Hyclone, Fisher Scientific), no antibiotics, 37 C, 5% CO2.\n  Gift from J. Huang (Pritzker School of Molecular Imaging, University of Chicago).\n\n- Raji (human B cell lymphoma): model B cell line for ARM 1 validation.\n  Cultured in RPMI + 10% FBS, no antibiotics, 37 C, 5% CO2.\n  Gift from J. Huang (Pritzker School of Molecular Imaging, University of Chicago).\n\n- Human PBMCs (peripheral blood mononuclear cells): primary cells for ARM 2.\n  Purchased from STEMCELL Technologies. Thawed at 37 C; washed 3x in 10 mL RPMI + 10% FBS\n  (300g, 3 min); rested overnight at 37 C, 5% CO2 in RPMI + 10% FBS before use.\n\n- Primary human macrophages: primary cells for ARM 3.\n  Purchased from STEMCELL Technologies. Thawed, washed, and rested overnight in RPMI + 10% FBS.\n  Plated in 10 wells of a non-tissue-culture-treated 24-well plate before stimulation.\n\n\nPROTEIN PANELS\n--------------\nARM 1 | 11-protein panel (Jurkat / Raji; Drop-seq):\n  Jurkat T cell markers : CD3, PD1, CD28, CD4, CD45RA, CD147, LFA1\n  Raji B cell markers   : B7, ICAM1, HLA-DR, PDL1, CD147 (shared)\n  Isotype controls      : 2\n  PLA products measured : 169 (= 13^2 including isotypes)\n  Supplementary Table   : Supplementary Table 1\n\nARM 2 | 38-protein panel (PBMCs; plate-based + 10x Genomics):\n  Primary focus           : T cell surface markers\n  PLA products measurable : 741 unique protein complexes\n  Complexes detected      : 20 (plate-based); 37 (10x Genomics)\n  Literature-supported    : 21 of 37 (IntAct database; Supplementary Table 4)\n  Supplementary Table     : Supplementary Table 3\n\nARM 3 | 15-protein NF-kB signalling panel (macrophages; plate-based, fixed):\n  Targets : CD14, CD36, IL-1R, IL-6Ra, IL-8Rb, IL-10R, LBP, MD2,\n            MMP15, MMP16, TGFBR1, TLR1, TLR2, TLR4, TLR6\n  PLA products measurable : 225 protein dimers\n  Supplementary Table     : Supplementary Table 5\n\n\nPROTOCOL STEPS\n--------------\n\nARM 1 | Jurkat / Raji Drop-seq Validation\n------------------------------------------\n\nStep 1 | Jurkat / Raji Cell Mixture Preparation and DSP Fixation\n  Cell counts    : 150,000 Jurkat + 150,000 Raji\n  Centrifugation : 500g, 3 min; washed once with 1% BSA/PBS; spun again\n  Plate format   : 96-well U-bottom plates\n  Fixation       : 4 mM DSP (3,3-dithiobis-sulfosuccinimidyl propionate, Life Technologies)\n                   in PBS; 37 C for 30 min (= 30m; IR: 1800.0 SECOND)\n  Purpose        : Preserves surface protein architecture prior to probe incubation.\n                   DSP is reversed later with 30 mM DTT (37 C, 30 min) before Drop-seq.\n  Post-fixation  : Washed once with 1 mL 1% BSA/PBS.\n\nStep 2 | Prox-seq Probe Incubation (11-protein panel)\n  Volume         : 90 uL probe binding buffer\n  Concentration  : 5 nM per pair (2.5 nM Probe A + 2.5 nM Probe B); 6.7 nM each isotype\n  Buffer         : PBS + 0.1% BSA (Thermo Scientific) + 0.1 mg/mL sonicated salmon sperm\n                   DNA (Invitrogen) + 6.7 nM each isotype control\n  Temperature    : 37 C for 60 min (= 60m; IR: 3600.0 SECOND)\n  Nonspecific binding: Minimal; consistent with REAP-seq and CITE-seq levels\n                       (Extended Data Fig. 5d); no increase with larger panel sizes.\n\nStep 3 | Wash and PLA Ligation (3h rotation)\n  Washes         : 2x with 1 mL 1% BSA/PBS; 500g, 5 min each\n  Ligation vol.  : 300 uL ligation solution (see Probe Design section above)\n  Temperature    : 37 C for 3 h (= 180m; IR: 10800.0 SECOND); rotation throughout\n  PI addition    : Propidium iodide (1 ug/mL final) added 30 min before ligation end\n                   (IR: piMix at 1800.0 SECOND mix duration) to identify dead cells.\n  Post-ligation  : Cells centrifuged at 500g, 3 min; resuspended in 1% BSA/PBS + 1/500 PI.\n                   Live (PI-negative) cells sorted by FACS (one cell line per 96-well plate).\n  DSP reversal   : 30 mM DTT, 37 C, 30 min; centrifuged at 300g, 3 min; resuspended\n                   in 0.1% BSA/PBS before Drop-seq.\n\nStep 4 | Drop-seq Encapsulation and Library Preparation\n  Beads          : ChemGenes Macosko-2011-10(V+); barcoded beads\n  Oil            : HFE7500 + 2% fluorosurfactant\n  Droplet size   : ~1 nL\n  Processing     : Droplets broken; beads subjected to reverse transcription, exonuclease\n                   digestion, whole-transcriptome amplification. PLA products (poly-A tail)\n                   and cDNA captured together; processed into separate sequencing libraries.\n  Sequencing     : NextSeq Mid-output kit v2.5\n                   Read 1: 20 bp | Read 2: 85 bp | i7 index: 8 bp\n                   PhiX spike: 40% (low diversity of PLA libraries)\n                   Custom primers: Read1CustomSeqB, DropPLA_Read2, DropPLA_i7Read\n                   Library fraction: cDNA and PLA each receive 20% of total reads\n  Alignment mRNA : Drop-seq tools v2.3.0; human reference genome GRCh38 2020-A\n  Alignment PLA  : Custom Java program (github.com/tay-lab/Prox-seq)\n\nStep 5 | Cell-Type PLA QC Detection  [QC Gate 1: BB2/BB3]\n  Module         : cellTypeDetection\n  Method         : t-SNE and PCA clustering on PLA product space; Wilcoxon rank-sum test\n                   with Benjamini-Hochberg correction (P < 10^-40 threshold for markers)\n  Expected result: Jurkat cluster enriched for PD1-CD3 (adj. P = 2.2e-55) and\n                   CD3-CD3 (adj. P = 5.1e-53); Raji cluster enriched for ICAM1-HLADR\n                   (adj. P = 2.7e-54) and HLADR-HLADR (adj. P = 2.4e-46).\n  Pass (BB2)     : cellTypeSignal > 0 -> cell types separated by PLA products; dispose.\n  Fail (BB3)     : cellTypeSignal <= 0 -> no cell-type PLA signal detected; drain.\n  Both -> BB4    : Control passes to PBMC arm.\n\n\nARM 2 | PBMC 38-Marker Panel (Plate-Based + 10x Genomics)\n-----------------------------------------------------------\n\nStep 6 | PBMC Preparation: Fc Block and RNase Inhibitor  [BB4 join]\n  Cell count     : 1 million rested PBMCs; all centrifugation at 300g, 3 min\n  Wash           : 1 mL 1% BSA/PBS; pellet\n  Fc block       : 95 uL 1% BSA/PBS + 5 uL TruStain FcX (BioLegend); 5 min RT\n                   (IR: blockedPBMCs mix at 300.0 SECOND)\n  RNase inhibitor: NEB; 1:1000 added to all subsequent buffers to protect mRNA.\n\nStep 7 | 38-Marker Probe Incubation (3-Portion Serial Delivery)\n  Volume total   : 300 uL (divided into 3 x 100 uL portions)\n  Concentration  : 5 nM per pair (2.5 nM Probe A + 2.5 nM Probe B)\n  Serial delivery: Cocktail divided into 3 portions due to volume constraints.\n                   Each portion: incubate at 37 C for 15 min (= 15m; IR: 900.0 SECOND);\n                   pellet; resuspend in next portion. Total probe exposure ~45 min.\n                   (IR variables: pbmcPortion11[0], pbmcPortion21[0], pbmcPortion31[0])\n  Post-incubation: Cells spun and washed 3x with 1 mL 1% BSA/PBS (300g, 3 min each).\n\nStep 8 | Wash (x3) and Ligation (30 min)\n  Washes         : 3x with 1 mL 1% BSA/PBS; 300g, 3 min each\n                   (IR variables: pbmcWash11[0], pbmcWash21[0], pbmcWash31[0])\n  Ligation vol.  : 100 uL ligation solution\n  Temperature    : 37 C for 30 min (= 30m; IR: 1800.0 SECOND)\n  Downstream     : For 10x experiment: cells transferred to 10x workflow at this stage\n                   (dead cells removed with Miltenyi Dead Cell Removal Kit 130-090-101;\n                   diluted to 1,000 cells/uL; processed using standard 10x protocol with\n                   modified library prep; aligned with Cell Ranger v6.1.1 + GRCh38 2020-A).\n\nStep 9 | Plate-Based Library Preparation (Smart-seq2) and 72C Pre-Step\n  PI stain       : 1 ug/mL final; 10 min incubation\n  Sorting        : Live (PI-negative) single cells sorted into 96-well plates; 1 cell/well\n  Lysis buffer   : 4 uL Smart-seq2 lysis buffer per well (see Reagents section)\n  Non-PFA cells  : Plates frozen at -80 C for storage.\n  Pre-RT step    : Thaw on ice; incubate 72 C for 3 min (= 3m; IR: 180.0 SECOND)\n  Library prep   : 2-4 uL per well used for PLA product pre-amplification; second PCR\n                   attaches single-cell indexes and sequencing adaptor.\n  Sequencing     : NextSeq Mid-output kit v2.5\n                   Read 1: 75 bp | i5 index: 8 bp | i7 index: 8 bp\n                   PhiX spike: 40%\n                   Custom primers: SmartPLA_Read1, SmartPLA_i5Read, SmartPLA_i7Read\n                   Minimum recommended reads: 10,000 reads/cell for PLA products\n                   (diminishing returns above this threshold; Extended Data Fig. 9f-g)\n\nStep 10 | Protein Complex QC Detection (Protein Complex Estimation Algorithm)  [QC Gate 2: BB5/BB6]\n  Module         : proteinComplexDetection\n  Algorithm      : Protein Complex Estimation Algorithm (iterative quadratic solver; Fig. 2a)\n    Input        : Raw PLA product count matrix X (cells x PLA products)\n    Step 1       : Calculate expected random PLA count f(X) from probe abundance\n                   (maximum background = all proteins monomeric)\n    Step 2       : Compute difference delta = observed minus expected random\n    Step 3       : One-sided t-test + Benjamini-Hochberg correction (adjusted P < 0.05)\n    Step 4       : Statistically significant delta -> update complex count; adjust X; iterate\n    Step 5       : Non-significant delta -> complex count unchanged from previous iteration\n    Convergence  : Absolute change in complex count < convergence threshold between iterations\n  Key findings   : CD9-CD8 protein complex identified on naive CD8+ T cells (novel);\n                   37 total complexes detected; 21 supported by literature/IntAct database;\n                   CD9-CD8 subpopulation upregulates CCR7 and SELL (naive T cell markers).\n  Pass (BB5)     : complexSignal > 0 -> protein complexes detected; dispose.\n  Fail (BB6)     : complexSignal <= 0 -> no significant complexes above background; drain.\n  Both -> BB7    : Control passes to macrophage TLR signalling arm.\n\n\nARM 3 | Primary Human Macrophage TLR Signalling Panel (Plate-Based, PFA-Fixed)\n--------------------------------------------------------------------------------\n\nStep 11 | Macrophage Stimulation (LPS + PAM, 5-Min Arm) and PFA Fixation  [BB7 join]\n  Cell prep      : Macrophages rested overnight; centrifuged 300g, 3 min before stimulation\n  Stimulation    : 100 ng/mL LPS (TLR4 agonist) + 40 ng/mL Pam2CSK4 (TLR2 agonist)\n                   in RPMI + 10% FBS; 37 C for 5 min (= 5m; IR: 300.0 SECOND)\n                   Note: This .bs file encodes the combined LPS+PAM arm at 5 min.\n                   Remaining 9 conditions (LPS only, PAM only; 2h, 12h time points;\n                   untreated control) share identical downstream fixation and staining.\n  Dissociation   : TrypLE (Gibco); pellet; resuspend in 4% PFA (ChemCruz)\n  Fixation       : 4% PFA; room temperature 25 C for 15 min (= 15m; IR: 900.0 SECOND)\n                   Purpose: Locks receptor interactions at the stimulation endpoint;\n                   prevents antibody cocktail from inducing artifactual signalling.\n  Post-fixation  : Spun; washed once with 1 mL 1% BSA/PBS.\n\nStep 12 | Fc Block and 15-Marker TLR Probe Incubation\n  Fc block       : 95 uL 1% BSA/PBS + 5 uL TruStain FcX; 5 min RT\n                   (IR: macroBlocked mix at 300.0 SECOND)\n  Probe volume   : 54 uL probe binding buffer; 5 nM per pair\n  Temperature    : 37 C for 30 min (= 30m; IR: 1800.0 SECOND)\n  Post-incubation: Pellet; wash 3x with 1 mL 1% BSA/PBS (300g, 3 min each).\n\nStep 13 | Wash (x3), Ligation (30 min), and Fixed-Cell Plate Sorting\n  Washes         : 3x with 1 mL 1% BSA/PBS; 300g, 3 min each\n  Ligation vol.  : 100 uL ligation solution; 37 C for 30 min (= 30m; IR: 1800.0 SECOND)\n  Cell sorting   : Pellet; resuspend in 500 uL 1% BSA/PBS + 1/500 PI; live cells\n                   sorted into 96-well plates containing modified Smart-seq2 lysis buffer\n                   (6 uL/well with proteinase K; see Reagents section)\n  Fixed-cell protocol:\n    Step 1       : 56 C for 60 min (= 60m; IR: 3600.0 SECOND) -- proteinase K digestion\n    Step 2       : 95 C for 10 min (= 10m; IR: 600.0 SECOND) -- proteinase K inactivation\n    Storage      : -80 C; plates can be thawed on ice and proceed directly to library prep\n  Library prep   : Same as ARM 2 plate-based protocol (SmartPLA primers, NextSeq)\n\nStep 14 | Macrophage TLR Signalling QC Detection  [QC Gate 3: BB8/BB9]\n  Module         : macrophageSignalDetection\n  Method         : Logistic regression classifier trained on PLA product levels (Fig. 6a/b)\n  Best time point: 2h (AUC = 0.82 +/- 0.08; 5-fold cross-validation)\n  Top feature    : TLR2-TLR2 PLA product (highest logistic regression coefficient for LPS\n                   vs PAM classification; Fig. 6b)\n  CD36 activity  : Low-variance PLA products all contain CD36 barcode post-stimulation;\n                   new CD36 complexes appear at 5 min post-LPS; CD36 co-receptor for\n                   both TLR2 and TLR4 confirmed (Fig. 6c-f)\n  Additivity     : LPS+PAM combined stimulation shows additive (non-synergistic) response\n                   in both PLA products and protein levels; consistent with live-cell\n                   NF-kB microscopy studies (ref. 34: Kellogg et al., Cell Rep. 2017)\n  Pass (BB8)     : macrophageSignal > 0 -> TLR complexes and classifier signal detected;\n                   dispose macroPlated.\n  Fail (BB9)     : macrophageSignal <= 0 -> no receptor complex signal above baseline; drain.\n  Both -> BB10   : Terminal node; dispose macrophageSignal; NOP.\n\n\nBIOSCRIPT COMPILER NOTES\n-------------------------\nBioScript file  : vistain_proxseq_nature_methods_2022.bs\nCompiler        : lilott8/BioScript (ANTLR4-based; github.com/lilott8/BioScript)\nIR output       : vistain_proxseq_nature_methods_2022.ir\nDAG output      : vistain_proxseq_nature_methods_2022_main_dag.dot\nBasic blocks    : 10 (BB1-BB10)\nIf/else gates   : 3 (cell-type QC / protein complex QC / macrophage signalling QC)\nCFG edges       : 12\n\nDuration token conversions (BioScript supports s and m only; no h token):\n  DSP fixation 30 min      -> 30m  -> IR: 1800.0 SECOND\n  Probe incubation 60 min  -> 60m  -> IR: 3600.0 SECOND\n  Ligation 3h (Jurkat/Raji)-> 180m -> IR: 10800.0 SECOND\n  PI addition 30 min       -> 30m  -> IR: 1800.0 SECOND (mix duration)\n  Fc block 5 min           -> 5m   -> IR: 300.0 SECOND  (mix duration)\n  Portion incubation 15 min-> 15m  -> IR: 900.0 SECOND\n  Ligation 30 min (PBMC)   -> 30m  -> IR: 1800.0 SECOND\n  Pre-RT step 3 min        -> 3m   -> IR: 180.0 SECOND\n  Stimulation 5 min        -> 5m   -> IR: 300.0 SECOND  (heat duration)\n  PFA fixation 15 min      -> 15m  -> IR: 900.0 SECOND\n  Probe incubation 30 min  -> 30m  -> IR: 1800.0 SECOND (macrophage arm)\n  Ligation 30 min (macro)  -> 30m  -> IR: 1800.0 SECOND\n  Proteinase K 60 min      -> 60m  -> IR: 3600.0 SECOND\n  PK inactivation 10 min   -> 10m  -> IR: 600.0 SECOND\n\nVerified IR behaviours:\n  - All heat() durations compiled correctly from m tokens to SECOND (confirmed above)\n  - pbmcProbesMix1[0] correctly reused across all three portion mix steps (IR lines 16, 18, 20)\n    representing the shared probe reagent in the serial delivery design\n  - Both pass and fail branches in IR emit dispose() for all three QC gates; drain in .bs\n    source is resolved to dispose() in IR by the lilott8/BioScript compiler -- known\n    compiler behaviour; does not affect CFG topology or correctness\n  - NOP at BB10 (IR line 119) is expected compiler output for the empty terminal block\n  - probeBuf1[0] (BSA_PBS) is dispensed but not consumed in a named downstream variable\n    in ARM 1; compiler correctly handles this as a preparatory dispense before probesMixed\n\nModules (4 detection abstractions):\n  proximalLigationDetection  -- PLA product sequencing alignment (custom Java; tay-lab/Prox-seq)\n  cellTypeDetection          -- t-SNE/PCA clustering + Wilcoxon rank-sum test on PLA space\n                                for Jurkat/Raji cell-type separation (Fig. 1e-j)\n  proteinComplexDetection    -- Protein Complex Estimation Algorithm; iterative quadratic solver\n                                with BH-corrected t-test; discovers CD9-CD8 complex (Fig. 2a, 3f)\n  macrophageSignalDetection  -- Logistic regression on PLA products at 2h (AUC 0.82);\n                                TLR2-TLR2 top feature; CD36 co-receptor detection (Fig. 6)\n\nBiological scope note:\n  ARM 3 encodes the combined LPS+PAM stimulation at the 5-minute time point as the\n  representative macrophage condition. The remaining 9 stimulation conditions (LPS only,\n  PAM only, and LPS+PAM at 2h and 12h time points; untreated control) share identical\n  downstream fixation, staining, ligation, and library preparation steps and would\n  each require a separate .bs file or an extended multi-branch CFG structure.\n  The RAF1 KO parallel condition referenced in the isoclone protocol is not applicable\n  here; all three arms target surface protein complexes, not genomic editing outcomes.\n\n\nDATA AND CODE AVAILABILITY\n--------------------------\nRaw data repository   : NCBI Gene Expression Omnibus\nAccession numbers     : GSE149574 (Jurkat/Raji + PBMC plate-based)\n                        GSE196130 (PBMC 10x Genomics)\nCode repository       : https://github.com/tay-lab/Prox-seq\nPLA alignment tool    : Custom Java program (available at code repository)\nmRNA alignment        : Drop-seq tools v2.3.0 (Drop-seq arm);\n                        Cell Ranger v6.1.1 + GRCh38 2020-A (10x arm)\nStatistical analysis  : R v4.2.0, Anaconda/Python v3.8.8, Java v1.8, Seurat v4.0/v4.1,\n                        singleR v1.6.0, celldex v1.6.0, numpy v1.20.1, pandas v1.2.4,\n                        SciPy v1.6.2, statsmodels v0.12.2, scikit-learn v0.24.1\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module proximalLigationDetection\nmodule cellTypeDetection\nmodule proteinComplexDetection\nmodule macrophageSignalDetection\n\nmanifest PBMCs\nmanifest Jurkat_Cells\nmanifest Raji_Cells\nmanifest ProxSeqProbes_A\nmanifest ProxSeqProbes_B\nmanifest BSA_PBS\nmanifest FcBlocker_TruStainFcX\nmanifest RNaseInhibitor\nmanifest LigationBuffer_HEPES\nmanifest ConnectorOligomer_IDT\nmanifest T4_Ligase_NEB\nmanifest PropidiumIodide\nmanifest SmartSeq2_LysisBuffer\nmanifest HFE7500_Surfactant_2pct\nmanifest PBS_1pct_BSA\nmanifest DropSeq_Beads\nmanifest LPS_100ngmL\nmanifest PAM_40ngmL\nmanifest PFA_4pct\nmanifest TruStainFcX\nmanifest ProxSeqProbes_TLR_Panel\nmanifest LigationBuffer_TLR\n\n// ============================================================\n// Quantification of Extracellular Proteins, Protein Complexes\n// and mRNAs in Single Cells by Proximity Sequencing\n// Vistain, Van Phan, Keisham, Jordi, Chen, Reddy & Tay\n// Nature Methods, Vol. 19, December 2022, pp. 1578-1589\n// DOI: 10.1038/s41592-022-01684-z\n//\n// Prox-seq combines proximity ligation assay (PLA) with\n// single-cell RNA sequencing (scRNA-seq) to simultaneously\n// measure extracellular proteins, protein complexes (up to\n// n^2 pairwise), and mRNAs from thousands of single cells.\n//\n// Three experimental arms are encoded in sequence:\n//\n// ARM 1: Jurkat/Raji T-cell/B-cell mixture validation\n//   (Drop-seq-based Prox-seq; 11-protein panel)\n//   - Fc block, probe incubation, ligation, Drop-seq encapsulation\n//   - PLA products and cDNA processed into sequencing libraries\n//   - QC gate on PLA cell-type signal\n//\n// ARM 2: PBMC 38-marker panel (plate-based Prox-seq)\n//   - 741 potential pairwise protein complexes measurable\n//   - Identifies CD9-CD8 complex on naive CD8+ T cells\n//   - 10x Genomics arm for simultaneous mRNA + PLA readout\n//   - QC gate on protein complex detection signal\n//\n// ARM 3: Primary human macrophage TLR signalling panel\n//   - 15 NF-kB pathway surface protein targets (225 PLA products)\n//   - Stimulation: LPS (TLR4), PAM (TLR2), or both; 5 min / 2 h / 12 h\n//   - PFA fixation preserves receptor interactions pre-staining\n//   - QC gate on macrophage signalling signal (TLR2-TLR2 complex)\n//\n// PROBE DESIGN NOTES:\n//   Each protein target has a Probe A and Probe B (both DNA-\n//   conjugated antibodies). Oligomers are ligated via a universal\n//   connector region (119 bp PLA product). Only ligated products\n//   (requiring both Probe A and Probe B in proximity) are captured\n//   downstream by poly-A tail on the oligomer.\n//   Probe concentration: 5 nM total per pair (2.5 nM A + 2.5 nM B).\n//\n// LIGATION CONDITIONS:\n//   50 mM HEPES pH 7.5, 10 mM MgCl2, 1 mM rATP, 9.5 nM connector\n//   oligomer (IDT), 130 U/mL T4 ligase (NEB); 37 C for 30 min\n//   (3 h for plate-based Jurkat/Raji).\n//\n// SEQUENCING READ DEPTH:\n//   >= 10,000 reads/cell recommended for PLA products (Extended\n//   Data Fig. 9). Plate-based (Smart-seq2): 75 bp read 1.\n//   Drop-seq: 20 bp read 1 / 85 bp read 2 / 8 bp i7 index.\n//\n// DURATION TOKENS (lilott8/BioScript compiler):\n//   Only `s` (seconds) and `m` (minutes) are valid.\n//   All time values converted accordingly.\n//   2 h  = 120m  |  12 h = 720m  |  37 C probe incubation = 30m\n//\n// CFG STRUCTURE:\n//   BB1  main                -- entry: T/B cell validation (Drop-seq)\n//   BB2  cellTypePass        -- cellTypeSignal > 0: PLA cell types\n//                              detected; dispose; continue to BB4\n//   BB3  cellTypeFail        -- cellTypeSignal <= 0: no signal; drain\n//   BB4  cellTypeJoin        -- join: PBMC arm (plate-based) begins\n//   BB5  complexPass         -- complexSignal > 0: protein complexes\n//                              detected (incl. CD9-CD8); dispose\n//   BB6  complexFail         -- complexSignal <= 0: no complexes; drain\n//   BB7  complexJoin         -- join: macrophage TLR arm begins\n//   BB8  macrophagePass      -- macrophageSignal > 0: TLR complexes\n//                              detected; dispose all stimulated samples\n//   BB9  macrophageFail      -- macrophageSignal <= 0: no signal; drain\n//   BB10 finalCleanup        -- terminal: dispose QC signals; end\n// ============================================================\n\ninstructions:\n\n// ============================================================\n// BB1: main\n// ============================================================\n\n// ------------------------------------------------------------\n// ARM 1 - STEP 1: Prepare Jurkat and Raji cell mixture.\n//   150,000 Jurkat (T cells) + 150,000 Raji (B cells) counted,\n//   spun 500g/3 min, washed once with 1% BSA/PBS, spun again.\n//   Combined and plated in 96-well U-bottom plates.\n//   Fixed with 4 mM DSP (dithiobis-sulfosuccinimidyl propionate)\n//   in PBS at 37 C for 30 min to preserve surface architecture.\n//   `heat` models DSP cross-linking incubation (37 C, 30 min).\n// ------------------------------------------------------------\n\njurkatCells     = dispense 1 units of Jurkat_Cells\nrajiCells       = dispense 1 units of Raji_Cells\ncellMixture     = mix jurkatCells with rajiCells for 5s\n\n// DSP cross-linking fixation to preserve surface proteins.\nheat cellMixture at 37c for 30m\n\n// ------------------------------------------------------------\n// ARM 1 - STEP 2: Wash and resuspend in probe binding buffer.\n//   1% BSA/PBS wash (x1). Resuspend in 90 uL probe binding\n//   buffer: PBS + 0.1% BSA + 0.1 mg/mL sonicated salmon\n//   sperm DNA (competitor) + 6.7 nM each isotype control.\n//   Probe binding buffer suppresses nonspecific antibody\n//   binding (confirmed minimal in Extended Data Fig. 5).\n// ------------------------------------------------------------\n\nprobeBuf        = dispense 1 units of BSA_PBS\nprobePanelA     = dispense 1 units of ProxSeqProbes_A\nprobePanelB     = dispense 1 units of ProxSeqProbes_B\n\n// Combine probe pairs into single incubation mix.\n// Each pair at 5 nM total (2.5 nM probe A + 2.5 nM probe B).\nprobesMixed     = mix probePanelA with probePanelB for 5s\nprobingMix      = mix cellMixture with probesMixed for 5s\n\n// Probe incubation: 37 C for 60 min (= 60m).\nheat probingMix at 37c for 60m\n\n// ------------------------------------------------------------\n// ARM 1 - STEP 3: Wash (x2) then ligate PLA products.\n//   Two washes with 1 mL 1% BSA/PBS (500g, 5 min each).\n//   Resuspend in 300 uL ligation solution:\n//     50 mM HEPES pH 7.5, 10 mM MgCl2, 1 mM rATP,\n//     9.5 nM connector oligomer (IDT), 130 U/mL T4 ligase.\n//   Ligate at 37 C for 3 h (= 180m) with rotation.\n//   PI (propidium iodide) added 30 min before end to identify\n//   dead cells; live (PI-negative) cells sorted into plates.\n//   NOTE: ligation requires both probe A and probe B in\n//   proximity; unligated probes discarded during library prep.\n//   >90% probes found ligated (Extended Data Fig. 4b).\n// ------------------------------------------------------------\n\nwashBuf         = dispense 1 units of BSA_PBS\nwashedCells     = mix probingMix with washBuf for 5s\n\nligBuf          = dispense 1 units of LigationBuffer_HEPES\nconnector       = dispense 1 units of ConnectorOligomer_IDT\nt4Ligase        = dispense 1 units of T4_Ligase_NEB\n\nligSolution     = mix ligBuf with connector for 5s\nligSolution2    = mix ligSolution with t4Ligase for 5s\nligatedProduct  = mix washedCells with ligSolution2 for 5s\n\n// 3 h (180 min) ligation at 37 C with rotation.\nheat ligatedProduct at 37c for 180m\n\n// Add PI 30 min before end to mark dead cells.\npiStain         = dispense 1 units of PropidiumIodide\npiMix           = mix ligatedProduct with piStain for 30m\n\n// ------------------------------------------------------------\n// ARM 1 - STEP 4: Drop-seq encapsulation and library prep.\n//   Live (PI-negative) cells co-encapsulated with barcoded\n//   beads (ChemGenes Macosko-2011-10(V+)) in ~1 nL droplets\n//   using HFE7500 + 2% surfactant as the oil phase.\n//   Droplets broken; beads subjected to reverse transcription,\n//   exonuclease digestion, whole-transcriptome amplification.\n//   PLA products (poly-A tail) and cDNA captured together.\n//   Processed into separate PLA and cDNA sequencing libraries.\n//   `mix` abstracts droplet co-encapsulation on the DMF device.\n// ------------------------------------------------------------\n\noilPhase        = dispense 1 units of HFE7500_Surfactant_2pct\ndropSeqBeads    = dispense 1 units of DropSeq_Beads\n\nencapsulated    = mix piMix with dropSeqBeads for 5s\ndropsEquenced   = mix encapsulated with oilPhase for 5s\n\n// ------------------------------------------------------------\n// ARM 1 - STEP 5: PLA cell-type QC detection.\n//   proximalLigationDetection module abstracts alignment of\n//   PLA product reads (custom Java program; github tay-lab/\n//   Prox-seq). PLA products read out by sequencing (NextSeq\n//   Mid-output kit v2.5; 20 bp read 1 / 85 bp read 2).\n//   Expected: PD1-CD3 and CD3-CD3 enriched in Jurkat cluster;\n//   ICAM1-HLADR and HLADR-HLADR enriched in Raji cluster.\n//   cellTypeDetection abstracts the t-SNE / PCA clustering\n//   step confirming cell-type segregation (Fig. 1e-j).\n// ------------------------------------------------------------\n\ncellTypeSignal  = detect cellTypeDetection on dropsEquenced for 30s\n\n// ============================================================\n// BB2 / BB3: Cell-type PLA QC gate\n// Pass (BB2): cellTypeSignal > 0 -> Jurkat and Raji clusters\n//             correctly identified by PLA products; dispose.\n// Fail (BB3): cellTypeSignal <= 0 -> no cell-type separation\n//             in PLA space; drain.\n// Both branches converge at BB4 (cellTypeJoin).\n// ============================================================\n\nif (cellTypeSignal > 0) {\n    dispose dropsEquenced\n} else {\n    drain dropsEquenced\n}\n\n// ============================================================\n// BB4: cellTypeJoin\n// Dispose cell-type QC signal. Control falls into PBMC\n// 38-marker plate-based Prox-seq arm (BB5/BB6).\n// ============================================================\n\ndispose cellTypeSignal\n\n// ------------------------------------------------------------\n// ARM 2 - STEP 1: Prepare PBMCs.\n//   1 million rested PBMCs collected, all centrifugation at\n//   300g/3 min. Resuspend in 1 mL 1% BSA/PBS; pellet.\n//   Resuspend in Fc blocker: 95 uL 1% BSA/PBS + 5 uL\n//   TruStain FcX (BioLegend); incubate 5 min RT.\n//   All buffers supplemented with 1:1000 RNase inhibitor (NEB).\n// ------------------------------------------------------------\n\npbmcCells       = dispense 1 units of PBMCs\nfcBlock         = dispense 1 units of FcBlocker_TruStainFcX\nrnaseInh        = dispense 1 units of RNaseInhibitor\n\nblockedPBMCs    = mix pbmcCells with fcBlock for 5m\nblockedRNase    = mix blockedPBMCs with rnaseInh for 5s\n\n// ------------------------------------------------------------\n// ARM 2 - STEP 2: 38-marker probe incubation (PBMC panel).\n//   Panel targeting 38 immune cell markers (primary focus: T\n//   cell markers; Supplementary Table 3). Measures up to 741\n//   unique protein complexes. Antibody cocktail divided into\n//   3 serial portions due to volume; each portion incubated\n//   37 C for 15 min before adding the next. Total ~45 min.\n//   `mix` steps model the three sequential incubation portions.\n// ------------------------------------------------------------\n\npbmcProbesA     = dispense 1 units of ProxSeqProbes_A\npbmcProbesB     = dispense 1 units of ProxSeqProbes_B\n\npbmcProbesMix   = mix pbmcProbesA with pbmcProbesB for 5s\n\n// Portion 1 (15 min, 37 C).\npbmcPortion1    = mix blockedRNase with pbmcProbesMix for 5s\nheat pbmcPortion1 at 37c for 15m\n\n// Portion 2 (15 min, 37 C).\npbmcPortion2    = mix pbmcPortion1 with pbmcProbesMix for 5s\nheat pbmcPortion2 at 37c for 15m\n\n// Portion 3 (15 min, 37 C).\npbmcPortion3    = mix pbmcPortion2 with pbmcProbesMix for 5s\nheat pbmcPortion3 at 37c for 15m\n\n// ------------------------------------------------------------\n// ARM 2 - STEP 3: Wash (x3) and ligate.\n//   Three washes with 1 mL 1% BSA/PBS (300g, 3 min each).\n//   Resuspend in ligation solution (same formulation as ARM 1).\n//   Ligate 37 C for 30 min (= 30m).\n// ------------------------------------------------------------\n\npbmcWash1       = dispense 1 units of PBS_1pct_BSA\npbmcWash2       = dispense 1 units of PBS_1pct_BSA\npbmcWash3       = dispense 1 units of PBS_1pct_BSA\n\npbmcWashed1     = mix pbmcPortion3 with pbmcWash1 for 5s\npbmcWashed2     = mix pbmcWashed1 with pbmcWash2 for 5s\npbmcWashed3     = mix pbmcWashed2 with pbmcWash3 for 5s\n\npbmcLigBuf      = dispense 1 units of LigationBuffer_HEPES\npbmcConnector   = dispense 1 units of ConnectorOligomer_IDT\npbmcLigase      = dispense 1 units of T4_Ligase_NEB\n\npbmcLigSol      = mix pbmcLigBuf with pbmcConnector for 5s\npbmcLigSol2     = mix pbmcLigSol with pbmcLigase for 5s\npbmcLigated     = mix pbmcWashed3 with pbmcLigSol2 for 5s\n\n// 30 min ligation at 37 C.\nheat pbmcLigated at 37c for 30m\n\n// ------------------------------------------------------------\n// ARM 2 - STEP 4: Plate-based library prep (Smart-seq2).\n//   PI stain added (1 ug/mL final); live PI-negative cells\n//   sorted into 96-well plates (1 cell/well) containing 4 uL\n//   Smart-seq2 lysis buffer (0.1% Triton X-100, 1 U/uL RNase\n//   inhibitor, 2.5 mM dNTPs, 2.5 uM oligodTVN, 2.5 uM\n//   oligodTGT). Non-PFA cells stored -80 C until processing.\n//   Plates thawed on ice; incubated 72 C/3 min before library\n//   prep. 2-4 uL/well used for PLA product pre-amplification,\n//   followed by PCR to attach cell indexes and sequencing\n//   adaptor. NextSeq Mid-output kit v2.5 (75 bp read 1).\n//   `mix` abstracts Smart-seq2 lysis and library capture.\n// ------------------------------------------------------------\n\npbmcPI          = dispense 1 units of PropidiumIodide\npbmcLysisBuffer = dispense 1 units of SmartSeq2_LysisBuffer\n\npbmcPIStained   = mix pbmcLigated with pbmcPI for 5s\npbmcLibrary     = mix pbmcPIStained with pbmcLysisBuffer for 5s\n\n// Lysis/RT pre-step at 72 C for 3 min.\nheat pbmcLibrary at 72c for 3m\n\n// ------------------------------------------------------------\n// ARM 2 - STEP 5: Protein complex QC detection.\n//   proteinComplexDetection module abstracts the Protein Complex\n//   Estimation Algorithm (iterative quadratic solver; Fig. 2a).\n//   Algorithm computes expected random PLA count per complex,\n//   subtracts background, identifies statistically significant\n//   complexes (one-sided t-test, Benjamini-Hochberg adjusted\n//   p < 0.05). 37 protein complexes expected from 10x arm\n//   (Supplementary Table 4); CD9-CD8 on naive CD8+ T cells\n//   is the key novel finding (Fig. 3f, Fig. 4f).\n// ------------------------------------------------------------\n\ncomplexSignal   = detect proteinComplexDetection on pbmcLibrary for 30s\n\n// ============================================================\n// BB5 / BB6: Protein complex QC gate\n// Pass (BB5): complexSignal > 0 -> protein complexes (incl.\n//             CD9-CD8 on naive CD8+ T cells) detected; dispose.\n// Fail (BB6): complexSignal <= 0 -> no significant complexes\n//             above random ligation background; drain.\n// Both branches converge at BB7 (complexJoin).\n// ============================================================\n\nif (complexSignal > 0) {\n    dispose pbmcLibrary\n} else {\n    drain pbmcLibrary\n}\n\n// ============================================================\n// BB7: complexJoin\n// Dispose complex QC signal. Control falls into macrophage\n// TLR signalling arm (BB8/BB9).\n// ============================================================\n\ndispose complexSignal\n\n// ------------------------------------------------------------\n// ARM 3 - STEP 1: Primary macrophage culture and stimulation.\n//   Thawed primary human macrophages (STEMCELL Technologies)\n//   plated in 10 wells of a non-tissue-culture 24-well plate.\n//   Rested overnight in RPMI + 10% FBS at 37 C.\n//   Stimulation: 300g/3 min spin then incubate 5 min / 2 h /\n//   12 h with 100 ng/mL LPS (TLR4 agonist), 40 ng/mL Pam2CSK4\n//   (TLR2 agonist), or both, in RPMI + 10% FBS.\n//   Untreated cells serve as control (10 conditions total:\n//   3 ligands x 3 time points + 1 control).\n//\n//   This BioScript file encodes the 5-minute stimulation arm\n//   for LPS, PAM, and both simultaneously -- the time point\n//   at which PLA products peak (Fig. 5e). Separate branches\n//   share the same fixation and staining procedure.\n//\n//   NOTE ON FIXATION: Cells are fixed with 4% PFA (15 min RT)\n//   AFTER stimulation to preserve receptor interactions at the\n//   moment of signalling. The antibody cocktail is applied\n//   POST-FIXATION. `heat` at 37 C for 5 min models the\n//   stimulation; 25 C for 15 min models PFA fixation.\n// ------------------------------------------------------------\n\nmacrophageCells = dispense 1 units of PBMCs\nlpsStimulus     = dispense 1 units of LPS_100ngmL\npamStimulus     = dispense 1 units of PAM_40ngmL\n\n// Combined LPS + PAM stimulation (both arm).\nstimulusMix     = mix lpsStimulus with pamStimulus for 5s\nstimulatedMacro = mix macrophageCells with stimulusMix for 5s\n\n// 5-minute stimulation at 37 C.\nheat stimulatedMacro at 37c for 5m\n\n// PFA fixation (4% PFA, room temperature 25 C, 15 min)\n// to lock receptor interactions at the stimulation endpoint.\npfaSolution     = dispense 1 units of PFA_4pct\nfixedMacro      = mix stimulatedMacro with pfaSolution for 5s\nheat fixedMacro at 25c for 15m\n\n// ------------------------------------------------------------\n// ARM 3 - STEP 2: Fc block and 15-marker TLR probe incubation.\n//   Resuspend fixed cells in 95 uL 1% BSA/PBS + 5 uL TruStain\n//   FcX (5 min RT). Resuspend in 54 uL 5 nM Prox-seq probes\n//   (15-protein NF-kB panel: CD14, CD36, IL-1R, IL-6Ra, IL-8Rb,\n//   IL-10R, LBP, MD2, MMP15, MMP16, TGFBR1, TLR1, TLR2, TLR4,\n//   TLR6; Supplementary Table 5). Measures up to 225 protein\n//   dimers. Incubate 30 min at 37 C.\n// ------------------------------------------------------------\n\nmacroFcBlock    = dispense 1 units of TruStainFcX\nmacroBlocked    = mix fixedMacro with macroFcBlock for 5m\n\ntlrProbesA      = dispense 1 units of ProxSeqProbes_TLR_Panel\ntlrProbesB      = dispense 1 units of ProxSeqProbes_TLR_Panel\n\ntlrProbeMix     = mix tlrProbesA with tlrProbesB for 5s\nmacroProbed     = mix macroBlocked with tlrProbeMix for 5s\n\n// 30 min probe incubation at 37 C.\nheat macroProbed at 37c for 30m\n\n// ------------------------------------------------------------\n// ARM 3 - STEP 3: Wash (x3) and ligate TLR PLA products.\n//   Three washes with 1 mL 1% BSA/PBS (300g, 3 min each).\n//   Resuspend in ligation solution and incubate 37 C for 30 min.\n//   Fixed cells use modified Smart-seq2 lysis buffer (0.1%\n//   Triton X-100, 1000 U/mL RNase inhibitor, 20 U/mL proteinase\n//   K, 2.5 mM dNTPs, 2.5 uM oligodTVN, 2.5 uM oligodTGT in\n//   TE buffer) sorted into 96-well plates.\n//   Plates incubated 56 C / 1 h then 95 C / 10 min before\n//   storage at -80 C. Library prep same as ARM 2.\n// ------------------------------------------------------------\n\nmacroWash1      = dispense 1 units of PBS_1pct_BSA\nmacroWash2      = dispense 1 units of PBS_1pct_BSA\nmacroWash3      = dispense 1 units of PBS_1pct_BSA\n\nmacroWashed1    = mix macroProbed with macroWash1 for 5s\nmacroWashed2    = mix macroWashed1 with macroWash2 for 5s\nmacroWashed3    = mix macroWashed2 with macroWash3 for 5s\n\ntlrLigBuf       = dispense 1 units of LigationBuffer_TLR\ntlrConnector    = dispense 1 units of ConnectorOligomer_IDT\ntlrLigase       = dispense 1 units of T4_Ligase_NEB\n\ntlrLigSol       = mix tlrLigBuf with tlrConnector for 5s\ntlrLigSol2      = mix tlrLigSol with tlrLigase for 5s\nmacroLigated    = mix macroWashed3 with tlrLigSol2 for 5s\n\n// 30 min ligation at 37 C.\nheat macroLigated at 37c for 30m\n\n// Fixed-cell plate sorting protocol:\n// Sorted into plates; 56 C for 60 min then 95 C for 10 min.\nmacroLysisBuffer = dispense 1 units of SmartSeq2_LysisBuffer\nmacroPlated     = mix macroLigated with macroLysisBuffer for 5s\n\n// 56 C / 60 min proteinase K digestion step.\nheat macroPlated at 56c for 60m\n\n// 95 C / 10 min to inactivate proteinase K.\nheat macroPlated at 95c for 10m\n\n// ------------------------------------------------------------\n// ARM 3 - STEP 4: Macrophage TLR signalling QC detection.\n//   macrophageSignalDetection module abstracts the logistic\n//   regression classifier trained on PLA product levels at\n//   the 2-h time point (AUC = 0.82 +/- 0.08; Fig. 6a/b).\n//   Key classifier feature: TLR2-TLR2 PLA product (highest\n//   logistic regression coefficient for LPS-like response;\n//   Fig. 6b). The module also captures the CD36 co-receptor\n//   rearrangement observable at 5 min post-LPS (Fig. 6c/d/e).\n//   Additive integration of LPS and PAM signals confirmed\n//   (non-synergistic; Fig. 5e/f).\n// ------------------------------------------------------------\n\nmacrophageSignal = detect macrophageSignalDetection on macroPlated for 30s\n\n// ============================================================\n// BB8 / BB9: Macrophage TLR signalling QC gate\n// Pass (BB8): macrophageSignal > 0 -> TLR2-TLR2 and CD36\n//             complexes detected; LPS/PAM-like response\n//             classified; dispose stimulated samples.\n// Fail (BB9): macrophageSignal <= 0 -> no receptor complex\n//             signal above baseline; drain.\n// Both branches converge at BB10 (finalCleanup).\n// ============================================================\n\nif (macrophageSignal > 0) {\n    dispose macroPlated\n} else {\n    drain macroPlated\n}\n\n// ============================================================\n// BB10: finalCleanup (terminal)\n// Dispose macrophage signalling QC signal.\n// Experiment ends.\n// ============================================================\n\ndispose macrophageSignal\n\n// [terminal -- no further instructions; exit node for CFG]\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "vistain_proxseq_nature_methods_2022_001",
+      "protocol_name": "Quantification of Extracellular Proteins, Protein Complexes and mRNAs in Single Cells by Proximity Sequencing",
+      "category": "synthetic_biology",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Quantification of Extracellular Proteins, Protein Complexes and mRNAs in Single Cells by Proximity Sequencing",
+      "publisher": "Nature Methods, Vol. 19, December 2022, pp. 1578-1589",
+      "doi": "10.1038/s41592-022-01684-z",
+      "url": "https://www.nature.com/articles/s41592-022-01684-z",
+      "platform": "Proximity Ligation Assay (PLA) combined with single-cell RNA sequencing (scRNA-seq);"
+    },
+    "bioscript": {
+      "manifests": [
+        "PBMCs",
+        "Jurkat_Cells",
+        "Raji_Cells",
+        "ProxSeqProbes_A",
+        "ProxSeqProbes_B",
+        "BSA_PBS",
+        "FcBlocker_TruStainFcX",
+        "RNaseInhibitor",
+        "LigationBuffer_HEPES",
+        "ConnectorOligomer_IDT",
+        "T4_Ligase_NEB",
+        "PropidiumIodide",
+        "SmartSeq2_LysisBuffer",
+        "HFE7500_Surfactant_2pct",
+        "PBS_1pct_BSA",
+        "DropSeq_Beads",
+        "LPS_100ngmL",
+        "PAM_40ngmL",
+        "PFA_4pct",
+        "TruStainFcX",
+        "ProxSeqProbes_TLR_Panel",
+        "LigationBuffer_TLR"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "drain",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 102
       }
     },
-
-    "panels": {
-      "arm1_jurkat_raji_dropseq": {
-        "protein_targets": 11,
-        "isotype_controls": 2,
-        "pla_products_measurable": 169,
-        "key_markers": {
-          "jurkat_T_cell": ["CD3", "PD1", "CD28", "CD4", "CD45RA", "CD147", "LFA1"],
-          "raji_B_cell": ["B7", "ICAM1", "HLA-DR", "PDL1", "CD147"]
-        },
-        "top_jurkat_pla_products": [
-          { "complex": "PD1-CD3",  "adjusted_p": "2.2e-55" },
-          { "complex": "CD3-CD3",  "adjusted_p": "5.1e-53" }
-        ],
-        "top_raji_pla_products": [
-          { "complex": "ICAM1-HLADR",  "adjusted_p": "2.7e-54" },
-          { "complex": "HLADR-HLADR",  "adjusted_p": "2.4e-46" }
-        ],
-        "flow_cytometry_correlation": { "spearman_rho": 0.88, "method": "mean fluorescence intensity vs UMIs" }
-      },
-      "arm2_pbmc_plate": {
-        "protein_targets": 38,
-        "primary_focus": "T cell markers",
-        "pla_products_measurable": 741,
-        "complexes_detected_plate": 20,
-        "complexes_detected_10x": 37,
-        "complexes_literature_supported": 21,
-        "supplementary_table": "Supplementary Table 3",
-        "key_novel_finding": "CD9-CD8 protein complex on naive CD8+ T cells (not previously described)",
-        "cd9_cd8_p_value": "6.0e-12 (plate-based, one-sided Wilcoxon); 2.3e-95 (10x, one-sided Mann-Whitney U)",
-        "cd8_t_cell_subpopulations": {
-          "CD9_CD9_high": { "fraction_pct": 48, "phenotype": "activated; GZMB+, NKG7+ upregulated" },
-          "CD9_CD9_low":  { "fraction_pct": 52, "phenotype": "naive; CCR7+, SELL+ upregulated; CD9-CD8 complex present" }
-        },
-        "known_homodimers_confirmed": ["CD3-CD3", "CD28-CD28", "CD9-CD9"],
-        "known_heterodimers_confirmed": ["CD3-CD8", "CD3-CD4"]
-      },
-      "arm3_macrophage_tlr": {
-        "protein_targets": 15,
-        "targets_list": ["CD14", "CD36", "IL-1R", "IL-6Ra", "IL-8Rb", "IL-10R", "LBP", "MD2", "MMP15", "MMP16", "TGFBR1", "TLR1", "TLR2", "TLR4", "TLR6"],
-        "pla_products_measurable": 225,
-        "pathway": "NF-kB signalling (innate immunity)",
-        "supplementary_table": "Supplementary Table 5",
-        "stimulation_conditions": 10,
-        "stimulation_breakdown": "3 ligands (LPS, PAM, both) x 3 time points (5 min, 2 h, 12 h) + 1 untreated control",
-        "key_findings": {
-          "signal_integration": "Additive (non-synergistic); LPS and PAM operate independently (consistent with live-cell microscopy studies)",
-          "tlr2_tlr2_complex": "Appears 2h post-LPS; absent at 2h post-PAM; appears only at 12h post-PAM; novel participant in TLR signalling",
-          "cd36_coreceptor": "CD36 co-receptor activity confirmed; low-variance PLA products all contain CD36 barcode post-stimulation; new CD36 complexes appear at 5 min post-LPS",
-          "variance_reduction": "Sharp decrease in single-cell PLA variance after all stimulation conditions vs control (consistent with NF-kB single-cell studies)"
-        },
-        "classifier": {
-          "type": "Logistic regression",
-          "trained_on": "PLA product levels at 2h time point",
-          "auc_5min":  { "mean": 0.46, "sd": 0.20 },
-          "auc_2h":    { "mean": 0.82, "sd": 0.08 },
-          "auc_12h":   { "mean": 0.62, "sd": 0.23 },
-          "top_feature": "TLR2-TLR2 PLA product (highest logistic regression coefficient for LPS-like response)",
-          "cross_validation": "5-fold"
-        }
-      }
-    },
-
-    "steps": [
-      {
-        "id": "S1",
-        "arm": "ARM1",
-        "name": "Jurkat / Raji cell mixture preparation and DSP cross-linking fixation",
-        "bb": "BB1 (main)",
-        "inputs": ["Jurkat_Cells", "Raji_Cells"],
-        "operation": "mix",
-        "ir_variable": "cellMixture1[0]",
-        "ir_mix_duration_s": 5.0,
-        "cell_counts": "150,000 Jurkat + 150,000 Raji",
-        "centrifugation": "500g, 3 min; washed once with 1% BSA/PBS",
-        "plate_format": "96-well U-bottom",
-        "fixation": {
-          "reagent": "DSP (3,3-dithiobis-sulfosuccinimidyl propionate, Life Technologies)",
-          "concentration_mM": 4,
-          "buffer": "PBS",
-          "temperature_C": 37,
-          "duration_min": 30,
-          "ir_heat_celsius": 37.0,
-          "ir_heat_seconds": 1800.0
-        },
-        "notes": "Fixation preserves surface protein architecture prior to probe incubation. Cells then washed once with 1% BSA/PBS."
-      },
-      {
-        "id": "S2",
-        "arm": "ARM1",
-        "name": "Prox-seq probe incubation (11-protein panel, Drop-seq arm)",
-        "bb": "BB1 (main)",
-        "inputs": ["BSA_PBS", "ProxSeqProbes_A", "ProxSeqProbes_B"],
-        "operation": "mix then heat",
-        "ir_variable": "probingMix1[0]",
-        "ir_mix_duration_s": 5.0,
-        "probe_volume_uL": 90,
-        "probe_concentration_nM_per_pair": 5,
-        "probe_A_nM": 2.5,
-        "probe_B_nM": 2.5,
-        "isotype_nM_each": 6.7,
-        "incubation_temperature_C": 37,
-        "incubation_duration_min": 60,
-        "ir_heat_celsius": 37.0,
-        "ir_heat_seconds": 3600.0,
-        "notes": "Probe binding buffer includes 0.1% BSA and 0.1 mg/mL sonicated salmon sperm DNA to suppress nonspecific binding."
-      },
-      {
-        "id": "S3",
-        "arm": "ARM1",
-        "name": "Wash and ligation of PLA products (3h, plate-based Jurkat/Raji)",
-        "bb": "BB1 (main)",
-        "inputs": ["BSA_PBS", "LigationBuffer_HEPES", "ConnectorOligomer_IDT", "T4_Ligase_NEB"],
-        "operation": "mix then heat",
-        "ir_variable": "ligatedProduct1[0]",
-        "wash_steps": 2,
-        "wash_buffer": "1% BSA/PBS",
-        "wash_centrifugation": "500g, 5 min each",
-        "ligation_volume_uL": 300,
-        "ligation_temperature_C": 37,
-        "ligation_duration_min": 180,
-        "ir_heat_celsius": 37.0,
-        "ir_heat_seconds": 10800.0,
-        "pi_addition": {
-          "reagent": "PropidiumIodide",
-          "final_concentration_ug_mL": 1,
-          "timing": "30 min before end of ligation",
-          "ir_variable": "piMix1[0]",
-          "ir_mix_duration_s": 1800.0,
-          "purpose": "Mark dead cells; live (PI-negative) cells sorted"
-        },
-        "unfixing": {
-          "reagent": "30 mM dithiothreitol (DTT)",
-          "temperature_C": 37,
-          "duration_min": 30,
-          "note": "Reverses DSP cross-links before Drop-seq processing"
-        },
-        "notes": "Cells resuspended in 0.1% BSA/PBS after unfixing."
-      },
-      {
-        "id": "S4",
-        "arm": "ARM1",
-        "name": "Drop-seq encapsulation and library preparation",
-        "bb": "BB1 (main)",
-        "inputs": ["DropSeq_Beads", "HFE7500_Surfactant_2pct"],
-        "operation": "mix (co-encapsulation abstraction)",
-        "ir_variable": "dropsEquenced1[0]",
-        "ir_mix_duration_s": 5.0,
-        "bead_product": "ChemGenes Macosko-2011-10(V+)",
-        "droplet_size": "~1 nL",
-        "downstream_steps": [
-          "Droplets broken",
-          "Reverse transcription",
-          "Exonuclease digestion",
-          "Whole-transcriptome amplification",
-          "PLA products and cDNA processed into separate sequencing libraries"
-        ],
-        "sequencing": {
-          "instrument": "NextSeq Mid-output kit v2.5",
-          "read1_bp": 20,
-          "read2_bp": 85,
-          "i7_index_bp": 8,
-          "phix_spike_pct": 40,
-          "custom_primers": ["Read1CustomSeqB", "DropPLA_Read2", "DropPLA_i7Read"],
-          "library_fraction": "cDNA and PLA libraries each receive 20% of total reads",
-          "alignment_mrna": "Drop-seq tools v2.3.0; human reference GRCh38",
-          "alignment_pla": "Custom Java program (github.com/tay-lab/Prox-seq)"
-        },
-        "notes": "PLA products captured via 3-prime poly-A tail alongside mRNA in same poly-A capture step."
-      },
-      {
-        "id": "S5",
-        "arm": "ARM1",
-        "name": "Cell-type PLA QC detection",
-        "bb": "BB1 (main) -> BB2/BB3",
-        "inputs": ["dropsEquenced1[0]"],
-        "operation": "detect",
-        "detection_module": "cellTypeDetection",
-        "ir_variable": "cellTypeSignal1[0]",
-        "ir_detect_duration_s": 30.0,
-        "method_abstracted": "t-SNE / PCA clustering on PLA product space; Wilcoxon rank-sum test with Benjamini-Hochberg correction",
-        "branch": {
-          "pass": { "condition": "cellTypeSignal1[0] > 0", "action": "dispose(dropsEquenced1[0])", "bb": "BB2 (bsbbif_2_t)" },
-          "fail": { "condition": "cellTypeSignal1[0] <= 0", "action": "dispose(dropsEquenced1[0])", "bb": "BB3 (bsbbif_3_f)",
-                    "compiler_note": "drain in .bs source; compiler resolves both branches to dispose in IR (known BioScript behaviour)" }
-        }
-      },
-      {
-        "id": "S6",
-        "arm": "ARM2",
-        "name": "PBMC preparation: Fc block and RNase inhibitor",
-        "bb": "BB4 (bsbbif_4_j)",
-        "inputs": ["PBMCs", "FcBlocker_TruStainFcX", "RNaseInhibitor"],
-        "operation": "mix",
-        "ir_variable": "blockedRNase1[0]",
-        "cell_count": "1 million rested PBMCs",
-        "centrifugation_all_steps": "300g, 3 min",
-        "fc_block_volume_uL": { "trustainfcx": 5, "bsa_pbs_1pct": 95 },
-        "fc_block_duration_min": 5,
-        "ir_fc_block_duration_s": 300.0,
-        "rnase_inhibitor_dilution": "1:1000 added to all subsequent buffers",
-        "notes": "All buffers from this point supplemented with RNase inhibitor to protect mRNA."
-      },
-      {
-        "id": "S7",
-        "arm": "ARM2",
-        "name": "38-marker probe incubation (PBMC panel, 3-portion serial delivery)",
-        "bb": "BB4 (bsbbif_4_j)",
-        "inputs": ["ProxSeqProbes_A", "ProxSeqProbes_B"],
-        "operation": "mix then heat (x3 serial portions)",
-        "ir_variables": ["pbmcPortion11[0]", "pbmcPortion21[0]", "pbmcPortion31[0]"],
-        "probe_volume_uL": 300,
-        "probe_concentration_nM_per_pair": 5,
-        "portions": 3,
-        "portion_volume_uL": 100,
-        "portion_incubation_temperature_C": 37,
-        "portion_incubation_duration_min": 15,
-        "ir_portion_heat_seconds": 900.0,
-        "reason_for_serial_delivery": "Antibody cocktail volume too large to administer at once; divided into 3 sequential portions",
-        "notes": "Supplementary Table 3 lists all 38 targets. Panel measures up to 741 unique protein complexes."
-      },
-      {
-        "id": "S8",
-        "arm": "ARM2",
-        "name": "Wash (x3) and ligation (PBMC arm, 30 min)",
-        "bb": "BB4 (bsbbif_4_j)",
-        "inputs": ["PBS_1pct_BSA", "LigationBuffer_HEPES", "ConnectorOligomer_IDT", "T4_Ligase_NEB"],
-        "operation": "mix then heat",
-        "ir_variable": "pbmcLigated1[0]",
-        "wash_steps": 3,
-        "wash_buffer": "1% BSA/PBS",
-        "wash_centrifugation": "300g, 3 min each",
-        "ligation_temperature_C": 37,
-        "ligation_duration_min": 30,
-        "ir_heat_celsius": 37.0,
-        "ir_heat_seconds": 1800.0
-      },
-      {
-        "id": "S9",
-        "arm": "ARM2",
-        "name": "Plate-based library preparation (Smart-seq2) and 72C pre-step",
-        "bb": "BB4 (bsbbif_4_j)",
-        "inputs": ["PropidiumIodide", "SmartSeq2_LysisBuffer"],
-        "operation": "mix then heat",
-        "ir_variables": ["pbmcPIStained1[0]", "pbmcLibrary1[0]"],
-        "pi_stain_final_ug_mL": 1,
-        "sorting": "Live (PI-negative) single cells sorted into 96-well plates; 1 cell/well",
-        "lysis_buffer_volume_uL": 4,
-        "lysis_components": "0.1% Triton X-100, 1 U/uL RNase inhibitor (murine, NEB), 2.5 mM dNTPs, 2.5 uM SmartSeq2_oligodTVN, 2.5 uM SmartSeq2_oligodTGT in water",
-        "non_pfa_cell_storage": "-80C until processing",
-        "pre_library_step": {
-          "temperature_C": 72,
-          "duration_min": 3,
-          "ir_heat_celsius": 72.0,
-          "ir_heat_seconds": 180.0,
-          "purpose": "Thaw and denature secondary structures before library prep"
-        },
-        "pla_preamp_volume_uL": "2-4 per well",
-        "sequencing": {
-          "instrument": "NextSeq Mid-output kit v2.5",
-          "read1_bp": 75,
-          "i5_index_bp": 8,
-          "i7_index_bp": 8,
-          "phix_spike_pct": 40,
-          "custom_primers": ["SmartPLA_Read1", "SmartPLA_i5Read", "SmartPLA_i7Read"],
-          "minimum_reads_per_cell": 10000,
-          "rationale": "Diminishing returns above 10,000 reads/cell for PLA products (Extended Data Fig. 9)"
-        }
-      },
-      {
-        "id": "S10",
-        "arm": "ARM2",
-        "name": "Protein complex QC detection (Protein Complex Estimation Algorithm)",
-        "bb": "BB4 (bsbbif_4_j) -> BB5/BB6",
-        "inputs": ["pbmcLibrary1[0]"],
-        "operation": "detect",
-        "detection_module": "proteinComplexDetection",
-        "ir_variable": "complexSignal1[0]",
-        "ir_detect_duration_s": 30.0,
-        "algorithm": {
-          "name": "Protein Complex Estimation Algorithm",
-          "type": "Iterative quadratic solver",
-          "input": "Raw PLA product count matrix X (cells x PLA products)",
-          "step1": "Calculate expected random PLA count f(X) for each complex from probe abundance",
-          "step2": "Compute difference delta = observed - expected random",
-          "step3": "One-sided t-test with Benjamini-Hochberg correction (adjusted p < 0.05 threshold)",
-          "step4": "If significant: update complex count with current estimate; adjust X; iterate",
-          "step5": "If not significant: protein complex count unchanged from previous iteration",
-          "convergence": "Absolute change in complex count between successive iterations below threshold",
-          "fig_reference": "Fig. 2a"
-        },
-        "branch": {
-          "pass": { "condition": "complexSignal1[0] > 0", "action": "dispose(pbmcLibrary1[0])", "bb": "BB5 (bsbbif_5_t)" },
-          "fail": { "condition": "complexSignal1[0] <= 0", "action": "dispose(pbmcLibrary1[0])", "bb": "BB6 (bsbbif_6_f)" }
-        }
-      },
-      {
-        "id": "S11",
-        "arm": "ARM3",
-        "name": "Primary macrophage stimulation with LPS + PAM (5-min arm) and PFA fixation",
-        "bb": "BB7 (bsbbif_7_j)",
-        "inputs": ["PBMCs", "LPS_100ngmL", "PAM_40ngmL", "PFA_4pct"],
-        "operation": "mix then heat (stimulation) + mix then heat (fixation)",
-        "ir_variables": ["stimulatedMacro1[0]", "fixedMacro1[0]"],
-        "cell_source": "Primary human macrophages (STEMCELL Technologies); thawed at 37C, washed 3x in RPMI + 10% FBS (300g, 3 min), rested overnight",
-        "plate_format": "Non-tissue-culture-treated 24-well plate (10 wells)",
-        "stimulation": {
-          "lps_ng_mL": 100,
-          "pam_ng_mL": 40,
-          "media": "RPMI + 10% FBS",
-          "temperature_C": 37,
-          "duration_min": 5,
-          "ir_heat_celsius": 37.0,
-          "ir_heat_seconds": 300.0,
-          "note": "This .bs file encodes the combined LPS+PAM stimulation at 5 min. Separate conditions (LPS only, PAM only; 2h and 12h time points) share the same downstream protocol."
-        },
-        "fixation": {
-          "reagent": "PFA_4pct",
-          "purpose": "Lock receptor interactions at moment of stimulation; prevent antibody-induced signalling",
-          "temperature_C": 25,
-          "duration_min": 15,
-          "ir_heat_celsius": 25.0,
-          "ir_heat_seconds": 900.0,
-          "dissociation_before_fixation": "TrypLE (Gibco); cells pelleted and resuspended in PFA"
-        }
-      },
-      {
-        "id": "S12",
-        "arm": "ARM3",
-        "name": "Fc block and 15-marker TLR probe incubation (macrophage panel)",
-        "bb": "BB7 (bsbbif_7_j)",
-        "inputs": ["TruStainFcX", "ProxSeqProbes_TLR_Panel"],
-        "operation": "mix then heat",
-        "ir_variables": ["macroBlocked1[0]", "macroProbed1[0]"],
-        "fc_block_duration_min": 5,
-        "ir_fc_block_duration_s": 300.0,
-        "probe_volume_uL": 54,
-        "probe_concentration_nM_per_pair": 5,
-        "probe_incubation_temperature_C": 37,
-        "probe_incubation_duration_min": 30,
-        "ir_probe_heat_celsius": 37.0,
-        "ir_probe_heat_seconds": 1800.0,
-        "panel_targets": 15,
-        "pla_products_measurable": 225,
-        "supplementary_table": "Supplementary Table 5"
-      },
-      {
-        "id": "S13",
-        "arm": "ARM3",
-        "name": "Wash (x3), ligation (30 min), and fixed-cell plate sorting",
-        "bb": "BB7 (bsbbif_7_j)",
-        "inputs": ["PBS_1pct_BSA", "LigationBuffer_TLR", "ConnectorOligomer_IDT", "T4_Ligase_NEB", "SmartSeq2_LysisBuffer"],
-        "operation": "mix then heat (x3 steps)",
-        "ir_variables": ["macroLigated1[0]", "macroPlated1[0]"],
-        "wash_steps": 3,
-        "wash_buffer": "1% BSA/PBS",
-        "wash_centrifugation": "300g, 3 min each",
-        "ligation_temperature_C": 37,
-        "ligation_duration_min": 30,
-        "ir_ligation_heat_celsius": 37.0,
-        "ir_ligation_heat_seconds": 1800.0,
-        "fixed_cell_sort": {
-          "lysis_buffer": "Modified Smart-seq2 (see reagents.lysis_buffer_fixed_cells)",
-          "volume_uL": 6,
-          "step1": { "temperature_C": 56, "duration_min": 60, "purpose": "Proteinase K digestion", "ir_heat_celsius": 56.0, "ir_heat_seconds": 3600.0 },
-          "step2": { "temperature_C": 95, "duration_min": 10, "purpose": "Proteinase K inactivation", "ir_heat_celsius": 95.0, "ir_heat_seconds": 600.0 },
-          "storage": "-80C; plates can be thawed on ice and proceed directly to library prep"
-        }
-      },
-      {
-        "id": "S14",
-        "arm": "ARM3",
-        "name": "Macrophage TLR signalling QC detection (logistic regression classifier)",
-        "bb": "BB7 (bsbbif_7_j) -> BB8/BB9",
-        "inputs": ["macroPlated1[0]"],
-        "operation": "detect",
-        "detection_module": "macrophageSignalDetection",
-        "ir_variable": "macrophageSignal1[0]",
-        "ir_detect_duration_s": 30.0,
-        "method_abstracted": "Logistic regression on PLA product levels; 5-fold cross-validation; optimal time point 2h (AUC 0.82 +/- 0.08)",
-        "branch": {
-          "pass": { "condition": "macrophageSignal1[0] > 0", "action": "dispose(macroPlated1[0])", "bb": "BB8 (bsbbif_8_t)" },
-          "fail": { "condition": "macrophageSignal1[0] <= 0", "action": "dispose(macroPlated1[0])", "bb": "BB9 (bsbbif_9_f)" }
-        }
-      }
-    ],
-
     "cfg": {
       "basic_blocks": [
-        { "id": "BB1",  "label": "main",          "type": "entry",        "arm": "ARM1", "ir_label": "main" },
-        { "id": "BB2",  "label": "bsbbif_2_t",    "type": "branch_true",  "condition": "cellTypeSignal1[0] > 0",    "action": "dispose(dropsEquenced1[0])" },
-        { "id": "BB3",  "label": "bsbbif_3_f",    "type": "branch_false", "condition": "cellTypeSignal1[0] <= 0",   "action": "dispose(dropsEquenced1[0]); jump bsbbif_4_j" },
-        { "id": "BB4",  "label": "bsbbif_4_j",    "type": "join",         "arm": "ARM2", "first_op": "dispose(cellTypeSignal1[0])" },
-        { "id": "BB5",  "label": "bsbbif_5_t",    "type": "branch_true",  "condition": "complexSignal1[0] > 0",     "action": "dispose(pbmcLibrary1[0])" },
-        { "id": "BB6",  "label": "bsbbif_6_f",    "type": "branch_false", "condition": "complexSignal1[0] <= 0",    "action": "dispose(pbmcLibrary1[0]); jump bsbbif_7_j" },
-        { "id": "BB7",  "label": "bsbbif_7_j",    "type": "join",         "arm": "ARM3", "first_op": "dispose(complexSignal1[0])" },
-        { "id": "BB8",  "label": "bsbbif_8_t",    "type": "branch_true",  "condition": "macrophageSignal1[0] > 0",  "action": "dispose(macroPlated1[0])" },
-        { "id": "BB9",  "label": "bsbbif_9_f",    "type": "branch_false", "condition": "macrophageSignal1[0] <= 0", "action": "dispose(macroPlated1[0]); jump bsbbif_10_j" },
-        { "id": "BB10", "label": "bsbbif_10_j",   "type": "terminal",     "last_op": "dispose(macrophageSignal1[0]); NOP" }
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "join"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "7",
+          "label": "bsbbif_7_j",
+          "type": "join"
+        },
+        {
+          "id": "8",
+          "label": "bsbbif_8_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "9",
+          "label": "bsbbif_9_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "10",
+          "label": "bsbbif_10_j",
+          "type": "terminal"
+        }
       ],
       "edges": [
-        ["BB1","BB2"], ["BB1","BB3"],
-        ["BB2","BB4"], ["BB3","BB4"],
-        ["BB4","BB5"], ["BB4","BB6"],
-        ["BB5","BB7"], ["BB6","BB7"],
-        ["BB7","BB8"], ["BB7","BB9"],
-        ["BB8","BB10"],["BB9","BB10"]
-      ],
-      "dot_verified": true,
-      "ir_verified": true,
-      "compiler_notes": [
-        "Both pass and fail branches in IR emit dispose() for all three gates; drain in .bs source is resolved to dispose in IR by lilott8/BioScript compiler -- known behaviour, does not affect CFG correctness",
-        "All heat durations compiled correctly from m tokens to SECOND: 30m->1800s, 60m->3600s, 180m->10800s, 3m->180s, 5m->300s, 10m->600s, 15m->900s",
-        "pbmcProbesMix1[0] correctly reused across all three portion mix steps (lines 16, 18, 20 of IR) -- shared reagent behaviour confirmed",
-        "NOP at BB10 terminal node is expected compiler output for empty terminal block"
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ],
+        [
+          "7",
+          "8"
+        ],
+        [
+          "7",
+          "9"
+        ],
+        [
+          "8",
+          "10"
+        ],
+        [
+          "9",
+          "10"
+        ]
       ]
     },
-
-    "bioscript_notes": {
-      "bs_file": "vistain_proxseq_nature_methods_2022.bs",
-      "compiler": "lilott8/BioScript (ANTLR4-based; github.com/lilott8/BioScript)",
-      "ir_output": "vistain_proxseq_nature_methods_2022.ir",
-      "dot_output": "vistain_proxseq_nature_methods_2022_main_dag.dot",
-      "basic_blocks_total": 10,
-      "if_else_gates": 3,
-      "cfg_edges": 12,
-      "duration_conversions": {
-        "probe_incubation_60min": "60m -> 3600.0 SECOND",
-        "ligation_3h_jurkat_raji": "180m -> 10800.0 SECOND",
-        "pi_addition_30min": "30m -> 1800.0 SECOND (mix duration)",
-        "ligation_30min_pbmc": "30m -> 1800.0 SECOND",
-        "portion_incubation_15min": "15m -> 900.0 SECOND",
-        "fc_block_5min": "5m -> 300.0 SECOND (mix duration)",
-        "stimulation_5min": "5m -> 300.0 SECOND (heat duration)",
-        "pfa_fixation_15min": "15m -> 900.0 SECOND",
-        "ligation_30min_macrophage": "30m -> 1800.0 SECOND",
-        "proteinase_k_60min": "60m -> 3600.0 SECOND",
-        "pk_inactivation_10min": "10m -> 600.0 SECOND",
-        "prert_72C_3min": "3m -> 180.0 SECOND",
-        "dsp_fixation_30min": "30m -> 1800.0 SECOND"
-      },
-      "modules": [
-        { "name": "proximalLigationDetection", "abstracts": "PLA product sequencing alignment (custom Java program; github.com/tay-lab/Prox-seq)" },
-        { "name": "cellTypeDetection",         "abstracts": "t-SNE/PCA clustering and Wilcoxon rank-sum test on PLA product space for Jurkat/Raji cell-type separation (Fig. 1e-j)" },
-        { "name": "proteinComplexDetection",   "abstracts": "Protein Complex Estimation Algorithm -- iterative quadratic solver with BH-corrected t-test (Fig. 2a); identifies CD9-CD8 on naive CD8+ T cells" },
-        { "name": "macrophageSignalDetection", "abstracts": "Logistic regression classifier on PLA product levels (2h time point; AUC 0.82); TLR2-TLR2 top feature; CD36 co-receptor rearrangement detection (Fig. 6)" }
-      ],
-      "manifests": [
-        "PBMCs", "Jurkat_Cells", "Raji_Cells",
-        "ProxSeqProbes_A", "ProxSeqProbes_B",
-        "BSA_PBS", "FcBlocker_TruStainFcX", "RNaseInhibitor",
-        "LigationBuffer_HEPES", "ConnectorOligomer_IDT", "T4_Ligase_NEB",
-        "PropidiumIodide", "SmartSeq2_LysisBuffer",
-        "HFE7500_Surfactant_2pct", "PBS_1pct_BSA", "DropSeq_Beads",
-        "LPS_100ngmL", "PAM_40ngmL", "PFA_4pct",
-        "TruStainFcX", "ProxSeqProbes_TLR_Panel", "LigationBuffer_TLR"
-      ],
-      "biological_scope_note": "ARM3 encodes the combined LPS+PAM stimulation at the 5-minute time point as the representative macrophage condition. The 9 remaining stimulation conditions (LPS only, PAM only at 5min/2h/12h; LPS+both at 2h/12h; untreated control) share identical downstream fixation, staining, ligation, and library preparation steps."
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(dropsEquenced1[0])\nbsbbif_3_f:\n\tdispose(dropsEquenced1[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(cellTypeSignal1[0])\n\tpbmcCells1[0] = dispense(PBMCs)\n\tfcBlock1[0] = dispense(FcBlocker_TruStainFcX)\n\trnaseInh1[0] = dispense(RNaseInhibitor)\n\tblockedPBMCs1[0] = mix(pbmcCells1[0], fcBlock1[0]) @ 300.0SECOND\n\tblockedRNase1[0] = mix(blockedPBMCs1[0], rnaseInh1[0]) @ 5.0SECOND\n\tpbmcProbesA1[0] = dispense(ProxSeqProbes_A)\n\tpbmcProbesB1[0] = dispense(ProxSeqProbes_B)\n\tpbmcProbesMix1[0] = mix(pbmcProbesA1[0], pbmcProbesB1[0]) @ 5.0SECOND\n\tpbmcPortion11[0] = mix(blockedRNase1[0], pbmcProbesMix1[0]) @ 5.0SECOND\n\theat(pbmcPortion11[0]) @ 37.0CELSIUS @ 900.0SECOND\n\tpbmcPortion21[0] = mix(pbmcPortion11[0], pbmcProbesMix1[0]) @ 5.0SECOND\n\theat(pbmcPortion21[0]) @ 37.0CELSIUS @ 900.0SECOND\n\tpbmcPortion31[0] = mix(pbmcPortion21[0], pbmcProbesMix1[0]) @ 5.0SECOND\n\theat(pbmcPortion31[0]) @ 37.0CELSIUS @ 900.0SECOND\n\tpbmcWash11[0] = dispense(PBS_1pct_BSA)\n\tpbmcWash21[0] = dispense(PBS_1pct_BSA)\n\tpbmcWash31[0] = dispense(PBS_1pct_BSA)\n\tpbmcWashed11[0] = mix(pbmcPortion31[0], pbmcWash11[0]) @ 5.0SECOND\n\tpbmcWashed21[0] = mix(pbmcWashed11[0], pbmcWash21[0]) @ 5.0SECOND\n\tpbmcWashed31[0] = mix(pbmcWashed21[0], pbmcWash31[0]) @ 5.0SECOND\n\tpbmcLigBuf1[0] = dispense(LigationBuffer_HEPES)\n\tpbmcConnector1[0] = dispense(ConnectorOligomer_IDT)\n\tpbmcLigase1[0] = dispense(T4_Ligase_NEB)\n\tpbmcLigSol1[0] = mix(pbmcLigBuf1[0], pbmcConnector1[0]) @ 5.0SECOND\n\tpbmcLigSol21[0] = mix(pbmcLigSol1[0], pbmcLigase1[0]) @ 5.0SECOND\n\tpbmcLigated1[0] = mix(pbmcWashed31[0], pbmcLigSol21[0]) @ 5.0SECOND\n\theat(pbmcLigated1[0]) @ 37.0CELSIUS @ 1800.0SECOND\n\tpbmcPI1[0] = dispense(PropidiumIodide)\n\tpbmcLysisBuffer1[0] = dispense(SmartSeq2_LysisBuffer)\n\tpbmcPIStained1[0] = mix(pbmcLigated1[0], pbmcPI1[0]) @ 5.0SECOND\n\tpbmcLibrary1[0] = mix(pbmcPIStained1[0], pbmcLysisBuffer1[0]) @ 5.0SECOND\n\theat(pbmcLibrary1[0]) @ 72.0CELSIUS @ 180.0SECOND\n\tcomplexSignal1[0] = detect(proteinComplexDetection, pbmcLibrary1[0]) @ 30.0SECOND\n\tif complexSignal1[0] > 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nmain:\n\tjurkatCells1[0] = dispense(Jurkat_Cells)\n\trajiCells1[0] = dispense(Raji_Cells)\n\tcellMixture1[0] = mix(jurkatCells1[0], rajiCells1[0]) @ 5.0SECOND\n\theat(cellMixture1[0]) @ 37.0CELSIUS @ 1800.0SECOND\n\tprobeBuf1[0] = dispense(BSA_PBS)\n\tprobePanelA1[0] = dispense(ProxSeqProbes_A)\n\tprobePanelB1[0] = dispense(ProxSeqProbes_B)\n\tprobesMixed1[0] = mix(probePanelA1[0], probePanelB1[0]) @ 5.0SECOND\n\tprobingMix1[0] = mix(cellMixture1[0], probesMixed1[0]) @ 5.0SECOND\n\theat(probingMix1[0]) @ 37.0CELSIUS @ 3600.0SECOND\n\twashBuf1[0] = dispense(BSA_PBS)\n\twashedCells1[0] = mix(probingMix1[0], washBuf1[0]) @ 5.0SECOND\n\tligBuf1[0] = dispense(LigationBuffer_HEPES)\n\tconnector1[0] = dispense(ConnectorOligomer_IDT)\n\tt4Ligase1[0] = dispense(T4_Ligase_NEB)\n\tligSolution1[0] = mix(ligBuf1[0], connector1[0]) @ 5.0SECOND\n\tligSolution21[0] = mix(ligSolution1[0], t4Ligase1[0]) @ 5.0SECOND\n\tligatedProduct1[0] = mix(washedCells1[0], ligSolution21[0]) @ 5.0SECOND\n\theat(ligatedProduct1[0]) @ 37.0CELSIUS @ 10800.0SECOND\n\tpiStain1[0] = dispense(PropidiumIodide)\n\tpiMix1[0] = mix(ligatedProduct1[0], piStain1[0]) @ 1800.0SECOND\n\toilPhase1[0] = dispense(HFE7500_Surfactant_2pct)\n\tdropSeqBeads1[0] = dispense(DropSeq_Beads)\n\tencapsulated1[0] = mix(piMix1[0], dropSeqBeads1[0]) @ 5.0SECOND\n\tdropsEquenced1[0] = mix(encapsulated1[0], oilPhase1[0]) @ 5.0SECOND\n\tcellTypeSignal1[0] = detect(cellTypeDetection, dropsEquenced1[0]) @ 30.0SECOND\n\tif cellTypeSignal1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbif_5_t:\n\tdispose(pbmcLibrary1[0])\nbsbbif_6_f:\n\tdispose(pbmcLibrary1[0])\n\tjump: bsbbif_7_j\nbsbbif_7_j:\n\tdispose(complexSignal1[0])\n\tmacrophageCells1[0] = dispense(PBMCs)\n\tlpsStimulus1[0] = dispense(LPS_100ngmL)\n\tpamStimulus1[0] = dispense(PAM_40ngmL)\n\tstimulusMix1[0] = mix(lpsStimulus1[0], pamStimulus1[0]) @ 5.0SECOND\n\tstimulatedMacro1[0] = mix(macrophageCells1[0], stimulusMix1[0]) @ 5.0SECOND\n\theat(stimulatedMacro1[0]) @ 37.0CELSIUS @ 300.0SECOND\n\tpfaSolution1[0] = dispense(PFA_4pct)\n\tfixedMacro1[0] = mix(stimulatedMacro1[0], pfaSolution1[0]) @ 5.0SECOND\n\theat(fixedMacro1[0]) @ 25.0CELSIUS @ 900.0SECOND\n\tmacroFcBlock1[0] = dispense(TruStainFcX)\n\tmacroBlocked1[0] = mix(fixedMacro1[0], macroFcBlock1[0]) @ 300.0SECOND\n\ttlrProbesA1[0] = dispense(ProxSeqProbes_TLR_Panel)\n\ttlrProbesB1[0] = dispense(ProxSeqProbes_TLR_Panel)\n\ttlrProbeMix1[0] = mix(tlrProbesA1[0], tlrProbesB1[0]) @ 5.0SECOND\n\tmacroProbed1[0] = mix(macroBlocked1[0], tlrProbeMix1[0]) @ 5.0SECOND\n\theat(macroProbed1[0]) @ 37.0CELSIUS @ 1800.0SECOND\n\tmacroWash11[0] = dispense(PBS_1pct_BSA)\n\tmacroWash21[0] = dispense(PBS_1pct_BSA)\n\tmacroWash31[0] = dispense(PBS_1pct_BSA)\n\tmacroWashed11[0] = mix(macroProbed1[0], macroWash11[0]) @ 5.0SECOND\n\tmacroWashed21[0] = mix(macroWashed11[0], macroWash21[0]) @ 5.0SECOND\n\tmacroWashed31[0] = mix(macroWashed21[0], macroWash31[0]) @ 5.0SECOND\n\ttlrLigBuf1[0] = dispense(LigationBuffer_TLR)\n\ttlrConnector1[0] = dispense(ConnectorOligomer_IDT)\n\ttlrLigase1[0] = dispense(T4_Ligase_NEB)\n\ttlrLigSol1[0] = mix(tlrLigBuf1[0], tlrConnector1[0]) @ 5.0SECOND\n\ttlrLigSol21[0] = mix(tlrLigSol1[0], tlrLigase1[0]) @ 5.0SECOND\n\tmacroLigated1[0] = mix(macroWashed31[0], tlrLigSol21[0]) @ 5.0SECOND\n\theat(macroLigated1[0]) @ 37.0CELSIUS @ 1800.0SECOND\n\tmacroLysisBuffer1[0] = dispense(SmartSeq2_LysisBuffer)\n\tmacroPlated1[0] = mix(macroLigated1[0], macroLysisBuffer1[0]) @ 5.0SECOND\n\theat(macroPlated1[0]) @ 56.0CELSIUS @ 3600.0SECOND\n\theat(macroPlated1[0]) @ 95.0CELSIUS @ 600.0SECOND\n\tmacrophageSignal1[0] = detect(macrophageSignalDetection, macroPlated1[0]) @ 30.0SECOND\n\tif macrophageSignal1[0] > 0\t|\ttrue: jump bsbbif_8_t\t|\tfalse: jump bsbbif_9_f\nbsbbif_8_t:\n\tdispose(macroPlated1[0])\nbsbbif_9_f:\n\tdispose(macroPlated1[0])\n\tjump: bsbbif_10_j\nbsbbif_10_j:\n\tdispose(macrophageSignal1[0])\n\tNOP\n"
     },
-
-    "data_availability": {
-      "raw_data_repository": "NCBI Gene Expression Omnibus",
-      "accession_numbers": ["GSE149574", "GSE196130"],
-      "code_repository": "https://github.com/tay-lab/Prox-seq",
-      "alignment_tool": "Custom Java program for PLA product alignment (available at code repository)"
-    }
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "PBMCs",
+          "source_quote": "(IR: blockedPBMCs mix at 300.0 SECOND)",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "Jurkat_Cells",
+          "source_quote": "CELL LINES AND PRIMARY CELLS",
+          "source_location": "description.txt"
+        },
+        {
+          "bs_chemical": "Raji_Cells",
+          "source_quote": "CELL LINES AND PRIMARY CELLS",
+          "source_location": "description.txt"
+        },
+        {
+          "bs_chemical": "BSA_PBS",
+          "source_quote": "- probeBuf1[0] (BSA_PBS) is dispensed but not consumed in a named downstream variable",
+          "source_location": "description.txt: Verified IR behaviours"
+        },
+        {
+          "bs_chemical": "LigationBuffer_HEPES",
+          "source_quote": "- 50 mM HEPES pH 7.5",
+          "source_location": "description.txt: Ligation solution (per reaction)"
+        },
+        {
+          "bs_chemical": "T4_Ligase_NEB",
+          "source_quote": "- 130 U/mL T4 ligase (NEB)",
+          "source_location": "description.txt: Ligation solution (per reaction)"
+        },
+        {
+          "bs_chemical": "HFE7500_Surfactant_2pct",
+          "source_quote": "Oil            : HFE7500 + 2% fluorosurfactant",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "DropSeq_Beads",
+          "source_quote": "Beads          : ChemGenes Macosko-2011-10(V+); barcoded beads",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "ProxSeqProbes_TLR_Panel",
+          "source_quote": "PROTEIN PANELS",
+          "source_location": "description.txt"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "in ARM 1; compiler correctly handles this as a preparatory dispense before probesMixed",
+          "source_location": "description.txt: Verified IR behaviours"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "pellet; resuspend in next portion.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "heat",
+          "source_quote": "in PBS; 37 C for 30 min (= 30m; IR: 1800.0 SECOND)",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "Read 1: 20 bp | Read 2: 85 bp | i7 index: 8 bp",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "Both -> BB10   : Terminal node; dispose macrophageSignal; NOP.",
+          "source_location": "description.txt: Fixed-cell protocol"
+        },
+        {
+          "bs_operation": "drain",
+          "source_quote": "Fail (BB3)     : cellTypeSignal <= 0 -> no cell-type PLA signal detected; drain.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "representative macrophage condition.",
+          "source_location": "description.txt: Biological scope note"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 2 hour(s) vs BioScript encodes 120m — converted hours to minutes for BioScript grammar compatibility."
+        },
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 12 hour(s) vs BioScript encodes 720m — converted hours to minutes for BioScript grammar compatibility."
+        },
+        {
+          "field": "reaction_temperature",
+          "note": "Description specifies room temperature vs BioScript encodes 37c — nominal ambient temperature encoding."
+        }
+      ]
+    },
+    "notes": "This protocol details Quantification of Extracellular Proteins, Protein Complexes and mRNAs in Single Cells by Proximity Sequencing. The assay is performed on a Proximity Ligation Assay (PLA) combined with single-cell RNA sequencing (scRNA-seq) platform. Key reagents used in the assay include Reacted with DBCO-PEG4-NHS ester and Incubated on ice for 1-2 h."
   }
 }

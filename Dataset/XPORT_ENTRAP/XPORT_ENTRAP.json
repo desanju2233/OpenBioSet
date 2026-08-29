@@ -1,70 +1,261 @@
 {
+  "_schema": "biogpt-v4",
   "messages": [
-    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
-    { "role": "user", "content": "ASSAY TYPE: DNA ENTRAP (DNA ENhanced TRAnsfer Platform) - Droplet Microfluidic XPORT-Mediated Conjugation Between Bacillus subtilis Donor and Recipient Strains\n\nREAGENTS USED:\n  - B. subtilis Donor Strain JAB981 (XPORT donor derived from B. subtilis JH642, tetracycline-resistant, xylose-inducible conjugative machinery)\n  - B. subtilis Recipient Strain JAB545 (derivative of B. subtilis PY79, chloramphenicol-resistant, comK-interrupted so unable to take up DNA by chemical/natural competence)\n  - LB Media supplemented with 100 ug/mL D-alanine and 10 ug/mL tetracycline (donor culture medium)\n  - LB Media, no supplementation (recipient culture medium)\n  - Xylose Inducer (50% xylose solution, induces conjugative element production in the donor)\n  - Phosphate Buffered Saline (PBS) wash buffer\n  - Resuspension Media (fresh LB supplemented with 100 ug/mL D-alanine, used to normalize OD600 and set donor:recipient ratios)\n  - Carrier Oil/Surfactant Phase (Novec 7500 fluorinated oil with 1.25 wt/wt% Pico-Surf 1 surfactant)\n  - Selection Agars: LB agar (recipients + transconjugants), LB + 10 ug/mL tetracycline agar (transconjugants only), LB + 100 ug/mL D-alanine + 10 ug/mL tetracycline agar (donors + transconjugants)\n  - IPTG Induction Reagent (1 mM, induces the miniICE-encoded GFPmut2 reporter in transconjugants)\n\nSTEPS:\n1. Pick single colonies of donor (JAB981) and recipient (JAB545) strains and culture in selective LB media (donor: +D-alanine+tetracycline; recipient: no supplement) until OD600 > 1.2.\n2. Sub-culture both strains into fresh media at a starting OD600 = 0.025 and incubate at 37 C, 225 rpm.\n3. Grow the donor sub-culture for 1.5 h until OD600 = 0.15, then add 50% xylose (60 uL) to induce conjugative element production.\n4. Continue culturing both donor and recipient for another 1.5 h until OD600 = 0.9-1.1.\n5. Pellet 2.5 mL of each culture by centrifugation, wash twice with PBS (repeating the pellet/wash cycle), and resuspend in 500 uL sterile PBS.\n6. Resuspend both strains in fresh LB media supplemented with 100 ug/mL D-alanine to a final OD600 = 0.6, at the desired donor:recipient ratio (3:1 or 1:1).\n7. Inject the donor and recipient cell suspensions into the DNA ENTRAP microfluidic chip via two distinct cell-port inlets at equal flow rates, together with the fluorinated oil/surfactant carrier phase, to generate cell-encapsulated droplets of 60 um diameter (approximately 20-30 cells per droplet).\n8. Flow the droplets into the downstream \"first-in-first-out\" micro-vessel incubation system and co-incubate for the designated period (0.5 h, 1 h, or 2 h) to allow XPORT-mediated conjugation to occur.\n9. Remove ~50 uL of total droplet/carrier-oil volume from the incubator at each timepoint and spread 16 uL onto each of three selection agar plates: LB agar (recipients + transconjugants), LB+tetracycline agar (transconjugants only), and LB+D-alanine+tetracycline agar (donors + transconjugants); incubate plates at 37 C for 16 h.\n10. Calculate conjugation efficiency (TC/D) by subtracting colony-forming-unit counts between the selective plates to isolate donor, recipient, and transconjugant populations.\n11. Confirm successful conjugation by colony PCR amplification and whole-genome sequencing of the miniICE insertion site in transconjugant colonies (primers flanking the trnS-leu2 integration locus).\n12. Pick transconjugant colonies, induce with 1 mM IPTG for 1 h, and quantify GFPmut2 reporter expression by flow cytometry to confirm functional miniICE cassette integration, compared against benchtop-generated transconjugants.\n\nINTERPRETATION: Successful in-droplet XPORT-mediated conjugation is confirmed by colony growth specifically on the tetracycline-selective plates (transconjugants), a conjugation efficiency (TC/D ratio) that is 2-fold to over 20-fold higher for droplet-based conjugation compared to the benchtop approach (peak efficiency at the 1 h co-incubation timepoint for both 3:1 and 1:1 donor:recipient ratios), correct miniICE insertion at the trnS-leu2 locus confirmed by sequencing, and IPTG-induced GFPmut2 fluorescence intensities in droplet transconjugants that are statistically indistinguishable from benchtop transconjugants, along with donor and recipient cell viabilities remaining above 98% throughout the 12 h in-droplet incubation window." },
-    { "role": "assistant", "content": "module fluorescence\n\nmanifest donor_cells\nmanifest recipient_cells\nmanifest xylose_inducer\nmanifest wash_buffer\nmanifest resuspension_media\nmanifest oil_surfactant\nmanifest lb_agar\nmanifest tet_agar\nmanifest dalanine_tet_agar\nmanifest iptg\n\ninstructions:\n\n// Donor (JAB981) sub-culture grown to OD600 = 0.15, then induced with 50%\n// xylose to activate XPORT conjugative element production, followed by\n// continued growth to OD600 = 0.9-1.1\ndonor = dispense 50 units of donor_cells\nheat donor at 37c for 90m\n\nxylose = dispense 10 units of xylose_inducer\ninduced_donor = mix donor with xylose for 30s\nheat induced_donor at 37c for 90m\n\n// Recipient (JAB545) sub-culture grown in parallel to matching OD600\nrecipient = dispense 50 units of recipient_cells\nheat recipient at 37c for 90m\n\n// Wash both cultures with PBS (2x), then resuspend in fresh media\n// supplemented with D-alanine to a final OD600 = 0.6\nwash1 = dispense 20 units of wash_buffer\nwashed_donor = mix induced_donor with wash1 for 30s\n\nwash2 = dispense 20 units of wash_buffer\nwashed_recipient = mix recipient with wash2 for 30s\n\nmedia1 = dispense 50 units of resuspension_media\nresuspended_donor = mix washed_donor with media1 for 30s\n\nmedia2 = dispense 50 units of resuspension_media\nresuspended_recipient = mix washed_recipient with media2 for 30s\n\n// Combine donor and recipient cells (1:1 donor:recipient ratio) and generate\n// 60 um droplets by co-flowing the cell suspension with the fluorinated\n// oil/surfactant carrier phase (Novec 7500/Pico-Surf 1) on the DNA ENTRAP chip\ncell_mix = mix resuspended_donor with resuspended_recipient for 30s\n\noil = dispense 200 units of oil_surfactant\ndroplet = mix cell_mix with oil for 10s\n\n// Co-incubate droplets in the micro-vessel system for the designated period\n// to allow XPORT-mediated conjugation (the 1 h timepoint yielded peak\n// conjugation frequency for both donor:recipient ratios tested)\nheat droplet at 37c for 60m\n\n// Plate droplets onto three selection media to quantify donors, recipients,\n// and successful transconjugants (TCs) for conjugation efficiency analysis\nrecipient_agar = dispense 50 units of lb_agar\nrecipient_plate = mix droplet with recipient_agar for 30s\nheat recipient_plate at 37c for 960m\n\ntc_agar = dispense 50 units of tet_agar\ntc_plate = mix droplet with tc_agar for 30s\nheat tc_plate at 37c for 960m\n\ndonor_agar = dispense 50 units of dalanine_tet_agar\ndonor_plate = mix droplet with donor_agar for 30s\nheat donor_plate at 37c for 960m\n\n// Screen the transconjugant-selective (LB+tetracycline) plate for successful\n// conjugation events\nconjugation_signal = detect fluorescence on tc_plate for 30s\n\nif (conjugation_signal < 50) {\n    dispose tc_plate\n}\n\n// Downstream confirmation: pick transconjugant colonies, induce the\n// IPTG-inducible GFPmut2 miniICE reporter (1 h induction), and quantify\n// expression by flow cytometry, across three biological replicates\nrepeat 3 times {\n    colony = dispense 10 units of recipient_cells\n    inducer = dispense 5 units of iptg\n    induced_colony = mix colony with inducer for 30s\n    heat induced_colony at 37c for 60m\n\n    gfp_signal = detect fluorescence on induced_colony for 30s\n\n    if (gfp_signal < 50) {\n        dispose induced_colony\n    }\n}" }
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "Source link: https://www.sciencedirect.com/science/article/pii/S1871678424000050\nPaper DOI: https://doi.org/10.1016/j.nbt.2024.02.003\n\nProtocol details:\n\nASSAY TYPE: DNA ENTRAP (DNA ENhanced TRAnsfer Platform) - Droplet Microfluidic XPORT-Mediated Conjugation Between Bacillus subtilis Donor and Recipient Strains\n\nREAGENTS USED:\n  - B. subtilis Donor Strain JAB981 (XPORT donor derived from B. subtilis JH642, tetracycline-resistant, xylose-inducible conjugative machinery)\n  - B. subtilis Recipient Strain JAB545 (derivative of B. subtilis PY79, chloramphenicol-resistant, comK-interrupted so unable to take up DNA by chemical/natural competence)\n  - LB Media supplemented with 100 ug/mL D-alanine and 10 ug/mL tetracycline (donor culture medium)\n  - LB Media, no supplementation (recipient culture medium)\n  - Xylose Inducer (50% xylose solution, induces conjugative element production in the donor)\n  - Phosphate Buffered Saline (PBS) wash buffer\n  - Resuspension Media (fresh LB supplemented with 100 ug/mL D-alanine, used to normalize OD600 and set donor:recipient ratios)\n  - Carrier Oil/Surfactant Phase (Novec 7500 fluorinated oil with 1.25 wt/wt% Pico-Surf 1 surfactant)\n  - Selection Agars: LB agar (recipients + transconjugants), LB + 10 ug/mL tetracycline agar (transconjugants only), LB + 100 ug/mL D-alanine + 10 ug/mL tetracycline agar (donors + transconjugants)\n  - IPTG Induction Reagent (1 mM, induces the miniICE-encoded GFPmut2 reporter in transconjugants)\n\nSTEPS:\n1. Pick single colonies of donor (JAB981) and recipient (JAB545) strains and culture in selective LB media (donor: +D-alanine+tetracycline; recipient: no supplement) until OD600 > 1.2.\n2. Sub-culture both strains into fresh media at a starting OD600 = 0.025 and incubate at 37 C, 225 rpm.\n3. Grow the donor sub-culture for 1.5 h until OD600 = 0.15, then add 50% xylose (60 uL) to induce conjugative element production.\n4. Continue culturing both donor and recipient for another 1.5 h until OD600 = 0.9-1.1.\n5. Pellet 2.5 mL of each culture by centrifugation, wash twice with PBS (repeating the pellet/wash cycle), and resuspend in 500 uL sterile PBS.\n6. Resuspend both strains in fresh LB media supplemented with 100 ug/mL D-alanine to a final OD600 = 0.6, at the desired donor:recipient ratio (3:1 or 1:1).\n7. Inject the donor and recipient cell suspensions into the DNA ENTRAP microfluidic chip via two distinct cell-port inlets at equal flow rates, together with the fluorinated oil/surfactant carrier phase, to generate cell-encapsulated droplets of 60 um diameter (approximately 20-30 cells per droplet).\n8. Flow the droplets into the downstream \"first-in-first-out\" micro-vessel incubation system and co-incubate for the designated period (0.5 h, 1 h, or 2 h) to allow XPORT-mediated conjugation to occur.\n9. Remove ~50 uL of total droplet/carrier-oil volume from the incubator at each timepoint and spread 16 uL onto each of three selection agar plates: LB agar (recipients + transconjugants), LB+tetracycline agar (transconjugants only), and LB+D-alanine+tetracycline agar (donors + transconjugants); incubate plates at 37 C for 16 h.\n10. Calculate conjugation efficiency (TC/D) by subtracting colony-forming-unit counts between the selective plates to isolate donor, recipient, and transconjugant populations.\n11. Confirm successful conjugation by colony PCR amplification and whole-genome sequencing of the miniICE insertion site in transconjugant colonies (primers flanking the trnS-leu2 integration locus).\n12. Pick transconjugant colonies, induce with 1 mM IPTG for 1 h, and quantify GFPmut2 reporter expression by flow cytometry to confirm functional miniICE cassette integration, compared against benchtop-generated transconjugants.\n\nINTERPRETATION: Successful in-droplet XPORT-mediated conjugation is confirmed by colony growth specifically on the tetracycline-selective plates (transconjugants), a conjugation efficiency (TC/D ratio) that is 2-fold to over 20-fold higher for droplet-based conjugation compared to the benchtop approach (peak efficiency at the 1 h co-incubation timepoint for both 3:1 and 1:1 donor:recipient ratios), correct miniICE insertion at the trnS-leu2 locus confirmed by sequencing, and IPTG-induced GFPmut2 fluorescence intensities in droplet transconjugants that are statistically indistinguishable from benchtop transconjugants, along with donor and recipient cell viabilities remaining above 98% throughout the 12 h in-droplet incubation window.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest donor_cells\nmanifest recipient_cells\nmanifest xylose_inducer\nmanifest wash_buffer\nmanifest resuspension_media\nmanifest oil_surfactant\nmanifest lb_agar\nmanifest tet_agar\nmanifest dalanine_tet_agar\nmanifest iptg\n\ninstructions:\n\n// Donor (JAB981) sub-culture grown to OD600 = 0.15, then induced with 50%\n// xylose to activate XPORT conjugative element production, followed by\n// continued growth to OD600 = 0.9-1.1\ndonor = dispense 50 units of donor_cells\nheat donor at 37c for 90m\n\nxylose = dispense 10 units of xylose_inducer\ninduced_donor = mix donor with xylose for 30s\nheat induced_donor at 37c for 90m\n\n// Recipient (JAB545) sub-culture grown in parallel to matching OD600\nrecipient = dispense 50 units of recipient_cells\nheat recipient at 37c for 90m\n\n// Wash both cultures with PBS (2x), then resuspend in fresh media\n// supplemented with D-alanine to a final OD600 = 0.6\nwash1 = dispense 20 units of wash_buffer\nwashed_donor = mix induced_donor with wash1 for 30s\n\nwash2 = dispense 20 units of wash_buffer\nwashed_recipient = mix recipient with wash2 for 30s\n\nmedia1 = dispense 50 units of resuspension_media\nresuspended_donor = mix washed_donor with media1 for 30s\n\nmedia2 = dispense 50 units of resuspension_media\nresuspended_recipient = mix washed_recipient with media2 for 30s\n\n// Combine donor and recipient cells (1:1 donor:recipient ratio) and generate\n// 60 um droplets by co-flowing the cell suspension with the fluorinated\n// oil/surfactant carrier phase (Novec 7500/Pico-Surf 1) on the DNA ENTRAP chip\ncell_mix = mix resuspended_donor with resuspended_recipient for 30s\n\noil = dispense 200 units of oil_surfactant\ndroplet = mix cell_mix with oil for 10s\n\n// Co-incubate droplets in the micro-vessel system for the designated period\n// to allow XPORT-mediated conjugation (the 1 h timepoint yielded peak\n// conjugation frequency for both donor:recipient ratios tested)\nheat droplet at 37c for 60m\n\n// Plate droplets onto three selection media to quantify donors, recipients,\n// and successful transconjugants (TCs) for conjugation efficiency analysis\nrecipient_agar = dispense 50 units of lb_agar\nrecipient_plate = mix droplet with recipient_agar for 30s\nheat recipient_plate at 37c for 960m\n\ntc_agar = dispense 50 units of tet_agar\ntc_plate = mix droplet with tc_agar for 30s\nheat tc_plate at 37c for 960m\n\ndonor_agar = dispense 50 units of dalanine_tet_agar\ndonor_plate = mix droplet with donor_agar for 30s\nheat donor_plate at 37c for 960m\n\n// Screen the transconjugant-selective (LB+tetracycline) plate for successful\n// conjugation events\nconjugation_signal = detect fluorescence on tc_plate for 30s\n\nif (conjugation_signal < 50) {\n    dispose tc_plate\n}\n\n// Downstream confirmation: pick transconjugant colonies, induce the\n// IPTG-inducible GFPmut2 miniICE reporter (1 h induction), and quantify\n// expression by flow cytometry, across three biological replicates\nrepeat 3 times {\n    colony = dispense 10 units of recipient_cells\n    inducer = dispense 5 units of iptg\n    induced_colony = mix colony with inducer for 30s\n    heat induced_colony at 37c for 60m\n\n    gfp_signal = detect fluorescence on induced_colony for 30s\n\n    if (gfp_signal < 50) {\n        dispose induced_colony\n    }\n}\n"
+    }
   ],
   "metadata": {
-    "protocol_id": "dna_entrap_xport_conjugation_001",
-    "bs_file": "tests/test_cases/dna_entrap_xport/dna_entrap_xport.bs",
-    "protocol_name": "XPORT ENTRAP: A Droplet Microfluidic Platform for Enhanced DNA Transfer Between Microbial Species (Wippold et al. 2024)",
-    "category": "microbial_conjugation_assay",
-    "chemicals": [
-      "donor_cells",
-      "recipient_cells",
-      "xylose_inducer",
-      "wash_buffer",
-      "resuspension_media",
-      "oil_surfactant",
-      "lb_agar",
-      "tet_agar",
-      "dalanine_tet_agar",
-      "iptg"
-    ],
-    "operations": [
-      "dispense",
-      "mix",
-      "heat",
-      "detect",
-      "repeat",
-      "if",
-      "dispose"
-    ],
-    "validation_score": 0.0,
-    "validated": false,
-    "validation_status": "pending_v2",
-    "adaptation_status": "adapted_authored",
-    "sources": [
-      { "type": "original_protocol", "title": "XPORT ENTRAP: A droplet microfluidic platform for enhanced DNA transfer between microbial species", "publisher": "New Biotechnology", "url": "https://www.sciencedirect.com/science/article/pii/S1871678424000050", "doi": "10.1016/j.nbt.2024.02.003" }
-    ],
-    "notes": "The authored BioScript code translates the Methods section 'Benchtop and droplet-based conjugation approaches' and the associated conjugation-efficiency/confirmation assays. Donor sub-culture to OD600 0.15, xylose induction, continued growth to OD600 0.9-1.1, PBS washes, and D-alanine-supplemented resuspension to OD600 0.6 are taken directly from the source. The 1:1 donor:recipient ratio is used as the representative case; the paper's parallel 3:1 ratio experiments are not separately modeled. Droplet generation (two cell-port inlets co-flowed with Novec 7500/Pico-Surf 1 carrier phase to form 60 um droplets) is folded into a single 'mix' operation since BioScript has no primitive for microfluidic co-flow or droplet pinch-off geometry. Of the paper's three tested co-incubation timepoints (0.5 h, 1 h, 2 h), only the 1 h timepoint is modeled, since the paper identifies it as the timepoint of peak conjugation frequency for both donor:recipient ratios. The three-way selective plating scheme (LB / LB+tetracycline / LB+D-alanine+tetracycline) and the 16 h/37C plate incubation are taken directly from the source. Because BioScript exposes only a single generic 'detect fluorescence' module, it is reused as a stand-in for two distinct paper readouts: the qualitative transconjugant colony-growth screen on the LB+tetracycline plate (not literal fluorescence; the paper's actual metric is CFU counting across the three plates), and the literal IPTG-induced GFPmut2 flow-cytometry fluorescence quantification. The if-threshold values (both 50) are illustrative placeholders, not literal numeric cutoffs stated in the source. The 'repeat 3 times' block reflects the paper's explicit three biological replicates for the flow cytometry characterization (Fig. 7). Droplet size/viability characterization (HOESCHT/YOYO-1 staining, Figs. 3-5), device photolithography/PDMS chip fabrication, colony PCR and whole-genome sequencing confirmation of the miniICE insertion (trnS-leu2 locus), the two-way ANOVA/Sidak statistical analysis, and the CFU-subtraction conjugation-efficiency calculation are downstream verification, hardware-fabrication, or statistical-analysis steps with no corresponding BioScript primitive and are intentionally not modeled.",
+    "identity": {
+      "protocol_id": "dna_entrap_xport_conjugation_001",
+      "protocol_name": "XPORT ENTRAP: A Droplet Microfluidic Platform for Enhanced DNA Transfer Between Microbial Species (Wippold et al. 2024)",
+      "category": "nucleic_acid_amplification",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "DNA ENTRAP (DNA ENhanced TRAnsfer Platform) - Droplet Microfluidic XPORT-Mediated Conjugation Between Bacillus subtilis Donor and Recipient Strains",
+      "publisher": null,
+      "doi": "10.1016/j.nbt.2024.02.003",
+      "url": "https://www.sciencedirect.com/science/article/pii/S1871678424000050",
+      "platform": "qPCR Thermocycler"
+    },
+    "bioscript": {
+      "manifests": [
+        "donor_cells",
+        "recipient_cells",
+        "xylose_inducer",
+        "wash_buffer",
+        "resuspension_media",
+        "oil_surfactant",
+        "lb_agar",
+        "tet_agar",
+        "dalanine_tet_agar",
+        "iptg"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "repeat",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": true,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 36
+      }
+    },
+    "cfg": {
+      "basic_blocks": [
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbr_4_h",
+          "type": "sequential"
+        },
+        {
+          "id": "5",
+          "label": "5",
+          "type": "sequential"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "7",
+          "label": "bsbbif_7_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "8",
+          "label": "8",
+          "type": "terminal"
+        }
+      ],
+      "edges": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "3"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "8"
+        ],
+        [
+          "5",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ],
+        [
+          "7",
+          "4"
+        ]
+      ]
+    },
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(tc_plate1[0])\nbsbbif_3_f:\n\tPHI tc_plate2 = {tc_plate1,tc_plate}\nmain:\n\tdonor1[0] = dispense(donor_cells)\n\theat(donor1[0]) @ 37.0CELSIUS @ 5400.0SECOND\n\txylose1[0] = dispense(xylose_inducer)\n\tinduced_donor1[0] = mix(donor1[0], xylose1[0]) @ 30.0SECOND\n\theat(induced_donor1[0]) @ 37.0CELSIUS @ 5400.0SECOND\n\trecipient1[0] = dispense(recipient_cells)\n\theat(recipient1[0]) @ 37.0CELSIUS @ 5400.0SECOND\n\twash11[0] = dispense(wash_buffer)\n\twashed_donor1[0] = mix(induced_donor1[0], wash11[0]) @ 30.0SECOND\n\twash21[0] = dispense(wash_buffer)\n\twashed_recipient1[0] = mix(recipient1[0], wash21[0]) @ 30.0SECOND\n\tmedia11[0] = dispense(resuspension_media)\n\tresuspended_donor1[0] = mix(washed_donor1[0], media11[0]) @ 30.0SECOND\n\tmedia21[0] = dispense(resuspension_media)\n\tresuspended_recipient1[0] = mix(washed_recipient1[0], media21[0]) @ 30.0SECOND\n\tcell_mix1[0] = mix(resuspended_donor1[0], resuspended_recipient1[0]) @ 30.0SECOND\n\toil1[0] = dispense(oil_surfactant)\n\tdroplet1[0] = mix(cell_mix1[0], oil1[0]) @ 10.0SECOND\n\theat(droplet1[0]) @ 37.0CELSIUS @ 3600.0SECOND\n\trecipient_agar1[0] = dispense(lb_agar)\n\trecipient_plate1[0] = mix(droplet1[0], recipient_agar1[0]) @ 30.0SECOND\n\theat(recipient_plate1[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\ttc_agar1[0] = dispense(tet_agar)\n\ttc_plate1[0] = mix(droplet1[0], tc_agar1[0]) @ 30.0SECOND\n\theat(tc_plate1[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\tdonor_agar1[0] = dispense(dalanine_tet_agar)\n\tdonor_plate1[0] = mix(droplet1[0], donor_agar1[0]) @ 30.0SECOND\n\theat(donor_plate1[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\tconjugation_signal1[0] = detect(fluorescence, tc_plate1[0]) @ 30.0SECOND\n\tif conjugation_signal1[0] < 50\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbr_4_h:\n\tPHI REPEAT_31 = {REPEAT_30,REPEAT_32}\n\tPHI gfp_signal1 = {gfp_signal0,gfp_signal2}\n\tPHI inducer1 = {inducer0,inducer2}\n\tPHI induced_colony1 = {induced_colony0,induced_colony3}\n\tPHI colony1 = {colony0,colony2}\n\tif REPEAT_31[0] > 0\t|\ttrue: jump bsbbr_5_t\t|\tfalse: jump bsbbr_8_f\nbsbbr_5_t:\n\tcolony2[0] = dispense(recipient_cells)\n\tinducer2[0] = dispense(iptg)\n\tinduced_colony2[0] = mix(colony2[0], inducer2[0]) @ 30.0SECOND\n\theat(induced_colony2[0]) @ 37.0CELSIUS @ 3600.0SECOND\n\tgfp_signal2[0] = detect(fluorescence, induced_colony2[0]) @ 30.0SECOND\n\tif gfp_signal2[0] < 50\t|\ttrue: jump bsbbif_6_t\t|\tfalse: jump bsbbif_7_f\nbsbbif_6_t:\n\tdispose(induced_colony2[0])\nbsbbif_7_f:\n\tPHI induced_colony3 = {induced_colony2,induced_colony}\n\tREPEAT_32[0] = REPEAT_31[0] - 1\n\tjump: bsbbr_4_h\nbsbbr_8_f:\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
     "evidence": {
       "chemical_evidence": [
-        { "bs_chemical": "donor_cells", "source_quote": "For the XPORT donor, we used a tetracycline resistant, xylose-inducible conjugative Bacillus subtilis strain derived from Bacillus subtilis JH642, which is denoted as JAB 981", "source_location": "Methods: Strains and growth conditions" },
-        { "bs_chemical": "recipient_cells", "source_quote": "The recipient strain used in this work is a derivative of Bacillus subtilis PY79, denoted as JAB 545", "source_location": "Methods: Strains and growth conditions" },
-        { "bs_chemical": "xylose_inducer", "source_quote": "At this time, 60 µL of 50% xylose was added to induce conjugative element production", "source_location": "Methods: Benchtop and droplet-based conjugation approaches" },
-        { "bs_chemical": "wash_buffer", "source_quote": "2.5 mL of the culture was centrifuged at 3000 x g for 5 min and washed with PBS twice repeating the pelleting process between each wash step", "source_location": "Methods: Benchtop and droplet-based conjugation approaches" },
-        { "bs_chemical": "resuspension_media", "source_quote": "cells were added to fresh LB media supplemented with 100 µg/mL D-Alanine to achieve an OD600 = 0.6 at 3:1 and 1:1 donor to recipient OD ratios", "source_location": "Methods: Benchtop and droplet-based conjugation approaches" },
-        { "bs_chemical": "oil_surfactant", "source_quote": "Fluorinated oil (Novec 7500, 3 M) with surfactant (1.25 wt/wt%, Pico-Surf 1™, Dolomite Microfluidics, MA) was used to generate and stabilize the microdroplets", "source_location": "Methods: Benchtop and droplet-based conjugation approaches" },
-        { "bs_chemical": "lb_agar", "source_quote": "LB agar plates were used to quantify the number of CFU that could be attributed to both JAB 545 and successful TCs", "source_location": "Methods: Conjugation efficiency analysis" },
-        { "bs_chemical": "tet_agar", "source_quote": "LB + Tetracycline 10 µg/mL agar plates were used to quantify the number of CFUs that could be attributed to successful TCs", "source_location": "Methods: Conjugation efficiency analysis" },
-        { "bs_chemical": "dalanine_tet_agar", "source_quote": "LB + D-Alanine 100 µg/mL +Tetracycline 10 µg/mL agar plates were used to quantify the number of colony forming units (CFUs) that could be attributed to both JAB 981 and successful TCs", "source_location": "Methods: Conjugation efficiency analysis" },
-        { "bs_chemical": "iptg", "source_quote": "After a 1-hour IPTG induction period, droplet transconjugants showed comparable fluorescence intensities with benchtop transconjugants", "source_location": "Results: Flow cytometry characterization of the in-droplet DNA conjugation results" }
+        {
+          "bs_chemical": "donor_cells",
+          "source_quote": "For the XPORT donor, we used a tetracycline resistant, xylose-inducible conjugative Bacillus subtilis strain derived from Bacillus subtilis JH642, which is denoted as JAB 981",
+          "source_location": "Methods: Strains and growth conditions"
+        },
+        {
+          "bs_chemical": "recipient_cells",
+          "source_quote": "The recipient strain used in this work is a derivative of Bacillus subtilis PY79, denoted as JAB 545",
+          "source_location": "Methods: Strains and growth conditions"
+        },
+        {
+          "bs_chemical": "xylose_inducer",
+          "source_quote": "At this time, 60 µL of 50% xylose was added to induce conjugative element production",
+          "source_location": "Methods: Benchtop and droplet-based conjugation approaches"
+        },
+        {
+          "bs_chemical": "wash_buffer",
+          "source_quote": "2.5 mL of the culture was centrifuged at 3000 x g for 5 min and washed with PBS twice repeating the pelleting process between each wash step",
+          "source_location": "Methods: Benchtop and droplet-based conjugation approaches"
+        },
+        {
+          "bs_chemical": "resuspension_media",
+          "source_quote": "cells were added to fresh LB media supplemented with 100 µg/mL D-Alanine to achieve an OD600 = 0.6 at 3:1 and 1:1 donor to recipient OD ratios",
+          "source_location": "Methods: Benchtop and droplet-based conjugation approaches"
+        },
+        {
+          "bs_chemical": "oil_surfactant",
+          "source_quote": "Fluorinated oil (Novec 7500, 3 M) with surfactant (1.25 wt/wt%, Pico-Surf 1™, Dolomite Microfluidics, MA) was used to generate and stabilize the microdroplets",
+          "source_location": "Methods: Benchtop and droplet-based conjugation approaches"
+        },
+        {
+          "bs_chemical": "lb_agar",
+          "source_quote": "LB agar plates were used to quantify the number of CFU that could be attributed to both JAB 545 and successful TCs",
+          "source_location": "Methods: Conjugation efficiency analysis"
+        },
+        {
+          "bs_chemical": "tet_agar",
+          "source_quote": "LB + Tetracycline 10 µg/mL agar plates were used to quantify the number of CFUs that could be attributed to successful TCs",
+          "source_location": "Methods: Conjugation efficiency analysis"
+        },
+        {
+          "bs_chemical": "dalanine_tet_agar",
+          "source_quote": "LB + D-Alanine 100 µg/mL +Tetracycline 10 µg/mL agar plates were used to quantify the number of colony forming units (CFUs) that could be attributed to both JAB 981 and successful TCs",
+          "source_location": "Methods: Conjugation efficiency analysis"
+        },
+        {
+          "bs_chemical": "iptg",
+          "source_quote": "After a 1-hour IPTG induction period, droplet transconjugants showed comparable fluorescence intensities with benchtop transconjugants",
+          "source_location": "Results: Flow cytometry characterization of the in-droplet DNA conjugation results"
+        }
       ],
       "operation_evidence": [
-        { "bs_operation": "heat induced_donor at 37c for 90m", "source_quote": "The strains were then cultured for another 1.5 h until OD600 = 0.9-1.1", "source_location": "Methods: Benchtop and droplet-based conjugation approaches" },
-        { "bs_operation": "heat droplet at 37c for 60m", "source_quote": "a key conjugation frequency is evident at the 1 h co-incubation timepoint for both the 3:1 donor-to-recipient and 1:1 donor-to-recipient ratios", "source_location": "Results: In-droplet DNA conjugation" },
-        { "bs_operation": "heat tc_plate / recipient_plate / donor_plate at 37c for 960m", "source_quote": "the droplet population was then spread using a L-shaped disposable spreader and put into a 37 °C incubator for 16 h", "source_location": "Methods: Conjugation efficiency analysis" },
-        { "bs_operation": "conjugation_signal = detect fluorescence on tc_plate / if (conjugation_signal < 50) dispose", "source_quote": "LB + Tetracycline 10 µg/mL agar plates were used to quantify the number of CFUs that could be attributed to successful TCs", "source_location": "Methods: Conjugation efficiency analysis" },
-        { "bs_operation": "repeat 3 times { ... gfp_signal = detect fluorescence ... }", "source_quote": "Across three replicates for each group, the positive control group ... exhibited a mean fluorescence intensity", "source_location": "Results: Flow cytometry characterization of the in-droplet DNA conjugation results" }
+        {
+          "bs_operation": "heat induced_donor at 37c for 90m",
+          "source_quote": "The strains were then cultured for another 1.5 h until OD600 = 0.9-1.1",
+          "source_location": "Methods: Benchtop and droplet-based conjugation approaches"
+        },
+        {
+          "bs_operation": "heat droplet at 37c for 60m",
+          "source_quote": "a key conjugation frequency is evident at the 1 h co-incubation timepoint for both the 3:1 donor-to-recipient and 1:1 donor-to-recipient ratios",
+          "source_location": "Results: In-droplet DNA conjugation"
+        },
+        {
+          "bs_operation": "heat tc_plate / recipient_plate / donor_plate at 37c for 960m",
+          "source_quote": "the droplet population was then spread using a L-shaped disposable spreader and put into a 37 °C incubator for 16 h",
+          "source_location": "Methods: Conjugation efficiency analysis"
+        },
+        {
+          "bs_operation": "conjugation_signal = detect fluorescence on tc_plate / if (conjugation_signal < 50) dispose",
+          "source_quote": "LB + Tetracycline 10 µg/mL agar plates were used to quantify the number of CFUs that could be attributed to successful TCs",
+          "source_location": "Methods: Conjugation efficiency analysis"
+        },
+        {
+          "bs_operation": "repeat 3 times { ... gfp_signal = detect fluorescence ... }",
+          "source_quote": "Across three replicates for each group, the positive control group ... exhibited a mean fluorescence intensity",
+          "source_location": "Results: Flow cytometry characterization of the in-droplet DNA conjugation results"
+        }
       ],
       "numeric_mismatches": [
-        { "field": "droplet co-incubation modeled only at 60m (1 h)", "note": "The paper tested three co-incubation timepoints (0.5 h, 1 h, 2 h) across two donor:recipient ratios (3:1, 1:1). Only the 1 h timepoint, identified as the peak-conjugation-frequency point, is modeled here; the 0.5 h/2 h timepoints and the 3:1 ratio experiment are not separately represented." },
-        { "field": "droplet generation folded into 'mix'", "note": "BioScript has no primitive for two-inlet microfluidic co-flow, droplet pinch-off geometry, or flow-rate control. The 'droplet = mix cell_mix with oil' step stands in for the actual continuous droplet generator producing 60 um droplets at ~180-200 droplets/sec." },
-        { "field": "detect fluorescence (two reuses)", "note": "BioScript exposes only one generic detect module. It is reused for the qualitative tetracycline-plate colony/CFU screen (the paper's actual metric involves subtracting CFU counts across three plates, not a fluorescence signal) and for the literal GFPmut2 flow-cytometry fluorescence quantification." },
-        { "field": "if-threshold values (both set to 50)", "note": "These pass/fail cutoffs are illustrative placeholders; the paper reports specific conjugation efficiencies (e.g., ~3.5x10^-3 TC/D for droplet 1:1) and mean fluorescence intensities (e.g., 7828 +/- 629 for droplet transconjugants) rather than a stated binary detection threshold." },
-        { "field": "droplet viability characterization, device fabrication, colony PCR/WGS confirmation, two-way ANOVA/Sidak statistics, CFU-subtraction efficiency calculation", "note": "Not modeled. These are downstream verification/statistical-analysis steps or one-time hardware-fabrication procedures with no corresponding BioScript primitive, and fall outside the scope of this translation." }
+        {
+          "field": "droplet co-incubation modeled only at 60m (1 h)",
+          "note": "The paper tested three co-incubation timepoints (0.5 h, 1 h, 2 h) across two donor:recipient ratios (3:1, 1:1). Only the 1 h timepoint, identified as the peak-conjugation-frequency point, is modeled here; the 0.5 h/2 h timepoints and the 3:1 ratio experiment are not separately represented."
+        },
+        {
+          "field": "droplet generation folded into 'mix'",
+          "note": "BioScript has no primitive for two-inlet microfluidic co-flow, droplet pinch-off geometry, or flow-rate control. The 'droplet = mix cell_mix with oil' step stands in for the actual continuous droplet generator producing 60 um droplets at ~180-200 droplets/sec."
+        },
+        {
+          "field": "detect fluorescence (two reuses)",
+          "note": "BioScript exposes only one generic detect module. It is reused for the qualitative tetracycline-plate colony/CFU screen (the paper's actual metric involves subtracting CFU counts across three plates, not a fluorescence signal) and for the literal GFPmut2 flow-cytometry fluorescence quantification."
+        },
+        {
+          "field": "if-threshold values (both set to 50)",
+          "note": "These pass/fail cutoffs are illustrative placeholders; the paper reports specific conjugation efficiencies (e.g., ~3.5x10^-3 TC/D for droplet 1:1) and mean fluorescence intensities (e.g., 7828 +/- 629 for droplet transconjugants) rather than a stated binary detection threshold."
+        },
+        {
+          "field": "droplet viability characterization, device fabrication, colony PCR/WGS confirmation, two-way ANOVA/Sidak statistics, CFU-subtraction efficiency calculation",
+          "note": "Not modeled. These are downstream verification/statistical-analysis steps or one-time hardware-fabrication procedures with no corresponding BioScript primitive, and fall outside the scope of this translation."
+        }
       ]
-    }
+    },
+    "notes": "This protocol details DNA ENTRAP (DNA ENhanced TRAnsfer Platform) - Droplet Microfluidic XPORT-Mediated Conjugation Between Bacillus subtilis Donor and Recipient Strains. The assay is performed on a qPCR Thermocycler platform. Key reagents used in the assay include B. subtilis Donor Strain JAB981 and B. subtilis Recipient Strain JAB545."
   }
 }

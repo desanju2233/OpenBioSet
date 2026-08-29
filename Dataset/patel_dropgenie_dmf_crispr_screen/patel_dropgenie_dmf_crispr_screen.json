@@ -1,569 +1,329 @@
 {
-  "protocol": {
-    "title": "Miniaturized Scalable Arrayed CRISPR Screening in Primary Cells Enables Discovery at the Single Donor Resolution",
-    "source": "Scientific Reports 2025, 15, 29350",
-    "doi": "https://doi.org/10.1038/s41598-025-13532-z",
-    "source_link": "https://www.nature.com/articles/s41598-025-13532-z",
-    "platform": "DropGenie Digital Microfluidics (DMF) Electroporation System (Tri-Drop Electroporation, 48-site SBS-format cartridge)",
-    "cell_types": [
-      "Primary human skeletal muscle myoblasts (Zen-Bio; adherent)",
-      "Primary human Pan CD3+ T cells (suspension; leukopak-derived)",
-      "Primary human CD4+ Helper T cells (AllCells; suspension)",
-      "Primary human CD4+CD25+ Regulatory T cells (iQ Biosciences; suspension)"
-    ],
-    "objective": "High-throughput, low-input genome engineering in primary human cells using DMF electroporation. Three arms: (1) CRISPR-Cas9 RNP knockout (TRAC) in T cells, (2) HDR knock-in (GFP cssDNA and anti-HER2 CAR dsDNA) at the TRAC locus, (3) Arrayed CRISPR-Cas9 exhaustion screen in chronically stimulated primary human CD4+ T cells (45 targets, 192 edits).",
-
-    "device": {
-      "name": "DropGenie Transfection System",
-      "cartridge_format": "SBS (Society for Biological Screening) standard",
-      "reaction_sites": 48,
-      "electroporation_mechanism": "Tri-Drop Electroporation: two conductive DMFection Buffer droplets flank a central cell-and-cargo droplet on a planar electrode array; actuation forms a transient low-current electroporation zone",
-      "guide_deposition": {
-        "tool": "Echo 655 acoustic liquid handler (Beckman Coulter)",
-        "volume_nL": 40,
-        "carrier": "Poly-L-glutamic acid (PGA, Sigma Aldrich) at 100 mg/mL",
-        "format": "dry-deposited spots on substrate; desiccated before cartridge assembly",
-        "sgRNA_stock_concentration_pmol_uL": {
-          "T_cells": 100,
-          "myoblasts": 200
-        },
-        "sgRNA_final_concentration_pmol_uL": {
-          "T_cells": 55.6,
-          "myoblasts": 111.1
-        },
-        "plate_format": "Echo Qualified 384-well Low Dead Volume (Beckman Coulter)"
-      },
-      "loading_tool": "Assist Plus 8-channel 125 uL Integra Voyager pipette",
-      "loading_volume_uL_per_well": 100,
-      "offloading_tool": "Assist Plus into 96-well round-bottom plate",
-      "electroporation_parameters": {
-        "Pan_CD3_T_cells_KO":   { "voltage_V": 500, "pulse_duration_ms": 3, "pulses": 2, "incubation_min": 5 },
-        "CD4_Treg_T_cells_KO":  { "voltage_V": 550, "pulse_duration_ms": 2, "pulses": 2, "incubation_min": 5 },
-        "T_cell_knock_in":      { "voltage_V": 500, "pulse_duration_ms": "2 or 4", "pulses": 2 },
-        "exhaustion_screen":    { "voltage_V": 550, "pulse_duration_ms": 2, "pulses": 2, "incubation_min": 5 },
-        "myoblasts_KO_mRNA":    { "voltage_V": 500, "pulse_duration_ms": 3, "pulses": 3, "incubation_min": 10 }
-      },
-      "downstream_readouts": [
-        "Flow cytometry (Attune NxT, Thermo Fisher)",
-        "Sanger sequencing + ICE analysis v3.0 (Synthego / Quintara Bio)",
-        "Incucyte Live-Cell Analysis System (Sartorius; 20X myoblasts, 10X T cells)",
-        "Sandwich ELISA (RayBiotech TNFalpha + IFNgamma kits)",
-        "Western blot (MBNL1; ECL, iBright chemiluminescence system)",
-        "Fluorescence microscopy (EVOS Cell Imaging System, Thermo Fisher)"
-      ]
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
     },
-
-    "reagents": {
-      "electroporation_buffers": {
-        "DMFection_Buffer": "DropGenie proprietary electroporation buffer",
-        "Transfection_Buffer": "0.01% Surfactant F (ITW Reagents) in DMFection Buffer"
-      },
-      "nuclease": {
-        "enzyme": "SpCas9 Nuclease (Aldevron)",
-        "amount_per_edit_KO_pmol": 0.42,
-        "amount_per_edit_screen_pmol": 1.0,
-        "amount_per_edit_KI_pmol": 0.33,
-        "total_per_100uL_load_KO_pmol": 42
-      },
-      "cas9_enhancer": {
-        "reagent": "Alt-R Cas9 Electroporation Enhancer (IDT)",
-        "amount_per_edit_pmol": 0.5,
-        "use": "Regulatory T cells only"
-      },
-      "mRNA": {
-        "reagent": "EGFP mRNA (TriLink Biotechnologies)",
-        "concentration_myoblasts_ug_mL": 200,
-        "concentration_T_cells_ug_mL": 100
-      },
-      "KI_templates": {
-        "GFP_cssDNA": {
-          "source": "Full Circles Therapeutics",
-          "type": "circular single-stranded DNA (cssDNA)",
-          "size_kb": 4,
-          "target_locus": "TRAC",
-          "concentrations_tested_ug_per_edit": [0.03, 0.06]
-        },
-        "AntiHER2_CAR_dsDNA": {
-          "source": "Integrated DNA Technologies (IDT) Alt-R HDR Donor Block",
-          "type": "double-stranded linear DNA",
-          "size_kb": 3,
-          "target_locus": "TRAC",
-          "homology_arms": "TRAC-targeting",
-          "CAR_design": "second-generation anti-HER2 CAR based on Priceman et al. 2018",
-          "concentrations_tested_ng_per_edit": [10, 5, 0.625, 0.0375, 0],
-          "HDR_enhancer": "Alt-R HDR Enhancer V2 (IDT), 15 uM"
-        }
-      },
-      "cell_culture_media": {
-        "Basal_T_Cell_Media": "RPMI 1640 + GlutaMax (Gibco) + 10% FBS + 1% penicillin-streptomycin",
-        "Skeletal_Muscle_Cell_Growth_Media": "Zen-Bio proprietary (myoblasts)",
-        "ImmunoCult_Activator": {
-          "reagent": "ImmunoCult Human CD3/CD28 T Cell Activator (STEMCELL Technologies)",
-          "concentration_activation_uL_mL": 25,
-          "concentration_exhaustion_uL_mL": 25
-        },
-        "cytokines": {
-          "IL2_activation_IU_mL": 200,
-          "IL2_exhaustion_IU_mL": 10,
-          "IL7_activation_ng_mL": 25,
-          "IL7_KI_ng_mL": 10,
-          "IL15_activation_ng_mL": 50,
-          "IL15_KI_ng_mL": 5
-        },
-        "Dynabeads_T_Activator": {
-          "reagent": "Dynabeads Human T-Activator CD3/CD28 (Gibco)",
-          "bead_to_cell_ratio": "2:5",
-          "use": "KI arm (Pan CD3+ T cells) only; removed magnetically before loading"
-        }
-      },
-      "flow_cytometry": {
-        "buffer": "1X PBS + 2% FBS + 2 mM EDTA (Invitrogen)",
-        "viability_dye": "Ghost Dye Violet 510 (Cytek Biosciences), 1:1000 in 1X PBS, 10 min RT",
-        "stains": {
-          "PE_LAG3": "BioLegend (exhaustion screen, ARM 3)",
-          "TCR_alpha_beta": "surface stain (TRAC KO validation, ARM 1)",
-          "FITC_FoxP3": "BioLegend; intracellular (Regulatory T cell characterisation)",
-          "FITC_Protein_L": "GenScript, 1:300 in 4% BSA/PBS, 20 min RT in dark (CAR-T)"
-        }
-      },
-      "ELISA": {
-        "kits": ["RayBiotech TNFalpha sandwich ELISA", "RayBiotech IFNgamma sandwich ELISA"],
-        "diluent": "Assay Diluent B (RayBiotech)",
-        "dilution_factors": [3.84, 2.5],
-        "curve_fit": "4-Parameter Logistic (4PL) regression",
-        "normalisation": "Background subtracted using media-only (MO) control; normalised to event counts by flow cytometry and adjusted for dilution factors",
-        "supernatant_collection_day": 28,
-        "supernatant_collection_window_h": 48,
-        "storage_temp_C": -80
+    {
+      "role": "user",
+      "content": "PROTOCOL DESCRIPTION\n====================\n\nTitle        : Miniaturized Scalable Arrayed CRISPR Screening in Primary Cells Enables\n               Discovery at the Single Donor Resolution\nSource Link  : https://www.nature.com/articles/s41598-025-13532-z\nPaper DOI    : https://doi.org/10.1038/s41598-025-13532-z\nJournal      : Scientific Reports, 2025, Vol. 15, Article 29350\nPlatform     : DropGenie Digital Microfluidics (DMF) Electroporation System\n               (48-site SBS-format cartridge, Tri-Drop Electroporation architecture,\n               Echo 655 acoustic liquid handler, Assist Plus 8-channel liquid handler)\n\n\nOVERVIEW\n--------\nThis protocol describes a next-generation digital microfluidics (DMF) electroporation\nplatform for high-throughput, low-input genome engineering in primary human cells.\nThe DropGenie system manipulates nanoliter- to microliter-scale droplets on a planar\nelectrode array using electrostatic actuation, enabling 48 independently programmable\nreaction sites on a single SBS-format cartridge. The platform integrates with laboratory\nautomation (Assist Plus, Echo 655) and requires as few as 3,000 primary cells per edit\n-- up to 100-fold fewer than conventional cuvette-based electroporation systems.\n\nThe protocol is divided into three functional arms validated in the paper:\n  1. ARM 1 -- CRISPR-Cas9 RNP knockout (TRAC gene) in primary human T cells\n              (Pan CD3+, CD4+, CD8+, and Regulatory T cells)\n  2. ARM 2 -- Precise knock-in (GFP and anti-HER2 CAR) at the TRAC locus via\n              homology-directed repair (HDR) using cssDNA and dsDNA templates\n  3. ARM 3 -- Arrayed CRISPR-Cas9 exhaustion screen in chronically stimulated\n              primary human CD4+ T cells; 45 targets, 192 edits total\n\nThe platform uses Tri-Drop Electroporation: two conductive DMFection Buffer droplets\nflank a central cell-and-cargo droplet on the electrode array. Electrode actuation\nforms a transient, low-current electroporation zone that delivers RNPs and mRNA while\nminimising Joule heating, hydrolysis by-products, and viability-compromising effects\ncharacteristic of cuvette-based systems.\n\nA complete arm-to-readout workflow (activation, transfection, recovery, assay) is\ndescribed below. The BioScript file encodes ARM 1 and ARM 2 as sequential validation\narms followed by ARM 3 (the arrayed screen).\n\n\nDEVICE ARCHITECTURE\n-------------------\nCartridge format : SBS (Society for Biological Screening) standard format;\n                   compatible with robotic liquid handlers.\nReaction sites   : 48 independently programmable electroporation sites per cartridge.\nDroplet paradigm : Tri-Drop Electroporation -- two flanking DMFection Buffer droplets\n                   bridge anode and cathode electrodes around a central cell droplet,\n                   forming the electroporation zone without moving parts.\nGuide deposition : sgRNAs pre-deposited dry onto the cartridge substrate in 40 nL spots\n                   by Echo 655 acoustic liquid handler (Beckman Coulter), mixed with\n                   Poly-L-glutamic acid (PGA) carrier and desiccated before assembly.\nCell loading     : Assist Plus 8-channel 125 uL Integra Voyager pipette; 100 uL per well.\nCell offloading  : Assist Plus into 96-well round-bottom plate post-transfection.\nDownstream       : Flow cytometry (Attune NxT), Sanger sequencing (ICE analysis),\n                   high-content imaging (Incucyte Live-Cell Analysis System),\n                   sandwich ELISA (RayBiotech).\n\nElectroporation parameters:\n  T cell KO (Pan CD3+):  500 V, 3 ms, 2 pulses, 5 min pre-pulse incubation\n  T cell KO (CD4+/Treg): 550 V, 2 ms, 2 pulses, 5 min pre-pulse incubation\n  T cell knock-in:        500 V, 2 ms or 4 ms, 2 pulses\n  Exhaustion screen:      550 V, 2 ms, 2 pulses\n\n\nCELL TYPES\n----------\n- Primary human skeletal muscle myoblasts (Zen-Bio; adherent):\n  Cultured in Skeletal Muscle Cell Growth Media (Zen-Bio); 37 C, 5% CO2.\n  Used for EGFP mRNA transfection and MBNL1 knockout validation.\n  Input: 3,000 cells per edit.\n\n- Primary human Pan CD3+ T cells (suspension):\n  Derived from PBMCs from fresh leukopak (Charles River Laboratories) by density\n  gradient (Histopaque-1077) and negative selection (EasySep Human T Cell Enrichment Kit,\n  STEMCELL Technologies). Cryopreserved until use.\n  Used for TRAC KO and GFP/CAR knock-in experiments.\n  Input: 10,000 cells per edit.\n\n- Primary human CD4+ Helper T cells (AllCells; suspension):\n  Negatively selected peripheral blood CD4+ T cells.\n  Used for the arrayed CRISPR exhaustion screen.\n  Input: 10,000 cells per edit.\n\n- Primary human CD4+CD25+ Regulatory T cells (iQ Biosciences; suspension):\n  Peripheral blood-derived; represent 5-10% of circulating CD4+ T cells.\n  Used to demonstrate editing in rare T cell subsets.\n  Input: 10,000 cells per edit.\n\n\nPROTOCOL STEPS -- ARM 1: TRAC KNOCKOUT IN PRIMARY HUMAN T CELLS\n-----------------------------------------------------------------\n\nStep 1 | T Cell Activation (off-chip, 3 days)\n  Cell type    : CD4+ Helper T cells (AllCells) or Pan CD3+ T cells\n  Media        : Basal T Cell Media (RPMI 1640 + GlutaMax + 10% FBS + 1% pen/strep)\n  Cytokines    : 400 IU/mL IL-2 + 25 ng/mL IL-7 (Miltenyi) + 50 ng/mL IL-15 (Miltenyi)\n  Activator    : ImmunoCult Human CD3/CD28 T Cell Activator (STEMCELL) at 25 uL/mL\n  Concentration: 1.25e6 cells/mL\n  Duration     : 72 h at 37 C, 5% CO2 (= 4320 min; IR: 259200.0 SECOND)\n  Purpose      : Expand and activate T cells to permissive state for electroporation.\n\nStep 2 | Cell Wash and Resuspension in Transfection Buffer\n  Buffer       : DMFection Buffer (DropGenie proprietary)\n  Transfection : 0.01% Surfactant F (ITW Reagents) in DMFection Buffer\n  Concentration: 1.0e7 cells/mL in Transfection Buffer\n  Purpose      : Remove culture media components that interfere with electroporation.\n  Assessment   : Viability > 80% required (NucleoCounter NC-202, ChemoMetec).\n\nStep 3 | sgRNA Pre-Deposition onto Cartridge Substrate\n  Method       : Echo 655 acoustic liquid handler (Beckman Coulter)\n  Volume       : 40 nL spots per site\n  Carrier      : Poly-L-glutamic acid (PGA, Sigma Aldrich) at 100 mg/mL\n  sgRNA stock  : 100 pmol/uL (T cells), 200 pmol/uL (myoblasts)\n  Mix ratio    : Combined to final sgRNA concentration of 55.6 pmol/uL (T cells)\n  Process      : Dry-deposit and desiccate before cartridge assembly.\n  Guides       : TRAC sgRNA (ARM 1); ExhaustionTarget sgRNAs (ARM 3; 45 targets)\n\nStep 4 | Cartridge Loading (cells + Cas9 RNP)\n  Cells loaded : 10,000 per edit (concentration 1.0e7 cells/mL, 100 uL per well)\n  SpCas9       : 0.42 pmol per edit (final concentration 42 pmol in 100 uL, Aldevron)\n  sgRNA        : 2.1 pmol per edit (pre-deposited dry on substrate)\n  Loading tool : Assist Plus 8-channel 125 uL Integra Voyager pipette\n  Incubation   : 5 min at room temperature (pre-pulse; abstraced as heat 25 C, 5 min)\n  Note         : RNP complexes form in situ on the cartridge substrate during incubation.\n\nStep 5 | Electroporation (Tri-Drop; 550 V, 2 ms, 2 pulses)\n  Method       : Tri-Drop Electroporation on DropGenie electrode array.\n                 Two conductive DMFection Buffer droplets flank the central cell droplet.\n                 Electrode actuation (550 V, 2 ms, 2 pulses) delivers RNP cargo.\n  Parameters   : 550 V, 2 ms pulse duration, 2 pulses (CD4+ / Treg arm)\n                 500 V, 3 ms pulse duration, 2 pulses (Pan CD3+ arm)\n  Dead volume  : Cartridge dead volume accounted for in total cell input calculation.\n\nStep 6 | Offload and Post-KO Culture (3 days)\n  Media        : Basal T Cell Media + 200 IU/mL IL-2\n  Format       : 96-well round-bottom plate\n  Duration     : 72 h at 37 C, 5% CO2 (= 4320 min; IR: 259200.0 SECOND)\n  Offload tool : Assist Plus into 96-well plate\n\nStep 7 | Knockout Detection (flow cytometry)\n  Staining     : Anti-TCR alpha/beta antibody (surface); Ghost Dye Violet 510 (viability)\n  Instrument   : Attune NxT Flow Cytometer (Thermo Fisher)\n  Gating       : Live > Singlets > CD4+ or CD8+ > TCR alpha/beta-negative\n  Detection    : knockoutDetection module (BioScript abstraction)\n  Results      : CD4+ TRAC KO: 90.41% +/- 3.27; CD8+ TRAC KO: 91.87% +/- 3.13\n                 Viability: 97.23% +/- 0.28 (TRAC RNP), 97.83% +/- 0.09 (NTC RNP)\n  Branch       : knockoutSignal > 0  -> ARM 2 proceeds (dispose)\n                 knockoutSignal <= 0 -> drain (insufficient KO)\n  Regulatory T cells: 76.78% +/- 8.62 TCR KO; viability 97.22% +/- 0.89\n\n\nPROTOCOL STEPS -- ARM 2: GFP KNOCK-IN AT TRAC LOCUS (HDR)\n-----------------------------------------------------------\n\nStep 8 | T Cell Activation (Dynabead protocol, separate donor)\n  Cells        : Pan CD3+ T cells (separate leukopak donor)\n  Media        : Basal T Cell Media + 200 IU/mL IL-2 + 10 ng/mL IL-7 + 5 ng/mL IL-15\n  Activator    : Dynabeads Human T-Activator CD3/CD28 (Gibco), bead:cell ratio 2:5\n  Format       : 96-well round-bottom plate, 2.5e5 cells/mL\n  Duration     : 72 h at 37 C, 5% CO2 (= 4320 min; IR: 259200.0 SECOND)\n  Pre-loading  : Dynabeads removed magnetically before cartridge loading.\n\nStep 9 | RNP Assembly (on ice, 20 min)\n  sgRNA        : 110 pmol TRAC sgRNA\n  SpCas9       : 33 pmol SpCas9 (Aldevron)\n  Complexing   : Mix on ice for 20 min (IR: 4 C, 1200.0 SECOND)\n  Per edit     : 1.1 pmol sgRNA, 0.33 pmol Cas9\n\nStep 10 | Cartridge Loading (cells + RNP + cssDNA template)\n  Cells        : 10,000 per edit (1.0e7 cells/mL, 100 uL per well)\n  Template     : GFP cssDNA (Full Circles Therapeutics); 4 kb circular single-stranded DNA\n  Concentrations tested: 0.03 ug and 0.06 ug per edit\n  Purpose      : cssDNA provides improved genomic integration efficiency vs dsDNA and\n                 avoids immunogenic response associated with linear dsDNA.\n\nStep 11 | Electroporation (500 V, 2 ms, 2 pulses)\n  Parameters   : 500 V, 2 ms pulse duration, 2 pulses\n                 Also tested: 500 V, 4 ms, 2 pulses\n\nStep 12 | Offload and 10-day Expansion\n  Media        : Basal T Cell Media + 300 IU/mL IL-2\n  Format       : 96-well round-bottom plate\n  Duration     : 10 days at 37 C, 5% CO2 (= 14400 min; IR: 864000.0 SECOND)\n\nStep 13 | GFP Knock-In Detection (flow cytometry + fluorescence microscopy)\n  Flow         : GFP positivity gating + TRAC KO co-stain (Attune NxT)\n  Microscopy   : EVOS Cell Imaging System (Thermo Fisher), Day 10\n  Detection    : knockInDetection module (BioScript abstraction)\n  Results      : 52.37% +/- 9.70 GFP+ cells at 0.03 ug / 500V / 2ms / 2 pulses\n                 41.14% +/- 9.45 at 0.06 ug / 500V / 2ms / 2 pulses\n                 Significantly higher than no-template (11.21% +/- 2.83) and\n                 off-chip controls (10.62% +/- 4.49) (p < 0.0001)\n  Branch       : knockInSignal > 0  -> ARM 3 proceeds (dispose)\n                 knockInSignal <= 0 -> drain\n\nAnti-HER2 CAR-T generation (additional validation, same ARM 2 workflow):\n  Template     : 3 kb dsDNA encoding anti-HER2 CAR (Integrated DNA Technologies);\n                 flanked by TRAC-targeting homology arms.\n  Detection    : Protein L staining (GenScript, 1:300 in 4% BSA) + CD3 co-stain\n  Results      : HER2 CAR expression up to 40% (average 27.03%); viability > 55%\n                 No dose-dependent differences across template concentrations.\n\n\nPROTOCOL STEPS -- ARM 3: ARRAYED CRISPR EXHAUSTION SCREEN\n----------------------------------------------------------\n\nStep 14 | CD4+ T Cell Activation (screen donor)\n  Cells        : CD4+ Helper T cells (AllCells), 1.25e6 cells/mL\n  Media        : Basal T Cell Media + 400 IU/mL IL-2 + 25 ng/mL IL-7 + 50 ng/mL IL-15\n  Duration     : 72 h at 37 C, 5% CO2 (= 4320 min; IR: 259200.0 SECOND)\n\nStep 15 | Guide Pre-Deposition for 45-Target Screen\n  Tool         : Echo 655 acoustic liquid handler\n  Volume       : 40 nL per site\n  Targets      : 45 candidate exhaustion regulators; 4 replicates each = 180 edits\n                 + NTC and off-chip controls = 192 total edits (4 cartridge runs)\n  Targets include (top hits): SIN3A, PAF1, PRDM1, SETBP1, STAT1, LAG3, ID2, TOX,\n                              NR4A1, NR4A2, DNMT3A, EZH2, FOXO1, BATF, TCF7,\n                              and 30 additional exhaustion-associated genes.\n\nStep 16 | Cartridge Loading (screen arm)\n  Cells        : 10,000 per edit (1.0e7 cells/mL, 100 uL per well)\n  SpCas9       : 1 pmol per edit\n  sgRNA        : 2 pmol per edit (pre-deposited dry)\n  Incubation   : 5 min at room temperature (IR: 25 C, 300 SECOND)\n  Vs. conventional: 500,000 cells, 100 pmol Cas9, 50 pmol sgRNA per edit\n  Reduction    : 50x fewer cells, ~100x less Cas9, ~25x less sgRNA (Fig. 3G)\n\nStep 17 | Electroporation (550 V, 2 ms, 2 pulses)\n  Parameters   : 550 V, 2 ms, 2 pulses (CD4+ T cell optimised parameters)\n\nStep 18 | Post-KO Recovery (3 days)\n  Media        : Basal T Cell Media + 200 IU/mL IL-2\n  Format       : 96-well round-bottom plate\n  Duration     : 72 h at 37 C, 5% CO2 (= 4320 min; IR: 259200.0 SECOND)\n\nStep 19 | Chronic Exhaustion Induction (9 cycles x 3 days = Days 3-28)\n  Protocol     : ImmunoCult Human CD3/CD28 T Cell Activator (25 uL/mL) +\n                 10 IU/mL IL-2 in 50 uL Basal T Cell Media.\n                 Media changed every 3 days with fresh stimulation mix.\n  Cycles       : 8 x 3-day cycles (IR: 259200.0 SECOND each = 3 days at 37 C)\n                 + 1 final 48 h cycle (IR: 172800.0 SECOND = 2 days at 37 C)\n  Total        : 9 cycles covering Days 3-28 of chronic stimulation\n  BioScript    : Loop unrolled (no loop primitive in lilott8/BioScript); 9 sequential\n                 mix + heat pairs (stimCells_c1 through stimCells_c9).\n  Purpose      : Recapitulate progressive T cell dysfunction (gradual exhaustion in vivo\n                 model); avoids acute activation-induced cell death.\n\nStep 20 | LAG-3 Staining (exhaustion phenotype readout)\n  Stain        : PE-LAG3 (BioLegend) + Ghost Dye Violet 510 + CD4 co-stain\n  Incubation   : 20 min in Flow Cytometry Buffer at 4 C in dark\n  Readout      : % LAG3-negative CD4+ T cells (exhaustion escape frequency)\n  Detection    : exhaustionPhenotypeDetection module (BioScript abstraction)\n  Gating       : Live > Singlets > CD4+ > LAG3-\n  Branch       : screenSignal > 0  -> escape hit confirmed (dispose stainedForFACS)\n                 screenSignal <= 0 -> no rescue (drain)\n\nStep 21 | Cytokine Secretion Readout (ELISA)\n  Collection   : Supernatants collected Day 28 (48 h after final re-stimulation)\n  Stored       : -80 C until processing\n  Kits         : TNFalpha and IFNgamma sandwich ELISA (RayBiotech)\n  Dilution     : 3.84x or 2.5x in Assay Diluent B (RayBiotech)\n  Curve fit    : 4-Parameter Logistic (4PL) regression for concentration interpolation\n  Normalisation: Background-subtracted using media-only (MO) control; normalised to\n                 cell count by flow cytometry and adjusted for dilution factor.\n  Detection    : cytokineDetection module (BioScript abstraction; detect on screenSignal)\n\nStep 22 | Composite Exhaustion Escape Scoring (off-chip, terminal)\n  Metric       : z-score normalized sum of: IFNgamma + TNFalpha + % LAG3-negative CD4+ cells\n  Exclusions   : Viability < 70% or CD4+ frequency < 90% deprioritised (confounders)\n  Top hits     : SIN3A, PAF1, PRDM1, SETBP1, STAT1 (radar plot; Fig. 3F)\n  Output       : Ranked target list; radar plots per top hit across all three axes.\n\n\nREAGENTS\n--------\nElectroporation:\n  DMFection Buffer         : DropGenie proprietary electroporation buffer\n  Surfactant F Buffer      : 0.01% Surfactant F (ITW Reagents) in DMFection Buffer\n  SpCas9 Nuclease          : Aldevron; 42 pmol per 100 uL load (KO), 100 pmol (screen)\n  Alt-R Cas9 Enhancer      : IDT Alt-R Cas9 Electroporation Enhancer; 0.5 pmol/edit\n                             (Regulatory T cells only)\n  sgRNAs                   : Custom; Integrated DNA Technologies; PGA carrier (Sigma)\n  EGFP mRNA                : TriLink Biotechnologies; 200 ug/mL (myoblasts),\n                             100 ug/mL (T cells)\n  GFP cssDNA               : Full Circles Therapeutics; 4 kb circular ssDNA; 0.03-0.06 ug/edit\n  Anti-HER2 CAR dsDNA      : IDT Alt-R HDR Donor Block; 3 kb; 0.0375-10 ng/edit\n  HDR Enhancer V2          : IDT Alt-R HDR Enhancer V2; 15 uM (CAR-T arm)\n\nCell culture:\n  Basal T Cell Media       : RPMI 1640 + GlutaMax (Gibco) + 10% FBS + 1% pen/strep\n  ImmunoCult Activator     : Human CD3/CD28 T Cell Activator (STEMCELL), 25 uL/mL\n  IL-2 (activation)        : 200-400 IU/mL IL-2 (PeproTech)\n  IL-2 (exhaustion screen) : 10 IU/mL IL-2 (PeproTech)\n  IL-7                     : 25 ng/mL (activation) / 10 ng/mL (KI) (Miltenyi Biotec)\n  IL-15                    : 50 ng/mL (activation) / 5 ng/mL (KI) (Miltenyi Biotec)\n  Dynabeads T-Activator    : Gibco; bead:cell ratio 2:5 (KI arm only)\n\nFlow cytometry:\n  Flow Cytometry Buffer    : 1X PBS + 2% FBS + 2 mM EDTA (Invitrogen)\n  Viability dye            : Ghost Dye Violet 510 (Cytek Biosciences), 1:1000\n  PE-LAG3                  : BioLegend (exhaustion screen)\n  TCR alpha/beta           : Surface stain (TRAC KO validation)\n  FITC-FoxP3               : BioLegend; intracellular (Regulatory T cell characterisation)\n  Protein L                : FITC-Protein L (GenScript), 1:300 in 4% BSA (CAR-T)\n  Instrument               : Attune NxT Flow Cytometer (Thermo Fisher)\n\nDetection / sequencing:\n  Incucyte System          : Sartorius Live-Cell Analysis; 20X (myoblasts), 10X (T cells)\n  Sanger Sequencing        : Quintara Bio; ICE analysis v3.0 (Synthego)\n  ELISA                    : RayBiotech TNFalpha + IFNgamma sandwich ELISA kits\n\n\nBIOSCRIPT COMPILER NOTES\n-------------------------\nBioScript file : patel_dropgenie_dmf_crispr_screen.bs\nCompiler       : lilott8/BioScript (ANTLR4-based)\nIR output      : 10 basic blocks, 3 if/else gates, 12 CFG edges\nDAG            : patel_dropgenie_dmf_crispr_screen_main_dag.dot\nDuration units : All durations converted to minutes (m) for compiler compatibility.\n                 BioScript supports s and m only; h and d tokens are not supported.\n                 3 days   -> 4320m   (IR: 259200.0 SECOND)  -- T cell activation,\n                                                                KO recovery, each\n                                                                exhaustion cycle\n                 20 min   -> 20m     (IR: 1200.0 SECOND)    -- on-ice RNP assembly\n                 10 days  -> 14400m  (IR: 864000.0 SECOND)  -- KI expansion\n                 5 min    -> 5m      (IR: 300.0 SECOND)     -- pre-pulse incubation\n                 48 h     -> 2880m   (IR: 172800.0 SECOND)  -- final stimulation cycle\n\nModules        : transfectionEfficiencyDetection, knockoutDetection, knockInDetection,\n                 exhaustionPhenotypeDetection, cytokineDetection\n\nManifests      : DMFectionBuffer, SurfactantF_Buffer, CD4_T_Cells, SpCas9_Nuclease,\n                 TRAC_sgRNA, NTC_sgRNA, ExhaustionTarget_sgRNA, EGFP_mRNA,\n                 ImmunoCult_CD3CD28_Activator, IL2_200IU, IL2_10IU, BasalTCellMedia,\n                 GFP_cssDNA_Template, AntiHER2_CAR_dsDNA_Template, ProteinL_Stain,\n                 PE_LAG3_Stain, FC_Oil\n\nAbstraction notes:\n  - `mix` at loading steps: abstracts Assist Plus cartridge well-loading; not bulk mixing.\n  - `mix` with FC_Oil:      abstracts Tri-Drop circuit formation on electrode array;\n                            the electroporation pulse is implicit in this merge event.\n  - `heat` at 25 C, 5 min: abstracts the 5-min room-temperature pre-pulse incubation.\n  - `heat` at 4 C, 20 min: abstracts on-ice RNP complexing before cartridge loading.\n  - `dispense` for sgRNA:   abstracts Echo 655 acoustic pre-deposition (40 nL dry spots);\n                            BioScript has no native acoustic dispense primitive.\n  - Loop unrolling:         9 chronic re-stimulation cycles unrolled as 9 sequential\n                            mix + heat pairs (stimCells_c1 to stimCells_c9).\n                            lilott8/BioScript has no repeat/while primitive.\n  - drain vs dispose:       `drain` in .bs source compiles to `dispose` in IR; the\n                            compiler treats both identically at IR level. Semantically,\n                            false-branch paths route waste to drain reservoir.\n\nBiological scope notes:\n  ARM 1 encodes TRAC KO in CD4+ T cells as the representative KO protocol.\n  ARM 2 encodes GFP cssDNA knock-in. The anti-HER2 CAR-T arm uses the same\n  workflow with AntiHER2_CAR_dsDNA_Template; a separate .bs extension is\n  recommended for the full multi-concentration CAR titration experiment.\n  ARM 3 encodes one representative screen condition (ExhaustionTarget_sgRNA).\n  The full 45-target, 192-edit screen is parallelised across 48 cartridge sites\n  (4 runs); BioScript encodes the single-condition logic; parallelism is\n  implicit in the DropGenie instrument's independent site addressing.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module transfectionEfficiencyDetection\nmodule knockoutDetection\nmodule knockInDetection\nmodule exhaustionPhenotypeDetection\nmodule cytokineDetection\n\nmanifest DMFectionBuffer\nmanifest SurfactantF_Buffer\nmanifest CD4_T_Cells\nmanifest SpCas9_Nuclease\nmanifest TRAC_sgRNA\nmanifest NTC_sgRNA\nmanifest ExhaustionTarget_sgRNA\nmanifest EGFP_mRNA\nmanifest ImmunoCult_CD3CD28_Activator\nmanifest IL2_200IU\nmanifest IL2_10IU\nmanifest BasalTCellMedia\nmanifest GFP_cssDNA_Template\nmanifest AntiHER2_CAR_dsDNA_Template\nmanifest ProteinL_Stain\nmanifest PE_LAG3_Stain\nmanifest FC_Oil\n\ninstructions:\n\n// ============================================================\n// Miniaturized Scalable Arrayed CRISPR Screening in Primary\n// Cells Enables Discovery at the Single Donor Resolution\n// Patel, Boribong et al., Scientific Reports (2025) 15:29350\n// DOI: 10.1038/s41598-025-13532-z\n//\n// Platform: DropGenie DMF Transfection System (48-site array,\n// SBS-format cartridge, Echo 655 acoustic liquid handler for\n// guide deposition, Assist Plus 8-channel liquid handler for\n// cell/payload loading and offloading).\n//\n// This file encodes three sequential protocol arms in the\n// order presented in the paper:\n//\n// ARM 1 (BB1-BB4):  TRAC knockout in primary human CD4+ /\n//                   CD8+ T cells. Validates high-efficiency\n//                   RNP delivery at 10,000 cells/edit.\n//                   (Fig. 2B; ~90% TCR alpha/beta KO,\n//                   >95% viability.)\n//\n// ARM 2 (BB5-BB8):  GFP knock-in at the TRAC locus using\n//                   a circular single-stranded DNA (cssDNA)\n//                   template (4 kb). Validates HDR delivery\n//                   at 10,000 cells/edit.\n//                   (Fig. 2D; ~52% GFP+ at 500V/2ms/2pulses.)\n//\n// ARM 3 (BB9-BB14): Arrayed CRISPR-Cas9 exhaustion screen\n//                   in chronically stimulated primary human\n//                   CD4+ T cells. 45 targets screened\n//                   (192 edits total), 10,000 cells/condition.\n//                   Readouts: LAG-3 surface expression,\n//                   IFNgamma, TNFalpha secretion (ELISA).\n//                   Top hits: SIN3A, PAF1, PRDM1, SETBP1,\n//                   STAT1. (Fig. 3.)\n//\n// DROPLET / CELL LOADING ABSTRACTION:\n//   All `mix` steps at the loading stage abstract the\n//   Assist Plus 8-channel pipette loading operation into\n//   the DropGenie cartridge (100 uL per well), not a\n//   bulk-reagent mixing event. The DropGenie cartridge\n//   uses Tri-Drop Electroporation: two conductive buffer\n//   (DMFection Buffer) droplets flank a central cell/cargo\n//   droplet; electrode actuation forms a transient low-\n//   current electroporation zone.\n//\n// ELECTROPORATION PARAMETERS (all arms):\n//   T cell KO (Pan CD3+):   500 V, 3 ms, 2 pulses, 5 min incubation\n//   T cell KO (CD4+/Treg):  550 V, 2 ms, 2 pulses, 5 min incubation\n//   T cell knock-in:         500 V, 2 ms, 2 pulses\n//   Exhaustion screen:       550 V, 2 ms, 2 pulses\n//   BioScript `heat` steps model the post-load incubation\n//   period at 37 C before the electrode pulse sequence fires.\n//   Pulse delivery itself is instantaneous and is abstracted\n//   into the `mix` (loading/merge) step.\n//\n// RNP AMOUNTS PER EDIT (T cells, ARM 1 and ARM 3):\n//   SpCas9:  0.42 pmol  (ARM 1 KO) / 1 pmol (ARM 3 screen)\n//   sgRNA:   2.1  pmol  (ARM 1 KO) / 2 pmol (ARM 3 screen)\n//   Cells:   10,000 per edit\n//   Volume:  100 uL loaded per cartridge well\n//   vs. conventional: 500,000 cells, 50 pmol sgRNA, 100 pmol Cas9\n//   Reduction: 50x cells, ~25x sgRNA, ~100x Cas9 (Fig. 3G)\n//\n// GUIDE PRE-DEPOSITION (all arms):\n//   sgRNAs are deposited dry onto the DropGenie substrate in\n//   40 nL spots by the Echo 655 acoustic liquid handler,\n//   mixed with Poly-L-glutamic acid (PGA) as a carrier, then\n//   desiccated before cartridge assembly. The `dispense`\n//   statements for sgRNA manifest this pre-deposition as a\n//   unit-volume dispense event; BioScript has no native\n//   acoustic dispense primitive.\n//\n// CELL ACTIVATION (pre-protocol, off-chip):\n//   CD4+ T cells are thawed and cultured at 1.25e6 cells/mL\n//   in Basal T Cell Media + 400 IU/mL IL-2 + 25 ng/mL IL-7\n//   + 50 ng/mL IL-15 for 3 days prior to transfection.\n//   This activation step is encoded as the first `heat`\n//   step (37 C, 4320 min = 3 days) before cartridge loading.\n//\n// EXHAUSTION INDUCTION (ARM 3 only):\n//   Post-KO, CD4+ T cells are re-stimulated every 3 days\n//   with ImmunoCult CD3/CD28 + 10 IU/mL IL-2 for 28 days\n//   to model chronic T cell exhaustion in vitro.\n//   Each 3-day re-stimulation cycle encoded as:\n//     heat at 37c for 4320m (3 days = 4320 min).\n//   Nine cycles cover the full 28-day exhaustion window\n//   (9 x 3 days = 27 days + terminal Day 28 assay readout).\n//\n// CFG STRUCTURE:\n//   BB1  main              -- T cell activation; ARM 1 TRAC KO\n//                            cartridge loading; electroporation;\n//                            post-KO culture\n//   BB2  knockoutPass      -- knockoutSignal > 0: >80% TCR KO;\n//                            dispose; proceed to ARM 2\n//   BB3  knockoutFail      -- knockoutSignal <= 0: low KO; drain\n//   BB4  knockoutJoin      -- join: ARM 2 (knock-in) begins\n//   BB5  knockInPass       -- knockInSignal > 0: GFP+ detected;\n//                            dispose; proceed to ARM 3\n//   BB6  knockInFail       -- knockInSignal <= 0: no GFP+; drain\n//   BB7  knockInJoin       -- join: ARM 3 (screen) begins\n//   BB8  screenSetup       -- screen RNP assembly and loading\n//                            (inline -- no branch; part of main\n//                            before exhaustion induction)\n//   BB9  exhaustionLoop    -- 9x chronic re-stimulation cycles\n//                            (unrolled; BioScript has no loop\n//                            primitive; see NOTE below)\n//   BB10 assayReadout      -- LAG-3 and cytokine detection\n//   BB11 screenPass        -- screenSignal > 0: escape hits\n//                            detected; dispose\n//   BB12 screenFail        -- screenSignal <= 0: no escape; drain\n//   BB13 finalCleanup      -- terminal: dispose all QC signals\n//\n// NOTE ON LOOP UNROLLING:\n//   BioScript (lilott8/BioScript) does not support `repeat`\n//   or `while` loop constructs. The 9 chronic re-stimulation\n//   cycles are therefore unrolled as 9 sequential `mix` +\n//   `heat` pairs. Each pair models one 3-day stimulation\n//   cycle (ImmunoCult + IL-2 addition, 37 C for 4320 min).\n//   This is the same unrolling strategy used in reference\n//   BioScript files for multi-step incubation protocols.\n// ============================================================\n\n// ============================================================\n// BB1: main\n// ============================================================\n\n// ------------------------------------------------------------\n// PRE-PROTOCOL: T cell activation (off-chip, 3 days).\n//   CD4+ T cells thawed into Basal T Cell Media + cytokines.\n//   Cultured at 37 C / 5% CO2 for 72 h before transfection.\n//   `heat` abstracts the 3-day activation incubation\n//   (3 days = 4320 min).\n// ------------------------------------------------------------\n\nbasalMedia      = dispense 1 units of BasalTCellMedia\nil2Stock        = dispense 1 units of IL2_200IU\nactivator       = dispense 1 units of ImmunoCult_CD3CD28_Activator\ncd4Cells        = dispense 1 units of CD4_T_Cells\n\nactivationMedia = mix basalMedia with il2Stock for 5s\nactivationMix   = mix activationMedia with activator for 5s\nactivatedCells  = mix cd4Cells with activationMix for 5s\n\n// 3-day activation at 37 C / 5% CO2 (3 days = 4320 min).\nheat activatedCells at 37c for 4320m\n\n// ------------------------------------------------------------\n// ARM 1 - STEP 1: Prepare Transfection Buffer (cell wash).\n//   Cells washed in DMFection Buffer then resuspended in\n//   Transfection Buffer (0.01% Surfactant F in DMFection\n//   Buffer) at 1.0e7 cells/mL before cartridge loading.\n//   `mix` abstracts the wash and resuspension step.\n// ------------------------------------------------------------\n\ndmfBuffer1      = dispense 1 units of DMFectionBuffer\nsurfactantBuf1  = dispense 1 units of SurfactantF_Buffer\n\ntransfectionBuf1 = mix dmfBuffer1 with surfactantBuf1 for 5s\ncellSuspension1  = mix activatedCells with transfectionBuf1 for 5s\n\n// ------------------------------------------------------------\n// ARM 1 - STEP 2: Pre-deposit TRAC sgRNA dry onto substrate\n//   via Echo 655 (40 nL spots, sgRNA + PGA carrier).\n//   SpCas9 loaded into cartridge wells with cells.\n//   `mix` abstracts cartridge well loading via Assist Plus.\n//   Each edit: 10,000 cells, 2.1 pmol TRAC sgRNA (pre-dry),\n//   0.42 pmol SpCas9, 100 uL total volume.\n// ------------------------------------------------------------\n\ntracSgRNA1      = dispense 1 units of TRAC_sgRNA\ncas9Load1       = dispense 1 units of SpCas9_Nuclease\n\nrnpMix1         = mix tracSgRNA1 with cas9Load1 for 5s\n\n// ------------------------------------------------------------\n// ARM 1 - STEP 3: Load cells + RNP onto DropGenie cartridge.\n//   Incubate 5 min at room temperature (pre-pulse incubation).\n//   `heat` at 25 C for 5 min models the 5 min incubation\n//   before electrode pulse delivery.\n// ------------------------------------------------------------\n\ncartridgeLoad1  = mix cellSuspension1 with rnpMix1 for 5s\n\n// 5-min pre-pulse incubation at room temperature (25 C).\nheat cartridgeLoad1 at 25c for 5m\n\n// ------------------------------------------------------------\n// ARM 1 - STEP 4: Electroporation (550 V, 2 ms, 2 pulses).\n//   FC_Oil filler droplets abstract the Tri-Drop flanking\n//   buffer droplets that complete the electroporation circuit.\n//   `mix` with FC_Oil models droplet merge / circuit formation\n//   on the electrode array. The actual pulse is abstracted\n//   into this merge event.\n// ------------------------------------------------------------\n\noilBuffer1      = dispense 1 units of FC_Oil\n\nelectroporatedCells1 = mix cartridgeLoad1 with oilBuffer1 for 2s\n\n// ------------------------------------------------------------\n// ARM 1 - STEP 5: Offload and post-KO culture (3 days).\n//   Cells offloaded into Basal T Cell Media + 200 IU/mL IL-2\n//   in a 96-well round-bottom plate via Assist Plus.\n//   Cultured 72 h at 37 C / 5% CO2 before flow cytometry.\n//   (3 days = 4320 min).\n// ------------------------------------------------------------\n\nrecoveryMedia1  = dispense 1 units of BasalTCellMedia\nil2Recovery1    = dispense 1 units of IL2_200IU\n\nrecoveryMix1    = mix recoveryMedia1 with il2Recovery1 for 5s\nkulturedCells1  = mix electroporatedCells1 with recoveryMix1 for 5s\n\n// 72 h post-KO culture at 37 C / 5% CO2.\nheat kulturedCells1 at 37c for 4320m\n\n// ------------------------------------------------------------\n// ARM 1 - STEP 6: KO detection via flow cytometry.\n//   knockoutDetection module abstracts TCR alpha/beta surface\n//   staining and flow cytometry analysis (Attune NxT).\n//   Readout: % TCR alpha/beta-negative cells in CD4+ and\n//   CD8+ subsets. Target: >80% TCR KO (paper: 90.41% CD4+,\n//   91.87% CD8+; viability >97%).\n// ------------------------------------------------------------\n\nknockoutSignal  = detect knockoutDetection on kulturedCells1 for 30s\n\n// ============================================================\n// BB2 / BB3: TRAC KO QC gate\n// Pass (BB2): knockoutSignal > 0 -> >80% TCR alpha/beta KO\n//             confirmed; dispose cells; proceed to ARM 2.\n// Fail (BB3): knockoutSignal <= 0 -> insufficient KO\n//             (e.g. guide failure, electroporation fault);\n//             drain and do not proceed.\n// Both branches converge at BB4 (knockoutJoin).\n// ============================================================\n\nif (knockoutSignal > 0) {\n    dispose kulturedCells1\n} else {\n    drain kulturedCells1\n}\n\n// ============================================================\n// BB4: knockoutJoin\n// Dispose KO QC signal. Control falls into ARM 2 (knock-in).\n// ============================================================\n\ndispose knockoutSignal\n\n// ============================================================\n// ARM 2: GFP Knock-In at TRAC Locus via cssDNA HDR Template\n// (Fig. 2D; 10,000 Pan CD3+ T cells/edit, 4 kb GFP cssDNA,\n//  0.03-0.06 ug template/edit, 500 V, 2 ms, 2 pulses,\n//  10-day expansion, ~52% GFP+ at 0.03 ug/500V/2ms/2pulses)\n// ============================================================\n\n// ------------------------------------------------------------\n// BB5 - ARM 2, STEP 1: T cell activation (separate donor,\n//   Dynabead CD3/CD28 protocol for knock-in experiments).\n//   Pan CD3+ T cells activated 3 days at 37 C.\n//   Dynabeads removed before transfection (off-chip).\n// ------------------------------------------------------------\n\nbasalMedia2     = dispense 1 units of BasalTCellMedia\nil2KI           = dispense 1 units of IL2_200IU\ncd3Cells2       = dispense 1 units of CD4_T_Cells\n\nactivationMix2  = mix basalMedia2 with il2KI for 5s\nactivatedCells2 = mix cd3Cells2 with activationMix2 for 5s\n\n// 3-day Dynabead activation at 37 C (3 days = 4320 min).\nheat activatedCells2 at 37c for 4320m\n\n// ------------------------------------------------------------\n// ARM 2 - STEP 2: Prepare Transfection Buffer for KI run.\n//   Cells resuspended at 1.0e7 cells/mL in Transfection Buffer.\n// ------------------------------------------------------------\n\ndmfBuffer2      = dispense 1 units of DMFectionBuffer\nsurfactantBuf2  = dispense 1 units of SurfactantF_Buffer\n\ntransfectionBuf2 = mix dmfBuffer2 with surfactantBuf2 for 5s\ncellSuspension2  = mix activatedCells2 with transfectionBuf2 for 5s\n\n// ------------------------------------------------------------\n// ARM 2 - STEP 3: Assemble TRAC RNP for KI experiment.\n//   110 pmol TRAC sgRNA + 33 pmol SpCas9, complexed on ice\n//   for 20 min. Per edit: 1.1 pmol sgRNA, 0.33 pmol Cas9.\n//   `heat` at 4 C for 20 min models on-ice RNP assembly.\n// ------------------------------------------------------------\n\ntracSgRNA2      = dispense 1 units of TRAC_sgRNA\ncas9Load2       = dispense 1 units of SpCas9_Nuclease\n\nrnpAssembly2    = mix tracSgRNA2 with cas9Load2 for 5s\n\n// 20 min on-ice RNP complexing (4 C, 20 min).\nheat rnpAssembly2 at 4c for 20m\n\n// ------------------------------------------------------------\n// ARM 2 - STEP 4: Add GFP cssDNA template to cartridge load.\n//   0.03 ug GFP cssDNA (circular single-stranded DNA) per edit.\n//   cssDNA from Full Circles Therapeutics; provides improved\n//   intracellular stability and targeted genomic integration\n//   efficiency vs dsDNA.\n// ------------------------------------------------------------\n\ngfpTemplate     = dispense 1 units of GFP_cssDNA_Template\n\nrnpTemplateMix2 = mix rnpAssembly2 with gfpTemplate for 5s\ncartridgeLoad2  = mix cellSuspension2 with rnpTemplateMix2 for 5s\n\n// ------------------------------------------------------------\n// ARM 2 - STEP 5: Electroporation (500 V, 2 ms, 2 pulses).\n//   Tri-Drop circuit formation abstracted as mix with FC_Oil.\n// ------------------------------------------------------------\n\noilBuffer2      = dispense 1 units of FC_Oil\n\nelectroporatedCells2 = mix cartridgeLoad2 with oilBuffer2 for 2s\n\n// ------------------------------------------------------------\n// ARM 2 - STEP 6: Offload and 10-day expansion.\n//   Cells offloaded into Basal T Cell Media + 300 IU/mL IL-2.\n//   10-day culture at 37 C / 5% CO2 before flow cytometry\n//   and fluorescence microscopy readout.\n//   (10 days = 14400 min).\n// ------------------------------------------------------------\n\nrecoveryMedia2  = dispense 1 units of BasalTCellMedia\nil2Recovery2    = dispense 1 units of IL2_200IU\n\nrecoveryMix2    = mix recoveryMedia2 with il2Recovery2 for 5s\nkulturedCells2  = mix electroporatedCells2 with recoveryMix2 for 5s\n\n// 10-day expansion at 37 C (10 days = 14400 min).\nheat kulturedCells2 at 37c for 14400m\n\n// ------------------------------------------------------------\n// ARM 2 - STEP 7: GFP knock-in detection via flow cytometry.\n//   knockInDetection module abstracts GFP positivity gating\n//   (Attune NxT; TRAC KO co-stain to confirm on-target HDR).\n//   Expected: ~52% GFP+ cells at 0.03 ug / 500V / 2ms / 2p.\n// ------------------------------------------------------------\n\nknockInSignal   = detect knockInDetection on kulturedCells2 for 30s\n\n// ============================================================\n// BB5 / BB6: KI QC gate\n// Pass (BB5): knockInSignal > 0 -> GFP+ cells confirmed\n//             (HDR successful); dispose; proceed to ARM 3.\n// Fail (BB6): knockInSignal <= 0 -> no GFP integration;\n//             drain.\n// Both branches converge at BB7 (knockInJoin).\n// ============================================================\n\nif (knockInSignal > 0) {\n    dispose kulturedCells2\n} else {\n    drain kulturedCells2\n}\n\n// ============================================================\n// BB7: knockInJoin\n// Dispose KI QC signal. Control falls into ARM 3 (screen).\n// ============================================================\n\ndispose knockInSignal\n\n// ============================================================\n// ARM 3: Arrayed CRISPR-Cas9 Exhaustion Screen\n// 45 targets x 4 replicates = 192 edits on DropGenie array.\n// 10,000 CD4+ T cells / edit, 2 pmol sgRNA, 1 pmol Cas9.\n// 28-day chronic stimulation model, LAG-3 + cytokine readout.\n// (Fig. 3; top hits: SIN3A, PAF1, PRDM1, SETBP1, STAT1)\n//\n// This arm encodes one representative screen condition\n// (ExhaustionTarget_sgRNA) in full. The same cartridge\n// loading, electroporation, and exhaustion induction workflow\n// is applied in parallel across all 48 addressable sites of\n// the DropGenie cartridge per run (4 runs for 192 edits).\n// Parallelism is abstracted here as sequential BioScript\n// statements, consistent with the reference .bs files.\n// ============================================================\n\n// ------------------------------------------------------------\n// BB8 - ARM 3, STEP 1: CD4+ T cell activation (screen donor).\n//   CD4+ Helper T cells (AllCells) thawed and activated:\n//   1.25e6 cells/mL, Basal T Cell Media + 400 IU/mL IL-2 +\n//   25 ng/mL IL-7 + 50 ng/mL IL-15, 3 days at 37 C.\n// ------------------------------------------------------------\n\nbasalMedia3     = dispense 1 units of BasalTCellMedia\nil2Screen       = dispense 1 units of IL2_200IU\ncd4Cells3       = dispense 1 units of CD4_T_Cells\n\nactivationMix3  = mix basalMedia3 with il2Screen for 5s\nactivatedCells3 = mix cd4Cells3 with activationMix3 for 5s\n\n// 3-day activation at 37 C (3 days = 4320 min).\nheat activatedCells3 at 37c for 4320m\n\n// ------------------------------------------------------------\n// ARM 3 - STEP 2: Prepare Transfection Buffer (screen).\n//   Cells washed and resuspended at 1.0e7 cells/mL in\n//   Transfection Buffer. Echo 655 pre-deposits ExhaustionTarget\n//   sgRNA + PGA (40 nL / site) onto substrate before assembly.\n// ------------------------------------------------------------\n\ndmfBuffer3      = dispense 1 units of DMFectionBuffer\nsurfactantBuf3  = dispense 1 units of SurfactantF_Buffer\n\ntransfectionBuf3 = mix dmfBuffer3 with surfactantBuf3 for 5s\ncellSuspension3  = mix activatedCells3 with transfectionBuf3 for 5s\n\n// ------------------------------------------------------------\n// ARM 3 - STEP 3: Assemble screen RNP.\n//   ExhaustionTarget_sgRNA pre-deposited dry on substrate.\n//   SpCas9 loaded into cartridge wells with cells.\n//   Per edit: 10,000 cells, 2 pmol sgRNA, 1 pmol Cas9,\n//   100 uL total volume.\n//   RNP complexing occurs in situ on the cartridge during\n//   the 5-min pre-pulse incubation (modelled as heat 25 C, 5m).\n// ------------------------------------------------------------\n\nscreenSgRNA     = dispense 1 units of ExhaustionTarget_sgRNA\ncas9Screen      = dispense 1 units of SpCas9_Nuclease\n\nscreenRnpMix    = mix screenSgRNA with cas9Screen for 5s\ncartridgeLoad3  = mix cellSuspension3 with screenRnpMix for 5s\n\n// 5-min pre-pulse incubation at room temperature (25 C).\nheat cartridgeLoad3 at 25c for 5m\n\n// ------------------------------------------------------------\n// ARM 3 - STEP 4: Electroporation (550 V, 2 ms, 2 pulses).\n//   Tri-Drop circuit formation abstracted as mix with FC_Oil.\n//   DropGenie fires each of the 48 sites independently under\n//   user-defined parameters set via the instrument software.\n// ------------------------------------------------------------\n\noilBuffer3      = dispense 1 units of FC_Oil\n\nelectroporatedCells3 = mix cartridgeLoad3 with oilBuffer3 for 2s\n\n// ------------------------------------------------------------\n// ARM 3 - STEP 5: Offload and 3-day initial recovery.\n//   Cells offloaded into Basal T Cell Media + 200 IU/mL IL-2\n//   (96-well round-bottom plate via Assist Plus).\n//   3-day recovery culture before exhaustion induction begins.\n//   (3 days = 4320 min).\n// ------------------------------------------------------------\n\nrecoveryMedia3  = dispense 1 units of BasalTCellMedia\nil2Recovery3    = dispense 1 units of IL2_200IU\n\nrecoveryMix3    = mix recoveryMedia3 with il2Recovery3 for 5s\nrecoveredCells3 = mix electroporatedCells3 with recoveryMix3 for 5s\n\n// 3-day initial recovery at 37 C.\nheat recoveredCells3 at 37c for 4320m\n\n// ------------------------------------------------------------\n// ARM 3 - STEPS 6-14: Chronic re-stimulation for exhaustion\n//   induction (9 cycles x 3 days = 27 days, Days 3-30).\n//\n//   Protocol: ImmunoCult CD3/CD28 (25 uL/mL) + 10 IU/mL IL-2\n//   in 50 uL Basal T Cell Media, media change every 3 days.\n//   This recapitulates progressive T cell dysfunction in vivo\n//   (chronic antigen exposure model).\n//\n//   BioScript has no loop primitive; 9 cycles unrolled below.\n//   Each cycle: dispense fresh stimulation media, mix with\n//   cells, heat 37 C for 4320 min (3 days).\n//\n//   NOTE: ImmunoCult_CD3CD28_Activator manifest is reused\n//   across cycles (same reagent, fresh aliquot each media\n//   change). IL2_10IU manifest = 10 IU/mL IL-2 stock (lower\n//   concentration than activation arm; paper M&M specifies\n//   10 IU/mL for exhaustion induction vs 200 IU/mL activation).\n// ------------------------------------------------------------\n\n// -- Exhaustion Cycle 1 (Days 3-6) --\nstimMedia_c1    = dispense 1 units of BasalTCellMedia\nil2_c1          = dispense 1 units of IL2_10IU\nactivator_c1    = dispense 1 units of ImmunoCult_CD3CD28_Activator\n\nstimMix_c1      = mix stimMedia_c1 with il2_c1 for 5s\nstimMix_c1b     = mix stimMix_c1 with activator_c1 for 5s\nstimCells_c1    = mix recoveredCells3 with stimMix_c1b for 5s\nheat stimCells_c1 at 37c for 4320m\n\n// -- Exhaustion Cycle 2 (Days 6-9) --\nstimMedia_c2    = dispense 1 units of BasalTCellMedia\nil2_c2          = dispense 1 units of IL2_10IU\nactivator_c2    = dispense 1 units of ImmunoCult_CD3CD28_Activator\n\nstimMix_c2      = mix stimMedia_c2 with il2_c2 for 5s\nstimMix_c2b     = mix stimMix_c2 with activator_c2 for 5s\nstimCells_c2    = mix stimCells_c1 with stimMix_c2b for 5s\nheat stimCells_c2 at 37c for 4320m\n\n// -- Exhaustion Cycle 3 (Days 9-12) --\nstimMedia_c3    = dispense 1 units of BasalTCellMedia\nil2_c3          = dispense 1 units of IL2_10IU\nactivator_c3    = dispense 1 units of ImmunoCult_CD3CD28_Activator\n\nstimMix_c3      = mix stimMedia_c3 with il2_c3 for 5s\nstimMix_c3b     = mix stimMix_c3 with activator_c3 for 5s\nstimCells_c3    = mix stimCells_c2 with stimMix_c3b for 5s\nheat stimCells_c3 at 37c for 4320m\n\n// -- Exhaustion Cycle 4 (Days 12-15) --\nstimMedia_c4    = dispense 1 units of BasalTCellMedia\nil2_c4          = dispense 1 units of IL2_10IU\nactivator_c4    = dispense 1 units of ImmunoCult_CD3CD28_Activator\n\nstimMix_c4      = mix stimMedia_c4 with il2_c4 for 5s\nstimMix_c4b     = mix stimMix_c4 with activator_c4 for 5s\nstimCells_c4    = mix stimCells_c3 with stimMix_c4b for 5s\nheat stimCells_c4 at 37c for 4320m\n\n// -- Exhaustion Cycle 5 (Days 15-18) --\nstimMedia_c5    = dispense 1 units of BasalTCellMedia\nil2_c5          = dispense 1 units of IL2_10IU\nactivator_c5    = dispense 1 units of ImmunoCult_CD3CD28_Activator\n\nstimMix_c5      = mix stimMedia_c5 with il2_c5 for 5s\nstimMix_c5b     = mix stimMix_c5 with activator_c5 for 5s\nstimCells_c5    = mix stimCells_c4 with stimMix_c5b for 5s\nheat stimCells_c5 at 37c for 4320m\n\n// -- Exhaustion Cycle 6 (Days 18-21) --\nstimMedia_c6    = dispense 1 units of BasalTCellMedia\nil2_c6          = dispense 1 units of IL2_10IU\nactivator_c6    = dispense 1 units of ImmunoCult_CD3CD28_Activator\n\nstimMix_c6      = mix stimMedia_c6 with il2_c6 for 5s\nstimMix_c6b     = mix stimMix_c6 with activator_c6 for 5s\nstimCells_c6    = mix stimCells_c5 with stimMix_c6b for 5s\nheat stimCells_c6 at 37c for 4320m\n\n// -- Exhaustion Cycle 7 (Days 21-24) --\nstimMedia_c7    = dispense 1 units of BasalTCellMedia\nil2_c7          = dispense 1 units of IL2_10IU\nactivator_c7    = dispense 1 units of ImmunoCult_CD3CD28_Activator\n\nstimMix_c7      = mix stimMedia_c7 with il2_c7 for 5s\nstimMix_c7b     = mix stimMix_c7 with activator_c7 for 5s\nstimCells_c7    = mix stimCells_c6 with stimMix_c7b for 5s\nheat stimCells_c7 at 37c for 4320m\n\n// -- Exhaustion Cycle 8 (Days 24-27) --\nstimMedia_c8    = dispense 1 units of BasalTCellMedia\nil2_c8          = dispense 1 units of IL2_10IU\nactivator_c8    = dispense 1 units of ImmunoCult_CD3CD28_Activator\n\nstimMix_c8      = mix stimMedia_c8 with il2_c8 for 5s\nstimMix_c8b     = mix stimMix_c8 with activator_c8 for 5s\nstimCells_c8    = mix stimCells_c7 with stimMix_c8b for 5s\nheat stimCells_c8 at 37c for 4320m\n\n// -- Exhaustion Cycle 9 / Final Re-stimulation (Days 27-28) --\n// Day 26 (paper): cells re-stimulated for 48 h before\n// supernatant collection and final flow cytometry on Day 28.\n// 48 h final stimulation = 2880 min.\nstimMedia_c9    = dispense 1 units of BasalTCellMedia\nil2_c9          = dispense 1 units of IL2_10IU\nactivator_c9    = dispense 1 units of ImmunoCult_CD3CD28_Activator\n\nstimMix_c9      = mix stimMedia_c9 with il2_c9 for 5s\nstimMix_c9b     = mix stimMix_c9 with activator_c9 for 5s\nstimCells_c9    = mix stimCells_c8 with stimMix_c9b for 5s\n\n// Final 48 h re-stimulation at 37 C before assay readout.\nheat stimCells_c9 at 37c for 2880m\n\n// ------------------------------------------------------------\n// ARM 3 - STEP 15: LAG-3 exhaustion phenotype detection.\n//   exhaustionPhenotypeDetection module abstracts:\n//     1. PE-LAG3 surface staining (BioLegend)\n//     2. Ghost Dye Violet 510 viability staining\n//     3. CD4 co-stain (lineage gate)\n//     4. Attune NxT flow cytometry analysis\n//   Readout: % LAG3-negative CD4+ T cells (exhaustion escape).\n//   screenSignal > 0 if LAG3- frequency > NTC control mean.\n// ------------------------------------------------------------\n\nlag3Stain       = dispense 1 units of PE_LAG3_Stain\nstainedForFACS  = mix stimCells_c9 with lag3Stain for 20m\n\nscreenSignal    = detect exhaustionPhenotypeDetection on stainedForFACS for 30s\n\n// ============================================================\n// BB10 / BB11: Screen assay QC gate (LAG-3 readout)\n// Pass (BB10): screenSignal > 0 -> LAG3- frequency above\n//              NTC baseline; candidate escape hit confirmed;\n//              proceed to cytokine validation branch.\n// Fail (BB11): screenSignal <= 0 -> no exhaustion rescue;\n//              drain.\n// Both branches converge at BB12 before cytokine dispose.\n// ============================================================\n\nif (screenSignal > 0) {\n    dispose stainedForFACS\n} else {\n    drain stainedForFACS\n}\n\n// ------------------------------------------------------------\n// ARM 3 - STEP 16: Cytokine secretion readout (ELISA).\n//   Supernatants collected 48 h after final re-stimulation\n//   (Day 28) and assayed for IFNgamma and TNFalpha by\n//   sandwich ELISA (RayBiotech kits).\n//   4PL regression used to interpolate concentrations.\n//   Background subtracted using media-only (MO) control.\n//   cytokineDetection module abstracts ELISA plate reader\n//   readout and signal normalisation.\n//   This step runs regardless of LAG-3 gate outcome to\n//   capture composite exhaustion escape score data\n//   (z-score of IFNy + TNFa + %LAG3- per Fig. 3F/S5C).\n// ------------------------------------------------------------\n\ncytokineSignal  = detect cytokineDetection on screenSignal for 60s\n\n// ============================================================\n// BB13: finalCleanup (terminal)\n// Dispose both QC signal droplets.\n// Experiment ends; data passed to composite escape scoring\n// pipeline (off-chip; z-score normalization, radar plot).\n// ============================================================\n\ndispose cytokineSignal\ndispose screenSignal\n\n// [terminal -- no further instructions; exit node for CFG]\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "patel_dropgenie_dmf_crispr_screen_001",
+      "protocol_name": "Miniaturized Scalable Arrayed CRISPR Screening in Primary Cells Enables Discovery at the Single Donor Resolution",
+      "category": "synthetic_biology",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Miniaturized Scalable Arrayed CRISPR Screening in Primary Cells Enables",
+      "publisher": "Scientific Reports, 2025, Vol. 15, Article 29350",
+      "doi": "10.1038/s41598-025-13532-z",
+      "url": "https://www.nature.com/articles/s41598-025-13532-z",
+      "platform": "DropGenie Digital Microfluidics (DMF) Electroporation System"
+    },
+    "bioscript": {
+      "manifests": [
+        "DMFectionBuffer",
+        "SurfactantF_Buffer",
+        "CD4_T_Cells",
+        "SpCas9_Nuclease",
+        "TRAC_sgRNA",
+        "NTC_sgRNA",
+        "ExhaustionTarget_sgRNA",
+        "EGFP_mRNA",
+        "ImmunoCult_CD3CD28_Activator",
+        "IL2_200IU",
+        "IL2_10IU",
+        "BasalTCellMedia",
+        "GFP_cssDNA_Template",
+        "AntiHER2_CAR_dsDNA_Template",
+        "ProteinL_Stain",
+        "PE_LAG3_Stain",
+        "FC_Oil"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "drain",
+        "repeat",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": true,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 149
       }
     },
-
-    "arms": [
-      {
-        "id": "ARM1",
-        "name": "CRISPR-Cas9 TRAC Knockout in Primary Human T Cells",
-        "cell_type": "CD4+ Helper T cells (AllCells); also Pan CD3+ and Regulatory T cells",
-        "cells_per_edit": 10000,
-        "target_gene": "TRAC (T cell receptor alpha constant)",
-        "purpose": "Validate high-efficiency RNP delivery and knockout in primary T cells at low cell input (Fig. 2B/C)",
-        "bioscript_bbs": ["BB1 (main)", "BB2 (knockoutPass)", "BB3 (knockoutFail)", "BB4 (knockoutJoin)"],
-        "steps": [
-          {
-            "id": "A1-S1",
-            "name": "T cell activation (off-chip)",
-            "inputs": ["CD4_T_Cells", "BasalTCellMedia", "IL2_200IU", "ImmunoCult_CD3CD28_Activator"],
-            "operation": "mix + heat",
-            "temperature_C": 37,
-            "duration_s": 259200,
-            "duration_human": "3 days",
-            "cell_concentration_cells_mL": 1250000,
-            "notes": "IL-2 400 IU/mL + IL-7 25 ng/mL + IL-15 50 ng/mL. Viability assessed by NucleoCounter NC-202 before use (>80% required)."
-          },
-          {
-            "id": "A1-S2",
-            "name": "Cell wash and resuspension in Transfection Buffer",
-            "inputs": ["DMFectionBuffer", "SurfactantF_Buffer", "activated_cells"],
-            "operation": "mix",
-            "cell_concentration_cells_mL": 10000000,
-            "notes": "0.01% Surfactant F in DMFection Buffer. NucleoCounter viability check before loading."
-          },
-          {
-            "id": "A1-S3",
-            "name": "sgRNA pre-deposition onto cartridge substrate",
-            "tool": "Echo 655 acoustic liquid handler",
-            "inputs": ["TRAC_sgRNA", "PGA_carrier"],
-            "volume_per_site_nL": 40,
-            "operation": "acoustic dispense (abstracted as dispense in BioScript)",
-            "notes": "55.6 pmol/uL sgRNA + PGA; dry-deposited and desiccated. Per edit: 2.1 pmol sgRNA."
-          },
-          {
-            "id": "A1-S4",
-            "name": "Cartridge loading (cells + SpCas9)",
-            "inputs": ["cellSuspension", "TRAC_sgRNA", "SpCas9_Nuclease"],
-            "operation": "mix (abstracts Assist Plus loading)",
-            "SpCas9_per_edit_pmol": 0.42,
-            "sgRNA_per_edit_pmol": 2.1,
-            "volume_per_well_uL": 100,
-            "pre_pulse_incubation_min": 5,
-            "pre_pulse_temperature_C": 25,
-            "notes": "RNP complexes form in situ during 5-min incubation on substrate."
-          },
-          {
-            "id": "A1-S5",
-            "name": "Electroporation (Tri-Drop)",
-            "inputs": ["cartridgeLoad", "FC_Oil"],
-            "operation": "mix (abstracts Tri-Drop circuit formation + pulse delivery)",
-            "voltage_V": 550,
-            "pulse_duration_ms": 2,
-            "pulses": 2,
-            "notes": "FC_Oil abstracts flanking DMFection Buffer droplets in BioScript. Pulse delivery instantaneous."
-          },
-          {
-            "id": "A1-S6",
-            "name": "Offload and post-KO culture",
-            "inputs": ["electroporatedCells", "BasalTCellMedia", "IL2_200IU"],
-            "operation": "mix + heat",
-            "temperature_C": 37,
-            "duration_s": 259200,
-            "duration_human": "3 days",
-            "format": "96-well round-bottom plate"
-          },
-          {
-            "id": "A1-S7",
-            "name": "Knockout detection (flow cytometry)",
-            "inputs": ["kulturedCells"],
-            "operation": "detect knockoutDetection",
-            "detection_duration_s": 30,
-            "stains": ["anti-TCR alpha/beta", "Ghost Dye Violet 510", "CD4", "CD8"],
-            "instrument": "Attune NxT",
-            "results": {
-              "CD4_TRAC_KO_pct": { "mean": 90.41, "sd": 3.27 },
-              "CD8_TRAC_KO_pct": { "mean": 91.87, "sd": 3.13 },
-              "viability_TRAC_RNP_pct": { "mean": 97.23, "sd": 0.28 },
-              "viability_NTC_RNP_pct": { "mean": 97.83, "sd": 0.09 },
-              "Regulatory_T_cell_TRAC_KO_pct": { "mean": 76.78, "sd": 8.62 },
-              "Regulatory_T_cell_viability_pct": { "mean": 97.22, "sd": 0.89 }
-            },
-            "branch": {
-              "pass": { "condition": "knockoutSignal > 0", "action": "dispose(kulturedCells)", "next_bb": "BB4" },
-              "fail": { "condition": "knockoutSignal <= 0", "action": "drain(kulturedCells)", "next_bb": "BB4" }
-            }
-          }
-        ]
-      },
-
-      {
-        "id": "ARM2",
-        "name": "GFP Knock-In at TRAC Locus via HDR (cssDNA and CAR dsDNA)",
-        "cell_type": "Primary human Pan CD3+ T cells (separate donor from ARM 1)",
-        "cells_per_edit": 10000,
-        "target_locus": "TRAC",
-        "purpose": "Validate HDR-mediated knock-in of 4 kb GFP cssDNA and 3 kb anti-HER2 CAR dsDNA at low cell input (Fig. 2D/E)",
-        "bioscript_bbs": ["BB4 (knockoutJoin)", "BB5 (knockInPass)", "BB6 (knockInFail)", "BB7 (knockInJoin)"],
-        "steps": [
-          {
-            "id": "A2-S1",
-            "name": "T cell activation (Dynabead protocol, separate donor)",
-            "inputs": ["CD4_T_Cells", "BasalTCellMedia", "IL2_200IU", "Dynabeads_CD3_CD28"],
-            "operation": "mix + heat",
-            "temperature_C": 37,
-            "duration_s": 259200,
-            "duration_human": "3 days",
-            "cell_concentration_cells_mL": 250000,
-            "cytokines": { "IL2_IU_mL": 200, "IL7_ng_mL": 10, "IL15_ng_mL": 5 },
-            "notes": "Dynabeads removed magnetically before cartridge loading."
-          },
-          {
-            "id": "A2-S2",
-            "name": "On-ice RNP assembly",
-            "inputs": ["TRAC_sgRNA", "SpCas9_Nuclease"],
-            "operation": "mix + heat",
-            "temperature_C": 4,
-            "duration_s": 1200,
-            "duration_human": "20 min",
-            "sgRNA_total_pmol": 110,
-            "Cas9_total_pmol": 33,
-            "per_edit_sgRNA_pmol": 1.1,
-            "per_edit_Cas9_pmol": 0.33
-          },
-          {
-            "id": "A2-S3",
-            "name": "Cartridge loading (cells + RNP + GFP cssDNA)",
-            "inputs": ["cellSuspension", "rnpAssembly", "GFP_cssDNA_Template"],
-            "operation": "mix (abstracts Assist Plus loading)",
-            "template_concentrations_ug_per_edit": [0.03, 0.06],
-            "volume_per_well_uL": 100
-          },
-          {
-            "id": "A2-S4",
-            "name": "Electroporation (Tri-Drop)",
-            "voltage_V": 500,
-            "pulse_duration_ms": "2 or 4",
-            "pulses": 2,
-            "operation": "mix (abstracts Tri-Drop circuit + pulse)"
-          },
-          {
-            "id": "A2-S5",
-            "name": "Offload and 10-day expansion",
-            "inputs": ["electroporatedCells", "BasalTCellMedia", "IL2_300IU"],
-            "operation": "mix + heat",
-            "temperature_C": 37,
-            "duration_s": 864000,
-            "duration_human": "10 days",
-            "format": "96-well round-bottom plate"
-          },
-          {
-            "id": "A2-S6",
-            "name": "GFP knock-in detection (flow cytometry + fluorescence microscopy)",
-            "operation": "detect knockInDetection",
-            "detection_duration_s": 30,
-            "stains": ["GFP channel", "TRAC KO co-stain", "Ghost Dye Violet 510"],
-            "microscopy": "EVOS Cell Imaging System (Day 10)",
-            "results": {
-              "GFP_pos_0_03ug_500V_2ms_2p_pct": { "mean": 52.37, "sd": 9.70 },
-              "GFP_pos_0_06ug_500V_2ms_2p_pct": { "mean": 41.14, "sd": 9.45 },
-              "GFP_pos_0_03ug_500V_4ms_2p_pct": { "mean": 42.02, "sd": 7.56 },
-              "GFP_pos_0_06ug_500V_4ms_2p_pct": { "mean": 47.99, "sd": 8.24 },
-              "no_template_control_pct": { "mean": 11.21, "sd": 2.83 },
-              "off_chip_control_pct": { "mean": 10.62, "sd": 4.49 },
-              "significance": "p < 0.0001 vs no-template and off-chip controls (One-way ANOVA)"
-            },
-            "branch": {
-              "pass": { "condition": "knockInSignal > 0", "action": "dispose(kulturedCells)", "next_bb": "BB7" },
-              "fail": { "condition": "knockInSignal <= 0", "action": "drain(kulturedCells)", "next_bb": "BB7" }
-            }
-          }
-        ],
-        "antiHER2_CAR_extension": {
-          "template": "3 kb dsDNA anti-HER2 CAR (IDT Alt-R HDR Donor Block)",
-          "concentrations_ng_per_edit": [10, 5, 0.625, 0.0375, 0],
-          "voltage_V": 500,
-          "pulse_duration_ms": 4,
-          "pulses": 2,
-          "HDR_enhancer": "Alt-R HDR Enhancer V2 (IDT), 15 uM in recovery media",
-          "expansion_days": 10,
-          "detection": "Protein L staining (FITC-Protein L, GenScript, 1:300) + CD3 co-stain",
-          "results": {
-            "CAR_expression_max_pct": 40,
-            "CAR_expression_average_pct": 27.03,
-            "viability_all_conditions_pct_min": 55,
-            "significance": "p < 0.001 vs no-template at all concentrations tested"
-          }
-        }
-      },
-
-      {
-        "id": "ARM3",
-        "name": "Arrayed CRISPR-Cas9 Exhaustion Screen in Primary Human CD4+ T Cells",
-        "cell_type": "Primary human CD4+ Helper T cells (AllCells; peripheral blood, negatively selected)",
-        "cells_per_edit": 10000,
-        "total_targets": 45,
-        "total_edits": 192,
-        "replicates_per_target": 4,
-        "cartridge_runs": 4,
-        "purpose": "Identify genetic regulators of CD4+ T cell exhaustion using miniaturized arrayed CRISPR screen at 25x fewer cells and ~50x less Cas9 vs conventional methods (Fig. 3)",
-        "bioscript_bbs": ["BB7 (knockInJoin)", "BB8 (screenPass)", "BB9 (screenFail)", "BB10 (finalCleanup)"],
-        "exhaustion_model": {
-          "method": "Repeated ImmunoCult CD3/CD28 + low-dose IL-2 stimulation every 3 days",
-          "duration_days": 28,
-          "IL2_concentration_IU_mL": 10,
-          "ImmunoCult_concentration_uL_mL": 25,
-          "media_volume_uL": 50,
-          "cycles": 9,
-          "cycle_duration_days": 3,
-          "final_restimulation_h": 48,
-          "rationale": "Gradual acquisition of exhaustion phenotypes; recapitulates in vivo progressive T cell dysfunction"
-        },
-        "screen_targets": {
-          "top_hits_exhaustion_escape": ["SIN3A", "PAF1", "PRDM1", "SETBP1", "STAT1", "LAG3"],
-          "hits_increased_exhaustion": ["SIN3A (also top escape)", "PRDM1", "ID2"],
-          "categories": ["immune checkpoints", "epigenetic regulators", "transcriptional elongation factors", "cytokine signaling"],
-          "other_targets_tested": ["TOX", "NR4A1", "NR4A2", "DNMT3A", "EZH2", "FOXO1", "BATF", "TCF7", "TBX21", "EOMES", "BCL6", "VISTA", "KLRG1", "BLIMP1", "ID3", "ID2", "BRD4", "CDK8", "CDC42", "BAF", "LASS6", "NFA1", "NFA2", "MEF2", "HIF1b", "and others"]
-        },
-        "steps": [
-          {
-            "id": "A3-S1",
-            "name": "CD4+ T cell activation (screen donor, off-chip)",
-            "inputs": ["CD4_T_Cells", "BasalTCellMedia", "IL2_200IU", "ImmunoCult_CD3CD28_Activator"],
-            "operation": "mix + heat",
-            "temperature_C": 37,
-            "duration_s": 259200,
-            "duration_human": "3 days",
-            "cell_concentration_cells_mL": 1250000,
-            "cytokines": { "IL2_IU_mL": 400, "IL7_ng_mL": 25, "IL15_ng_mL": 50 }
-          },
-          {
-            "id": "A3-S2",
-            "name": "Guide pre-deposition for 45-target screen",
-            "tool": "Echo 655 acoustic liquid handler",
-            "volume_per_site_nL": 40,
-            "targets": 45,
-            "replicates": 4,
-            "controls": ["NTC (non-targeting control)", "OCC (off-chip control)"],
-            "total_sites": 192,
-            "operation": "acoustic dispense (abstracted as dispense in BioScript)"
-          },
-          {
-            "id": "A3-S3",
-            "name": "Cartridge loading (cells + SpCas9)",
-            "inputs": ["cellSuspension", "ExhaustionTarget_sgRNA", "SpCas9_Nuclease"],
-            "operation": "mix + heat",
-            "SpCas9_per_edit_pmol": 1.0,
-            "sgRNA_per_edit_pmol": 2.0,
-            "volume_per_well_uL": 100,
-            "pre_pulse_incubation_min": 5,
-            "pre_pulse_temperature_C": 25,
-            "reagent_reduction_vs_conventional": {
-              "cells": "25-50x fewer (10,000 vs 500,000 per edit)",
-              "Cas9": "~100x less (1 pmol vs 100 pmol)",
-              "sgRNA": "~25x less (2 pmol vs 50 pmol)"
-            }
-          },
-          {
-            "id": "A3-S4",
-            "name": "Electroporation (Tri-Drop; 550 V, 2 ms, 2 pulses)",
-            "voltage_V": 550,
-            "pulse_duration_ms": 2,
-            "pulses": 2,
-            "operation": "mix (abstracts Tri-Drop circuit + pulse)"
-          },
-          {
-            "id": "A3-S5",
-            "name": "Post-KO recovery (3 days)",
-            "inputs": ["electroporatedCells", "BasalTCellMedia", "IL2_200IU"],
-            "operation": "mix + heat",
-            "temperature_C": 37,
-            "duration_s": 259200,
-            "duration_human": "3 days",
-            "format": "96-well round-bottom plate"
-          },
-          {
-            "id": "A3-S6",
-            "name": "Chronic exhaustion induction (9 cycles x 3 days; loop unrolled in BioScript)",
-            "inputs": ["BasalTCellMedia", "IL2_10IU", "ImmunoCult_CD3CD28_Activator"],
-            "operation": "9x (mix + heat)",
-            "cycles": [
-              { "label": "Cycle 1", "days": "3-6",   "variable": "stimCells_c1", "duration_s": 259200 },
-              { "label": "Cycle 2", "days": "6-9",   "variable": "stimCells_c2", "duration_s": 259200 },
-              { "label": "Cycle 3", "days": "9-12",  "variable": "stimCells_c3", "duration_s": 259200 },
-              { "label": "Cycle 4", "days": "12-15", "variable": "stimCells_c4", "duration_s": 259200 },
-              { "label": "Cycle 5", "days": "15-18", "variable": "stimCells_c5", "duration_s": 259200 },
-              { "label": "Cycle 6", "days": "18-21", "variable": "stimCells_c6", "duration_s": 259200 },
-              { "label": "Cycle 7", "days": "21-24", "variable": "stimCells_c7", "duration_s": 259200 },
-              { "label": "Cycle 8", "days": "24-27", "variable": "stimCells_c8", "duration_s": 259200 },
-              { "label": "Cycle 9 (final)", "days": "27-28", "variable": "stimCells_c9", "duration_s": 172800, "notes": "48 h final restimulation before Day 28 assay readout" }
-            ],
-            "temperature_C": 37,
-            "bioscript_note": "Loop unrolled as 9 sequential mix+heat pairs; lilott8/BioScript has no repeat/while primitive"
-          },
-          {
-            "id": "A3-S7",
-            "name": "LAG-3 staining (exhaustion phenotype readout)",
-            "inputs": ["stimCells_c9", "PE_LAG3_Stain"],
-            "operation": "mix for 20m + detect exhaustionPhenotypeDetection",
-            "detection_duration_s": 30,
-            "stains": ["PE-LAG3 (BioLegend)", "Ghost Dye Violet 510 (viability)", "CD4 (lineage gate)"],
-            "incubation_min": 20,
-            "incubation_temp_C": 4,
-            "gating": "Live > Singlets > CD4+ > LAG3-negative",
-            "readout": "% LAG3-negative CD4+ T cells (exhaustion escape frequency)",
-            "branch": {
-              "pass": { "condition": "screenSignal > 0 (LAG3- > NTC mean)", "action": "dispose(stainedForFACS)", "next_bb": "BB10" },
-              "fail": { "condition": "screenSignal <= 0", "action": "drain(stainedForFACS)", "next_bb": "BB10" }
-            }
-          },
-          {
-            "id": "A3-S8",
-            "name": "Cytokine ELISA (IFNgamma + TNFalpha)",
-            "inputs": ["screenSignal (supernatant proxy)"],
-            "operation": "detect cytokineDetection",
-            "detection_duration_s": 60,
-            "kits": ["RayBiotech IFNgamma sandwich ELISA", "RayBiotech TNFalpha sandwich ELISA"],
-            "collection_day": 28,
-            "supernatant_window_h": 48,
-            "dilution_factors": [3.84, 2.5],
-            "curve_fit": "4-Parameter Logistic (4PL) regression",
-            "bioscript_note": "cytokineDetection runs on screenSignal variable (detect output used as fluid proxy for supernatant); runs regardless of LAG-3 gate outcome for composite scoring."
-          },
-          {
-            "id": "A3-S9",
-            "name": "Composite exhaustion escape scoring (off-chip, terminal)",
-            "method": "z-score normalization of IFNgamma + TNFalpha + %LAG3-negative CD4+ T cells",
-            "exclusion_criteria": {
-              "viability_threshold_pct": 70,
-              "CD4_frequency_threshold_pct": 90
-            },
-            "top_hits": ["SIN3A", "PAF1", "PRDM1", "SETBP1", "STAT1"],
-            "visualization": "Radar plot per top hit across 3 axes (IFNgamma, TNFalpha, %LAG3-)",
-            "bioscript_bb": "BB10 (finalCleanup/terminal)"
-          }
-        ]
-      }
-    ],
-
     "cfg": {
       "basic_blocks": [
-        { "id": "BB1",  "label": "main",          "type": "entry",        "arm": "ARM1", "contents": "T cell activation, cell wash, sgRNA deposition, cartridge loading, electroporation, post-KO culture, knockoutDetection" },
-        { "id": "BB2",  "label": "bsbbif_2_t",    "type": "branch_true",  "arm": "ARM1", "condition": "knockoutSignal > 0",  "action": "dispose(kulturedCells11[0])" },
-        { "id": "BB3",  "label": "bsbbif_3_f",    "type": "branch_false", "arm": "ARM1", "condition": "knockoutSignal <= 0", "action": "dispose(kulturedCells11[0]) [drain semantics]" },
-        { "id": "BB4",  "label": "bsbbif_4_j",    "type": "join",         "arm": "ARM2", "contents": "dispose knockoutSignal; ARM 2 T cell activation, RNP assembly, cartridge loading, electroporation, 10-day expansion, knockInDetection" },
-        { "id": "BB5",  "label": "bsbbif_5_t",    "type": "branch_true",  "arm": "ARM2", "condition": "knockInSignal > 0",   "action": "dispose(kulturedCells21[0])" },
-        { "id": "BB6",  "label": "bsbbif_6_f",    "type": "branch_false", "arm": "ARM2", "condition": "knockInSignal <= 0",  "action": "dispose(kulturedCells21[0]) [drain semantics]" },
-        { "id": "BB7",  "label": "bsbbif_7_j",    "type": "join",         "arm": "ARM3", "contents": "dispose knockInSignal; ARM 3 CD4+ activation, guide deposition, cartridge loading, electroporation, 3-day recovery, 9x exhaustion cycles, LAG-3 staining, screenSignal detect" },
-        { "id": "BB8",  "label": "bsbbif_8_t",    "type": "branch_true",  "arm": "ARM3", "condition": "screenSignal > 0",    "action": "dispose(stainedForFACS1[0])" },
-        { "id": "BB9",  "label": "bsbbif_9_f",    "type": "branch_false", "arm": "ARM3", "condition": "screenSignal <= 0",   "action": "dispose(stainedForFACS1[0]) [drain semantics]" },
-        { "id": "BB10", "label": "bsbbif_10_j",   "type": "terminal",     "arm": "ARM3", "contents": "detect cytokineDetection on screenSignal; dispose cytokineSignal; dispose screenSignal; NOP" }
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "join"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "7",
+          "label": "bsbbif_7_j",
+          "type": "join"
+        },
+        {
+          "id": "8",
+          "label": "bsbbif_8_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "9",
+          "label": "bsbbif_9_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "10",
+          "label": "bsbbif_10_j",
+          "type": "terminal"
+        }
       ],
       "edges": [
-        ["BB1","BB2"], ["BB1","BB3"],
-        ["BB2","BB4"], ["BB3","BB4"],
-        ["BB4","BB5"], ["BB4","BB6"],
-        ["BB5","BB7"], ["BB6","BB7"],
-        ["BB7","BB8"], ["BB7","BB9"],
-        ["BB8","BB10"],["BB9","BB10"]
-      ],
-      "total_nodes": 10,
-      "total_edges": 12,
-      "if_else_gates": 3
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ],
+        [
+          "7",
+          "8"
+        ],
+        [
+          "7",
+          "9"
+        ],
+        [
+          "8",
+          "10"
+        ],
+        [
+          "9",
+          "10"
+        ]
+      ]
     },
-
-    "bioscript": {
-      "filename": "patel_dropgenie_dmf_crispr_screen.bs",
-      "compiler": "lilott8/BioScript (ANTLR4-based)",
-      "ir_output": "patel_dropgenie_dmf_crispr_screen.ir",
-      "dag_output": "patel_dropgenie_dmf_crispr_screen_main_dag.dot",
-      "modules": [
-        "transfectionEfficiencyDetection",
-        "knockoutDetection",
-        "knockInDetection",
-        "exhaustionPhenotypeDetection",
-        "cytokineDetection"
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(kulturedCells11[0])\nbsbbif_3_f:\n\tdispose(kulturedCells11[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(knockoutSignal1[0])\n\tbasalMedia21[0] = dispense(BasalTCellMedia)\n\til2KI1[0] = dispense(IL2_200IU)\n\tcd3Cells21[0] = dispense(CD4_T_Cells)\n\tactivationMix21[0] = mix(basalMedia21[0], il2KI1[0]) @ 5.0SECOND\n\tactivatedCells21[0] = mix(cd3Cells21[0], activationMix21[0]) @ 5.0SECOND\n\theat(activatedCells21[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tdmfBuffer21[0] = dispense(DMFectionBuffer)\n\tsurfactantBuf21[0] = dispense(SurfactantF_Buffer)\n\ttransfectionBuf21[0] = mix(dmfBuffer21[0], surfactantBuf21[0]) @ 5.0SECOND\n\tcellSuspension21[0] = mix(activatedCells21[0], transfectionBuf21[0]) @ 5.0SECOND\n\ttracSgRNA21[0] = dispense(TRAC_sgRNA)\n\tcas9Load21[0] = dispense(SpCas9_Nuclease)\n\trnpAssembly21[0] = mix(tracSgRNA21[0], cas9Load21[0]) @ 5.0SECOND\n\theat(rnpAssembly21[0]) @ 4.0CELSIUS @ 1200.0SECOND\n\tgfpTemplate1[0] = dispense(GFP_cssDNA_Template)\n\trnpTemplateMix21[0] = mix(rnpAssembly21[0], gfpTemplate1[0]) @ 5.0SECOND\n\tcartridgeLoad21[0] = mix(cellSuspension21[0], rnpTemplateMix21[0]) @ 5.0SECOND\n\toilBuffer21[0] = dispense(FC_Oil)\n\telectroporatedCells21[0] = mix(cartridgeLoad21[0], oilBuffer21[0]) @ 2.0SECOND\n\trecoveryMedia21[0] = dispense(BasalTCellMedia)\n\til2Recovery21[0] = dispense(IL2_200IU)\n\trecoveryMix21[0] = mix(recoveryMedia21[0], il2Recovery21[0]) @ 5.0SECOND\n\tkulturedCells21[0] = mix(electroporatedCells21[0], recoveryMix21[0]) @ 5.0SECOND\n\theat(kulturedCells21[0]) @ 37.0CELSIUS @ 864000.0SECOND\n\tknockInSignal1[0] = detect(knockInDetection, kulturedCells21[0]) @ 30.0SECOND\n\tif knockInSignal1[0] > 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nmain:\n\tbasalMedia1[0] = dispense(BasalTCellMedia)\n\til2Stock1[0] = dispense(IL2_200IU)\n\tactivator1[0] = dispense(ImmunoCult_CD3CD28_Activator)\n\tcd4Cells1[0] = dispense(CD4_T_Cells)\n\tactivationMedia1[0] = mix(basalMedia1[0], il2Stock1[0]) @ 5.0SECOND\n\tactivationMix1[0] = mix(activationMedia1[0], activator1[0]) @ 5.0SECOND\n\tactivatedCells1[0] = mix(cd4Cells1[0], activationMix1[0]) @ 5.0SECOND\n\theat(activatedCells1[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tdmfBuffer11[0] = dispense(DMFectionBuffer)\n\tsurfactantBuf11[0] = dispense(SurfactantF_Buffer)\n\ttransfectionBuf11[0] = mix(dmfBuffer11[0], surfactantBuf11[0]) @ 5.0SECOND\n\tcellSuspension11[0] = mix(activatedCells1[0], transfectionBuf11[0]) @ 5.0SECOND\n\ttracSgRNA11[0] = dispense(TRAC_sgRNA)\n\tcas9Load11[0] = dispense(SpCas9_Nuclease)\n\trnpMix11[0] = mix(tracSgRNA11[0], cas9Load11[0]) @ 5.0SECOND\n\tcartridgeLoad11[0] = mix(cellSuspension11[0], rnpMix11[0]) @ 5.0SECOND\n\theat(cartridgeLoad11[0]) @ 25.0CELSIUS @ 300.0SECOND\n\toilBuffer11[0] = dispense(FC_Oil)\n\telectroporatedCells11[0] = mix(cartridgeLoad11[0], oilBuffer11[0]) @ 2.0SECOND\n\trecoveryMedia11[0] = dispense(BasalTCellMedia)\n\til2Recovery11[0] = dispense(IL2_200IU)\n\trecoveryMix11[0] = mix(recoveryMedia11[0], il2Recovery11[0]) @ 5.0SECOND\n\tkulturedCells11[0] = mix(electroporatedCells11[0], recoveryMix11[0]) @ 5.0SECOND\n\theat(kulturedCells11[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tknockoutSignal1[0] = detect(knockoutDetection, kulturedCells11[0]) @ 30.0SECOND\n\tif knockoutSignal1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbif_5_t:\n\tdispose(kulturedCells21[0])\nbsbbif_6_f:\n\tdispose(kulturedCells21[0])\n\tjump: bsbbif_7_j\nbsbbif_7_j:\n\tdispose(knockInSignal1[0])\n\tbasalMedia31[0] = dispense(BasalTCellMedia)\n\til2Screen1[0] = dispense(IL2_200IU)\n\tcd4Cells31[0] = dispense(CD4_T_Cells)\n\tactivationMix31[0] = mix(basalMedia31[0], il2Screen1[0]) @ 5.0SECOND\n\tactivatedCells31[0] = mix(cd4Cells31[0], activationMix31[0]) @ 5.0SECOND\n\theat(activatedCells31[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tdmfBuffer31[0] = dispense(DMFectionBuffer)\n\tsurfactantBuf31[0] = dispense(SurfactantF_Buffer)\n\ttransfectionBuf31[0] = mix(dmfBuffer31[0], surfactantBuf31[0]) @ 5.0SECOND\n\tcellSuspension31[0] = mix(activatedCells31[0], transfectionBuf31[0]) @ 5.0SECOND\n\tscreenSgRNA1[0] = dispense(ExhaustionTarget_sgRNA)\n\tcas9Screen1[0] = dispense(SpCas9_Nuclease)\n\tscreenRnpMix1[0] = mix(screenSgRNA1[0], cas9Screen1[0]) @ 5.0SECOND\n\tcartridgeLoad31[0] = mix(cellSuspension31[0], screenRnpMix1[0]) @ 5.0SECOND\n\theat(cartridgeLoad31[0]) @ 25.0CELSIUS @ 300.0SECOND\n\toilBuffer31[0] = dispense(FC_Oil)\n\telectroporatedCells31[0] = mix(cartridgeLoad31[0], oilBuffer31[0]) @ 2.0SECOND\n\trecoveryMedia31[0] = dispense(BasalTCellMedia)\n\til2Recovery31[0] = dispense(IL2_200IU)\n\trecoveryMix31[0] = mix(recoveryMedia31[0], il2Recovery31[0]) @ 5.0SECOND\n\trecoveredCells31[0] = mix(electroporatedCells31[0], recoveryMix31[0]) @ 5.0SECOND\n\theat(recoveredCells31[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tstimMedia_c11[0] = dispense(BasalTCellMedia)\n\til2_c11[0] = dispense(IL2_10IU)\n\tactivator_c11[0] = dispense(ImmunoCult_CD3CD28_Activator)\n\tstimMix_c11[0] = mix(stimMedia_c11[0], il2_c11[0]) @ 5.0SECOND\n\tstimMix_c1b1[0] = mix(stimMix_c11[0], activator_c11[0]) @ 5.0SECOND\n\tstimCells_c11[0] = mix(recoveredCells31[0], stimMix_c1b1[0]) @ 5.0SECOND\n\theat(stimCells_c11[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tstimMedia_c21[0] = dispense(BasalTCellMedia)\n\til2_c21[0] = dispense(IL2_10IU)\n\tactivator_c21[0] = dispense(ImmunoCult_CD3CD28_Activator)\n\tstimMix_c21[0] = mix(stimMedia_c21[0], il2_c21[0]) @ 5.0SECOND\n\tstimMix_c2b1[0] = mix(stimMix_c21[0], activator_c21[0]) @ 5.0SECOND\n\tstimCells_c21[0] = mix(stimCells_c11[0], stimMix_c2b1[0]) @ 5.0SECOND\n\theat(stimCells_c21[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tstimMedia_c31[0] = dispense(BasalTCellMedia)\n\til2_c31[0] = dispense(IL2_10IU)\n\tactivator_c31[0] = dispense(ImmunoCult_CD3CD28_Activator)\n\tstimMix_c31[0] = mix(stimMedia_c31[0], il2_c31[0]) @ 5.0SECOND\n\tstimMix_c3b1[0] = mix(stimMix_c31[0], activator_c31[0]) @ 5.0SECOND\n\tstimCells_c31[0] = mix(stimCells_c21[0], stimMix_c3b1[0]) @ 5.0SECOND\n\theat(stimCells_c31[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tstimMedia_c41[0] = dispense(BasalTCellMedia)\n\til2_c41[0] = dispense(IL2_10IU)\n\tactivator_c41[0] = dispense(ImmunoCult_CD3CD28_Activator)\n\tstimMix_c41[0] = mix(stimMedia_c41[0], il2_c41[0]) @ 5.0SECOND\n\tstimMix_c4b1[0] = mix(stimMix_c41[0], activator_c41[0]) @ 5.0SECOND\n\tstimCells_c41[0] = mix(stimCells_c31[0], stimMix_c4b1[0]) @ 5.0SECOND\n\theat(stimCells_c41[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tstimMedia_c51[0] = dispense(BasalTCellMedia)\n\til2_c51[0] = dispense(IL2_10IU)\n\tactivator_c51[0] = dispense(ImmunoCult_CD3CD28_Activator)\n\tstimMix_c51[0] = mix(stimMedia_c51[0], il2_c51[0]) @ 5.0SECOND\n\tstimMix_c5b1[0] = mix(stimMix_c51[0], activator_c51[0]) @ 5.0SECOND\n\tstimCells_c51[0] = mix(stimCells_c41[0], stimMix_c5b1[0]) @ 5.0SECOND\n\theat(stimCells_c51[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tstimMedia_c61[0] = dispense(BasalTCellMedia)\n\til2_c61[0] = dispense(IL2_10IU)\n\tactivator_c61[0] = dispense(ImmunoCult_CD3CD28_Activator)\n\tstimMix_c61[0] = mix(stimMedia_c61[0], il2_c61[0]) @ 5.0SECOND\n\tstimMix_c6b1[0] = mix(stimMix_c61[0], activator_c61[0]) @ 5.0SECOND\n\tstimCells_c61[0] = mix(stimCells_c51[0], stimMix_c6b1[0]) @ 5.0SECOND\n\theat(stimCells_c61[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tstimMedia_c71[0] = dispense(BasalTCellMedia)\n\til2_c71[0] = dispense(IL2_10IU)\n\tactivator_c71[0] = dispense(ImmunoCult_CD3CD28_Activator)\n\tstimMix_c71[0] = mix(stimMedia_c71[0], il2_c71[0]) @ 5.0SECOND\n\tstimMix_c7b1[0] = mix(stimMix_c71[0], activator_c71[0]) @ 5.0SECOND\n\tstimCells_c71[0] = mix(stimCells_c61[0], stimMix_c7b1[0]) @ 5.0SECOND\n\theat(stimCells_c71[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tstimMedia_c81[0] = dispense(BasalTCellMedia)\n\til2_c81[0] = dispense(IL2_10IU)\n\tactivator_c81[0] = dispense(ImmunoCult_CD3CD28_Activator)\n\tstimMix_c81[0] = mix(stimMedia_c81[0], il2_c81[0]) @ 5.0SECOND\n\tstimMix_c8b1[0] = mix(stimMix_c81[0], activator_c81[0]) @ 5.0SECOND\n\tstimCells_c81[0] = mix(stimCells_c71[0], stimMix_c8b1[0]) @ 5.0SECOND\n\theat(stimCells_c81[0]) @ 37.0CELSIUS @ 259200.0SECOND\n\tstimMedia_c91[0] = dispense(BasalTCellMedia)\n\til2_c91[0] = dispense(IL2_10IU)\n\tactivator_c91[0] = dispense(ImmunoCult_CD3CD28_Activator)\n\tstimMix_c91[0] = mix(stimMedia_c91[0], il2_c91[0]) @ 5.0SECOND\n\tstimMix_c9b1[0] = mix(stimMix_c91[0], activator_c91[0]) @ 5.0SECOND\n\tstimCells_c91[0] = mix(stimCells_c81[0], stimMix_c9b1[0]) @ 5.0SECOND\n\theat(stimCells_c91[0]) @ 37.0CELSIUS @ 172800.0SECOND\n\tlag3Stain1[0] = dispense(PE_LAG3_Stain)\n\tstainedForFACS1[0] = mix(stimCells_c91[0], lag3Stain1[0]) @ 1200.0SECOND\n\tscreenSignal1[0] = detect(exhaustionPhenotypeDetection, stainedForFACS1[0]) @ 30.0SECOND\n\tif screenSignal1[0] > 0\t|\ttrue: jump bsbbif_8_t\t|\tfalse: jump bsbbif_9_f\nbsbbif_8_t:\n\tdispose(stainedForFACS1[0])\nbsbbif_9_f:\n\tdispose(stainedForFACS1[0])\n\tjump: bsbbif_10_j\nbsbbif_10_j:\n\tcytokineSignal1[0] = detect(cytokineDetection, screenSignal1[0]) @ 60.0SECOND\n\tdispose(cytokineSignal1[0])\n\tdispose(screenSignal1[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "DMFectionBuffer",
+          "source_quote": "Manifests      : DMFectionBuffer, SurfactantF_Buffer, CD4_T_Cells, SpCas9_Nuclease,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "SurfactantF_Buffer",
+          "source_quote": "Manifests      : DMFectionBuffer, SurfactantF_Buffer, CD4_T_Cells, SpCas9_Nuclease,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "CD4_T_Cells",
+          "source_quote": "100 ug/mL (T cells)",
+          "source_location": "description.txt: Electroporation"
+        },
+        {
+          "bs_chemical": "SpCas9_Nuclease",
+          "source_quote": "SpCas9       : 1 pmol per edit",
+          "source_location": "description.txt: - Primary human Pan CD3+ T cells (suspension)"
+        },
+        {
+          "bs_chemical": "TRAC_sgRNA",
+          "source_quote": "Abstraction notes:",
+          "source_location": "description.txt"
+        },
+        {
+          "bs_chemical": "NTC_sgRNA",
+          "source_quote": "sgRNA        : 110 pmol TRAC sgRNA",
+          "source_location": "description.txt: - Primary human Pan CD3+ T cells (suspension)"
+        },
+        {
+          "bs_chemical": "ExhaustionTarget_sgRNA",
+          "source_quote": "sgRNA        : 110 pmol TRAC sgRNA",
+          "source_location": "description.txt: - Primary human Pan CD3+ T cells (suspension)"
+        },
+        {
+          "bs_chemical": "EGFP_mRNA",
+          "source_quote": "TRAC_sgRNA, NTC_sgRNA, ExhaustionTarget_sgRNA, EGFP_mRNA,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "ImmunoCult_CD3CD28_Activator",
+          "source_quote": "ImmunoCult_CD3CD28_Activator, IL2_200IU, IL2_10IU, BasalTCellMedia,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "IL2_200IU",
+          "source_quote": "ImmunoCult_CD3CD28_Activator, IL2_200IU, IL2_10IU, BasalTCellMedia,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "IL2_10IU",
+          "source_quote": "ImmunoCult_CD3CD28_Activator, IL2_200IU, IL2_10IU, BasalTCellMedia,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "BasalTCellMedia",
+          "source_quote": "ImmunoCult_CD3CD28_Activator, IL2_200IU, IL2_10IU, BasalTCellMedia,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "GFP_cssDNA_Template",
+          "source_quote": "ARM 2 encodes GFP cssDNA knock-in.",
+          "source_location": "description.txt: Biological scope notes"
+        },
+        {
+          "bs_chemical": "AntiHER2_CAR_dsDNA_Template",
+          "source_quote": "avoids immunogenic response associated with linear dsDNA.",
+          "source_location": "description.txt: - Primary human Pan CD3+ T cells (suspension)"
+        },
+        {
+          "bs_chemical": "ProteinL_Stain",
+          "source_quote": "PE_LAG3_Stain, FC_Oil",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "PE_LAG3_Stain",
+          "source_quote": "PE_LAG3_Stain, FC_Oil",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "FC_Oil",
+          "source_quote": "PE_LAG3_Stain, FC_Oil",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        }
       ],
-      "manifests": [
-        "DMFectionBuffer", "SurfactantF_Buffer", "CD4_T_Cells", "SpCas9_Nuclease",
-        "TRAC_sgRNA", "NTC_sgRNA", "ExhaustionTarget_sgRNA", "EGFP_mRNA",
-        "ImmunoCult_CD3CD28_Activator", "IL2_200IU", "IL2_10IU", "BasalTCellMedia",
-        "GFP_cssDNA_Template", "AntiHER2_CAR_dsDNA_Template", "ProteinL_Stain",
-        "PE_LAG3_Stain", "FC_Oil"
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "BioScript has no native acoustic dispense primitive.",
+          "source_location": "description.txt: Abstraction notes"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "mix + heat pairs (stimCells_c1 to stimCells_c9).",
+          "source_location": "description.txt: Abstraction notes"
+        },
+        {
+          "bs_operation": "heat",
+          "source_quote": "mix + heat pairs (stimCells_c1 to stimCells_c9).",
+          "source_location": "description.txt: Abstraction notes"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "Step 21 | Cytokine Secretion Readout (ELISA)",
+          "source_location": "description.txt: - Primary human Pan CD3+ T cells (suspension)"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "false-branch paths route waste to drain reservoir.",
+          "source_location": "description.txt: Abstraction notes"
+        },
+        {
+          "bs_operation": "drain",
+          "source_quote": "knockInSignal <= 0 -> drain",
+          "source_location": "description.txt: - Primary human Pan CD3+ T cells (suspension)"
+        },
+        {
+          "bs_operation": "repeat",
+          "source_quote": "lilott8/BioScript has no repeat/while primitive.",
+          "source_location": "description.txt: Abstraction notes"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "IR output      : 10 basic blocks, 3 if/else gates, 12 CFG edges",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        }
       ],
-      "duration_conversions": {
-        "3_days":  { "bioscript": "4320m",  "ir_seconds": 259200.0, "use": "T cell activation (ARM1 pre-step, ARM2 S1, ARM3 S1); post-KO recovery; exhaustion cycles 1-8" },
-        "20_min":  { "bioscript": "20m",    "ir_seconds": 1200.0,   "use": "On-ice RNP assembly (ARM2 S2)" },
-        "5_min":   { "bioscript": "5m",     "ir_seconds": 300.0,    "use": "Pre-pulse incubation at 25 C (ARM1 S4, ARM3 S3)" },
-        "10_days": { "bioscript": "14400m", "ir_seconds": 864000.0, "use": "Post-KI expansion (ARM2 S5)" },
-        "48_h":    { "bioscript": "2880m",  "ir_seconds": 172800.0, "use": "Final exhaustion re-stimulation cycle 9 (ARM3 S6)" },
-        "20_min_staining": { "bioscript": "20m", "ir_seconds": 1200.0, "use": "LAG-3 staining incubation (ARM3 S7)" }
-      },
-      "abstraction_notes": {
-        "mix_at_loading": "Abstracts Assist Plus 8-channel pipette loading into DropGenie cartridge wells; not bulk reagent mixing",
-        "mix_with_FC_Oil": "Abstracts Tri-Drop circuit formation (flanking DMFection Buffer droplets on electrode array); electroporation pulse implicit in merge event",
-        "heat_25C_5m": "Abstracts 5-min room-temperature pre-pulse incubation on substrate",
-        "heat_4C_20m": "Abstracts on-ice RNP complexing before cartridge loading",
-        "dispense_sgRNA": "Abstracts Echo 655 acoustic pre-deposition (40 nL dry spots with PGA carrier); BioScript has no native acoustic dispense primitive",
-        "loop_unrolling": "9 chronic exhaustion cycles unrolled as 9 sequential mix+heat pairs (stimCells_c1 to stimCells_c9); lilott8/BioScript has no repeat/while primitive",
-        "drain_vs_dispose": "drain in .bs source compiles to dispose in IR; compiler treats both identically at IR level; drain semantics annotated in comments",
-        "cytokineDetection_fluid": "cytokineDetection run on screenSignal variable (a detect output) as a proxy for the supernatant cytokine readout; enables downstream disposal in terminal BB"
-      },
-      "dispense_counts_from_ir": {
-        "BasalTCellMedia": 15,
-        "ImmunoCult_CD3CD28_Activator": 10,
-        "IL2_10IU": 9,
-        "IL2_200IU": 6,
-        "CD4_T_Cells": 3,
-        "DMFectionBuffer": 3,
-        "SurfactantF_Buffer": 3,
-        "SpCas9_Nuclease": 3,
-        "FC_Oil": 3,
-        "TRAC_sgRNA": 2,
-        "ExhaustionTarget_sgRNA": 1,
-        "GFP_cssDNA_Template": 1,
-        "PE_LAG3_Stain": 1
-      },
-      "ir_verified": true,
-      "unresolved_variables": 0,
-      "brace_balance": "6 open / 6 close",
-      "terminal_NOP": true,
-      "all_jump_targets_resolved": true
-    }
+      "numeric_mismatches": [
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 72 hour(s) vs BioScript encodes 4320m — converted hours to minutes for BioScript grammar compatibility."
+        },
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 72 hour(s) vs BioScript encodes 4320m — converted hours to minutes for BioScript grammar compatibility."
+        },
+        {
+          "field": "reaction_temperature",
+          "note": "Description specifies room temperature vs BioScript encodes 37c — nominal ambient temperature encoding."
+        }
+      ]
+    },
+    "notes": "This protocol details Miniaturized Scalable Arrayed CRISPR Screening in Primary Cells Enables. The assay is performed on a DropGenie Digital Microfluidics (DMF) Electroporation System platform. Detection and quantification are carried out using % LAG3-negative CD4+ T cells (exhaustion escape frequency)."
   }
 }

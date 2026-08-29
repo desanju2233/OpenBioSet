@@ -1,66 +1,230 @@
 {
+  "_schema": "biogpt-v4",
   "messages": [
-    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
-    { "role": "user", "content": "ASSAY TYPE: Digital Microfluidics (DMF) Coupled to HPLC-MS/MS for Quantification of Steroid Hormones in Core Needle Biopsy (CNB) Tissue Samples\n\nREAGENTS USED:\n  - Core Needle Biopsy tissue sample (2-8 mg human breast tissue, or rat abdominal fat tissue for method validation)\n  - Lysing solvent (dichloromethane:acetone, 80:20, 25 uL droplets)\n  - Extraction solvent (mixture B: deuterated internal standards estradiol-d3, androstenedione-d7, testosterone-d3, progesterone-d9, 2 ng/mL each, in methanol, 25 uL droplets)\n  - Methanol (for porous polymer monolith disc activation)\n  - Porous Polymer Monolith (PPM) disc (C12-functionalized solid-phase extraction matrix)\n  - Dansyl chloride derivatization reagent (1:1 mixture of 1 mg/mL dansyl chloride in acetone and 100 mM sodium bicarbonate, pH 10.7)\n  - Methanol/DI water (50:50 dilution solvent for HPLC injection)\n\nSTEPS:\n1. Setup: Position a tissue sample and a PPM disc on a DMF device bottom plate; pipette a 25 uL droplet of lysing solvent (DCM:acetone 80:20) onto the sample and allow it to evaporate (~30 s); assemble the device with a top plate.\n2. Extraction: Load 25 uL of extraction solvent (mixture B, containing deuterated internal standards) into a reservoir and drive it onto the tissue sample; actuate the droplet in a clockwise circular motion across the tissue for 5 min, then incubate statically for 10 min.\n3. PPM Activation: Dispense a droplet of methanol onto the PPM disc, incubate for 5 min, then drive the remaining methanol to waste.\n4. Cleanup (SPE): Drive the sample-extract droplet back and forth across the activated PPM disc for 2 min, then drive it away to a collection reservoir.\n5. Repeat: Repeat the extraction (Step 2) and cleanup (Steps 3-4) cycle a total of four times, pooling the four resulting extract droplets; allow the pooled extract to dry at room temperature (~30 min).\n6. Derivatization: Reconstitute the dried pooled extract in 25 uL of a 1:1 mixture of 1 mg/mL dansyl chloride in acetone and 100 mM sodium bicarbonate (pH 10.7); incubate in a 60 C water bath for 5 min.\n7. Dilution: Mix with 25 uL of 50:50 methanol/DI water and transfer to a vial/96-well plate for analysis.\n8. Detection: Analyze by HPLC-MS/MS (electrospray ionization, positive mode, multiple reaction monitoring) using a 22 min gradient run, quantifying estradiol, androstenedione, testosterone, and progesterone from the analyte/internal-standard peak-area ratio against a calibration curve.\n\nINTERPRETATION: Successful steroid hormone quantification is confirmed by linear calibration curves (R^2 = 0.9967-0.9997) for all four hormones with limits of detection/quantification of 3.6/13.2, 1.6/5.4, 5.8/20.2, and 8.5/27.0 fmol for estradiol, androstenedione, testosterone, and progesterone respectively; extraction efficiencies for the DMF method (65.3%, 80.3%, and 89.1% for estradiol, androstenedione, and testosterone) comparable to conventional macroscale extraction; and measured hormone levels in human CNB breast tissue samples that differ significantly by menopausal status and hormone/aromatase-inhibitor therapy, supporting use of the method for personalized dosing and timing of antihormone or hormone-replacement therapies." },
-    { "role": "assistant", "content": "module fluorescence\n\nmanifest tissue_sample\nmanifest lysing_solvent\nmanifest extraction_solvent\nmanifest methanol\nmanifest spe_matrix\nmanifest dansyl_reagent\nmanifest methanol_water\n\ninstructions:\n\n// Step 1: position tissue + PPM disc, lyse with DCM:acetone (80:20), evaporate\ntissue = dispense tissue_sample\nlyse = dispense 25 units of lysing_solvent\nlysed = mix tissue with lyse for 30s\ndispose lysed\n\n// PPM disc activation with methanol prior to first cleanup cycle\nspe = dispense spe_matrix\nprime = dispense 25 units of methanol\nprimed_spe = mix spe with prime for 5m\ndispose primed_spe\n\n// Step 2 (first cycle): extraction solvent (mixture B) driven onto tissue,\n// 5 min circular actuation + 10 min static incubation\nes0 = dispense 25 units of extraction_solvent\next0 = mix tissue with es0 for 5m\nheat ext0 at 25c for 10m\n\n// Step 4 (first cycle): SPE cleanup on PPM disc (2 min back-and-forth actuation)\npooled_extract = mix ext0 with spe for 2m\n\n// Step 5: repeat extraction + cleanup cycle 3 more times (4 total), pooling extracts\nrepeat 3 times {\n    es = dispense 25 units of extraction_solvent\n    ext = mix tissue with es for 5m\n    heat ext at 25c for 10m\n    clean = mix ext with spe for 2m\n    pooled_extract = mix pooled_extract with clean for 1s\n}\n\n// Step 5: dry pooled extract at room temperature (~30 min)\nheat pooled_extract at 25c for 30m\n\n// Step 6: dansylation derivatization, 60 C water bath for 5 min\ndansyl = dispense dansyl_reagent\nderivatized = mix pooled_extract with dansyl for 5s\nheat derivatized at 60c for 5m\n\n// Step 7: dilute with 50:50 methanol/DI water for HPLC injection\ndiluent = dispense 25 units of methanol_water\nfinal_sample = mix derivatized with diluent for 5s\n\n// Step 8: HPLC-MS/MS analysis (22 min gradient run) quantifying the four steroids\nhormone_signal = detect fluorescence on final_sample for 22m\n\nif (hormone_signal <= 0) {\n    dispose final_sample\n}\n\ndispose final_sample" }
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "Source link: https://microfluidics.utoronto.ca/papers/ac5043297.pdf\nPaper DOI: https://doi.org/10.1021/ac5043297\n\nProtocol details:\n\nASSAY TYPE: Digital Microfluidics (DMF) Coupled to HPLC-MS/MS for Quantification of Steroid Hormones in Core Needle Biopsy (CNB) Tissue Samples\n\nREAGENTS USED:\n  - Core Needle Biopsy tissue sample (2-8 mg human breast tissue, or rat abdominal fat tissue for method validation)\n  - Lysing solvent (dichloromethane:acetone, 80:20, 25 uL droplets)\n  - Extraction solvent (mixture B: deuterated internal standards estradiol-d3, androstenedione-d7, testosterone-d3, progesterone-d9, 2 ng/mL each, in methanol, 25 uL droplets)\n  - Methanol (for porous polymer monolith disc activation)\n  - Porous Polymer Monolith (PPM) disc (C12-functionalized solid-phase extraction matrix)\n  - Dansyl chloride derivatization reagent (1:1 mixture of 1 mg/mL dansyl chloride in acetone and 100 mM sodium bicarbonate, pH 10.7)\n  - Methanol/DI water (50:50 dilution solvent for HPLC injection)\n\nSTEPS:\n1. Setup: Position a tissue sample and a PPM disc on a DMF device bottom plate; pipette a 25 uL droplet of lysing solvent (DCM:acetone 80:20) onto the sample and allow it to evaporate (~30 s); assemble the device with a top plate.\n2. Extraction: Load 25 uL of extraction solvent (mixture B, containing deuterated internal standards) into a reservoir and drive it onto the tissue sample; actuate the droplet in a clockwise circular motion across the tissue for 5 min, then incubate statically for 10 min.\n3. PPM Activation: Dispense a droplet of methanol onto the PPM disc, incubate for 5 min, then drive the remaining methanol to waste.\n4. Cleanup (SPE): Drive the sample-extract droplet back and forth across the activated PPM disc for 2 min, then drive it away to a collection reservoir.\n5. Repeat: Repeat the extraction (Step 2) and cleanup (Steps 3-4) cycle a total of four times, pooling the four resulting extract droplets; allow the pooled extract to dry at room temperature (~30 min).\n6. Derivatization: Reconstitute the dried pooled extract in 25 uL of a 1:1 mixture of 1 mg/mL dansyl chloride in acetone and 100 mM sodium bicarbonate (pH 10.7); incubate in a 60 C water bath for 5 min.\n7. Dilution: Mix with 25 uL of 50:50 methanol/DI water and transfer to a vial/96-well plate for analysis.\n8. Detection: Analyze by HPLC-MS/MS (electrospray ionization, positive mode, multiple reaction monitoring) using a 22 min gradient run, quantifying estradiol, androstenedione, testosterone, and progesterone from the analyte/internal-standard peak-area ratio against a calibration curve.\n\nINTERPRETATION: Successful steroid hormone quantification is confirmed by linear calibration curves (R^2 = 0.9967-0.9997) for all four hormones with limits of detection/quantification of 3.6/13.2, 1.6/5.4, 5.8/20.2, and 8.5/27.0 fmol for estradiol, androstenedione, testosterone, and progesterone respectively; extraction efficiencies for the DMF method (65.3%, 80.3%, and 89.1% for estradiol, androstenedione, and testosterone) comparable to conventional macroscale extraction; and measured hormone levels in human CNB breast tissue samples that differ significantly by menopausal status and hormone/aromatase-inhibitor therapy, supporting use of the method for personalized dosing and timing of antihormone or hormone-replacement therapies.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest tissue_sample\nmanifest lysing_solvent\nmanifest extraction_solvent\nmanifest methanol\nmanifest spe_matrix\nmanifest dansyl_reagent\nmanifest methanol_water\n\ninstructions:\n\ntissue = dispense tissue_sample\nlyse = dispense 25 units of lysing_solvent\nlysed = mix tissue with lyse for 30s\ndispose lysed\n\nspe = dispense spe_matrix\nprime = dispense 25 units of methanol\nprimed_spe = mix spe with prime for 5m\ndispose primed_spe\n\nes0 = dispense 25 units of extraction_solvent\next0 = mix tissue with es0 for 5m\nheat ext0 at 25c for 10m\npooled_extract = mix ext0 with spe for 2m\n\nrepeat 3 times {\n    es = dispense 25 units of extraction_solvent\n    ext = mix tissue with es for 5m\n    heat ext at 25c for 10m\n    clean = mix ext with spe for 2m\n    pooled_extract = mix pooled_extract with clean for 1s\n}\n\nheat pooled_extract at 25c for 30m\n\ndansyl = dispense dansyl_reagent\nderivatized = mix pooled_extract with dansyl for 5s\nheat derivatized at 60c for 5m\n\ndiluent = dispense 25 units of methanol_water\nfinal_sample = mix derivatized with diluent for 5s\n\nhormone_signal = detect fluorescence on final_sample for 22m\n\nif (hormone_signal <= 0) {\n    dispose final_sample\n}\n\ndispose final_sample\n"
+    }
   ],
   "metadata": {
-    "protocol_id": "dmf_hplcmsms_cnb_steroid_quantification_001",
-    "bs_file": "tests/test_cases/cnb_steroid_extraction/cnb_steroid_extraction.bs",
-    "protocol_name": "Digital Microfluidic Quantification of Steroid Hormones in Core Needle Biopsies (Kim et al. 2015)",
-    "category": "hormone_quantification_assay",
-    "chemicals": [
-      "tissue_sample",
-      "lysing_solvent",
-      "extraction_solvent",
-      "methanol",
-      "spe_matrix",
-      "dansyl_reagent",
-      "methanol_water"
-    ],
-    "operations": [
-      "dispense",
-      "mix",
-      "heat",
-      "detect",
-      "repeat",
-      "if",
-      "dispose"
-    ],
-    "validation_score": 0.0,
-    "validated": false,
-    "validation_status": "pending_v2",
-    "adaptation_status": "adapted_authored",
-    "sources": [
-      { "type": "original_protocol", "title": "A Microfluidic Technique for Quantification of Steroids in Core Needle Biopsies", "publisher": "Analytical Chemistry", "url": "https://microfluidics.utoronto.ca/papers/ac5043297.pdf", "doi": "10.1021/ac5043297" }
-    ],
-    "notes": "The authored BioScript code is a direct translation of the paper's DMF sample-processing procedure (Experimental Section, 'DMF Sample Processing'; Figure 2), covering on-chip lysis, four cycles of extraction plus PPM-disc solid-phase extraction cleanup, pooling and drying of the extract, off-chip-style dansyl chloride derivatization, dilution, and HPLC-MS/MS analysis. Droplet volumes (25 uL), incubation times (5 min circular actuation, 10 min static incubation, 2 min SPE actuation, 60 C/5 min derivatization), and the 22 min HPLC gradient run time are taken directly from the Experimental section. Because BioScript has no primitive for a persistent solid substrate, both the tissue sample and the PPM disc are modeled as dispensed manifest reagents ('tissue_sample', 'spe_matrix') whose variable handles are reused across mix operations, rather than as consumable droplets. The first extraction/cleanup cycle is written explicitly (to initialize the 'pooled_extract' variable) and the remaining three cycles are captured with 'repeat 3 times', together representing the paper's four total extraction cycles. Because the paper's detection modality is HPLC-MS/MS (not a fluorogenic readout), the 'detect fluorescence' primitive is used as a stand-in for the generic detect-and-quantify step, representing the analyte/internal-standard peak-area ratio rather than an actual fluorescence signal, since BioScript's grammar does not expose a dedicated mass-spectrometry detect module.",
+    "identity": {
+      "protocol_id": "dmf_hplcmsms_cnb_steroid_quantification_001",
+      "protocol_name": "Digital Microfluidic Quantification of Steroid Hormones in Core Needle Biopsies (Kim et al. 2015)",
+      "category": "drug_detection",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Digital Microfluidics (DMF) Coupled to HPLC-MS/MS for Quantification of Steroid Hormones in Core Needle Biopsy (CNB) Tissue Samples",
+      "publisher": null,
+      "doi": "10.1021/ac5043297",
+      "url": "https://microfluidics.utoronto.ca/papers/ac5043297.pdf",
+      "platform": "Digital Microfluidics (DMF)"
+    },
+    "bioscript": {
+      "manifests": [
+        "tissue_sample",
+        "lysing_solvent",
+        "extraction_solvent",
+        "methanol",
+        "spe_matrix",
+        "dansyl_reagent",
+        "methanol_water"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "repeat",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": true,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 26
+      }
+    },
+    "cfg": {
+      "basic_blocks": [
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbr_2_h",
+          "type": "sequential"
+        },
+        {
+          "id": "3",
+          "label": "3",
+          "type": "sequential"
+        },
+        {
+          "id": "4",
+          "label": "4",
+          "type": "sequential"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "terminal"
+        }
+      ],
+      "edges": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "2",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "2"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "6"
+        ]
+      ]
+    },
+    "ir": {
+      "content": "main:\n\ttissue1[0] = dispense(tissue_sample)\n\tlyse1[0] = dispense(lysing_solvent)\n\tlysed1[0] = mix(tissue1[0], lyse1[0]) @ 30.0SECOND\n\tdispose(lysed1[0])\n\tspe1[0] = dispense(spe_matrix)\n\tprime1[0] = dispense(methanol)\n\tprimed_spe1[0] = mix(spe1[0], prime1[0]) @ 300.0SECOND\n\tdispose(primed_spe1[0])\n\tes01[0] = dispense(extraction_solvent)\n\text01[0] = mix(tissue1[0], es01[0]) @ 300.0SECOND\n\theat(ext01[0]) @ 25.0CELSIUS @ 600.0SECOND\n\tpooled_extract1[0] = mix(ext01[0], spe1[0]) @ 120.0SECOND\nbsbbr_2_h:\n\tPHI REPEAT_31 = {REPEAT_30,REPEAT_32}\n\tPHI clean1 = {clean0,clean2}\n\tPHI ext1 = {ext0,ext2}\n\tPHI es1 = {es0,es2}\n\tPHI pooled_extract2 = {pooled_extract1,pooled_extract3}\n\tif REPEAT_31[0] > 0\t|\ttrue: jump bsbbr_3_t\t|\tfalse: jump bsbbr_4_f\nbsbbr_3_t:\n\tes2[0] = dispense(extraction_solvent)\n\text2[0] = mix(tissue1[0], es2[0]) @ 300.0SECOND\n\theat(ext2[0]) @ 25.0CELSIUS @ 600.0SECOND\n\tclean2[0] = mix(ext2[0], spe1[0]) @ 120.0SECOND\n\tpooled_extract3[0] = mix(pooled_extract2[0], clean2[0]) @ 1.0SECOND\n\tREPEAT_32[0] = REPEAT_31[0] - 1\nbsbbr_4_f:\n\theat(pooled_extract2[0]) @ 25.0CELSIUS @ 1800.0SECOND\n\tdansyl1[0] = dispense(dansyl_reagent)\n\tderivatized1[0] = mix(pooled_extract2[0], dansyl1[0]) @ 5.0SECOND\n\theat(derivatized1[0]) @ 60.0CELSIUS @ 300.0SECOND\n\tdiluent1[0] = dispense(methanol_water)\n\tfinal_sample1[0] = mix(derivatized1[0], diluent1[0]) @ 5.0SECOND\n\thormone_signal1[0] = detect(fluorescence, final_sample1[0]) @ 1320.0SECOND\n\tif hormone_signal1[0] <= 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nbsbbif_5_t:\n\tdispose(final_sample1[0])\nbsbbif_6_f:\n\tPHI final_sample2 = {final_sample1,final_sample}\n\tdispose(final_sample2[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
     "evidence": {
       "chemical_evidence": [
-        { "bs_chemical": "tissue_sample", "source_quote": "a tissue sample and a PPM disc were positioned on a DMF", "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing" },
-        { "bs_chemical": "lysing_solvent", "source_quote": "lysing solvent (dichloromethane/acetone 80:20) was pipetted onto the sample", "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing" },
-        { "bs_chemical": "extraction_solvent", "source_quote": "a dilution of mixture B ... was loaded into a reservoir", "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing" },
-        { "bs_chemical": "methanol", "source_quote": "PPM disc was activated by dispensing a droplet of methanol", "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing" },
-        { "bs_chemical": "spe_matrix", "source_quote": "sample-extract droplet was actuated back and forth across the PPM disc", "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing" },
-        { "bs_chemical": "dansyl_reagent", "source_quote": "reconstituted in a mixture of dansyl chloride and sodium bicarbonate", "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing" },
-        { "bs_chemical": "methanol_water", "source_quote": "mixed with 25 uL of 50:50 methanol/DI water", "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing" }
+        {
+          "bs_chemical": "tissue_sample",
+          "source_quote": "a tissue sample and a PPM disc were positioned on a DMF",
+          "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing"
+        },
+        {
+          "bs_chemical": "lysing_solvent",
+          "source_quote": "lysing solvent (dichloromethane/acetone 80:20) was pipetted onto the sample",
+          "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing"
+        },
+        {
+          "bs_chemical": "extraction_solvent",
+          "source_quote": "a dilution of mixture B ... was loaded into a reservoir",
+          "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing"
+        },
+        {
+          "bs_chemical": "methanol",
+          "source_quote": "PPM disc was activated by dispensing a droplet of methanol",
+          "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing"
+        },
+        {
+          "bs_chemical": "spe_matrix",
+          "source_quote": "sample-extract droplet was actuated back and forth across the PPM disc",
+          "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing"
+        },
+        {
+          "bs_chemical": "dansyl_reagent",
+          "source_quote": "reconstituted in a mixture of dansyl chloride and sodium bicarbonate",
+          "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing"
+        },
+        {
+          "bs_chemical": "methanol_water",
+          "source_quote": "mixed with 25 uL of 50:50 methanol/DI water",
+          "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing"
+        }
       ],
       "operation_evidence": [
-        { "bs_operation": "lysed = mix tissue with lyse for 30s", "source_quote": "lysing solvent was pipetted onto the sample and allowed to evaporate", "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing" },
-        { "bs_operation": "repeat 3 times { ... pooled_extract = mix pooled_extract with clean }", "source_quote": "process described above was repeated for four times, generating four", "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing" },
-        { "bs_operation": "heat ext at 25c for 10m", "source_quote": "incubated statically for 10 min", "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing" },
-        { "bs_operation": "clean = mix ext with spe for 2m", "source_quote": "actuated back and forth across the PPM disc for 2 min", "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing" },
-        { "bs_operation": "heat derivatized at 60c for 5m", "source_quote": "incubated in a 60 C water bath for 5 min", "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing" },
-        { "bs_operation": "hormone_signal = detect fluorescence on final_sample for 22m", "source_quote": "total run time of 22 min", "source_location": "EXPERIMENTAL SECTION: HPLC-MS/MS" }
+        {
+          "bs_operation": "lysed = mix tissue with lyse for 30s",
+          "source_quote": "lysing solvent was pipetted onto the sample and allowed to evaporate",
+          "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing"
+        },
+        {
+          "bs_operation": "repeat 3 times { ... pooled_extract = mix pooled_extract with clean }",
+          "source_quote": "process described above was repeated for four times, generating four",
+          "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing"
+        },
+        {
+          "bs_operation": "heat ext at 25c for 10m",
+          "source_quote": "incubated statically for 10 min",
+          "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing"
+        },
+        {
+          "bs_operation": "clean = mix ext with spe for 2m",
+          "source_quote": "actuated back and forth across the PPM disc for 2 min",
+          "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing"
+        },
+        {
+          "bs_operation": "heat derivatized at 60c for 5m",
+          "source_quote": "incubated in a 60 C water bath for 5 min",
+          "source_location": "EXPERIMENTAL SECTION: DMF Sample Processing"
+        },
+        {
+          "bs_operation": "hormone_signal = detect fluorescence on final_sample for 22m",
+          "source_quote": "total run time of 22 min",
+          "source_location": "EXPERIMENTAL SECTION: HPLC-MS/MS"
+        }
       ],
       "numeric_mismatches": [
-        { "field": "spe_matrix re-dispensed and reused as a variable handle", "note": "The PPM disc is a single physical solid-phase support that remains on-chip across all four cleanup cycles; BioScript has no persistent-substrate primitive, so it is modeled as a dispensed manifest reagent whose handle is reused in each mix, rather than a consumable droplet." },
-        { "field": "hormone_signal = detect fluorescence", "note": "Detection in the paper is HPLC-MS/MS (MRM transitions for estradiol, androstenedione, testosterone, and progesterone against their deuterated internal standards), not a fluorogenic assay. 'fluorescence' is used here only because it is the sole detect module exposed by BioScript's grammar; it stands in for the analyte/IS peak-area ratio readout, not an actual fluorescence measurement." },
-        { "field": "heat pooled_extract at 25c for 30m", "note": "This step represents the paper's room-temperature air-drying of the pooled extract (~30 min), not active heating; BioScript has no dedicated 'dry'/'evaporate' primitive, so 'heat' at ambient temperature is used as a stand-in." },
-        { "field": "first extraction cycle written outside the repeat block", "note": "The first of the four extraction/cleanup cycles is coded explicitly to initialize the 'pooled_extract' variable, and the remaining three are captured via 'repeat 3 times', jointly representing the paper's four total cycles rather than a single 'repeat 4 times' block." },
-        { "field": "off-chip E2 derivatization step", "note": "The paper notes that estradiol derivatization was performed off-chip to avoid acetone evaporation at elevated temperature; this distinction is not modeled, and dansylation is represented as a single on-chip mix/heat sequence applied to the pooled extract." },
-        { "field": "rat-tissue extraction-efficiency validation, macroscale comparison method, 32-sample human CNB statistical analysis (Table 1, ANOVA)", "note": "Not modeled. These are validation, comparison, or statistical-analysis experiments run alongside the core DMF assay, not part of the on-chip extraction/cleanup/derivatization/detection sequence itself, and fall outside the scope of this translation." }
+        {
+          "field": "spe_matrix re-dispensed and reused as a variable handle",
+          "note": "The PPM disc is a single physical solid-phase support that remains on-chip across all four cleanup cycles; BioScript has no persistent-substrate primitive, so it is modeled as a dispensed manifest reagent whose handle is reused in each mix, rather than a consumable droplet."
+        },
+        {
+          "field": "hormone_signal = detect fluorescence",
+          "note": "Detection in the paper is HPLC-MS/MS (MRM transitions for estradiol, androstenedione, testosterone, and progesterone against their deuterated internal standards), not a fluorogenic assay. 'fluorescence' is used here only because it is the sole detect module exposed by BioScript's grammar; it stands in for the analyte/IS peak-area ratio readout, not an actual fluorescence measurement."
+        },
+        {
+          "field": "heat pooled_extract at 25c for 30m",
+          "note": "This step represents the paper's room-temperature air-drying of the pooled extract (~30 min), not active heating; BioScript has no dedicated 'dry'/'evaporate' primitive, so 'heat' at ambient temperature is used as a stand-in."
+        },
+        {
+          "field": "first extraction cycle written outside the repeat block",
+          "note": "The first of the four extraction/cleanup cycles is coded explicitly to initialize the 'pooled_extract' variable, and the remaining three are captured via 'repeat 3 times', jointly representing the paper's four total cycles rather than a single 'repeat 4 times' block."
+        },
+        {
+          "field": "off-chip E2 derivatization step",
+          "note": "The paper notes that estradiol derivatization was performed off-chip to avoid acetone evaporation at elevated temperature; this distinction is not modeled, and dansylation is represented as a single on-chip mix/heat sequence applied to the pooled extract."
+        },
+        {
+          "field": "rat-tissue extraction-efficiency validation, macroscale comparison method, 32-sample human CNB statistical analysis (Table 1, ANOVA)",
+          "note": "Not modeled. These are validation, comparison, or statistical-analysis experiments run alongside the core DMF assay, not part of the on-chip extraction/cleanup/derivatization/detection sequence itself, and fall outside the scope of this translation."
+        }
       ]
-    }
+    },
+    "notes": "This protocol details Digital Microfluidics (DMF) Coupled to HPLC-MS/MS for Quantification of Steroid Hormones in Core Needle Biopsy (CNB) Tissue Samples. The assay is performed on a Digital Microfluidics (DMF) platform. Key reagents used in the assay include Core Needle Biopsy tissue sample and Lysing solvent."
   }
 }

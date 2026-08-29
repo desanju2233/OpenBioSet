@@ -1,64 +1,191 @@
 {
+  "_schema": "biogpt-v4",
   "messages": [
-    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
-    { "role": "user", "content": "ASSAY TYPE: Droplet Microfluidic DNA Bisulfite Conversion (BSC) Module Using Magnetic Bead-Based Methylation on Beads (MOB) Chemistry\n\nREAGENTS USED:\n  - Extracted Genomic DNA (gDNA) sample (2 uL per reaction)\n  - Ammonium Bisulfite / Zymo Lightning Conversion Reagent (13 uL, sulfonation and hydrolytic deamination of unmethylated cytosine)\n  - Silica-Coated Superparamagnetic Beads (SSBs, Promega Magnesil KF MD, 5 uL, solid-phase DNA capture and transport medium)\n  - M-Binding Buffer (60 uL, adsorbs sulfonated DNA onto the silica bead surface)\n  - Wash Ethanol (40 uL, removes residual bisulfite reagent)\n  - M-Desulphonation Buffer (20 uL, sodium hydroxide solution that desulfonates uracil-sulfonate into stable uracil)\n  - M-Wash Buffer (40 uL x2, removes residual sodium hydroxide)\n  - Elution Buffer / Tris-EDTA Buffer (releases purified, bisulfite-converted DNA from the SSBs)\n\nSTEPS:\n1. Mix 2 uL of extracted gDNA with 13 uL of Lightning Conversion (bisulfite) reagent and 5 uL of SSBs to form a droplet; load into the first reservoir chamber of the droplet chip.\n2. Heat the droplet to 95 C for 8 min to denature the DNA sample into single-stranded DNA.\n3. Lower the temperature to 54 C for 1 h to allow the bisulfite to complete deamination of unmethylated cytosine and sulfonation, yielding uracil-sulfonate.\n4. Merge the droplet with a 60 uL droplet of M-binding buffer (transported across an open channel by the magnetically-actuated SSB cluster) and briefly incubate to allow the sulfonated DNA to adsorb onto the silica surface of the beads.\n5. Transport the SSBs (separated from the reagent droplet across a narrow sieve structure by magnetic force) into a 40 uL ethanol wash droplet to eliminate any remaining bisulfite reagent.\n6. Transport the SSBs into a 20 uL M-desulphonation buffer droplet; this alkali solution desulfonates the uracil-sulfonate into stable uracil bases.\n7. Wash the SSBs twice, transporting them sequentially into two separate 40 uL M-wash buffer droplets to remove residual sodium hydroxide.\n8. Transport the SSBs into the elution (Tris-EDTA) buffer droplet and reverse the DNA-binding process (removing the magnet to allow the beads to disperse and release DNA) to elute the purified, bisulfite-converted DNA.\n9. Decant the SSBs into the previous well (magnetically separating the beads from the eluted-DNA droplet) and retrieve the final droplet containing purified, bisulfite-converted DNA from the chip for downstream analysis (e.g., MethyLight qPCR using methylation-specific primers and TaqMan probes).\n\nINTERPRETATION: Successful on-chip bisulfite conversion is confirmed by comparable qPCR cycle threshold (CT) values between the BSC chip and the standard in-tube MOB process (28.34 vs. 28.45, SD 0.14 vs. 0.25) using conversion-specific beta-Actin primers, absence of amplification in the unconverted negative control, and a strong linear relationship (R^2 > 0.99) between input DNA quantity (1-100 ng) and normalized recovered DNA quantity for both methylated and unmethylated ADAMTS1-targeting primer sets, with low variability across replicate lanes and devices, demonstrating that the droplet-based chip matches benchtop bisulfite conversion performance while substantially reducing pipetting steps and processing time." },
-    { "role": "assistant", "content": "module fluorescence\n\nmanifest gdna_sample\nmanifest bisulfite_reagent\nmanifest ssb_beads\nmanifest binding_buffer\nmanifest wash_ethanol\nmanifest desulfonation_buffer\nmanifest wash_buffer\nmanifest elution_buffer\n\ninstructions:\n\n// Step i: Sulfonation & deamination - combine genomic DNA, ammonium\n// bisulfite (Zymo Lightning Conversion reagent), and silica-coated\n// superparamagnetic beads (SSBs) into the first droplet\ndna = dispense 2 units of gdna_sample\nbisulfite = dispense 13 units of bisulfite_reagent\nbeads = dispense 5 units of ssb_beads\n\nsample_mix = mix dna with bisulfite for 10s\nreaction_droplet = mix sample_mix with beads for 10s\n\n// Denature sample into single-stranded DNA\nheat reaction_droplet at 95c for 8m\n\n// Bisulfite-mediated deamination of unmethylated cytosine and sulfonation\n// to yield uracil-sulfonate\nheat reaction_droplet at 54c for 60m\n\n// Step ii: DNA binding - merge with M-binding buffer droplet across the\n// open channel and briefly incubate to adsorb DNA onto the silica bead\n// surface (SSBs transported by magnetic actuation)\nbinding = dispense 60 units of binding_buffer\nbound_droplet = mix reaction_droplet with binding for 30s\nheat bound_droplet at 23c for 5m\n\n// Step iii: Wash - SSBs separated across the sieve structure and\n// transported into an ethanol wash droplet to remove residual bisulfite\nethanol = dispense 40 units of wash_ethanol\nwash1_droplet = mix bound_droplet with ethanol for 15s\ndispose wash1_droplet\n\n// Step iv: Desulfonation - SSBs transported into M-desulphonation buffer\n// (sodium hydroxide) droplet to convert uracil-sulfonate into stable uracil\ndesulf = dispense 20 units of desulfonation_buffer\ndesulf_droplet = mix reaction_droplet with desulf for 15s\nheat desulf_droplet at 23c for 10m\n\n// Steps v-vi: Wash twice in M-wash buffer droplets to remove residual\n// sodium hydroxide\nwash2 = dispense 40 units of wash_buffer\nwash2_droplet = mix desulf_droplet with wash2 for 15s\ndispose wash2_droplet\n\nwash3 = dispense 40 units of wash_buffer\nwash3_droplet = mix desulf_droplet with wash3 for 15s\ndispose wash3_droplet\n\n// Step vii: Elution - transport SSBs into Tris-EDTA elution buffer droplet\n// and reverse the binding process to release purified, bisulfite-converted\n// DNA from the beads\nelution = dispense 20 units of elution_buffer\neluted_droplet = mix desulf_droplet with elution for 5m\n\n// Step viii: Removal of beads - decant SSBs into the previous well,\n// retrieving the purified converted-DNA droplet for downstream analysis\n// (e.g., MethyLight qPCR)\nconversion_signal = detect fluorescence on eluted_droplet for 30s\n\nif (conversion_signal < 50) {\n    dispose eluted_droplet\n}" }
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "Source link: https://pmc.ncbi.nlm.nih.gov/articles/PMC6586411\nPaper DOI: https://doi.org/10.1007/s10544-015-0029-8\n\nProtocol details:\n\nASSAY TYPE: Droplet Microfluidic DNA Bisulfite Conversion (BSC) Module Using Magnetic Bead-Based Methylation on Beads (MOB) Chemistry\n\nREAGENTS USED:\n  - Extracted Genomic DNA (gDNA) sample (2 uL per reaction)\n  - Ammonium Bisulfite / Zymo Lightning Conversion Reagent (13 uL, sulfonation and hydrolytic deamination of unmethylated cytosine)\n  - Silica-Coated Superparamagnetic Beads (SSBs, Promega Magnesil KF MD, 5 uL, solid-phase DNA capture and transport medium)\n  - M-Binding Buffer (60 uL, adsorbs sulfonated DNA onto the silica bead surface)\n  - Wash Ethanol (40 uL, removes residual bisulfite reagent)\n  - M-Desulphonation Buffer (20 uL, sodium hydroxide solution that desulfonates uracil-sulfonate into stable uracil)\n  - M-Wash Buffer (40 uL x2, removes residual sodium hydroxide)\n  - Elution Buffer / Tris-EDTA Buffer (releases purified, bisulfite-converted DNA from the SSBs)\n\nSTEPS:\n1. Mix 2 uL of extracted gDNA with 13 uL of Lightning Conversion (bisulfite) reagent and 5 uL of SSBs to form a droplet; load into the first reservoir chamber of the droplet chip.\n2. Heat the droplet to 95 C for 8 min to denature the DNA sample into single-stranded DNA.\n3. Lower the temperature to 54 C for 1 h to allow the bisulfite to complete deamination of unmethylated cytosine and sulfonation, yielding uracil-sulfonate.\n4. Merge the droplet with a 60 uL droplet of M-binding buffer (transported across an open channel by the magnetically-actuated SSB cluster) and briefly incubate to allow the sulfonated DNA to adsorb onto the silica surface of the beads.\n5. Transport the SSBs (separated from the reagent droplet across a narrow sieve structure by magnetic force) into a 40 uL ethanol wash droplet to eliminate any remaining bisulfite reagent.\n6. Transport the SSBs into a 20 uL M-desulphonation buffer droplet; this alkali solution desulfonates the uracil-sulfonate into stable uracil bases.\n7. Wash the SSBs twice, transporting them sequentially into two separate 40 uL M-wash buffer droplets to remove residual sodium hydroxide.\n8. Transport the SSBs into the elution (Tris-EDTA) buffer droplet and reverse the DNA-binding process (removing the magnet to allow the beads to disperse and release DNA) to elute the purified, bisulfite-converted DNA.\n9. Decant the SSBs into the previous well (magnetically separating the beads from the eluted-DNA droplet) and retrieve the final droplet containing purified, bisulfite-converted DNA from the chip for downstream analysis (e.g., MethyLight qPCR using methylation-specific primers and TaqMan probes).\n\nINTERPRETATION: Successful on-chip bisulfite conversion is confirmed by comparable qPCR cycle threshold (CT) values between the BSC chip and the standard in-tube MOB process (28.34 vs. 28.45, SD 0.14 vs. 0.25) using conversion-specific beta-Actin primers, absence of amplification in the unconverted negative control, and a strong linear relationship (R^2 > 0.99) between input DNA quantity (1-100 ng) and normalized recovered DNA quantity for both methylated and unmethylated ADAMTS1-targeting primer sets, with low variability across replicate lanes and devices, demonstrating that the droplet-based chip matches benchtop bisulfite conversion performance while substantially reducing pipetting steps and processing time.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest gdna_sample\nmanifest bisulfite_reagent\nmanifest ssb_beads\nmanifest binding_buffer\nmanifest wash_ethanol\nmanifest desulfonation_buffer\nmanifest wash_buffer\nmanifest elution_buffer\n\ninstructions:\n\n// Step i: Sulfonation & deamination - combine genomic DNA, ammonium\n// bisulfite (Zymo Lightning Conversion reagent), and silica-coated\n// superparamagnetic beads (SSBs) into the first droplet\ndna = dispense 2 units of gdna_sample\nbisulfite = dispense 13 units of bisulfite_reagent\nbeads = dispense 5 units of ssb_beads\n\nsample_mix = mix dna with bisulfite for 10s\nreaction_droplet = mix sample_mix with beads for 10s\n\n// Denature sample into single-stranded DNA\nheat reaction_droplet at 95c for 8m\n\n// Bisulfite-mediated deamination of unmethylated cytosine and sulfonation\n// to yield uracil-sulfonate\nheat reaction_droplet at 54c for 60m\n\n// Step ii: DNA binding - merge with M-binding buffer droplet across the\n// open channel and briefly incubate to adsorb DNA onto the silica bead\n// surface (SSBs transported by magnetic actuation)\nbinding = dispense 60 units of binding_buffer\nbound_droplet = mix reaction_droplet with binding for 30s\nheat bound_droplet at 23c for 5m\n\n// Step iii: Wash - SSBs separated across the sieve structure and\n// transported into an ethanol wash droplet to remove residual bisulfite\nethanol = dispense 40 units of wash_ethanol\nwash1_droplet = mix bound_droplet with ethanol for 15s\ndispose wash1_droplet\n\n// Step iv: Desulfonation - SSBs transported into M-desulphonation buffer\n// (sodium hydroxide) droplet to convert uracil-sulfonate into stable uracil\ndesulf = dispense 20 units of desulfonation_buffer\ndesulf_droplet = mix reaction_droplet with desulf for 15s\nheat desulf_droplet at 23c for 10m\n\n// Steps v-vi: Wash twice in M-wash buffer droplets to remove residual\n// sodium hydroxide\nwash2 = dispense 40 units of wash_buffer\nwash2_droplet = mix desulf_droplet with wash2 for 15s\ndispose wash2_droplet\n\nwash3 = dispense 40 units of wash_buffer\nwash3_droplet = mix desulf_droplet with wash3 for 15s\ndispose wash3_droplet\n\n// Step vii: Elution - transport SSBs into Tris-EDTA elution buffer droplet\n// and reverse the binding process to release purified, bisulfite-converted\n// DNA from the beads\nelution = dispense 20 units of elution_buffer\neluted_droplet = mix desulf_droplet with elution for 5m\n\n// Step viii: Removal of beads - decant SSBs into the previous well,\n// retrieving the purified converted-DNA droplet for downstream analysis\n// (e.g., MethyLight qPCR)\nconversion_signal = detect fluorescence on eluted_droplet for 30s\n\nif (conversion_signal < 50) {\n    dispose eluted_droplet\n}\n"
+    }
   ],
   "metadata": {
-    "protocol_id": "bsc_droplet_mob_001",
-    "bs_file": "tests/test_cases/bsc_droplet_mob/bsc_droplet_mob.bs",
-    "protocol_name": "A Parallelized Microfluidic DNA Bisulfite Conversion Module for Streamlined Methylation Analysis (Stark et al. 2016)",
-    "category": "nucleic_acid_processing_assay",
-    "chemicals": [
-      "gdna_sample",
-      "bisulfite_reagent",
-      "ssb_beads",
-      "binding_buffer",
-      "wash_ethanol",
-      "desulfonation_buffer",
-      "wash_buffer",
-      "elution_buffer"
-    ],
-    "operations": [
-      "dispense",
-      "mix",
-      "heat",
-      "detect",
-      "if",
-      "dispose"
-    ],
-    "validation_score": 0.0,
-    "validated": false,
-    "validation_status": "pending_v2",
-    "adaptation_status": "adapted_authored",
-    "sources": [
-      { "type": "original_protocol", "title": "A parallelized microfluidic DNA bisulfite conversion module for streamlined methylation analysis", "publisher": "Biomedical Microdevices", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6586411", "doi": "10.1007/s10544-015-0029-8" }
-    ],
-    "notes": "The authored BioScript code translates the eight-step droplet-based MOB workflow described in Section 2.1 'Droplet-based bisulfite conversion' and depicted in Fig. 2a-c/Fig. 3. Reagent volumes (2 uL gDNA, 13 uL bisulfite, 5 uL SSBs, 60 uL binding buffer, 40 uL ethanol, 20 uL desulfonation buffer, 40 uL x2 wash buffer), temperatures, and durations (95C/8min denaturation, 54C/1h deamination/sulfonation) are taken directly from the source text. Because BioScript has no primitive for magnetic-bead actuation (droplet merging via SSB surface tension, bead separation across a narrow sieve structure by magnetic force, or bead dispersion by magnet removal), each of these bead-transport mechanisms is folded into standard 'mix'/'dispose' operations rather than modeled as distinct magnetofluidic actions; specifically, washing steps are represented as the bead-carrying reaction droplet being re-mixed with the next reagent while the prior (used) reagent droplet is disposed, approximating how the SSB cluster physically leaves each chamber while the depleted aqueous droplet is left behind. Incubation durations not explicitly stated in the text (DNA-binding adsorption, desulfonation incubation, elution) use short illustrative durations, since the paper describes these as 'brief' incubations without giving exact times. The final detect/if/dispose block stands in for the paper's actual downstream confirmation step (MethyLight qPCR using methylation-specific primers and TaqMan probes), since BioScript exposes only a generic 'detect fluorescence' module rather than a qPCR-specific primitive. Chip fabrication (PDMS molding from a 3D-printed ABS master, oxygen-plasma bonding to a glass coverslip, Teflon hydrophobic coating), the thermoelectric temperature-control hardware, the parallel three-lane chip layout, and the qPCR master-mix composition/thermocycling protocol used for performance evaluation are hardware-fabrication or downstream-analysis details with no corresponding BioScript primitive and are not modeled.",
+    "identity": {
+      "protocol_id": "bsc_droplet_mob_001",
+      "protocol_name": "A Parallelized Microfluidic DNA Bisulfite Conversion Module for Streamlined Methylation Analysis (Stark et al. 2016)",
+      "category": "nucleic_acid_amplification",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Droplet Microfluidic DNA Bisulfite Conversion (BSC) Module Using Magnetic Bead-Based Methylation on Beads (MOB) Chemistry",
+      "publisher": null,
+      "doi": "10.1007/s10544-015-0029-8",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6586411",
+      "platform": "qPCR Thermocycler"
+    },
+    "bioscript": {
+      "manifests": [
+        "gdna_sample",
+        "bisulfite_reagent",
+        "ssb_beads",
+        "binding_buffer",
+        "wash_ethanol",
+        "desulfonation_buffer",
+        "wash_buffer",
+        "elution_buffer"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 26
+      }
+    },
+    "cfg": {
+      "basic_blocks": [
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "terminal"
+        }
+      ],
+      "edges": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "3"
+        ]
+      ]
+    },
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(eluted_droplet1[0])\nbsbbif_3_f:\n\tPHI eluted_droplet2 = {eluted_droplet1,eluted_droplet}\n\tNOP\nmain:\n\tdna1[0] = dispense(gdna_sample)\n\tbisulfite1[0] = dispense(bisulfite_reagent)\n\tbeads1[0] = dispense(ssb_beads)\n\tsample_mix1[0] = mix(dna1[0], bisulfite1[0]) @ 10.0SECOND\n\treaction_droplet1[0] = mix(sample_mix1[0], beads1[0]) @ 10.0SECOND\n\theat(reaction_droplet1[0]) @ 95.0CELSIUS @ 480.0SECOND\n\theat(reaction_droplet1[0]) @ 54.0CELSIUS @ 3600.0SECOND\n\tbinding1[0] = dispense(binding_buffer)\n\tbound_droplet1[0] = mix(reaction_droplet1[0], binding1[0]) @ 30.0SECOND\n\theat(bound_droplet1[0]) @ 23.0CELSIUS @ 300.0SECOND\n\tethanol1[0] = dispense(wash_ethanol)\n\twash1_droplet1[0] = mix(bound_droplet1[0], ethanol1[0]) @ 15.0SECOND\n\tdispose(wash1_droplet1[0])\n\tdesulf1[0] = dispense(desulfonation_buffer)\n\tdesulf_droplet1[0] = mix(reaction_droplet1[0], desulf1[0]) @ 15.0SECOND\n\theat(desulf_droplet1[0]) @ 23.0CELSIUS @ 600.0SECOND\n\twash21[0] = dispense(wash_buffer)\n\twash2_droplet1[0] = mix(desulf_droplet1[0], wash21[0]) @ 15.0SECOND\n\tdispose(wash2_droplet1[0])\n\twash31[0] = dispense(wash_buffer)\n\twash3_droplet1[0] = mix(desulf_droplet1[0], wash31[0]) @ 15.0SECOND\n\tdispose(wash3_droplet1[0])\n\telution1[0] = dispense(elution_buffer)\n\teluted_droplet1[0] = mix(desulf_droplet1[0], elution1[0]) @ 300.0SECOND\n\tconversion_signal1[0] = detect(fluorescence, eluted_droplet1[0]) @ 30.0SECOND\n\tif conversion_signal1[0] < 50\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
     "evidence": {
       "chemical_evidence": [
-        { "bs_chemical": "gdna_sample", "source_quote": "On-chip sample processing begins by first mixing 2 μl of extracted genomic DNA (gDNA)", "source_location": "Methods: 2.1 Droplet-based bisulfite conversion" },
-        { "bs_chemical": "bisulfite_reagent", "source_quote": "13 μl of the Lightning Conversion reagent (Zymo)", "source_location": "Methods: 2.1 Droplet-based bisulfite conversion" },
-        { "bs_chemical": "ssb_beads", "source_quote": "5 μl of SSB (Promega Magnesil KF MD) to form a droplet that is then loaded into the first reservoir", "source_location": "Methods: 2.1 Droplet-based bisulfite conversion" },
-        { "bs_chemical": "binding_buffer", "source_quote": "the droplet is mixed together with a 60 μl droplet of M-binding buffer (step ii) and briefly incubated to allow the DNA to adsorb onto the silica surface of the beads", "source_location": "Methods: 2.1 Droplet-based bisulfite conversion" },
-        { "bs_chemical": "wash_ethanol", "source_quote": "The SSB are then washed with 40 μl ethanol (step iii) to eliminate any remaining bisulfite reagent", "source_location": "Methods: 2.1 Droplet-based bisulfite conversion" },
-        { "bs_chemical": "desulfonation_buffer", "source_quote": "before being transported into a 20 μl M-desulphonation buffer droplet (step iv). This alkali solution desulfonates the uracil-sulfonate into stable uracil bases", "source_location": "Methods: 2.1 Droplet-based bisulfite conversion" },
-        { "bs_chemical": "wash_buffer", "source_quote": "The SSB are washed twice in 40 μl M-wash buffer droplets (steps v and vii) in order to remove any residual sodium hydroxide from the solution", "source_location": "Methods: 2.1 Droplet-based bisulfite conversion" },
-        { "bs_chemical": "elution_buffer", "source_quote": "the remaining DNA is eluted from the SSB into Tris-EDTA buffer (step vii)", "source_location": "Methods: 2.1 Droplet-based bisulfite conversion" }
+        {
+          "bs_chemical": "gdna_sample",
+          "source_quote": "On-chip sample processing begins by first mixing 2 μl of extracted genomic DNA (gDNA)",
+          "source_location": "Methods: 2.1 Droplet-based bisulfite conversion"
+        },
+        {
+          "bs_chemical": "bisulfite_reagent",
+          "source_quote": "13 μl of the Lightning Conversion reagent (Zymo)",
+          "source_location": "Methods: 2.1 Droplet-based bisulfite conversion"
+        },
+        {
+          "bs_chemical": "ssb_beads",
+          "source_quote": "5 μl of SSB (Promega Magnesil KF MD) to form a droplet that is then loaded into the first reservoir",
+          "source_location": "Methods: 2.1 Droplet-based bisulfite conversion"
+        },
+        {
+          "bs_chemical": "binding_buffer",
+          "source_quote": "the droplet is mixed together with a 60 μl droplet of M-binding buffer (step ii) and briefly incubated to allow the DNA to adsorb onto the silica surface of the beads",
+          "source_location": "Methods: 2.1 Droplet-based bisulfite conversion"
+        },
+        {
+          "bs_chemical": "wash_ethanol",
+          "source_quote": "The SSB are then washed with 40 μl ethanol (step iii) to eliminate any remaining bisulfite reagent",
+          "source_location": "Methods: 2.1 Droplet-based bisulfite conversion"
+        },
+        {
+          "bs_chemical": "desulfonation_buffer",
+          "source_quote": "before being transported into a 20 μl M-desulphonation buffer droplet (step iv). This alkali solution desulfonates the uracil-sulfonate into stable uracil bases",
+          "source_location": "Methods: 2.1 Droplet-based bisulfite conversion"
+        },
+        {
+          "bs_chemical": "wash_buffer",
+          "source_quote": "The SSB are washed twice in 40 μl M-wash buffer droplets (steps v and vii) in order to remove any residual sodium hydroxide from the solution",
+          "source_location": "Methods: 2.1 Droplet-based bisulfite conversion"
+        },
+        {
+          "bs_chemical": "elution_buffer",
+          "source_quote": "the remaining DNA is eluted from the SSB into Tris-EDTA buffer (step vii)",
+          "source_location": "Methods: 2.1 Droplet-based bisulfite conversion"
+        }
       ],
       "operation_evidence": [
-        { "bs_operation": "heat reaction_droplet at 95c for 8m", "source_quote": "The sample is subsequently heated to 95 °C for 8 min in order to denature the sample into single-stranded DNA (ssDNA)", "source_location": "Methods: 2.1 Droplet-based bisulfite conversion" },
-        { "bs_operation": "heat reaction_droplet at 54c for 60m", "source_quote": "The temperature is then lowered to 54 °C for 1 h to allow the bisulfite to complete deamination of unmethylated cytosine and sulfonation to yield uracil-sulfonate", "source_location": "Methods: 2.1 Droplet-based bisulfite conversion" },
-        { "bs_operation": "wash1_droplet = mix bound_droplet with ethanol / dispose wash1_droplet", "source_quote": "The SSB are then washed with 40 μl ethanol (step iii) to eliminate any remaining bisulfite reagent before being transported into a 20 μl M-desulphonation buffer droplet", "source_location": "Methods: 2.1 Droplet-based bisulfite conversion" },
-        { "bs_operation": "eluted_droplet = mix desulf_droplet with elution", "source_quote": "the remaining DNA is eluted from the SSB into Tris-EDTA buffer (step vii) and the SSB are decanted into the previous well to allow the droplet containing purified, bisulfite-converted DNA to be retrieved from the chip for downstream analysis", "source_location": "Methods: 2.1 Droplet-based bisulfite conversion" },
-        { "bs_operation": "conversion_signal = detect fluorescence on eluted_droplet", "source_quote": "the converted products were assessed using a standard Methylight assay", "source_location": "Methods: 2.3 Performance evaluation protocol" }
+        {
+          "bs_operation": "heat reaction_droplet at 95c for 8m",
+          "source_quote": "The sample is subsequently heated to 95 °C for 8 min in order to denature the sample into single-stranded DNA (ssDNA)",
+          "source_location": "Methods: 2.1 Droplet-based bisulfite conversion"
+        },
+        {
+          "bs_operation": "heat reaction_droplet at 54c for 60m",
+          "source_quote": "The temperature is then lowered to 54 °C for 1 h to allow the bisulfite to complete deamination of unmethylated cytosine and sulfonation to yield uracil-sulfonate",
+          "source_location": "Methods: 2.1 Droplet-based bisulfite conversion"
+        },
+        {
+          "bs_operation": "wash1_droplet = mix bound_droplet with ethanol / dispose wash1_droplet",
+          "source_quote": "The SSB are then washed with 40 μl ethanol (step iii) to eliminate any remaining bisulfite reagent before being transported into a 20 μl M-desulphonation buffer droplet",
+          "source_location": "Methods: 2.1 Droplet-based bisulfite conversion"
+        },
+        {
+          "bs_operation": "eluted_droplet = mix desulf_droplet with elution",
+          "source_quote": "the remaining DNA is eluted from the SSB into Tris-EDTA buffer (step vii) and the SSB are decanted into the previous well to allow the droplet containing purified, bisulfite-converted DNA to be retrieved from the chip for downstream analysis",
+          "source_location": "Methods: 2.1 Droplet-based bisulfite conversion"
+        },
+        {
+          "bs_operation": "conversion_signal = detect fluorescence on eluted_droplet",
+          "source_quote": "the converted products were assessed using a standard Methylight assay",
+          "source_location": "Methods: 2.3 Performance evaluation protocol"
+        }
       ],
       "numeric_mismatches": [
-        { "field": "heat bound_droplet at 23c for 5m / heat desulf_droplet at 23c for 10m / eluted_droplet mix for 5m", "note": "The paper describes these as 'brief' incubations (DNA-binding adsorption) or does not specify exact incubation durations for desulfonation and elution beyond the overall step sequence. The specific minute values used are authored illustrative approximations, not literal figures from the source text." },
-        { "field": "magnetic bead actuation (merge/separate/disperse)", "note": "BioScript has no primitive for magnetic-bead-mediated droplet merging, sieve-based bead separation, or magnet-removal dispersion (Fig. 3b). These mechanisms are approximated using standard 'mix' and 'dispose' operations rather than modeled explicitly." },
-        { "field": "conversion_signal = detect fluorescence / if (...) dispose", "note": "Stands in for the paper's actual confirmation method, a MethyLight qPCR assay with methylation-specific primers and TaqMan hybridization probes, since BioScript exposes only a single generic detect module rather than a qPCR-specific primitive. The threshold value of 50 is an illustrative placeholder; the paper's actual metric is qPCR cycle threshold (CT) values (e.g., 28.34 for the chip process)." },
-        { "field": "chip fabrication (PDMS/ABS mold, plasma bonding, Teflon coating), thermoelectric heating hardware, three-lane parallelization, qPCR master mix/thermocycling", "note": "Not modeled. These are one-time hardware-fabrication steps or downstream qPCR-analysis details outside the scope of the core droplet-transport bisulfite-conversion protocol translated here." }
+        {
+          "field": "heat bound_droplet at 23c for 5m / heat desulf_droplet at 23c for 10m / eluted_droplet mix for 5m",
+          "note": "The paper describes these as 'brief' incubations (DNA-binding adsorption) or does not specify exact incubation durations for desulfonation and elution beyond the overall step sequence. The specific minute values used are authored illustrative approximations, not literal figures from the source text."
+        },
+        {
+          "field": "magnetic bead actuation (merge/separate/disperse)",
+          "note": "BioScript has no primitive for magnetic-bead-mediated droplet merging, sieve-based bead separation, or magnet-removal dispersion (Fig. 3b). These mechanisms are approximated using standard 'mix' and 'dispose' operations rather than modeled explicitly."
+        },
+        {
+          "field": "conversion_signal = detect fluorescence / if (...) dispose",
+          "note": "Stands in for the paper's actual confirmation method, a MethyLight qPCR assay with methylation-specific primers and TaqMan hybridization probes, since BioScript exposes only a single generic detect module rather than a qPCR-specific primitive. The threshold value of 50 is an illustrative placeholder; the paper's actual metric is qPCR cycle threshold (CT) values (e.g., 28.34 for the chip process)."
+        },
+        {
+          "field": "chip fabrication (PDMS/ABS mold, plasma bonding, Teflon coating), thermoelectric heating hardware, three-lane parallelization, qPCR master mix/thermocycling",
+          "note": "Not modeled. These are one-time hardware-fabrication steps or downstream qPCR-analysis details outside the scope of the core droplet-transport bisulfite-conversion protocol translated here."
+        }
       ]
-    }
+    },
+    "notes": "This protocol details Droplet Microfluidic DNA Bisulfite Conversion (BSC) Module Using Magnetic Bead-Based Methylation on Beads (MOB) Chemistry. The assay is performed on a qPCR Thermocycler platform. Key reagents used in the assay include Extracted Genomic DNA and Silica-Coated Superparamagnetic Beads."
   }
 }

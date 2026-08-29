@@ -1,471 +1,243 @@
 {
-  "protocol": {
-    "title": "Digital Microfluidic Platform for the Detection of Rubella Infection and Immunity: A Proof of Concept",
-    "source": "Clinical Chemistry 61:2, 420-429 (2015)",
-    "doi": "10.1373/clinchem.2014.232181",
-    "platform": "Digital microfluidics (DMF), air-filled, two-plate configuration with integrated PMT and magnetic lens",
-    "analytes": ["Rubella virus IgG (RV IgG)", "Rubella virus IgM (RV IgM)"],
-    "sample_types": ["Human serum", "Human plasma", "Simulated whole blood (calibrator + defibrinated sheep blood)"],
-    "objective": "On-chip indirect ELISA immunoassays for rubella-specific IgG and IgM from patient serum/plasma, with integrated sample aliquoting, serial dilution, IgG blocking pretreatment, magnetic particle separation, and chemiluminescent detection; evaluated against a 25-sample commercial mixed-titer performance panel",
-
-    "device": {
-      "configuration": "Two-plate (top plate ground + bottom plate electrode array); air-filled gap",
-      "gap_um": 140,
-      "instrument_dimensions": "7 x 9 x 12 inches (~shoebox-sized)",
-      "bottom_plate": {
-        "electrode_count": 80,
-        "electrode_size_mm": 2.54,
-        "electrode_area_mm2": 6.45,
-        "layers": ["Glass substrate", "Chromium electrode", "Insulator (dielectric)", "Hydrophobic coating (Teflon-AF)"],
-        "reservoir_electrodes": "included for sample and reagent storage and waste removal",
-        "fabrication": "University of Toronto Nanofabrication Centre cleanroom"
-      },
-      "top_plate": {
-        "layers": ["Glass", "ITO ground electrode", "Hydrophobic coating (Teflon-AF)"]
-      },
-      "unit_droplet_volume_nL": 900,
-      "actuation": {
-        "voltage_Vrms": "80-100",
-        "frequency_kHz": 10,
-        "waveform": "sine",
-        "interface": "Pogo pin (90 pins)",
-        "controller": "DropBot (open-source DMF automation system)"
-      },
-      "magnetic_lens": {
-        "type": "motorised neodymium magnet assembly",
-        "position_active_um_below_device": 150,
-        "position_inactive_cm_below_device": 3.8,
-        "immobilisation_force_uN": 600,
-        "minimum_release_threshold_uN": 500,
-        "function": "Concentrates paramagnetic particles into pellet in separation zone; deactivation allows droplet resuspension"
-      },
-      "detection": {
-        "type": "Chemiluminescence",
-        "detector": "Motorised photomultiplier tube (PMT)",
-        "pmt_position_active_um_above_device": "few hundred",
-        "pmt_position_inactive_cm_above_device": 5,
-        "integration_time_s": 10,
-        "output_units": "RLU (relative light units)",
-        "light_source_monitoring": "Integrated LED + webcam (when PMT inactive)",
-        "pmt_protection": ["2 position sensors", "shutter mechanism", "deep grooves for light-tight enclosure"]
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "PROTOCOL DESCRIPTION\n====================\n\nTitle        : Digital Microfluidic Platform for the Detection of Rubella Infection and Immunity: A Proof of Concept\nSource Link  : https://microfluidics.utoronto.ca/papers/ClinChemV61I2.pdf\nPaper DOI    : https://doi.org/10.1373/clinchem.2014.232181\nJournal      : Clinical Chemistry, 2015, Vol. 61, No. 2, pp. 420-429\nPlatform     : Digital microfluidics (DMF), two-plate, air-filled, with motorised PMT and magnetic lens assembly\n\n\nOVERVIEW\n--------\nThis protocol describes a shoebox-sized DMF immunoassay platform for the detection of rubella\nvirus (RV)-specific IgG and IgM antibodies from patient serum, plasma, or whole blood. The\nsystem is motivated by the need for decentralised diagnostics in resource-limited settings to\nprevent congenital rubella syndrome (CRS): 100,000 infants are born with CRS each year, and\nrural-to-laboratory transport for standard centralised testing is often cost-prohibitive.\n\nTwo protocols are encoded in sequence on the same DMF device and .bs file:\n  1. RV IgG immunoassay (7-step indirect ELISA): detects immunity or past/current infection.\n     Clinical cutoff: 10 IU/mL. LOD: 0.03 IU/mL; LOQ: 0.1 IU/mL.\n     Run time: ~25 min per quadruplicate set. Intraassay CVs: 0.3-6.5%.\n  2. RV IgM immunoassay (7-step indirect ELISA + on-chip IgG blocking pretreatment):\n     the critical test for diagnosing active rubella infection and identifying pregnancies\n     at risk for CRS. Run time: ~35 min per quadruplicate set. Intraassay CVs: 1.5-13.4%.\n\nBoth assays use rubella-virus-coated paramagnetic microparticles for analyte capture,\nHRP-conjugated detection antibodies for signal transduction, and SuperSignal ELISA Femto\nchemiluminescent substrate (H2O2 + luminol-enhancer) for readout. Signal is detected by an\nintegrated motorised PMT (photomultiplier tube); readout is in RLU (relative light units)\nover a 10 s integration window.\n\nDiagnostic performance was evaluated against 25 plasma/serum samples from the SeraCare\nPTR201 commercial mixed-titer performance panel, using Abbott EIA as the reference standard.\nBoth assays achieved 100% sensitivity and 100% specificity (AUC = 1.00 for each).\n\n\nDEVICE ARCHITECTURE\n-------------------\nConfiguration  : Two-plate DMF (top plate ground + bottom plate electrode array); air-filled gap.\nGap            : ~140 um between top and bottom plates.\nInstrument     : ~7 x 9 x 12 inches (shoebox-sized); computer-controlled via DropBot.\nBottom plate   : 80 actuation electrodes (2.54 x 2.54 mm each); reservoir electrodes for\n                 sample/reagent storage and waste removal; chromium electrode layer + insulator\n                 + Teflon-AF hydrophobic coating on glass substrate.\nTop plate      : ITO ground electrode + Teflon-AF hydrophobic coating on glass.\nUnit droplet   : ~900 nL (electrode area x 140 um gap).\nActuation      : 80-100 V_rms, 10 kHz sine wave; Pogo pin interface (90 pins);\n                 controlled by DropBot (open-source DMF automation system).\n\nMagnetic lens  : Motorised neodymium magnet assembly.\n                 Active position: ~150 um below device; immobilisation force: ~600 uN.\n                 Inactive position: 3.8 cm below device (allows droplet resuspension).\n                 Minimum release threshold: ~500 uN (exceeds droplet surface tension).\n                 Function: concentrates particles into pellet in the separation zone;\n                 deactivation allows a fresh droplet to be mixed over the pellet to\n                 resuspend particles for subsequent reagent incubation steps.\n\nPMT detector   : Motorised; positioned a few hundred um above device droplet centre when active;\n                 5 cm above when inactive (LED + webcam used for droplet monitoring).\n                 PMT protection: 2 position sensors, shutter, light-tight enclosure grooves.\n                 Integration: 10 s mean signal; output in RLU.\n                 Advantage: no excitation source, filters, or lenses required.\n\nFabrication    : University of Toronto Nanofabrication Centre cleanroom.\n\n\nREAGENTS\n--------\nParticles        : RV-coated paramagnetic microparticles (Abbott Architect rubella kit);\n                   pre-washed 2x in Superblock, resuspended at ~10x stock (1.5e8 particles/mL).\nWash buffer      : Custom DMF-compatible formulation + 0.05% Pluronic L64.\nConjugate diluent: Custom DMF-compatible formulation + 0.05% Pluronic L64.\nHRP conjugate    : (Protocol 1) HRP-conjugated goat polyclonal antihuman IgG, 21 ng/mL.\n                   (Protocol 2) HRP-conjugated goat antihuman IgM, 23 ng/mL.\nSubstrate        : SuperSignal ELISA Femto (Thermo Fischer Scientific):\n                   stable peroxide (H2O2) + luminol-enhancer; 900 nL each.\nPretreatment     : Goat antihuman IgG (Abbott Architect IgM pretreatment reagent, 3x dilution\n                   in conjugate diluent); 900 nL per IgM assay.\nSample diluent   : Dulbecco PBS + 4% BSA; all samples pre-diluted 10x off-chip before loading.\nPluronic additive: 0.05% Pluronic L64 added to all on-chip reagents; prevents protein\n                   adsorption and cross-contamination in the air-filled DMF device.\nCalibrators      : RV IgG: 0, 5, 10, 15, 75, 250 IU/mL (Abbott Architect).\n                   RV IgM cutoff: Cal 1 (Abbott Architect); RF IgM content 27.0 IU/mL.\nPerformance panel: SeraCare PTR201-01-25 (25 plasma/serum samples; collected 1994-1995).\n\n\nPROTOCOL STEPS\n--------------\n\nPROTOCOL 1 | RV IgG IMMUNOASSAY (7 steps, ~25 min per quadruplicate)\n\nStep 1 | Particle dispense and magnetic separation\n  Reagents : VirusCoatedParticles\n  Volume   : 1.8 uL (2 units); 1.5e8 particles/mL in Superblock\n  Operation: Dispense from reservoir; magnetic lens activated (~150 um below device, ~600 uN);\n             particles pellet in separation zone; Superblock diluent moved to waste.\n  Duration : ~5 s\n  Notes    : Particle pellet retained on-chip; resuspended in next step.\n\nStep 2 | Sample incubation\n  Reagents : SampleIgG (pre-diluted 10x in DPBS/4% BSA off-chip)\n  Volume   : 1.8 uL (2 units)\n  Operation: Dispense; deliver to particle pellet; mix in circular motion 3 min.\n             RV IgG from sample binds RV-coated particle surface.\n             Magnetic lens re-activated; supernatant disposed.\n  Duration : 3 min (180 s; IR: 180.0 SECOND)\n\nStep 3 | First wash cycle x4\n  Reagents : WashBuffer\n  Volume   : 4 x 1.8 uL (4 x 2 units)\n  Operation: 4 sequential wash steps. Each: dispense fresh buffer droplet; deliver to pellet;\n             mix; magnetic lens activated; supernatant disposed.\n             Removes unbound sample antibody and non-specific proteins.\n  Duration : 30 s per wash (4 x 30 s; IR: 30.0 SECOND each)\n\nStep 4 | HRP conjugate incubation\n  Reagents : HRPConjugateIgG (21 ng/mL HRP-conjugated goat polyclonal antihuman IgG)\n  Volume   : 1.8 uL (2 units)\n  Operation: Dispense; deliver to particle pellet; mix 2 min.\n             HRP-anti-IgG binds RV IgG captured on particles (sandwich immunocomplex).\n             Magnetic lens re-activated; unbound conjugate disposed.\n  Duration : 2 min (120 s; IR: 120.0 SECOND)\n\nStep 5 | Second wash cycle x4\n  Reagents : WashBuffer\n  Volume   : 4 x 1.8 uL (4 x 2 units)\n  Operation: Identical to Step 3. Removes excess unbound HRP conjugate before substrate.\n  Duration : 30 s per wash (4 x 30 s)\n\nStep 6 | Substrate addition, reaction, and chemiluminescent detection\n  Reagents : H2O2 (stable peroxide), LuminolEnhancer (SuperSignal ELISA Femto)\n  Volume   : 900 nL each (1 unit each)\n  Operation: Dispense H2O2 and luminol-enhancer as separate 1-unit droplets; merge (5 s mix);\n             deliver substrate mix to particle pellet; mix 2 min. HRP catalyses luminol\n             oxidation in H2O2; photons collected by motorised PMT over 10 s.\n             Signal reported as RLU; normalised to cutoff calibrator (s/co).\n  Substrate mix duration : 5 s\n  Reaction duration      : 2 min (120 s)\n  Detection duration     : 10 s\n  Detection module       : rvIgGDetection\n  Interpretation:\n    s/co >= 1.0    -> positive  (immune to rubella)\n    s/co 0.69-0.99 -> equivocal (gray zone)\n    s/co < 0.69    -> negative  (susceptible to rubella)\n\nStep 7 | Diagnostic gate (BB2 / BB3)\n  Branch pass (BB2): igGSignal > 0 -> dispose(igGReaction); patient IgG-positive.\n  Branch fail (BB3): igGSignal <= 0 -> drain(igGReaction); patient IgG-negative/equivocal.\n  Join (BB4): dispose(igGSignal); Protocol 2 begins.\n\n\nPROTOCOL 2 | RV IgM IMMUNOASSAY + ON-CHIP IgG BLOCKING (7 steps + pretreatment, ~35 min)\n\nStep 8 | On-chip sample pretreatment (IgG blocking)\n  Reagents : SampleIgM (pre-diluted 10x in DPBS/4% BSA off-chip),\n             PretreatmentReagent (goat antihuman IgG, 3x dilution in conjugate diluent)\n  Volumes  : 1.8 uL sample (2 units) + 900 nL pretreatment (1 unit)\n  Operation: Dispense both; merge on-chip; mix 7 min.\n  Duration : 7 min (420 s; IR: 420.0 SECOND)\n  Purpose  : Exogenous antihuman IgG blocks two interference sources in the IgM assay:\n               (i)  Endogenous RV IgG competing for particle binding sites\n                    -> prevents false negatives (Fig. 3A panel 2).\n               (ii) RV IgG / RF IgM immunocomplexes binding non-specifically to particles\n                    -> prevents false positives from rheumatoid factor (Fig. 3A panel 3).\n  Evidence : Pretreatment significantly suppresses nonspecific signal in IgG+IgM samples\n             (P=0.0003); pure IgG (P=0.5) and pure IgM (P=0.6) samples unaffected (Fig. 3B).\n             RF IgM in RV IgG calibrators: 1.4-1.85 IU/mL (low).\n             RF IgM in RV IgM Cal 1: 27.0 IU/mL (high; pretreatment critical for cutoff use).\n\nStep 9 | Particle dispense and magnetic separation\n  Reagents : VirusCoatedParticles\n  Volume   : 1.8 uL (2 units); identical stock as Protocol 1.\n  Operation: Identical to Protocol 1 Step 1.\n  Duration : ~5 s\n\nStep 10 | Pretreated sample incubation\n  Reagents : igMPretreatedSample (from Step 8), igMParticles (from Step 9)\n  Volume   : (combined pretreated sample droplet delivered to particle pellet)\n  Operation: Mix 3 min. RV IgM from pretreated sample binds RV-coated particles;\n             IgG/RF IgM competition blocked. Magnetic lens re-activated; supernatant disposed.\n  Duration : 3 min (180 s)\n\nStep 11 | First wash cycle x4\n  Reagents : WashBuffer\n  Volume   : 4 x 1.8 uL (4 x 2 units)\n  Operation: Identical to Protocol 1 Step 3. Removes unbound antibody and pretreatment components.\n  Duration : 30 s per wash (4 x 30 s)\n\nStep 12 | HRP conjugate incubation\n  Reagents : HRPConjugateIgM (23 ng/mL HRP-conjugated goat antihuman IgM)\n  Volume   : 1.8 uL (2 units)\n  Operation: Dispense; deliver to particle pellet; mix 2 min.\n             IgM-specific conjugate; distinguishes this step from Protocol 1 Step 4.\n             HRP-anti-IgM binds selectively to RV IgM on particles.\n             Magnetic lens re-activated; unbound conjugate disposed.\n  Duration : 2 min (120 s)\n\nStep 13 | Second wash cycle x4\n  Reagents : WashBuffer\n  Volume   : 4 x 1.8 uL (4 x 2 units)\n  Operation: Identical to Step 11. Removes excess HRP-anti-IgM before substrate.\n  Duration : 30 s per wash (4 x 30 s)\n\nStep 14 | Substrate addition, reaction, and chemiluminescent detection\n  Reagents : H2O2 (stable peroxide), LuminolEnhancer (SuperSignal ELISA Femto)\n  Volume   : 900 nL each (1 unit each)\n  Operation: Identical to Protocol 1 Step 6.\n             Cutoff defined by Cal 1 (s/co = 1); s/co = mean signal / mean Cal 1 signal.\n  Substrate mix duration : 5 s\n  Reaction duration      : 2 min (120 s)\n  Detection duration     : 10 s\n  Detection module       : rvIgMDetection\n  Interpretation:\n    s/co >= 1.0    -> positive  (active rubella infection; CRS risk if pregnant)\n    s/co 0.75-0.99 -> equivocal (gray zone; retest required per WHO guidance)\n    s/co < 0.75    -> negative  (no evidence of acute rubella infection)\n\nStep 15 | Diagnostic gate (BB5 / BB6)\n  Branch pass (BB5): igMSignal > 0 -> dispose(igMReaction); active rubella infection confirmed.\n  Branch fail (BB6): igMSignal <= 0 -> drain(igMReaction); IgM-negative/equivocal.\n  Terminal (BB7): dispose(igMSignal); NOP. Experiment ends.\n\nEQUIVOCAL NOTE: Equivocal results (s/co in gray zone) are interpreted as positive for\nsensitivity/specificity calculations per WHO guidance. In clinical practice, all positive or\nequivocal patients are retested to confirm final diagnosis. 2 of 25 panel samples produced\npositive-equivocal discrepancies between DMF and Abbott EIA at s/co values near the cutoff;\nattributed to assay variability (CV ~15%) and 20-year sample age. Final diagnostic accuracy\nremained 100% sensitivity and 100% specificity for both assays.\n\n\nON-CHIP DILUTION (SUPPLEMENTARY SUB-PROTOCOL)\n----------------------------------------------\nFor patient samples exceeding the linear range (>250 IU/mL) or for whole blood compatibility:\n\nMethod   : Serial 2x on-chip dilution.\n  Step 1 : Dispense 1 sample droplet (1.8 uL) + 1 diluent droplet (1.8 uL); merge and mix.\n  Step 2 : Split pooled droplet into 2 equal sub-droplets.\n  Step 3 : Store one sub-droplet; repeat Steps 1-3 with the other.\n  4 iterations yield: 2x, 4x, 8x, 16x diluted droplets (125, 62.5, 31.3, 15.6 IU/mL\n  from a 250 IU/mL sample).\n\nBlood matrix: Interassay CVs marginally higher for blood samples (10-15%) vs standard (6-9%).\n  At 1/4 and 1/8 blood dilutions: signal significantly different from calibrator (P < 0.05).\n  At 1/16 and 1/32: indistinguishable from calibrator (P > 0.05).\n  Conclusion: 1/16 or 1/32 blood dilution removes matrix interference without reducing\n              analyte below LOQ.\n\nBioScript note: Not encoded in this .bs file. BioScript has no loop/repeat construct;\n  serial dilution steps would need to be hardcoded per iteration in a separate .bs file.\n\n\nASSAY PERFORMANCE SUMMARY\n--------------------------\n                      RV IgG              RV IgM\nLOD (IU/mL)          0.03                --\nLOQ (IU/mL)          0.1                 --\nClinical cutoff       10 IU/mL            Cal 1 (s/co = 1)\nDynamic range         ~2 orders magnitude  --\nIntraassay CV (%)     0.3-6.5             1.5-13.4\nRun time (4 assays)   ~25 min             ~35 min\nParallel assays       4 (aliquoted)       4 (aliquoted)\nSensitivity (95% CI)  100% (98.6-100%)    100% (97.4-100%)\nSpecificity (95% CI)  100% (95.5-100%)    100% (98.4-100%)\nAUC (ROC)             1.00                1.00\nReference standard    Abbott EIA          Abbott EIA\nPanel                 SeraCare PTR201     SeraCare PTR201\n\n\nBIOSCRIPT COMPILER NOTES\n-------------------------\nBioScript file  : ng2015_dmf_rubella_immunoassay.bs\nCompiler        : lilott8/BioScript (ANTLR4-based)\nIR output       : 7 basic blocks (BB1-BB7), 2 if/else gates, 8 CFG edges\nDAG             : ng2015_dmf_rubella_immunoassay_main_dag.dot\nDuration units  : All durations in seconds (s) or minutes (m); both supported by compiler.\n                  7m pretreatment  -> IR: 420.0 SECOND\n                  3m incubations   -> IR: 180.0 SECOND\n                  2m incubations   -> IR: 120.0 SECOND\n                  30s washes       -> IR: 30.0 SECOND\n                  10s detection    -> IR: 10.0 SECOND\n                  5s substrate mix -> IR: 5.0 SECOND\nModules         : rvIgGDetection, rvIgMDetection\nManifests       : VirusCoatedParticles, WashBuffer, HRPConjugateIgG, HRPConjugateIgM,\n                  H2O2, LuminolEnhancer, PretreatmentReagent, SampleIgG, SampleIgM,\n                  SampleIgGplusIgM, DiluentPBSBSA, PluronicL64\nVolume encoding : 1.8 uL reagent/sample droplets = 2 units (2 x 900 nL actuation electrodes)\n                  900 nL substrate/pretreatment droplets = 1 unit\nCFG note        : IR block ordering (bsbbif_2_t listed before main) is compiler serialisation\n                  artefact; main is confirmed as entry node (node 1) in .dot output.\n                  True branches fall through to join implicitly; only false branches carry\n                  explicit jump instructions. This is standard lilott8/BioScript IR behaviour,\n                  consistent with samlali and moazami reference files.\nParticle sep    : Initial self-mix (igGParticles with igGParticles) abstracts the magnetic\n                  separation / diluent removal step; accepted by compiler without error.\nScope note      : On-chip serial dilution sub-protocol not encoded in this .bs file\n                  (no loop construct in BioScript). A separate .bs file is required.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module rvIgGDetection\nmodule rvIgMDetection\n\nmanifest VirusCoatedParticles\nmanifest WashBuffer\nmanifest HRPConjugateIgG\nmanifest HRPConjugateIgM\nmanifest H2O2\nmanifest LuminolEnhancer\nmanifest PretreatmentReagent\nmanifest SampleIgG\nmanifest SampleIgM\nmanifest SampleIgGplusIgM\nmanifest DiluentPBSBSA\nmanifest PluronicL64\n\n// ============================================================\n// Digital Microfluidic Platform for the Detection of\n// Rubella Infection and Immunity: A Proof of Concept\n// Ng, Lee, Choi, Fischer, Robinson, Wheeler\n// Clinical Chemistry 61:2, 420-429 (2015)\n// DOI: 10.1373/clinchem.2014.232181\n//\n// Two protocols are encoded in sequence:\n//\n// PROTOCOL 1: RV IgG Immunoassay (7-step indirect ELISA)\n//   Detects rubella-virus-specific IgG from patient serum or\n//   plasma. Virus-coated paramagnetic particles (1.5e8/mL in\n//   Superblock) capture analyte; HRP-conjugated antihuman IgG\n//   transduces binding to chemiluminescent signal (HRP +\n//   H2O2/luminol-enhancer). PMT reads RLUs over 10 s.\n//   Sample volume per assay: 1.8 uL. Four parallel assays\n//   run simultaneously by on-chip aliquoting.\n//   Run time: ~25 min per quadruplicate set.\n//   LOD: 0.03 IU/mL; LOQ: 0.1 IU/mL; clinical cutoff: 10 IU/mL.\n//   Intraassay CVs: 0.3-6.5%.\n//   On-chip dilution sub-protocol (serial 2x steps) evaluated\n//   for samples >linear range (>250 IU/mL) and for whole blood.\n//\n// PROTOCOL 2: RV IgM Immunoassay (7-step indirect ELISA\n//   + on-chip IgG blocking pretreatment)\n//   Critical test for diagnosing active rubella infection and\n//   identifying pregnancies at risk for CRS. RV IgM binds to\n//   RV-coated particles; HRP-conjugated antihuman IgM detects.\n//   Pretreatment: 1.8 uL sample + 0.9 uL goat antihuman IgG\n//   (pretreatment reagent) mixed for 7 min on-chip to block\n//   endogenous RV IgG and RF IgM interference.\n//   Run time: ~35 min per quadruplicate set (including pretreatment).\n//   Intraassay CVs: 1.5-13.4%.\n//   Cutoff defined by RV IgM Cal 1 (Abbott Architect kit).\n//\n// DROPLET VOLUMES:\n//   Unit droplet (actuation electrode area x gap): ~900 nL\n//   Gap between top/bottom plates: ~140 um\n//   Electrode array: 80 actuation electrodes (2.54 x 2.54 mm)\n//   Actuation: 80-100 V_rms, 10 kHz sine wave\n//   Particle immobilisation force: >=600 uN (magnetic lens)\n//   Minimum release threshold: ~500 uN\n//\n// REAGENT ADDITIVES:\n//   All reagents supplemented with 0.05% Pluronic L64 to reduce\n//   protein adsorption and prevent cross-contamination in\n//   air-filled DMF device.\n//\n// TEMPERATURE:\n//   All assay steps performed at room temperature.\n//   No active thermal control required.\n//\n// CFG STRUCTURE:\n//   BB1  main              -- entry: RV IgG immunoassay (Protocol 1)\n//   BB2  igGPass           -- igGSignal > 0: IgG detected (positive),\n//                             dispose particles\n//   BB3  igGFail           -- igGSignal <= 0: IgG not detected\n//                             (negative/equivocal), drain particles\n//   BB4  igGJoin           -- join: RV IgM pretreatment branch begins\n//   BB5  igMPass           -- igMSignal > 0: IgM detected (positive),\n//                             dispose particles\n//   BB6  igMFail           -- igMSignal <= 0: IgM not detected\n//                             (negative/equivocal), drain particles\n//   BB7  finalCleanup      -- terminal: dispose QC signals,\n//                             experiment ends\n//\n// DIAGNOSTIC PERFORMANCE (25-sample commercial panel, PTR201):\n//   RV IgG: sensitivity 100% (95% CI 98.6-100%),\n//            specificity 100% (95% CI 95.5-100%), AUC = 1.00\n//   RV IgM: sensitivity 100% (95% CI 97.4-100%),\n//            specificity 100% (95% CI 98.4-100%), AUC = 1.00\n//   Reference standard: Abbott EIA (Seracare PTR201 panel)\n// ============================================================\n\ninstructions:\n\n// ============================================================\n// BB1: main\n// ============================================================\n\n// ============================================================\n// PROTOCOL 1: RV IgG IMMUNOASSAY\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 1a: Dispense virus-coated paramagnetic particle\n//   suspension (1.8 uL; 1.5e8 particles/mL in Superblock).\n//   Particles were pre-washed 2x in Superblock and\n//   resuspended at ~10x stock concentration before loading.\n//   Particle droplet is dispensed from reservoir onto the\n//   electrode array where the magnetic lens (positioned\n//   ~150 um below device) immobilises them in the separation\n//   zone.\n// ------------------------------------------------------------\n\nigGParticles     = dispense 2 units of VirusCoatedParticles\n\n// Magnetic separation: particles pellet in separation zone;\n// supernatant (diluent) is actuated away to waste.\n// `mix` here abstracts the electrode-actuation resuspension\n// sequence used throughout this protocol for particle\n// handling; `dispose` models the supernatant removal step.\n// Particle pellet remains on-chip for subsequent operations.\nigGParticleSep   = mix igGParticles with igGParticles for 5s\ndispose igGParticleSep\n\n// ------------------------------------------------------------\n// STEP 1b: Sample incubation.\n//   1.8 uL of patient sample (pre-diluted 10x in DPBS/4% BSA\n//   before loading) is dispensed and delivered to the\n//   particle pellet. Droplet is mixed in circular motion for\n//   3 min; RV IgG from the sample binds to RV-coated\n//   particle surface. Magnetic lens re-activates to\n//   immobilise particles; supernatant is removed to waste.\n// ------------------------------------------------------------\n\nigGSample        = dispense 2 units of SampleIgG\nigGCapture       = mix igGSample with igGParticles for 3m\ndispose igGCapture\n\n// ------------------------------------------------------------\n// STEP 1c: Wash cycle x4 (4 x 1.8 uL wash buffer).\n//   Each wash: a fresh wash buffer droplet is moved over the\n//   particle pellet, mixed, magnetic lens activated,\n//   supernatant removed. Repeated 4 times to eliminate\n//   unbound antibody and reduce background signal.\n//   Wash buffer: custom DMF-compatible formulation +\n//   0.05% Pluronic L64.\n// ------------------------------------------------------------\n\nigGWash1         = dispense 2 units of WashBuffer\nigGWashStep1     = mix igGParticles with igGWash1 for 30s\ndispose igGWashStep1\n\nigGWash2         = dispense 2 units of WashBuffer\nigGWashStep2     = mix igGParticles with igGWash2 for 30s\ndispose igGWashStep2\n\nigGWash3         = dispense 2 units of WashBuffer\nigGWashStep3     = mix igGParticles with igGWash3 for 30s\ndispose igGWashStep3\n\nigGWash4         = dispense 2 units of WashBuffer\nigGWashStep4     = mix igGParticles with igGWash4 for 30s\ndispose igGWashStep4\n\n// ------------------------------------------------------------\n// STEP 1d: Conjugate incubation (1.8 uL).\n//   HRP-conjugated goat polyclonal antihuman IgG (21 ng/mL\n//   in conjugate diluent + 0.05% Pluronic L64) delivered to\n//   particle pellet. Mixed for 2 min. HRP-anti-IgG binds to\n//   sample RV IgG captured on the particles, forming the\n//   immunocomplex. Magnetic lens re-activates; unbound\n//   conjugate removed to waste.\n// ------------------------------------------------------------\n\nigGConjugate     = dispense 2 units of HRPConjugateIgG\nigGConjugateStep = mix igGParticles with igGConjugate for 2m\ndispose igGConjugateStep\n\n// ------------------------------------------------------------\n// STEP 1e: Second wash cycle x4 (4 x 1.8 uL wash buffer).\n//   Identical to STEP 1c. Removes excess/unbound HRP\n//   conjugate before substrate addition to minimise\n//   background chemiluminescence.\n// ------------------------------------------------------------\n\nigGWash5         = dispense 2 units of WashBuffer\nigGWashStep5     = mix igGParticles with igGWash5 for 30s\ndispose igGWashStep5\n\nigGWash6         = dispense 2 units of WashBuffer\nigGWashStep6     = mix igGParticles with igGWash6 for 30s\ndispose igGWashStep6\n\nigGWash7         = dispense 2 units of WashBuffer\nigGWashStep7     = mix igGParticles with igGWash7 for 30s\ndispose igGWashStep7\n\nigGWash8         = dispense 2 units of WashBuffer\nigGWashStep8     = mix igGParticles with igGWash8 for 30s\ndispose igGWashStep8\n\n// ------------------------------------------------------------\n// STEP 1f: Chemiluminescent substrate addition and detection.\n//   900 nL H2O2 (stable peroxide) + 900 nL luminol-enhancer\n//   solution (SuperSignal ELISA Femto) dispensed and merged\n//   with particle pellet. Mixed for 2 min. HRP catalyses\n//   oxidation of luminol in the presence of H2O2, generating\n//   photons detected by the motorised PMT (positioned ~few\n//   hundred um above device droplet centre).\n//   Mean signal integrated over 10 s; reported as RLUs.\n//   Result interpreted against calibration curve:\n//     s/co >= 1.0    -> positive\n//     s/co 0.69-0.99 -> equivocal (gray zone)\n//     s/co < 0.69    -> negative\n//\n//   NOTE ON UNIT VOLUMES: H2O2 and luminol are each 900 nL\n//   (1 unit = ~900 nL on the actuation electrode). They are\n//   dispensed as separate 1-unit droplets and merged with the\n//   particle pellet. `mix ... for 2m` models the 2 min\n//   incubation; `detect` models the 10 s PMT integration.\n// ------------------------------------------------------------\n\nigGH2O2          = dispense 1 units of H2O2\nigGLuminol       = dispense 1 units of LuminolEnhancer\n\nigGSubstrateMix  = mix igGH2O2 with igGLuminol for 5s\nigGReaction      = mix igGParticles with igGSubstrateMix for 2m\n\nigGSignal        = detect rvIgGDetection on igGReaction for 10s\n\n// ============================================================\n// BB2 / BB3: RV IgG diagnostic gate\n// Pass (BB2): igGSignal > 0 -> IgG detected; s/co >= 1 implies\n//             rubella immunity or current/past infection.\n//             Dispose reaction droplet (particles + substrate).\n// Fail (BB3): igGSignal <= 0 -> IgG not detected; patient\n//             susceptible to rubella. Drain reaction droplet.\n// Both branches converge at BB4 (igGJoin).\n// ============================================================\n\nif (igGSignal > 0) {\n    dispose igGReaction\n} else {\n    drain igGReaction\n}\n\n// ============================================================\n// BB4: igGJoin\n// Dispose IgG QC signal droplet. Control falls through to\n// RV IgM pretreatment and immunoassay branch (BB5/BB6).\n// ============================================================\n\ndispose igGSignal\n\n// ============================================================\n// PROTOCOL 2: RV IgM IMMUNOASSAY (+ ON-CHIP IgG BLOCKING)\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 2a: On-chip sample pretreatment (IgG blocking).\n//   1.8 uL of patient sample (pre-diluted 10x in DPBS/4% BSA)\n//   + 900 nL pretreatment reagent (3x dilution of Abbott\n//   Architect goat antihuman IgG in conjugate diluent) are\n//   merged on-chip and mixed for 7 min.\n//   Purpose: the exogenous antihuman IgG blocks:\n//     (i)  endogenous RV IgG from competing for binding sites\n//          on the RV-coated particles (prevents false negatives)\n//     (ii) RV IgG / RF IgM immunocomplexes from binding\n//          non-specifically to the particles (prevents false\n//          positives from rheumatoid factor IgM cross-reaction)\n//   Significance: pretreatment statistically suppresses\n//   nonspecific signal in IgG+IgM samples (P=0.0003),\n//   while leaving pure IgG (P=0.5) or pure IgM (P=0.6)\n//   samples unaffected.\n//\n//   NOTE ON VOLUMES: 1.8 uL sample = 2 units; 900 nL\n//   pretreatment = 1 unit (at 900 nL per unit electrode).\n// ------------------------------------------------------------\n\nigMSampleRaw     = dispense 2 units of SampleIgM\nigMPretreat      = dispense 1 units of PretreatmentReagent\nigMPretreatedSample = mix igMSampleRaw with igMPretreat for 7m\n\n// ------------------------------------------------------------\n// STEP 2b: Dispense virus-coated paramagnetic particle\n//   suspension (1.8 uL; identical particle stock as Protocol 1).\n//   Particles magnetically separated from diluent; pellet\n//   retained in separation zone for sample delivery.\n// ------------------------------------------------------------\n\nigMParticles     = dispense 2 units of VirusCoatedParticles\nigMParticleSep   = mix igMParticles with igMParticles for 5s\ndispose igMParticleSep\n\n// ------------------------------------------------------------\n// STEP 2c: Pretreated sample incubation.\n//   Pretreated sample droplet delivered to particle pellet.\n//   Mixed for 3 min. RV IgM antibodies from sample bind to\n//   RV-coated particles; competing IgG/RF IgM complexes\n//   blocked by pretreatment. Magnetic lens re-activates;\n//   supernatant removed to waste.\n// ------------------------------------------------------------\n\nigMCapture       = mix igMPretreatedSample with igMParticles for 3m\ndispose igMCapture\n\n// ------------------------------------------------------------\n// STEP 2d: Wash cycle x4 (4 x 1.8 uL wash buffer).\n//   Identical procedure to Protocol 1 STEP 1c. Removes\n//   unbound antibody and pretreatment components.\n// ------------------------------------------------------------\n\nigMWash1         = dispense 2 units of WashBuffer\nigMWashStep1     = mix igMParticles with igMWash1 for 30s\ndispose igMWashStep1\n\nigMWash2         = dispense 2 units of WashBuffer\nigMWashStep2     = mix igMParticles with igMWash2 for 30s\ndispose igMWashStep2\n\nigMWash3         = dispense 2 units of WashBuffer\nigMWashStep3     = mix igMParticles with igMWash3 for 30s\ndispose igMWashStep3\n\nigMWash4         = dispense 2 units of WashBuffer\nigMWashStep4     = mix igMParticles with igMWash4 for 30s\ndispose igMWashStep4\n\n// ------------------------------------------------------------\n// STEP 2e: Conjugate incubation (1.8 uL).\n//   HRP-conjugated goat antihuman IgM (23 ng/mL in conjugate\n//   diluent + 0.05% Pluronic L64) delivered to particle\n//   pellet. Mixed for 2 min. HRP-anti-IgM binds selectively\n//   to RV IgM captured on particles. Magnetic lens\n//   re-activates; unbound conjugate removed to waste.\n//   Note: IgM-specific conjugate distinguishes this step\n//   from Protocol 1 STEP 1d (antihuman IgG conjugate).\n// ------------------------------------------------------------\n\nigMConjugate     = dispense 2 units of HRPConjugateIgM\nigMConjugateStep = mix igMParticles with igMConjugate for 2m\ndispose igMConjugateStep\n\n// ------------------------------------------------------------\n// STEP 2f: Second wash cycle x4 (4 x 1.8 uL wash buffer).\n//   Identical to STEP 2d. Removes excess HRP-anti-IgM\n//   conjugate before substrate addition.\n// ------------------------------------------------------------\n\nigMWash5         = dispense 2 units of WashBuffer\nigMWashStep5     = mix igMParticles with igMWash5 for 30s\ndispose igMWashStep5\n\nigMWash6         = dispense 2 units of WashBuffer\nigMWashStep6     = mix igMParticles with igMWash6 for 30s\ndispose igMWashStep6\n\nigMWash7         = dispense 2 units of WashBuffer\nigMWashStep7     = mix igMParticles with igMWash7 for 30s\ndispose igMWashStep7\n\nigMWash8         = dispense 2 units of WashBuffer\nigMWashStep8     = mix igMParticles with igMWash8 for 30s\ndispose igMWashStep8\n\n// ------------------------------------------------------------\n// STEP 2g: Chemiluminescent substrate addition and detection.\n//   Identical substrate system to Protocol 1 STEP 1f:\n//   900 nL H2O2 + 900 nL luminol-enhancer merged with particle\n//   pellet and mixed for 2 min. Motorised PMT collects\n//   photons over 10 s; signal reported as RLUs.\n//   Result interpreted against RV IgM cutoff calibrator\n//   (Cal 1, adapted from Abbott Architect rubella IgM kit):\n//     s/co >= 1.0    -> positive (active rubella infection)\n//     s/co 0.75-0.99 -> equivocal (gray zone; retest required)\n//     s/co < 0.75    -> negative\n//   Cal 1 defines the s/co = 1 cutoff; its RF IgM content\n//   (27.0 IU/mL) makes on-chip pretreatment essential for\n//   accurate cutoff calibration (Fig. 3C of paper).\n// ------------------------------------------------------------\n\nigMH2O2          = dispense 1 units of H2O2\nigMLuminol       = dispense 1 units of LuminolEnhancer\n\nigMSubstrateMix  = mix igMH2O2 with igMLuminol for 5s\nigMReaction      = mix igMParticles with igMSubstrateMix for 2m\n\nigMSignal        = detect rvIgMDetection on igMReaction for 10s\n\n// ============================================================\n// BB5 / BB6: RV IgM diagnostic gate\n// Pass (BB5): igMSignal > 0 -> IgM detected; s/co >= 1 implies\n//             active rubella infection; patient (especially\n//             if pregnant) at risk of CRS.\n//             Dispose reaction droplet (particles + substrate).\n// Fail (BB6): igMSignal <= 0 -> IgM not detected;\n//             no evidence of acute rubella infection.\n//             Drain reaction droplet.\n// Both branches converge at BB7 (finalCleanup).\n//\n// NOTE ON EQUIVOCAL RESULTS: In clinical practice, equivocal\n// results (s/co 0.75-0.99) are interpreted as positive for\n// diagnostic performance calculations (WHO guidance) and\n// referred for retest. Two of 25 panel samples produced\n// positive-equivocal discrepancies between DMF and Abbott EIA\n// at s/co near the cutoff; attributed to assay variability\n// (CV ~15%) and sample age (~20 years). These did not affect\n// the final 100% sensitivity and 100% specificity calculations.\n// ============================================================\n\nif (igMSignal > 0) {\n    dispose igMReaction\n} else {\n    drain igMReaction\n}\n\n// ============================================================\n// BB7: finalCleanup (terminal)\n// Dispose both assay QC signal droplets.\n// Experiment ends.\n// ============================================================\n\ndispose igMSignal\n\n// [terminal -- no further instructions; exit node for CFG]\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "ng2015_dmf_rubella_immunoassay_001",
+      "protocol_name": "Digital Microfluidic Platform for the Detection of Rubella Infection and Immunity: A Proof of Concept",
+      "category": "immunoassay",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Digital Microfluidic Platform for the Detection of Rubella Infection and Immunity: A Proof of Concept",
+      "publisher": "Clinical Chemistry, 2015, Vol. 61, No. 2, pp. 420-429",
+      "doi": "10.1373/clinchem.2014.232181",
+      "url": "https://microfluidics.utoronto.ca/papers/ClinChemV61I2.pdf",
+      "platform": "Digital microfluidics (DMF), two-plate, air-filled, with motorised PMT and magnetic lens assembly"
+    },
+    "bioscript": {
+      "manifests": [
+        "VirusCoatedParticles",
+        "WashBuffer",
+        "HRPConjugateIgG",
+        "HRPConjugateIgM",
+        "H2O2",
+        "LuminolEnhancer",
+        "PretreatmentReagent",
+        "SampleIgG",
+        "SampleIgM",
+        "SampleIgGplusIgM",
+        "DiluentPBSBSA",
+        "PluronicL64"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "detect",
+        "dispose",
+        "drain",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 84
       }
     },
-
-    "reagents": {
-      "particles": {
-        "type": "Rubella virus (RV)-coated paramagnetic microparticles",
-        "source": "Adapted from Abbott Architect rubella IgG/IgM assay kits",
-        "concentration_particles_mL": "1.5e8",
-        "diluent": "Superblock Tris-buffered saline (Thermo Fischer Scientific)",
-        "prep": "Washed 2x in Superblock, resuspended at ~10x stock concentration"
-      },
-      "wash_buffer": "Custom DMF-compatible wash buffer + 0.05% Pluronic L64",
-      "conjugate_diluent": "Custom DMF-compatible conjugate diluent + 0.05% Pluronic L64",
-      "hrp_conjugate_IgG": {
-        "description": "HRP-conjugated goat polyclonal antihuman IgG",
-        "concentration_ng_mL": 21,
-        "diluent": "conjugate diluent"
-      },
-      "hrp_conjugate_IgM": {
-        "description": "HRP-conjugated goat antihuman IgM",
-        "concentration_ng_mL": 23,
-        "diluent": "conjugate diluent"
-      },
-      "chemiluminescent_substrate": {
-        "system": "SuperSignal ELISA Femto (Thermo Fischer Scientific)",
-        "components": ["Stable peroxide (H2O2)", "Luminol-enhancer solution"],
-        "volume_each_nL": 900
-      },
-      "pretreatment_reagent": {
-        "description": "Goat antihuman IgG (IgM pretreatment reagent)",
-        "source": "Abbott Architect rubella IgM assay kit",
-        "dilution": "3x in conjugate diluent",
-        "volume_nL": 900,
-        "purpose": "Blocks endogenous RV IgG and RF IgM/IgG complexes from competing for particle binding sites"
-      },
-      "sample_diluent": "Dulbecco PBS + 4% BSA (10x predilution of all clinical samples before on-chip loading)",
-      "pluronic_additive": {
-        "reagent": "Pluronic L64 (BASF Corp.)",
-        "concentration_pct": 0.05,
-        "purpose": "Reduces protein adsorption; prevents cross-contamination in air-filled DMF device; added to all on-chip reagents"
-      },
-      "calibrators": {
-        "IgG": "RV IgG calibrators (Abbott); concentrations 0, 5, 10, 15, 75, 250 IU/mL",
-        "IgM_cutoff": "RV IgM cutoff Calibrator 1 (Cal 1, Abbott Architect); RF IgM content 27.0 IU/mL"
-      },
-      "performance_panel": {
-        "product": "Antirubella mixed-titer performance panel PTR201-00-0.5 / PTR201-01-25",
-        "vendor": "SeraCare Life Sciences",
-        "n_samples": 25,
-        "sample_type": "Plasma and serum",
-        "collection_dates": "1994-1995",
-        "reference_testing_dates": "1995-1996"
-      },
-      "rf_igm_elisa": {
-        "kit": "RF IgM ELISA (Orgentec Diagnostika)",
-        "purpose": "Off-chip screening of calibrators for rheumatoid factor IgM content",
-        "reader": "Sunrise microplate reader (Tecan), 450 nm (reference 650 nm), Accuracy mode",
-        "curve_fit": "4-parameter logistic equation"
-      },
-      "simulated_blood": {
-        "composition": "1:1 mixture of RV IgG calibrator and defibrinated sheep blood (Quad Five)",
-        "purpose": "Evaluate whole-blood compatibility of on-chip dilution protocol"
-      }
-    },
-
-    "steps": [
-      {
-        "id": "S1",
-        "protocol": 1,
-        "name": "RV IgG — particle dispense and magnetic separation",
-        "bb": "BB1",
-        "inputs": ["VirusCoatedParticles"],
-        "bs_variables": ["igGParticles", "igGParticleSep"],
-        "volume_uL": 1.8,
-        "units_bs": 2,
-        "operation": "dispense + mix (abstracts magnetic separation; supernatant disposed)",
-        "duration_s": 5,
-        "notes": "Magnetic lens active (~150 um below device, 600 uN); particles pellet in separation zone. Diluent (Superblock) moved to waste. Particle pellet retained on-chip for subsequent steps."
-      },
-      {
-        "id": "S2",
-        "protocol": 1,
-        "name": "RV IgG — sample incubation",
-        "bb": "BB1",
-        "inputs": ["SampleIgG"],
-        "bs_variables": ["igGSample", "igGCapture"],
-        "volume_uL": 1.8,
-        "units_bs": 2,
-        "operation": "dispense + mix",
-        "duration_s": 180,
-        "notes": "Sample pre-diluted 10x in DPBS/4% BSA off-chip before loading. RV IgG from sample binds RV-coated particle surface during 3 min circular mixing. Magnetic lens re-activated; supernatant disposed."
-      },
-      {
-        "id": "S3",
-        "protocol": 1,
-        "name": "RV IgG — first wash cycle x4",
-        "bb": "BB1",
-        "inputs": ["WashBuffer"],
-        "bs_variables": ["igGWash1..4", "igGWashStep1..4"],
-        "volume_per_wash_uL": 1.8,
-        "units_bs_per_wash": 2,
-        "wash_count": 4,
-        "operation": "dispense + mix (x4, sequential)",
-        "duration_per_wash_s": 30,
-        "notes": "Removes unbound sample antibody and non-specific proteins. Each wash: buffer droplet moved over pellet, mixed, magnetic lens activated, supernatant disposed. 4 sequential iterations."
-      },
-      {
-        "id": "S4",
-        "protocol": 1,
-        "name": "RV IgG — HRP conjugate incubation",
-        "bb": "BB1",
-        "inputs": ["HRPConjugateIgG"],
-        "bs_variables": ["igGConjugate", "igGConjugateStep"],
-        "volume_uL": 1.8,
-        "units_bs": 2,
-        "operation": "dispense + mix",
-        "duration_s": 120,
-        "conjugate": "HRP-conjugated goat polyclonal antihuman IgG, 21 ng/mL",
-        "notes": "HRP-anti-IgG binds to sample RV IgG captured on particles, forming sandwich immunocomplex. Magnetic lens re-activated; unbound conjugate disposed."
-      },
-      {
-        "id": "S5",
-        "protocol": 1,
-        "name": "RV IgG — second wash cycle x4",
-        "bb": "BB1",
-        "inputs": ["WashBuffer"],
-        "bs_variables": ["igGWash5..8", "igGWashStep5..8"],
-        "volume_per_wash_uL": 1.8,
-        "units_bs_per_wash": 2,
-        "wash_count": 4,
-        "operation": "dispense + mix (x4, sequential)",
-        "duration_per_wash_s": 30,
-        "notes": "Removes excess unbound HRP conjugate before substrate addition. Identical procedure to S3."
-      },
-      {
-        "id": "S6",
-        "protocol": 1,
-        "name": "RV IgG — substrate addition, reaction, and detection",
-        "bb": "BB1",
-        "inputs": ["H2O2", "LuminolEnhancer"],
-        "bs_variables": ["igGH2O2", "igGLuminol", "igGSubstrateMix", "igGReaction", "igGSignal"],
-        "volume_each_nL": 900,
-        "units_bs_each": 1,
-        "operation": "dispense + mix + mix + detect",
-        "substrate_mix_duration_s": 5,
-        "reaction_duration_s": 120,
-        "detection_duration_s": 10,
-        "detection_module": "rvIgGDetection",
-        "substrate": "SuperSignal ELISA Femto (H2O2 + luminol-enhancer)",
-        "readout": "RLU integrated over 10 s by motorised PMT",
-        "interpretation": {
-          "positive": "s/co >= 1.0",
-          "equivocal_gray_zone": "s/co 0.69-0.99",
-          "negative": "s/co < 0.69"
-        },
-        "notes": "H2O2 and luminol-enhancer dispensed as separate 1-unit (900 nL) droplets, merged, then delivered to particle pellet. HRP catalyses luminol oxidation; photons collected by PMT. No excitation source, filters, or lenses required."
-      },
-      {
-        "id": "S7",
-        "protocol": 1,
-        "name": "RV IgG — diagnostic gate",
-        "bb": "BB2/BB3",
-        "bs_variables": ["igGSignal", "igGReaction"],
-        "operation": "if/else branch",
-        "branch": {
-          "pass": {
-            "condition": "igGSignal > 0",
-            "action": "dispose(igGReaction)",
-            "bb": "BB2",
-            "interpretation": "RV IgG detected; s/co >= 1.0; patient immune to rubella (natural or vaccine-acquired)"
-          },
-          "fail": {
-            "condition": "igGSignal <= 0",
-            "action": "drain(igGReaction)",
-            "bb": "BB3",
-            "interpretation": "RV IgG not detected; s/co < 0.69; patient susceptible to rubella"
-          }
-        },
-        "notes": "Both branches converge at BB4 (igGJoin). igGSignal disposed at join before IgM protocol begins."
-      },
-      {
-        "id": "S8",
-        "protocol": 2,
-        "name": "RV IgM — on-chip sample pretreatment (IgG blocking)",
-        "bb": "BB4",
-        "inputs": ["SampleIgM", "PretreatmentReagent"],
-        "bs_variables": ["igMSampleRaw", "igMPretreat", "igMPretreatedSample"],
-        "sample_volume_uL": 1.8,
-        "sample_units_bs": 2,
-        "pretreatment_volume_nL": 900,
-        "pretreatment_units_bs": 1,
-        "operation": "dispense + dispense + mix",
-        "duration_s": 420,
-        "pretreatment_reagent": "Goat antihuman IgG (3x dilution of Abbott Architect IgM pretreatment reagent in conjugate diluent)",
-        "purpose": [
-          "Blocks endogenous RV IgG from competing for binding sites on RV-coated particles (prevents false negatives; Fig. 3A panel 2)",
-          "Blocks RV IgG/RF IgM immunocomplexes from binding non-specifically to particles (prevents false positives from RF IgM; Fig. 3A panel 3)"
-        ],
-        "statistical_evidence": {
-          "IgG_alone_p": 0.5,
-          "IgM_alone_p": 0.6,
-          "IgG_plus_IgM_p": 0.0003,
-          "conclusion": "Pretreatment significantly suppresses nonspecific signal only in combined IgG+IgM samples (P=0.0003); pure IgG or IgM samples unaffected"
-        },
-        "rf_igm_in_calibrators": {
-          "RV_IgG_calibrators_IU_mL": "1.4-1.85",
-          "RV_IgM_Cal1_IU_mL": 27.0
-        },
-        "notes": "Emulates Abbott Architect rubella IgM assay pretreatment procedure. 7 min on-chip mixing. Pretreated sample then delivered to particle pellet in S9."
-      },
-      {
-        "id": "S9",
-        "protocol": 2,
-        "name": "RV IgM — particle dispense and magnetic separation",
-        "bb": "BB4",
-        "inputs": ["VirusCoatedParticles"],
-        "bs_variables": ["igMParticles", "igMParticleSep"],
-        "volume_uL": 1.8,
-        "units_bs": 2,
-        "operation": "dispense + mix (abstracts magnetic separation; supernatant disposed)",
-        "duration_s": 5,
-        "notes": "Identical particle stock and procedure as Protocol 1 S1. Runs concurrently with or immediately after pretreatment step."
-      },
-      {
-        "id": "S10",
-        "protocol": 2,
-        "name": "RV IgM — pretreated sample incubation",
-        "bb": "BB4",
-        "inputs": ["igMPretreatedSample (from S8)", "igMParticles (from S9)"],
-        "bs_variables": ["igMCapture"],
-        "operation": "mix",
-        "duration_s": 180,
-        "notes": "Pretreated sample droplet delivered to particle pellet. RV IgM antibodies bind RV-coated particles; IgG/RF IgM competition blocked by pretreatment. Magnetic lens re-activated; supernatant disposed."
-      },
-      {
-        "id": "S11",
-        "protocol": 2,
-        "name": "RV IgM — first wash cycle x4",
-        "bb": "BB4",
-        "inputs": ["WashBuffer"],
-        "bs_variables": ["igMWash1..4", "igMWashStep1..4"],
-        "volume_per_wash_uL": 1.8,
-        "units_bs_per_wash": 2,
-        "wash_count": 4,
-        "operation": "dispense + mix (x4, sequential)",
-        "duration_per_wash_s": 30,
-        "notes": "Identical to Protocol 1 S3. Removes unbound antibody and pretreatment components."
-      },
-      {
-        "id": "S12",
-        "protocol": 2,
-        "name": "RV IgM — HRP conjugate incubation",
-        "bb": "BB4",
-        "inputs": ["HRPConjugateIgM"],
-        "bs_variables": ["igMConjugate", "igMConjugateStep"],
-        "volume_uL": 1.8,
-        "units_bs": 2,
-        "operation": "dispense + mix",
-        "duration_s": 120,
-        "conjugate": "HRP-conjugated goat antihuman IgM, 23 ng/mL",
-        "notes": "IgM-specific conjugate; distinguishes from Protocol 1 S4 (antihuman IgG). HRP-anti-IgM binds selectively to RV IgM captured on particles. Magnetic lens re-activated; unbound conjugate disposed."
-      },
-      {
-        "id": "S13",
-        "protocol": 2,
-        "name": "RV IgM — second wash cycle x4",
-        "bb": "BB4",
-        "inputs": ["WashBuffer"],
-        "bs_variables": ["igMWash5..8", "igMWashStep5..8"],
-        "volume_per_wash_uL": 1.8,
-        "units_bs_per_wash": 2,
-        "wash_count": 4,
-        "operation": "dispense + mix (x4, sequential)",
-        "duration_per_wash_s": 30,
-        "notes": "Removes excess HRP-anti-IgM before substrate addition. Identical to S11."
-      },
-      {
-        "id": "S14",
-        "protocol": 2,
-        "name": "RV IgM — substrate addition, reaction, and detection",
-        "bb": "BB4",
-        "inputs": ["H2O2", "LuminolEnhancer"],
-        "bs_variables": ["igMH2O2", "igMLuminol", "igMSubstrateMix", "igMReaction", "igMSignal"],
-        "volume_each_nL": 900,
-        "units_bs_each": 1,
-        "operation": "dispense + mix + mix + detect",
-        "substrate_mix_duration_s": 5,
-        "reaction_duration_s": 120,
-        "detection_duration_s": 10,
-        "detection_module": "rvIgMDetection",
-        "substrate": "SuperSignal ELISA Femto (H2O2 + luminol-enhancer); identical to Protocol 1",
-        "readout": "RLU integrated over 10 s by motorised PMT",
-        "cutoff_calibrator": "RV IgM Cal 1 (Abbott Architect); defines s/co = 1 threshold",
-        "interpretation": {
-          "positive": "s/co >= 1.0 (active rubella infection; patient at risk of CRS if pregnant)",
-          "equivocal_gray_zone": "s/co 0.75-0.99 (retest required)",
-          "negative": "s/co < 0.75"
-        },
-        "notes": "Cal 1 contains 27.0 IU/mL RF IgM; on-chip pretreatment (S8) is essential for accurate cutoff calibration with this reagent (Fig. 3C)."
-      },
-      {
-        "id": "S15",
-        "protocol": 2,
-        "name": "RV IgM — diagnostic gate",
-        "bb": "BB5/BB6",
-        "bs_variables": ["igMSignal", "igMReaction"],
-        "operation": "if/else branch",
-        "branch": {
-          "pass": {
-            "condition": "igMSignal > 0",
-            "action": "dispose(igMReaction)",
-            "bb": "BB5",
-            "interpretation": "RV IgM detected; s/co >= 1.0; active rubella infection confirmed"
-          },
-          "fail": {
-            "condition": "igMSignal <= 0",
-            "action": "drain(igMReaction)",
-            "bb": "BB6",
-            "interpretation": "RV IgM not detected; no evidence of acute rubella infection"
-          }
-        },
-        "equivocal_handling": "Equivocal results (s/co 0.75-0.99) interpreted as positive per WHO guidance; patient retested to confirm. 2/25 panel samples produced positive-equivocal discrepancies at s/co near cutoff; attributed to assay variability (CV ~15%) and sample age (~20 years).",
-        "notes": "Both branches converge at BB7 (finalCleanup). igMSignal disposed at terminal."
-      }
-    ],
-
-    "on_chip_dilution": {
-      "description": "Serial 2x on-chip dilution sub-protocol for samples exceeding the linear range (>250 IU/mL) or for whole blood matrix",
-      "method": "Iterative 3-step sequence: (1) merge 1 sample droplet + 1 diluent droplet, (2) split into 2 sub-droplets, (3) store one, repeat with other. 4 iterations yield 2x, 4x, 8x, 16x diluted droplets.",
-      "example_concentrations_IU_mL": [125, 62.5, 31.3, 15.6],
-      "blood_matrix_results": {
-        "cv_blood_samples_pct": "10-15",
-        "cv_standard_samples_pct": "6-9",
-        "significant_matrix_effect_dilutions": ["1/4", "1/8"],
-        "indistinguishable_dilutions": ["1/16", "1/32"],
-        "conclusion": "Dilution to 1/16 or 1/32 removes blood matrix interference (P > 0.05) without reducing analyte below LOQ"
-      },
-      "bioscript_note": "Not encoded in this .bs file. BioScript has no loop/repeat construct; serial dilution requires hardcoded iterations and is best encoded in a separate .bs file."
-    },
-
-    "assay_performance": {
-      "rvIgG": {
-        "lod_IU_mL": 0.03,
-        "loq_IU_mL": 0.1,
-        "clinical_cutoff_IU_mL": 10,
-        "dynamic_range_orders_of_magnitude": 2,
-        "intraassay_cv_range_pct": "0.3-6.5",
-        "interassay_cv_range_pct": "6-9",
-        "run_time_per_quadruplicate_min": 25,
-        "parallel_assays": 4,
-        "calibration_stability_days": 50,
-        "calibration_stability_experiments": 200
-      },
-      "rvIgM": {
-        "intraassay_cv_range_pct": "1.5-13.4",
-        "run_time_per_quadruplicate_min": 35,
-        "parallel_assays": 4,
-        "cutoff_definition": "RV IgM Cal 1 (s/co = 1)"
-      },
-      "diagnostic_accuracy": {
-        "panel": "SeraCare PTR201 (25 samples); reference standard: Abbott EIA",
-        "operators": 3,
-        "testing_period": "1 month",
-        "blinding": "Operators blinded to reference result until all data collected",
-        "rvIgG": {
-          "sensitivity_pct": 100,
-          "sensitivity_95CI": "98.6-100",
-          "specificity_pct": 100,
-          "specificity_95CI": "95.5-100",
-          "auc": 1.00,
-          "positives_identified": 23,
-          "negatives_identified": 2,
-          "equivocal": 0
-        },
-        "rvIgM": {
-          "sensitivity_pct": 100,
-          "sensitivity_95CI": "97.4-100",
-          "specificity_pct": 100,
-          "specificity_95CI": "98.4-100",
-          "auc": 1.00,
-          "positives_identified": 5,
-          "negatives_identified": 19,
-          "equivocal": 1,
-          "mismatches_vs_abbott": 2,
-          "mismatch_note": "1 DMF equivocal / Abbott positive; 1 DMF positive / Abbott equivocal. Both at s/co near 1; equivocal interpreted as positive in sensitivity/specificity calculation per WHO guidance."
-        },
-        "mean_intraassay_cv_pct": 10,
-        "mean_cv_range_pct": "0.4-17.5 (IgG) and 1.5-13.4 (IgM)"
-      }
-    },
-
     "cfg": {
       "basic_blocks": [
-        { "id": "BB1", "label": "main",         "ir_label": "main",        "type": "entry",        "content": "Protocol 1 (RV IgG): particle dispense, sample capture, 2x wash cycle, conjugate, substrate, detect" },
-        { "id": "BB2", "label": "bsbbif_2_t",   "ir_label": "bsbbif_2_t", "type": "branch_true",  "condition": "igGSignal > 0",  "action": "dispose(igGReaction)" },
-        { "id": "BB3", "label": "bsbbif_3_f",   "ir_label": "bsbbif_3_f", "type": "branch_false", "condition": "igGSignal <= 0", "action": "drain(igGReaction)" },
-        { "id": "BB4", "label": "bsbbif_4_j",   "ir_label": "bsbbif_4_j", "type": "join",         "content": "dispose(igGSignal); Protocol 2 (RV IgM): pretreatment, particle dispense, sample capture, 2x wash cycle, conjugate, substrate, detect" },
-        { "id": "BB5", "label": "bsbbif_5_t",   "ir_label": "bsbbif_5_t", "type": "branch_true",  "condition": "igMSignal > 0",  "action": "dispose(igMReaction)" },
-        { "id": "BB6", "label": "bsbbif_6_f",   "ir_label": "bsbbif_6_f", "type": "branch_false", "condition": "igMSignal <= 0", "action": "drain(igMReaction)" },
-        { "id": "BB7", "label": "bsbbif_7_j",   "ir_label": "bsbbif_7_j", "type": "terminal",     "content": "dispose(igMSignal); NOP" }
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "join"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "7",
+          "label": "bsbbif_7_j",
+          "type": "terminal"
+        }
       ],
       "edges": [
-        ["BB1","BB2"], ["BB1","BB3"],
-        ["BB2","BB4"], ["BB3","BB4"],
-        ["BB4","BB5"], ["BB4","BB6"],
-        ["BB5","BB7"], ["BB6","BB7"]
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ]
+      ]
+    },
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(igGReaction1[0])\nbsbbif_3_f:\n\tdispose(igGReaction1[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(igGSignal1[0])\n\tigMSampleRaw1[0] = dispense(SampleIgM)\n\tigMPretreat1[0] = dispense(PretreatmentReagent)\n\tigMPretreatedSample1[0] = mix(igMSampleRaw1[0], igMPretreat1[0]) @ 420.0SECOND\n\tigMParticles1[0] = dispense(VirusCoatedParticles)\n\tigMParticleSep1[0] = mix(igMParticles1[0], igMParticles1[0]) @ 5.0SECOND\n\tdispose(igMParticleSep1[0])\n\tigMCapture1[0] = mix(igMPretreatedSample1[0], igMParticles1[0]) @ 180.0SECOND\n\tdispose(igMCapture1[0])\n\tigMWash11[0] = dispense(WashBuffer)\n\tigMWashStep11[0] = mix(igMParticles1[0], igMWash11[0]) @ 30.0SECOND\n\tdispose(igMWashStep11[0])\n\tigMWash21[0] = dispense(WashBuffer)\n\tigMWashStep21[0] = mix(igMParticles1[0], igMWash21[0]) @ 30.0SECOND\n\tdispose(igMWashStep21[0])\n\tigMWash31[0] = dispense(WashBuffer)\n\tigMWashStep31[0] = mix(igMParticles1[0], igMWash31[0]) @ 30.0SECOND\n\tdispose(igMWashStep31[0])\n\tigMWash41[0] = dispense(WashBuffer)\n\tigMWashStep41[0] = mix(igMParticles1[0], igMWash41[0]) @ 30.0SECOND\n\tdispose(igMWashStep41[0])\n\tigMConjugate1[0] = dispense(HRPConjugateIgM)\n\tigMConjugateStep1[0] = mix(igMParticles1[0], igMConjugate1[0]) @ 120.0SECOND\n\tdispose(igMConjugateStep1[0])\n\tigMWash51[0] = dispense(WashBuffer)\n\tigMWashStep51[0] = mix(igMParticles1[0], igMWash51[0]) @ 30.0SECOND\n\tdispose(igMWashStep51[0])\n\tigMWash61[0] = dispense(WashBuffer)\n\tigMWashStep61[0] = mix(igMParticles1[0], igMWash61[0]) @ 30.0SECOND\n\tdispose(igMWashStep61[0])\n\tigMWash71[0] = dispense(WashBuffer)\n\tigMWashStep71[0] = mix(igMParticles1[0], igMWash71[0]) @ 30.0SECOND\n\tdispose(igMWashStep71[0])\n\tigMWash81[0] = dispense(WashBuffer)\n\tigMWashStep81[0] = mix(igMParticles1[0], igMWash81[0]) @ 30.0SECOND\n\tdispose(igMWashStep81[0])\n\tigMH2O21[0] = dispense(H2O2)\n\tigMLuminol1[0] = dispense(LuminolEnhancer)\n\tigMSubstrateMix1[0] = mix(igMH2O21[0], igMLuminol1[0]) @ 5.0SECOND\n\tigMReaction1[0] = mix(igMParticles1[0], igMSubstrateMix1[0]) @ 120.0SECOND\n\tigMSignal1[0] = detect(rvIgMDetection, igMReaction1[0]) @ 10.0SECOND\n\tif igMSignal1[0] > 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nmain:\n\tigGParticles1[0] = dispense(VirusCoatedParticles)\n\tigGParticleSep1[0] = mix(igGParticles1[0], igGParticles1[0]) @ 5.0SECOND\n\tdispose(igGParticleSep1[0])\n\tigGSample1[0] = dispense(SampleIgG)\n\tigGCapture1[0] = mix(igGSample1[0], igGParticles1[0]) @ 180.0SECOND\n\tdispose(igGCapture1[0])\n\tigGWash11[0] = dispense(WashBuffer)\n\tigGWashStep11[0] = mix(igGParticles1[0], igGWash11[0]) @ 30.0SECOND\n\tdispose(igGWashStep11[0])\n\tigGWash21[0] = dispense(WashBuffer)\n\tigGWashStep21[0] = mix(igGParticles1[0], igGWash21[0]) @ 30.0SECOND\n\tdispose(igGWashStep21[0])\n\tigGWash31[0] = dispense(WashBuffer)\n\tigGWashStep31[0] = mix(igGParticles1[0], igGWash31[0]) @ 30.0SECOND\n\tdispose(igGWashStep31[0])\n\tigGWash41[0] = dispense(WashBuffer)\n\tigGWashStep41[0] = mix(igGParticles1[0], igGWash41[0]) @ 30.0SECOND\n\tdispose(igGWashStep41[0])\n\tigGConjugate1[0] = dispense(HRPConjugateIgG)\n\tigGConjugateStep1[0] = mix(igGParticles1[0], igGConjugate1[0]) @ 120.0SECOND\n\tdispose(igGConjugateStep1[0])\n\tigGWash51[0] = dispense(WashBuffer)\n\tigGWashStep51[0] = mix(igGParticles1[0], igGWash51[0]) @ 30.0SECOND\n\tdispose(igGWashStep51[0])\n\tigGWash61[0] = dispense(WashBuffer)\n\tigGWashStep61[0] = mix(igGParticles1[0], igGWash61[0]) @ 30.0SECOND\n\tdispose(igGWashStep61[0])\n\tigGWash71[0] = dispense(WashBuffer)\n\tigGWashStep71[0] = mix(igGParticles1[0], igGWash71[0]) @ 30.0SECOND\n\tdispose(igGWashStep71[0])\n\tigGWash81[0] = dispense(WashBuffer)\n\tigGWashStep81[0] = mix(igGParticles1[0], igGWash81[0]) @ 30.0SECOND\n\tdispose(igGWashStep81[0])\n\tigGH2O21[0] = dispense(H2O2)\n\tigGLuminol1[0] = dispense(LuminolEnhancer)\n\tigGSubstrateMix1[0] = mix(igGH2O21[0], igGLuminol1[0]) @ 5.0SECOND\n\tigGReaction1[0] = mix(igGParticles1[0], igGSubstrateMix1[0]) @ 120.0SECOND\n\tigGSignal1[0] = detect(rvIgGDetection, igGReaction1[0]) @ 10.0SECOND\n\tif igGSignal1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbif_5_t:\n\tdispose(igMReaction1[0])\nbsbbif_6_f:\n\tdispose(igMReaction1[0])\n\tjump: bsbbif_7_j\nbsbbif_7_j:\n\tdispose(igMSignal1[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "VirusCoatedParticles",
+          "source_quote": "Reagents : VirusCoatedParticles",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "WashBuffer",
+          "source_quote": "Reagents : WashBuffer",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "HRPConjugateIgG",
+          "source_quote": "Reagents : HRPConjugateIgG (21 ng/mL HRP-conjugated goat polyclonal antihuman IgG)",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "HRPConjugateIgM",
+          "source_quote": "Reagents : HRPConjugateIgM (23 ng/mL HRP-conjugated goat antihuman IgM)",
+          "source_location": "description.txt: Interpretation"
+        },
+        {
+          "bs_chemical": "H2O2",
+          "source_quote": "stable peroxide (H2O2) + luminol-enhancer; 900 nL each.",
+          "source_location": "description.txt: REAGENTS"
+        },
+        {
+          "bs_chemical": "LuminolEnhancer",
+          "source_quote": "H2O2, LuminolEnhancer, PretreatmentReagent, SampleIgG, SampleIgM,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "PretreatmentReagent",
+          "source_quote": "H2O2, LuminolEnhancer, PretreatmentReagent, SampleIgG, SampleIgM,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "SampleIgG",
+          "source_quote": "SampleIgGplusIgM, DiluentPBSBSA, PluronicL64",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "SampleIgM",
+          "source_quote": "Reagents : SampleIgM (pre-diluted 10x in DPBS/4% BSA off-chip),",
+          "source_location": "description.txt: Interpretation"
+        },
+        {
+          "bs_chemical": "SampleIgGplusIgM",
+          "source_quote": "SampleIgGplusIgM, DiluentPBSBSA, PluronicL64",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "DiluentPBSBSA",
+          "source_quote": "SampleIgGplusIgM, DiluentPBSBSA, PluronicL64",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "PluronicL64",
+          "source_quote": "SampleIgGplusIgM, DiluentPBSBSA, PluronicL64",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        }
       ],
-      "ir_verified": true,
-      "dot_verified": true,
-      "compiler": "lilott8/BioScript (ANTLR4-based)",
-      "ir_timing_notes": {
-        "3m_incubation": "180.0 SECOND",
-        "2m_incubation": "120.0 SECOND",
-        "7m_pretreatment": "420.0 SECOND",
-        "30s_wash": "30.0 SECOND",
-        "10s_detection": "10.0 SECOND",
-        "5s_substrate_mix": "5.0 SECOND"
-      }
-    }
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "Step 1 | Particle dispense and magnetic separation",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "Operation: Mix 3 min.",
+          "source_location": "description.txt: Interpretation"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "Signal is detected by an",
+          "source_location": "description.txt: OVERVIEW"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "Terminal (BB7): dispose(igMSignal); NOP.",
+          "source_location": "description.txt: Interpretation"
+        },
+        {
+          "bs_operation": "drain",
+          "source_quote": "Branch fail (BB6): igMSignal <= 0 -> drain(igMReaction); IgM-negative/equivocal.",
+          "source_location": "description.txt: Interpretation"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "Step 7 | Diagnostic gate (BB2 / BB3)",
+          "source_location": "description.txt: Interpretation"
+        }
+      ],
+      "numeric_mismatches": []
+    },
+    "notes": "This protocol details Digital Microfluidic Platform for the Detection of Rubella Infection and Immunity: A Proof of Concept. The assay is performed on a Digital microfluidics (DMF), two-plate, air-filled, with motorised PMT and magnetic lens assembly platform. It achieves a reported detection limit of 0."
   }
 }

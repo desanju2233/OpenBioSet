@@ -1,281 +1,272 @@
 {
-  "protocol": {
-    "title": "Digital Signaling Decouples Activation Probability and Population Heterogeneity",
-    "source": "eLife 2015;4:e08931",
-    "source_link": "https://elifesciences.org/articles/8931",
-    "doi": "http://dx.doi.org/10.7554/eLife.08931",
-    "authors": ["Ryan A Kellogg", "Chengzhe Tian", "Tomasz Lipniacki", "Stephen R Quake", "Savas Tay"],
-    "platform": "Automated microfluidic cell culture (PDMS chip) + widefield fluorescence live-cell microscopy + 96-well bulk qPCR",
-    "cell_line": "p65-knockout NIH 3T3 fibroblasts expressing p65-DsRed (NF-kB reporter) and H2B-GFP (nuclear reporter); clonally derived at lowest detectable p65-DsRed expression to preserve near-endogenous levels",
-    "objective": "Characterise how stimulus dose (amplitude) and duration determine NF-kB digital activation probability and single-cell response heterogeneity under LPS and TNF stimulation; demonstrate the Area Rule (stimulus integral = concentration x duration controls fraction of responding cells)",
-
-    "device": {
-      "type": "Automated microfluidic cell culture chip",
-      "reference": "Gomez-Sjoberg et al. 2007 (Anal. Chem. 79:8557); Kellogg et al. 2014 (Nat. Protoc. 9:1713)",
-      "chamber_volume_mm3": { "length_mm": 1.12, "width_mm": 0.9, "height_mm": 0.040 },
-      "cells_per_chamber": "~200",
-      "confluence_at_stimulation_pct": 80,
-      "conditions_per_chip": "All LPS doses tested in parallel; duplicate chambers per condition",
-      "imaging_objective": "20x magnification",
-      "camera": "Retiga-SRV CCD (QImaging)",
-      "microscope": "Leica DMI6000B widefield",
-      "filters": {
-        "GFP_channel": "Leica L5",
-        "DsRed_channel": "Leica Y3"
-      },
-      "light_source": "Leica EL6000 mercury metal halide",
-      "imaging_interval_min": "5-6",
-      "image_stitching": "ImageJ Pairwise stitching plugin (1-2 images per chamber)"
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
     },
-
-    "reagents": {
-      "cell_culture_media": "Complete growth media (DMEM + 10% FBS), equilibrated to 5% CO2 before stimulation",
-      "coating_agent": "Fibronectin solution; chambers pre-treated to promote cell adhesion",
-      "lps_stimulus": {
-        "source": "LPS (lipopolysaccharide)",
-        "molecular_weight_kDa": 10,
-        "dose_modulation_range_ng_mL": ["0.25", "0.5", "1", "3", "5", "10", "50", "500"],
-        "pulse_stock_ng_mL": 500,
-        "pulse_duration_range_s": ["1", "5", "10", "20", "40"],
-        "lps_per_ng_mL_molecules_per_cell": 24000,
-        "conversion_note": "1 ng/mL LPS = 2.4e4 molecules per cell in microfluidic chamber (MW 10 kDa, chamber 1.12x0.9x0.040 mm, ~100 cells/chamber)"
-      },
-      "tnf_stimulus": {
-        "concentration_ng_mL": 10,
-        "used_for": "Pulsed duration-modulation comparison (Figure 5 supplement 1)"
-      },
-      "lysis_buffer": "RNA lysis buffer (96-well qPCR arm)",
-      "cdna_kit": "Invitrogen One-Step RT-PCR kit (specific target amplification with 24-primer set)",
-      "qpcr_platform": "Fluidigm 48.48 dynamic array (technical duplicates)",
-      "normalization_gene": "GAPDH"
+    {
+      "role": "user",
+      "content": "PROTOCOL DESCRIPTION\n====================\n\nTitle        : Digital Signaling Decouples Activation Probability and Population Heterogeneity\nSource Link  : https://elifesciences.org/articles/8931\nPaper DOI    : http://dx.doi.org/10.7554/eLife.08931\nJournal      : eLife 2015, Vol. 4, Article e08931\nAuthors      : Ryan A Kellogg, Chengzhe Tian, Tomasz Lipniacki, Stephen R Quake, Savas Tay\nPlatform     : Automated microfluidic cell culture (PDMS chip, Gomez-Sjoberg et al. 2007) +\n               widefield fluorescence live-cell microscopy + 96-well bulk RT-qPCR\n\n\nOVERVIEW\n--------\nThis protocol studies how the NF-kB transcription factor system encodes and decodes temporal\ninformation in inflammatory input signals. Using a combination of mathematical modeling and\nmicrofluidic single-cell experiments, the paper demonstrates that NF-kB activates in a\ndigital (all-or-none) fashion in response to both LPS (pathogen signal) and TNF (host immune\nsignal), and that this digital switch enables two-dimensional control over population-level\nand single-cell-level responses:\n\n  1. Stimulus AREA (concentration x duration) controls the FRACTION of cells that activate\n     NF-kB in the population -- the \"Area Rule.\"\n  2. Stimulus TEMPORAL PROFILE (shape: short-strong vs. long-low) controls NF-kB DYNAMICS\n     and gene expression phenotype in the responding cells.\n\nThese two axes are independently tunable: a brief high-dose (SS) stimulus and a sustained\nlow-dose (LL) stimulus with the same area activate the same responding fraction, but produce\ndistinct NF-kB dynamics (rapid/uniform vs. delayed/heterogeneous) and therefore distinct\ndownstream gene expression profiles.\n\nThree experimental protocols are encoded in the BioScript file in sequence:\n\n  Protocol 1 : LPS Dose-Modulation (LL Signal, on-chip microfluidics)\n  Protocol 2 : LPS Duration-Modulation (SS Signal, on-chip microfluidics)\n  Protocol 3 : NF-kB-Dependent Gene Expression Assay (off-chip, 96-well RT-qPCR)\n\n\nCELL LINE\n---------\np65-knockout NIH 3T3 fibroblasts modified via lentiviral vectors to express:\n  - p65-DsRed under the endogenous p65 promoter (NF-kB nuclear translocation reporter)\n  - H2B-GFP (nuclear position reporter for cell tracking)\nClonally derived to express p65-DsRed at the lowest detectable level to preserve\nnear-endogenous expression. (Lee et al., 2009; Tay et al., 2010)\n\n\nDEVICE AND IMAGING\n------------------\nMicrofluidic chip: PDMS-based automated cell culture system (Gomez-Sjoberg et al. 2007;\n  Kellogg et al. 2014 Nat. Protoc. 9:1713). Chamber dimensions: 1.12 mm x 0.9 mm x 0.040 mm.\n  ~200 cells/chamber; all LPS doses tested in parallel on a single chip in duplicate chambers.\n\nMicroscope  : Leica DMI6000B widefield, 20x magnification\nCamera      : Retiga-SRV CCD (QImaging)\nFilters     : Leica L5 (GFP channel, H2B-GFP nuclear reporter)\n              Leica Y3 (DsRed channel, p65-DsRed NF-kB reporter)\nLight source: Leica EL6000 mercury metal halide\nImaging interval: 5-6 min over ~250 min post-stimulation\n\nNF-kB quantification: Mean nuclear DsRed fluorescence / mean cytoplasm DsRed fluorescence.\n  Cell tracking: CellProfiler + custom Matlab. Peak detection: Matlab smooth() + mspeaks().\n  Peak area integration: Matlab trapz() (baseline-corrected, LPS onset to first minimum).\n  Statistics: Unpaired two-sample T-test (Matlab ttest2()). Mitotic cells excluded.\n\n\nMATHEMATICAL MODEL\n------------------\nBase model: IKK-NF-kB regulatory module from Tay et al. 2010 (Nature 466:267).\nLPS extensions: TLR4 receptor species; TRAF6 activation; cooperative IKK activation\n  via Hill kinetics (n=4) to model Myddosome/TRAF6 lattice clustering.\nCell-to-cell variability: TLR4 receptor number drawn from lognormal distribution\n  (mu=8.0, sigma=0.8; expected 4.1e3 receptors/cell; median 3.0e3; mode 1.6e3).\nSimplifications: CD14 removed (assumed in excess; LPS binds TLR4 directly).\n  TLR4-TRIF-dependent branch removed (LPS.TLR4 complexes do not internalize in model).\n  Only TLR4-MyD88 (early response) branch modeled.\nParameter estimation: Iterative automatic (L2-norm error on activation fractions,\n  log-scale parameter sampling) + manual; 200 simulations per parameter set.\nLPS concentration conversion: 1 ng/mL LPS = 2.4e4 molecules/cell\n  (MW ~10 kDa; chamber volume 1.12x0.9x0.040 mm; ~100 cells/chamber).\n\nArea Rule (Appendix 1, Equation 2): For high-dose inputs where ligand-receptor\n  backward reaction is negligible:\n    P([AB] >= [AB]_th) = P(B0 >= [AB]_th / (1 - exp(-k+ * S)))\n  where S = integral(concentration dt) = stimulus area, B0 = receptor number (lognormal),\n  k+ = forward binding rate. Fraction of activation depends ONLY on input area S.\n  Caveat: at sub-threshold doses, the maximal activatable fraction saturates and\n  further increases in duration cannot exceed that ceiling.\n\n\nPROTOCOL STEPS\n--------------\n\nStep 1 | Fibronectin Coating and Cell Seeding (Protocol 1 + 2)\n  Reagents  : FibronectinSolution, CompleteMedia, NIH3T3_NFkB_Cells\n  Operations: Mix fibronectin + media for 5 min (300 s) -> coatedChamber\n              Load ~200 cells into coatedChamber for 2 s -> loadedChamber\n              Incubate at 37 C for 24 h (1440 min = 86400 s) to ~80% confluence\n  IR        : coatedChamber1[0] = mix(fibronectin1[0], media_prime1[0]) @ 300.0SECOND\n              loadedChamber1[0] = mix(seedCells1[0], coatedChamber1[0]) @ 2.0SECOND\n              heat(loadedChamber1[0]) @ 37.0CELSIUS @ 86400.0SECOND\n\nStep 2 | LPS Dose-Modulation: High-Dose LL Arm (500 ng/mL, continuous)\n  BB        : BB1 (main) -> BB2/BB3 fork\n  Stimulus  : Long-duration low-dose (LL) -- high-dose arm: 500 ng/mL continuous LPS\n              Delivered as step increase via media exchange; continuous flow replenishes\n              internalized ligand. All conditions in parallel, duplicate chambers.\n  Duration  : 250 min imaging (250m = 15000 s)\n  Expected  : ~100% cells respond; median peak at ~35 min; low timing variability;\n              Hill coefficient ~2.3; sustained oscillations under continuous flow\n  IR        : llHighChamber1[0] = mix(loadedChamber1[0], lpsHighDose1[0]) @ 5.0SECOND\n              heat(llHighChamber1[0]) @ 37.0CELSIUS @ 15000.0SECOND\n              llHighSignal1[0] = detect(nfkbTranslocationDetection, llHighChamber1[0]) @ 15000.0SECOND\n\nStep 3 | LPS Dose-Modulation: Low-Dose LL Arm (0.25 ng/mL, continuous)\n  BB        : BB1 (main) -> BB2/BB3 fork (parallel with Step 2)\n  Stimulus  : Long-duration low-dose (LL) -- low-dose arm: 0.25 ng/mL continuous LPS\n              Same delivery method; dose pre-diluted in media before chip loading.\n  Duration  : 250 min imaging (15000 s)\n  Expected  : ~5% cells respond; median peak >80 min; high cell-to-cell timing variability;\n              stereotypical peak shape shifted later; heterogeneous dynamics\n  IR        : llLowChamber1[0] = mix(loadedChamber1[0], lpsLowDose1[0]) @ 5.0SECOND\n              heat(llLowChamber1[0]) @ 37.0CELSIUS @ 15000.0SECOND\n              llLowSignal1[0] = detect(nfkbTranslocationDetection, llLowChamber1[0]) @ 15000.0SECOND\n\n  QC Gate (LL Dose): if llHighSignal > 0 -> dispose both chambers (pass)\n                     else -> dispose both chambers (fail; imaging/reagent failure)\n                     Convergence at BB4 (bsbbif_4_j).\n\nStep 4 | LPS Duration-Modulation: 1 s SS Pulse (500 ng/mL, 1 s)\n  BB        : BB4 (bsbbif_4_j) -> BB5/BB6 fork\n  Stimulus  : Short-duration strong-amplitude (SS) -- 1 s pulse @ 500 ng/mL\n              1 s flow of LPS through chamber; immediate media wash terminates\n              receptor-ligand contact (no further LPS exposure after wash).\n  Fresh cells seeded: 1440m growth at 37 C (86400 s) before stimulation.\n  Duration  : 150 min post-pulse imaging (9000 s)\n  Expected  : ~3.3% cells respond; median peak ~55 min; low timing variability (uniform).\n              Same responding fraction as 0.25 ng/mL continuous LL arm (~3-5%).\n              Response dynamics are fast and synchronous, unlike LL low-dose arm.\n  IR        : ss1sPulsed1[0] = mix(ssChamber1[0], ssPulseHigh1[0]) @ 1.0SECOND\n              ss1sWashed1[0] = mix(ss1sPulsed1[0], mediaWashShort1[0]) @ 5.0SECOND\n              heat(ss1sWashed1[0]) @ 37.0CELSIUS @ 9000.0SECOND\n              ss1sSignal1[0] = detect(nfkbTranslocationDetection, ss1sWashed1[0]) @ 9000.0SECOND\n\nStep 5 | LPS Duration-Modulation: 40 s SS Pulse (500 ng/mL, 40 s)\n  BB        : BB4 (bsbbif_4_j) -> BB5/BB6 fork (parallel with Step 4)\n  Stimulus  : Short-duration strong-amplitude (SS) -- 40 s pulse @ 500 ng/mL\n              Same delivery; post-pulse media wash terminates stimulus.\n  Duration  : 150 min post-pulse imaging (9000 s)\n  Expected  : ~87.5% cells respond; median peak ~47 min; low timing variability.\n              Median peak time changes < 2 min vs. 1 s arm despite >25x difference\n              in responding fraction. No significant timing difference (Fig. 5 supp. 2).\n              Area Rule: 500 ng/mL x 10 s = 5000 ng·s/mL activates ~55% (validated\n              vs. 50 ng/mL x 100 s and 100 ng/mL x 50 s, both ~51-54% responding).\n  IR        : ss40sPulsed1[0] = mix(ssChamber1[0], ssPulseLong401[0]) @ 40.0SECOND\n              ss40sWashed1[0] = mix(ss40sPulsed1[0], mediaWashLong1[0]) @ 5.0SECOND\n              heat(ss40sWashed1[0]) @ 37.0CELSIUS @ 9000.0SECOND\n              ss40sSignal1[0] = detect(nfkbTranslocationDetection, ss40sWashed1[0]) @ 9000.0SECOND\n\n  QC Gate (SS Pulse): if ss40sSignal > 0 -> dispose both washed chambers (pass)\n                      else -> dispose both (fail)\n                      Convergence at BB7 (bsbbif_7_j).\n\nStep 6 | Gene Expression Assay -- Cell Seeding (96-well plate)\n  BB        : BB7 (bsbbif_7_j)\n  Protocol  : Off-chip, 96-well plate\n  Reagents  : NIH3T3_NFkB_Cells, CompleteMedia\n  Seeding   : 10,000 cells/well; attach overnight (1440m = 86400 s) at 37 C\n  IR        : bulkWell1[0] = mix(bulkCells1[0], bulkMedia1[0]) @ 60.0SECOND\n              heat(bulkWell1[0]) @ 37.0CELSIUS @ 86400.0SECOND\n\nStep 7 | Gene Expression Assay -- LPS Stimulation (500 ng/mL and 50 ng/mL)\n  BB        : BB7 (bsbbif_7_j)\n  LPS doses : 500 ng/mL (high-dose; early gene peak at 30 min)\n              50  ng/mL (low-dose; dose-dependent peak delay to 1-3 h)\n              Full screen range: 1-500 ng/mL; two representative doses encoded in CFG.\n  Duration  : 8 h stimulation (480m = 28800 s); cells lysed at 0, 0.5, 1, 2, 3, 4, 6, 8 h\n  IR        : stimWell5001[0] = mix(bulkWell1[0], lpsGex5001[0]) @ 5.0SECOND\n              heat(stimWell5001[0]) @ 37.0CELSIUS @ 28800.0SECOND\n              stimWell501[0]  = mix(bulkWell1[0], lpsGex501[0])  @ 5.0SECOND\n              heat(stimWell501[0])  @ 37.0CELSIUS @ 28800.0SECOND\n\nStep 8 | Gene Expression Assay -- RNA Extraction and cDNA Preparation\n  BB        : BB7 (bsbbif_7_j)\n  Reagents  : RNALysisBuffer, cDNA_Primers, GAPDH_Primer\n  Operations: Lysis: mix stimWell + RNALysisBuffer for 5 min (300 s)\n              RT-PCR: mix RNA + cDNA_Primers for 30 min (1800 s) [Invitrogen One-Step\n                      RT-PCR kit with specific target amplification, 24-primer set]\n              Normalisation: mix cDNA + GAPDH_Primer for 5 s\n  IR        : rna5001[0]      = mix(stimWell5001[0], lysate5001[0]) @ 300.0SECOND\n              cdna5001[0]     = mix(rna5001[0], primers5001[0]) @ 1800.0SECOND\n              cdnaNorm5001[0] = mix(cdna5001[0], gapdh5001[0]) @ 5.0SECOND\n\nStep 9 | Gene Expression Assay -- Fluidigm qPCR Detection\n  BB        : BB7 (bsbbif_7_j) -> BB8/BB9 fork\n  Platform  : Fluidigm 48.48 dynamic array; technical duplicates; normalized to GAPDH\n  Duration  : 60 min (3600 s)\n  IR        : gexSignal5001[0] = detect(geneExpressionDetection, cdnaNorm5001[0]) @ 3600.0SECOND\n              gexSignal501[0]  = detect(geneExpressionDetection, cdnaNorm501[0])  @ 3600.0SECOND\n\n  Target genes and dose-dependent response (500 vs. 50 ng/mL LPS):\n    Early (peak 30 min -> 1 h)    : nfkbia (IkBa), a20\n    Early (peak 1 h -> 2 h)       : nfkbie (IkBe), tnf\n    Intermediate (peak 1-2 h -> 3 h) : ccl20, icam1\n    Late (slow kinetics; no delay): casp4, ccl5\n\n  QC Gate (GEX): if gexSignal500 > 0 -> dispose both cDNA normalised droplets (pass)\n                 else -> dispose both (fail; RT-PCR or Fluidigm failure)\n                 Convergence at BB10 (bsbbif_10_j) -> NOP (terminal).\n\n\nBIOSCRIPT COMPILER NOTES\n-------------------------\nBioScript file : kellogg_nfkb_digital_signaling.bs\nCompiler       : lilott8/BioScript (ANTLR4-based)\nIR file        : kellogg_nfkb_digital_signaling.ir\nDAG file       : kellogg_nfkb_digital_signaling_main_dag.dot\nTotal BBs      : 10 (BB1-BB10 / main + bsbbif_2_t through bsbbif_10_j)\nCFG edges      : 12 (three sequential diamond QC gates; no cycles; no dangling nodes)\nif/else gates  : 3 (llHighSignal, ss40sSignal, gexSignal500)\nTerminal node  : bsbbif_10_j -> NOP\n\nDuration unit conversions (BioScript accepts s and m only; h not supported):\n  24 h cell growth/attachment  -> 1440m  -> IR: 86400.0SECOND\n  250 min LL imaging window    -> 250m   -> IR: 15000.0SECOND\n  150 min SS imaging window    -> 150m   -> IR:  9000.0SECOND\n  8 h GEX stimulation          -> 480m   -> IR: 28800.0SECOND\n  60 min qPCR detection        -> 60m    -> IR:  3600.0SECOND\n\nModules    : nfkbTranslocationDetection, geneExpressionDetection\nManifests  : NIH3T3_NFkB_Cells, LPS_Stock, TNF_Stock, CompleteMedia,\n             FibronectinSolution, LPS_PulseStock, TrypsinEDTA,\n             RNALysisBuffer, cDNA_Primers, GAPDH_Primer\n\nAbstraction notes:\n  - `mix` abstracts microfluidic chamber loading and LPS delivery events\n    (step increase via media exchange; not a DMF electrode mixing step).\n  - `mix for 1s / 40s` abstracts the timed LPS pulse flow event in the SS arm;\n    subsequent `mix` with CompleteMedia abstracts the post-pulse wash step.\n  - `heat` models incubator conditions (37 C / 5% CO2) during growth and stimulation.\n  - nfkbTranslocationDetection abstracts CellProfiler + Matlab image analysis pipeline\n    for nuclear/cytoplasm p65-DsRed translocation quantification at 5-6 min intervals.\n  - geneExpressionDetection abstracts Fluidigm 48.48 dynamic array qPCR readout\n    with GAPDH normalization.\n  - LPS_Stock is used for both LL dose-modulation and GEX arms (concentration\n    pre-diluted in media off-chip); LPS_PulseStock is the dedicated 500 ng/mL stock\n    for the SS pulse arm, kept as a separate manifest to reflect distinct delivery modes.\n  - SS arm uses fresh chamber seeding (ssCells + ssChamber + 1440m growth) to avoid\n    confounding the LL imaging window with the SS pulse arm.\n"
     },
-
-    "steps": [
-      {
-        "id": "S1",
-        "name": "Fibronectin coating and cell seeding",
-        "bb": "BB1 (main)",
-        "protocol": "on-chip",
-        "inputs": ["FibronectinSolution", "CompleteMedia", "NIH3T3_NFkB_Cells"],
-        "operations": [
-          { "op": "mix", "inputs": ["FibronectinSolution", "CompleteMedia"], "duration_s": 300, "output": "coatedChamber", "ir": "coatedChamber1[0] = mix(fibronectin1[0], media_prime1[0]) @ 300.0SECOND" },
-          { "op": "mix", "inputs": ["NIH3T3_NFkB_Cells", "coatedChamber"], "duration_s": 2, "output": "loadedChamber", "ir": "loadedChamber1[0] = mix(seedCells1[0], coatedChamber1[0]) @ 2.0SECOND" },
-          { "op": "heat", "target": "loadedChamber", "temperature_C": 37, "duration_s": 86400, "duration_note": "24 h = 1440 min = 86400 s", "ir": "heat(loadedChamber1[0]) @ 37.0CELSIUS @ 86400.0SECOND" }
-        ],
-        "notes": "~200 cells/chamber; grown for 1 day with periodic media replenishment to ~80% confluence at 37 C / 5% CO2"
-      },
-      {
-        "id": "S2",
-        "name": "LPS dose-modulation stimulation (LL high-dose arm: 500 ng/mL)",
-        "bb": "BB1 (main) -> BB2/BB3 fork",
-        "protocol": "on-chip",
-        "stimulus_type": "Long-duration, high-dose (LL)",
-        "lps_concentration_ng_mL": 500,
-        "lps_molecules_per_cell": "1.2e7",
-        "delivery": "Step increase by media exchange; continuous flow to replace internalized ligand",
-        "inputs": ["LPS_Stock"],
-        "operations": [
-          { "op": "mix", "inputs": ["loadedChamber", "lpsHighDose"], "duration_s": 5, "output": "llHighChamber", "ir": "llHighChamber1[0] = mix(loadedChamber1[0], lpsHighDose1[0]) @ 5.0SECOND" },
-          { "op": "heat", "target": "llHighChamber", "temperature_C": 37, "duration_s": 15000, "duration_note": "250 min = 15000 s", "ir": "heat(llHighChamber1[0]) @ 37.0CELSIUS @ 15000.0SECOND" },
-          { "op": "detect", "module": "nfkbTranslocationDetection", "target": "llHighChamber", "duration_s": 15000, "output": "llHighSignal", "ir": "llHighSignal1[0] = detect(nfkbTranslocationDetection, llHighChamber1[0]) @ 15000.0SECOND" }
-        ],
-        "expected_outcome": {
-          "responding_fraction_pct": "~100",
-          "median_peak_time_min": 35,
-          "timing_variability": "low",
-          "dynamics": "Rapid, synchronous; sustained oscillations under continuous LPS flow",
-          "hill_coefficient": 2.3
-        }
-      },
-      {
-        "id": "S3",
-        "name": "LPS dose-modulation stimulation (LL low-dose arm: 0.25 ng/mL)",
-        "bb": "BB1 (main) -> BB2/BB3 fork",
-        "protocol": "on-chip",
-        "stimulus_type": "Long-duration, low-dose (LL)",
-        "lps_concentration_ng_mL": 0.25,
-        "lps_molecules_per_cell": "6.0e3",
-        "delivery": "Step increase by media exchange; continuous flow",
-        "inputs": ["LPS_Stock"],
-        "operations": [
-          { "op": "mix", "inputs": ["loadedChamber", "lpsLowDose"], "duration_s": 5, "output": "llLowChamber", "ir": "llLowChamber1[0] = mix(loadedChamber1[0], lpsLowDose1[0]) @ 5.0SECOND" },
-          { "op": "heat", "target": "llLowChamber", "temperature_C": 37, "duration_s": 15000, "duration_note": "250 min = 15000 s", "ir": "heat(llLowChamber1[0]) @ 37.0CELSIUS @ 15000.0SECOND" },
-          { "op": "detect", "module": "nfkbTranslocationDetection", "target": "llLowChamber", "duration_s": 15000, "output": "llLowSignal", "ir": "llLowSignal1[0] = detect(nfkbTranslocationDetection, llLowChamber1[0]) @ 15000.0SECOND" }
-        ],
-        "expected_outcome": {
-          "responding_fraction_pct": "~5",
-          "median_peak_time_min": ">80",
-          "timing_variability": "high (heterogeneous)",
-          "dynamics": "Delayed, variable activation; stereotypical peak shape shifted later in time"
-        }
-      },
-      {
-        "id": "S4",
-        "name": "LPS duration-modulation stimulation (SS short-pulse arm: 1 s @ 500 ng/mL)",
-        "bb": "BB4 (bsbbif_4_j) -> BB5/BB6 fork",
-        "protocol": "on-chip",
-        "stimulus_type": "Short-duration, strong-amplitude (SS)",
-        "lps_concentration_ng_mL": 500,
-        "pulse_duration_s": 1,
-        "delivery": "1 s flow of LPS at 500 ng/mL; immediate media wash to terminate receptor contact",
-        "inputs": ["LPS_PulseStock", "CompleteMedia"],
-        "operations": [
-          { "op": "mix", "inputs": ["ssChamber", "ssPulseHigh"], "duration_s": 1, "output": "ss1sPulsed", "ir": "ss1sPulsed1[0] = mix(ssChamber1[0], ssPulseHigh1[0]) @ 1.0SECOND" },
-          { "op": "mix", "inputs": ["ss1sPulsed", "mediaWashShort"], "duration_s": 5, "output": "ss1sWashed", "notes": "Media wash terminates stimulus", "ir": "ss1sWashed1[0] = mix(ss1sPulsed1[0], mediaWashShort1[0]) @ 5.0SECOND" },
-          { "op": "heat", "target": "ss1sWashed", "temperature_C": 37, "duration_s": 9000, "duration_note": "150 min = 9000 s", "ir": "heat(ss1sWashed1[0]) @ 37.0CELSIUS @ 9000.0SECOND" },
-          { "op": "detect", "module": "nfkbTranslocationDetection", "target": "ss1sWashed", "duration_s": 9000, "output": "ss1sSignal", "ir": "ss1sSignal1[0] = detect(nfkbTranslocationDetection, ss1sWashed1[0]) @ 9000.0SECOND" }
-        ],
-        "expected_outcome": {
-          "responding_fraction_pct": 3.3,
-          "median_peak_time_min": "~55",
-          "timing_variability": "low (uniform)",
-          "notes": "Same responding fraction as 0.25 ng/mL continuous LL arm (~3-5%); response dynamics fast and synchronous unlike LL low-dose arm"
-        }
-      },
-      {
-        "id": "S5",
-        "name": "LPS duration-modulation stimulation (SS long-pulse arm: 40 s @ 500 ng/mL)",
-        "bb": "BB4 (bsbbif_4_j) -> BB5/BB6 fork",
-        "protocol": "on-chip",
-        "stimulus_type": "Short-duration, strong-amplitude (SS)",
-        "lps_concentration_ng_mL": 500,
-        "pulse_duration_s": 40,
-        "delivery": "40 s flow of LPS at 500 ng/mL; immediate media wash to terminate receptor contact",
-        "inputs": ["LPS_PulseStock", "CompleteMedia"],
-        "operations": [
-          { "op": "mix", "inputs": ["ssChamber", "ssPulseLong40"], "duration_s": 40, "output": "ss40sPulsed", "ir": "ss40sPulsed1[0] = mix(ssChamber1[0], ssPulseLong401[0]) @ 40.0SECOND" },
-          { "op": "mix", "inputs": ["ss40sPulsed", "mediaWashLong"], "duration_s": 5, "output": "ss40sWashed", "notes": "Media wash terminates stimulus", "ir": "ss40sWashed1[0] = mix(ss40sPulsed1[0], mediaWashLong1[0]) @ 5.0SECOND" },
-          { "op": "heat", "target": "ss40sWashed", "temperature_C": 37, "duration_s": 9000, "duration_note": "150 min = 9000 s", "ir": "heat(ss40sWashed1[0]) @ 37.0CELSIUS @ 9000.0SECOND" },
-          { "op": "detect", "module": "nfkbTranslocationDetection", "target": "ss40sWashed", "duration_s": 9000, "output": "ss40sSignal", "ir": "ss40sSignal1[0] = detect(nfkbTranslocationDetection, ss40sWashed1[0]) @ 9000.0SECOND" }
-        ],
-        "expected_outcome": {
-          "responding_fraction_pct": 87.5,
-          "median_peak_time_min": "~47",
-          "timing_variability": "low (uniform)",
-          "notes": "Median peak time shifts < 2 min vs 1 s arm despite >25x increase in responding fraction; no significant timing difference (p-value from Figure 5 supplement 2)"
-        }
-      },
-      {
-        "id": "S6",
-        "name": "Off-chip gene expression assay (96-well plate, LPS dose-modulation)",
-        "bb": "BB7 (bsbbif_7_j) -> BB8/BB9 fork",
-        "protocol": "off-chip (96-well plate)",
-        "inputs": ["NIH3T3_NFkB_Cells", "CompleteMedia", "LPS_Stock", "RNALysisBuffer", "cDNA_Primers", "GAPDH_Primer"],
-        "seeding": {
-          "cells_per_well": 10000,
-          "plate_format": "96-well",
-          "attachment_duration_s": 86400,
-          "attachment_temperature_C": 37,
-          "ir": "heat(bulkWell1[0]) @ 37.0CELSIUS @ 86400.0SECOND"
-        },
-        "stimulation": {
-          "lps_doses_ng_mL": [1, 5, 10, 50, 100, 500],
-          "representative_doses_encoded": [500, 50],
-          "stimulation_duration_s": 28800,
-          "stimulation_duration_note": "8 h = 480 min = 28800 s",
-          "ir_500": "heat(stimWell5001[0]) @ 37.0CELSIUS @ 28800.0SECOND",
-          "ir_50": "heat(stimWell501[0]) @ 37.0CELSIUS @ 28800.0SECOND"
-        },
-        "rna_extraction": {
-          "lysis_mix_duration_s": 300,
-          "cdna_prep_duration_s": 1800,
-          "normalization_step_duration_s": 5,
-          "ir_500": "rna5001[0] = mix(stimWell5001[0], lysate5001[0]) @ 300.0SECOND; cdna5001[0] = mix(rna5001[0], primers5001[0]) @ 1800.0SECOND"
-        },
-        "qpcr": {
-          "platform": "Fluidigm 48.48 dynamic array",
-          "technical_replicates": 2,
-          "normalization": "GAPDH",
-          "detection_duration_s": 3600,
-          "detection_duration_note": "60 min = 3600 s",
-          "ir_500": "gexSignal5001[0] = detect(geneExpressionDetection, cdnaNorm5001[0]) @ 3600.0SECOND"
-        },
-        "target_genes": {
-          "early_genes_peak_30min_to_1h": ["nfkbia", "a20"],
-          "early_genes_peak_1h_to_2h": ["nfkbie", "tnf"],
-          "intermediate_genes_peak_1h_to_3h": ["ccl20", "icam1"],
-          "late_genes_slow_kinetics": ["casp4", "ccl5"]
-        },
-        "expected_outcome": {
-          "500_ng_mL": "Early gene peaks at 30 min; intermediate genes peak at 1-2 h",
-          "50_ng_mL": "Dose-dependent delay: nfkbia/a20 peak shifts to ~1 h; nfkbie/tnf peak shifts to 2 h; ccl20/icam1 peaks shift to 2-3 h",
-          "late_genes_note": "casp4 and ccl5 do not reflect NF-kB activation delay due to slow induction kinetics"
-        }
-      }
-    ],
-
-    "area_rule": {
-      "description": "Stimulus integral (concentration x duration) determines fraction of cells that activate NF-kB in the population. Validated analytically, by simulation, and experimentally.",
-      "analytical_basis": "For high-dose inputs where backward reaction (ligand-receptor dissociation) is negligible, fraction of activation P([AB] >= [AB]_th) depends only on input area S = integral(concentration dt). See Appendix 1, Equation 2.",
-      "caveat": "At sub-threshold doses, increasing duration infinitely does not exceed maximal activation fraction for that dose; Area Rule has a dose-dependent ceiling.",
-      "experimental_validation": {
-        "equal_area_conditions_tested": [
-          { "concentration_ng_mL": 500, "duration_s": 10, "area_ng_s_mL": 5000, "responding_pct": 54.95 },
-          { "concentration_ng_mL": 50,  "duration_s": 100, "area_ng_s_mL": 5000, "responding_pct": 51.05 },
-          { "concentration_ng_mL": 100, "duration_s": 50,  "area_ng_s_mL": 5000, "responding_pct": 54.36 }
-        ],
-        "conclusion": "Equal area conditions produce statistically equivalent responding fractions regardless of temporal profile"
+    {
+      "role": "assistant",
+      "content": "module nfkbTranslocationDetection\nmodule geneExpressionDetection\n\nmanifest NIH3T3_NFkB_Cells\nmanifest LPS_Stock\nmanifest TNF_Stock\nmanifest CompleteMedia\nmanifest FibronectinSolution\nmanifest LPS_PulseStock\nmanifest TrypsinEDTA\nmanifest RNALysisBuffer\nmanifest cDNA_Primers\nmanifest GAPDH_Primer\n\n// ============================================================\n// Digital Signaling Decouples Activation Probability and\n// Population Heterogeneity\n// Kellogg RA, Tian C, Lipniacki T, Quake SR, Tay S.\n// eLife 2015;4:e08931. DOI: 10.7554/eLife.08931\n//\n// Cell line: p65-knockout NIH 3T3 fibroblasts expressing\n//   p65-DsRed (NF-kB reporter) and H2B-GFP (nuclear reporter).\n//   Clonally derived to express p65-DsRed at lowest detectable\n//   level to preserve near-endogenous expression.\n//\n// Two experimental arms are encoded in sequence:\n//\n// PROTOCOL 1 (BB1-BB6): LPS Dose-Modulation Experiment\n//   Constant long-duration (LL) LPS stimulation at varying\n//   concentrations (0.25 - 500 ng/ml), delivered via continuous\n//   flow through microfluidic chambers. Modulates fraction of\n//   responding cells AND NF-kB response timing/heterogeneity.\n//   Duplicate chambers per condition on a single chip.\n//   Stimulation by step increase in LPS via media exchange.\n//   Live-cell imaging at 5-6 min intervals for ~250 min.\n//   Outcome: digital (all-or-none) NF-kB activation; Hill\n//   coefficient ~2.3; dose-dependent activation delay (35-80 min\n//   median peak time); 5% (0.25 ng/ml) to ~100% (500 ng/ml)\n//   responding cells. (Figures 2, 3)\n//\n// PROTOCOL 2 (BB7-BB12): LPS Duration-Modulation Experiment\n//   Short-Strong (SS) pulsed LPS at constant 500 ng/ml, with\n//   pulse duration varied from 1 to 40 s by washing with media\n//   after each pulse duration. Controls fraction of responding\n//   cells WITHOUT altering NF-kB response timing or cell-to-cell\n//   variability. Outcome: 3.3% (1 s) to 87.5% (40 s) responding;\n//   median peak time shifts < 2 min across all durations.\n//   (Figures 4, 5, 7)\n//\n// PROTOCOL 3 (BB13-BB15, off-chip): Gene Expression Assay\n//   Bulk 96-well plate LPS stimulation (1-500 ng/ml, 10,000\n//   cells/well) for dose-dependent gene expression profiling\n//   by Fluidigm qPCR (48.48 dynamic arrays). 8 target genes:\n//   nfkbia, a20, nfkbie, tnf, ccl20, icam1, casp4, ccl5.\n//   Normalized to GAPDH. (Figure 2E)\n//\n// TEMPERATURE: All cell culture and stimulation steps run at\n//   37 C / 5% CO2 unless otherwise noted.\n//   `heat` statements model incubator conditions.\n//\n// DURATION TOKENS: BioScript accepts s and m only.\n//   1 day = 1440 min; used for cell seeding/growth steps.\n//\n// CFG STRUCTURE:\n//   BB1   main              -- device coating, cell seeding (Protocol 1)\n//   BB2   llDoseHigh        -- LL high-dose LPS arm (500 ng/ml)\n//   BB3   llDoseLow         -- LL low-dose LPS arm (0.25 ng/ml)\n//   BB4   llDoseJoin        -- join: NF-kB detection (LL arm)\n//   BB5   llPassGate        -- llSignal > 0: digital activation detected; dispose\n//   BB6   llFailGate        -- llSignal <= 0: no activation; drain\n//   BB7   llFinalJoin       -- join: Protocol 2 begins\n//   BB8   ssPulseShort      -- SS short-pulse arm (1 s @ 500 ng/ml)\n//   BB9   ssPulseLong       -- SS long-pulse arm (40 s @ 500 ng/ml)\n//   BB10  ssPulseJoin       -- join: NF-kB detection (SS arm)\n//   BB11  ssPassGate        -- ssSignal > 0: digital activation detected; dispose\n//   BB12  ssFailGate        -- ssSignal <= 0: no activation; drain\n//   BB13  ssFinalJoin       -- join: Protocol 3 (gene expression) begins\n//   BB14  gexPassGate       -- gexSignal > 0: expression detected; dispose\n//   BB15  gexFailGate       -- gexSignal <= 0: no expression; drain\n//   BB16  finalCleanup      -- terminal: dispose all QC signals, experiment ends\n// ============================================================\n\ninstructions:\n\n// ============================================================\n// BB1: main\n// Device priming, fibronectin coating, and cell seeding.\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 1: Coat microfluidic chambers with fibronectin.\n//   Fibronectin solution flowed through chambers to promote\n//   cell adhesion to PDMS walls. Each experimental condition\n//   is measured in duplicate chambers on the chip.\n//   Models channel coating by mixing priming volume of\n//   fibronectin into the microfluidic chamber.\n// ------------------------------------------------------------\n\nfibronectin     = dispense 1 units of FibronectinSolution\nmedia_prime     = dispense 1 units of CompleteMedia\ncoatedChamber   = mix fibronectin with media_prime for 5m\n\n// ------------------------------------------------------------\n// STEP 2: Seed cells into coated chambers.\n//   Approx 200 cells/chamber. Cells grown for 1 day (1440 min)\n//   with periodic media replenishment until ~80% confluence.\n//   `mix` abstracts channel-based cell loading; `heat` models\n//   incubator growth at 37 C.\n// ------------------------------------------------------------\n\nseedCells       = dispense 1 units of NIH3T3_NFkB_Cells\nloadedChamber   = mix seedCells with coatedChamber for 2s\n\n// 24 h growth to ~80% confluence at 37 C (= 1440 min).\nheat loadedChamber at 37c for 1440m\n\n// ============================================================\n// PROTOCOL 1: LPS Dose-Modulation (LL Signal)\n// Constant, long-duration stimulation at two representative\n// doses: 500 ng/ml (high, ~100% cells respond) and 0.25 ng/ml\n// (low, ~5% cells respond). Both are parallel branches in the\n// CFG that converge at BB4 (llDoseJoin) for NF-kB detection.\n//\n// NOTE ON ABSTRACTION: The microfluidic chip runs all\n// concentrations (0.25 - 500 ng/ml) in parallel duplicate\n// chambers. BB2 and BB3 encode two representative concentrations\n// as the CFG fork. The full dose-response screen is captured\n// in post-processing of the nfkbTranslocationDetection readout.\n//\n// Stimulation: media equilibrated to 5% CO2 containing LPS\n// is delivered as a step increase; ligand loss due to\n// cellular internalization is replenished by continuous flow.\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 3: Dispense LPS stock solutions for dose-modulation arm.\n//   LPS stock concentrations are pre-diluted off-chip in\n//   CompleteMedia before loading into chip reservoirs.\n//   500 ng/ml: 1.2e7 LPS molecules per cell (see Appendix Table 4).\n//   0.25 ng/ml: 6.0e3 LPS molecules per cell.\n// ------------------------------------------------------------\n\nlpsHighDose     = dispense 1 units of LPS_Stock\nlpsLowDose      = dispense 1 units of LPS_Stock\n\n// ============================================================\n// BB2: llDoseHigh\n// High-dose LL arm: 500 ng/ml continuous LPS stimulation.\n// Response: ~100% cells activate; rapid onset (~35 min peak);\n// low cell-to-cell timing variability; sustained oscillations\n// under continuous ligand replenishment.\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 4a (High-dose LL): Load 500 ng/ml LPS into the chamber.\n//   LPS is delivered to the sealed chamber by continuous media\n//   exchange. Duration ~250 min (entire imaging window).\n//   `mix` abstracts the flow-through delivery event.\n//   `heat` maintains 37 C / 5% CO2 during stimulation.\n// ------------------------------------------------------------\n\nllHighChamber   = mix loadedChamber with lpsHighDose for 5s\nheat llHighChamber at 37c for 250m\n\nllHighSignal    = detect nfkbTranslocationDetection on llHighChamber for 250m\n\n// ============================================================\n// BB3: llDoseLow\n// Low-dose LL arm: 0.25 ng/ml continuous LPS stimulation.\n// Response: ~5% cells activate; delayed onset (>80 min peak);\n// high cell-to-cell timing variability (heterogeneous dynamics).\n// Same stimulus area achievable via longer duration (Area Rule).\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 4b (Low-dose LL): Load 0.25 ng/ml LPS into the chamber.\n//   Identical delivery method to high-dose arm; dose pre-diluted\n//   in media before chip loading.\n// ------------------------------------------------------------\n\nllLowChamber    = mix loadedChamber with lpsLowDose for 5s\nheat llLowChamber at 37c for 250m\n\nllLowSignal     = detect nfkbTranslocationDetection on llLowChamber for 250m\n\n// ============================================================\n// BB4: llDoseJoin\n// Both dose arms converge here. NF-kB translocation signals\n// from high- and low-dose chambers are evaluated.\n// Gate is keyed on llHighSignal (highest expected signal).\n// ============================================================\n\n// ============================================================\n// BB5 / BB6: LL Dose QC gate\n// Pass (BB5): llHighSignal > 0 -> digital NF-kB activation\n//             detected in at least one chamber; dispose both\n//             stimulated chamber readouts.\n// Fail (BB6): llHighSignal <= 0 -> no translocation signal\n//             (imaging failure or no activation); drain both.\n// Both branches converge at BB7 (llFinalJoin).\n// ============================================================\n\nif (llHighSignal > 0) {\n    dispose llHighChamber\n    dispose llLowChamber\n} else {\n    drain llHighChamber\n    drain llLowChamber\n}\n\n// ============================================================\n// BB7: llFinalJoin\n// Dispose LL dose QC signals. Control falls into\n// Protocol 2 (LPS Duration-Modulation / SS arm).\n// ============================================================\n\ndispose llHighSignal\ndispose llLowSignal\n\n// ============================================================\n// PROTOCOL 2: LPS Duration-Modulation (SS Signal)\n// Pulsed LPS at constant 500 ng/ml; pulse duration varied\n// from 1 to 40 s. Chambers washed with media after each pulse.\n// Controls fraction of responding cells WITHOUT affecting\n// NF-kB response timing or cell-to-cell variability.\n//\n// Two representative pulse durations encoded as CFG branches:\n//   BB8:  1 s pulse  -> ~3.3% cells activate (few active)\n//   BB9: 40 s pulse  -> ~87.5% cells activate (many active)\n// Branches converge at BB10 (ssPulseJoin) for NF-kB detection.\n//\n// Key result: despite >25x difference in responding fraction,\n// median peak time changes by < 2 min between 1 s and 40 s.\n// This contrasts with LL dose modulation where peak time\n// shifts > 35 min from 0.25 to 500 ng/ml.\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 5: Prepare fresh cells in new chambers for SS arm.\n//   Same seeding protocol as Protocol 1. Fresh LPS pulse\n//   stock (500 ng/ml) is pre-loaded. Media wash solution\n//   is in a parallel reservoir for post-pulse washing.\n// ------------------------------------------------------------\n\nssCells         = dispense 1 units of NIH3T3_NFkB_Cells\nssMedia         = dispense 1 units of CompleteMedia\nssChamber       = mix ssCells with ssMedia for 2s\nheat ssChamber at 37c for 1440m\n\n// SS pulse stock: 500 ng/ml LPS for both short and long pulse arms.\nssPulseHigh     = dispense 1 units of LPS_PulseStock\nssPulseLong40   = dispense 1 units of LPS_PulseStock\n\n// Media wash: flowed through chamber immediately after pulse\n// to remove LPS (no further receptor occupancy after pulse end).\n// Abstracts the post-pulse wash by mixing in fresh media.\nmediaWashShort  = dispense 1 units of CompleteMedia\nmediaWashLong   = dispense 1 units of CompleteMedia\n\n// ============================================================\n// BB8: ssPulseShort\n// 1 s pulse at 500 ng/ml LPS.\n// LPS delivered for exactly 1 s then washed out with media.\n// Result: ~3.3% cells activate; rapid, synchronous responses\n// in the small activating fraction. Same responding fraction\n// as 0.25 ng/ml continuous LL stimulation (Fig 5B vs Fig 2D).\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 6a (1 s SS pulse): Deliver 1 s LPS pulse, then wash.\n//   `mix for 1s` abstracts the 1 s flow of LPS through the\n//   chamber at 500 ng/ml. Media wash immediately follows\n//   to terminate receptor-ligand contact.\n//   Post-wash: chamber sealed; imaging at 5-6 min intervals.\n// ------------------------------------------------------------\n\n// 1 s LPS pulse (500 ng/ml): flow-through event.\nss1sPulsed      = mix ssChamber with ssPulseHigh for 1s\n// Immediate media wash to terminate stimulus.\nss1sWashed      = mix ss1sPulsed with mediaWashShort for 5s\n\n// Image for 150 min post-pulse (NF-kB peak occurs ~50 min).\nheat ss1sWashed at 37c for 150m\nss1sSignal      = detect nfkbTranslocationDetection on ss1sWashed for 150m\n\n// ============================================================\n// BB9: ssPulseLong\n// 40 s pulse at 500 ng/ml LPS.\n// LPS delivered for 40 s then washed out with media.\n// Result: ~87.5% cells activate; rapid, uniform responses\n// (low timing variability). Median peak time ~47 min.\n// Identical single-cell dynamics shape to 1 s pulse arm;\n// only the responding fraction differs.\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 6b (40 s SS pulse): Deliver 40 s LPS pulse, then wash.\n//   Same method as 1 s arm; only pulse duration changes.\n// ------------------------------------------------------------\n\n// 40 s LPS pulse (500 ng/ml): flow-through event.\nss40sPulsed     = mix ssChamber with ssPulseLong40 for 40s\n// Immediate media wash to terminate stimulus.\nss40sWashed     = mix ss40sPulsed with mediaWashLong for 5s\n\n// Image for 150 min post-pulse (NF-kB peak occurs ~47 min).\nheat ss40sWashed at 37c for 150m\nss40sSignal     = detect nfkbTranslocationDetection on ss40sWashed for 150m\n\n// ============================================================\n// BB10: ssPulseJoin\n// Both SS pulse arms converge here. Gate keyed on ss40sSignal\n// (highest expected responding fraction and amplitude).\n// ============================================================\n\n// ============================================================\n// BB11 / BB12: SS Pulse QC gate\n// Pass (BB11): ss40sSignal > 0 -> digital NF-kB activation\n//              detected in >=1 chamber; dispose both readouts.\n// Fail (BB12): ss40sSignal <= 0 -> no translocation signal\n//              (imaging or reagent failure); drain both.\n// Both branches converge at BB13 (ssFinalJoin).\n// ============================================================\n\nif (ss40sSignal > 0) {\n    dispose ss1sWashed\n    dispose ss40sWashed\n} else {\n    drain ss1sWashed\n    drain ss40sWashed\n}\n\n// ============================================================\n// BB13: ssFinalJoin\n// Dispose SS pulse QC signals. Control falls into\n// Protocol 3 (off-chip gene expression assay).\n// ============================================================\n\ndispose ss1sSignal\ndispose ss40sSignal\n\n// ============================================================\n// PROTOCOL 3: Gene Expression Assay (off-chip, 96-well plate)\n// Dose-dependent NF-kB gene expression profiling under LPS\n// stimulation. Two representative doses: 500 ng/ml and 50 ng/ml.\n//\n// Off-chip workflow:\n//   - 10,000 cells/well seeded in 96-well plate overnight.\n//   - Stimulated with LPS at the indicated concentration.\n//   - Lysed at time points from 0 to 8 h post-stimulation.\n//   - RNA reverse-transcribed with Invitrogen One-Step RT-PCR kit.\n//   - cDNA pre-amplified (specific target amplification,\n//     24-primer set).\n//   - Quantitative PCR on 48.48 Fluidigm dynamic arrays\n//     (technical duplicates per sample).\n//   - Expression normalized to GAPDH.\n//\n// Target genes and their response class:\n//   Early  (peak 0.5-1 h):  nfkbia, a20\n//   Early  (peak 1-2 h):    nfkbie, tnf\n//   Intermediate (1-3 h):   ccl20, icam1\n//   Late   (slow kinetics): casp4, ccl5\n//\n// NOTE: Late genes (casp4, ccl5) do not reflect the delayed\n// NF-kB activation because their induction kinetics are slow.\n// Early and intermediate genes show dose-dependent delay\n// consistent with NF-kB translocation data (Figure 2E).\n//\n// NOTE ON ABSTRACTION: 96-well plate seeding and LPS delivery\n// are abstracted using `dispense` and `mix`; `heat` models the\n// incubator. Cell lysis, RNA extraction, and qPCR steps are\n// modelled as sequential mix + detect operations.\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 7: Seed cells into 96-well plate and attach overnight.\n//   10,000 cells/well; 37 C overnight = 1440 min (1 day).\n// ------------------------------------------------------------\n\nbulkCells       = dispense 1 units of NIH3T3_NFkB_Cells\nbulkMedia       = dispense 1 units of CompleteMedia\nbulkWell        = mix bulkCells with bulkMedia for 1m\nheat bulkWell at 37c for 1440m\n\n// ------------------------------------------------------------\n// STEP 8: Stimulate with LPS (500 ng/ml; high-dose arm).\n//   LPS added directly to wells; incubated at 37 C.\n//   Cells lysed at 0, 0.5, 1, 2, 3, 4, 6, 8 h time points.\n//   Here encoded as a single 8 h (480 min) stimulation\n//   window; time-resolved lysis is abstracted by detection\n//   module (geneExpressionDetection).\n// ------------------------------------------------------------\n\nlpsGex500       = dispense 1 units of LPS_Stock\nstimWell500     = mix bulkWell with lpsGex500 for 5s\nheat stimWell500 at 37c for 480m\n\n// ------------------------------------------------------------\n// STEP 9: Stimulate with LPS (50 ng/ml; low-dose arm).\n//   Parallel well. Identical protocol; different LPS dose.\n//   Low dose induces dose-dependent delay in early gene peaks\n//   (e.g., nfkbia peak shifts from 30 min to 1 h; IkBe from\n//   1 h to 2 h; ccl20 from 1 h to 2-3 h).\n// ------------------------------------------------------------\n\nlpsGex50        = dispense 1 units of LPS_Stock\nstimWell50      = mix bulkWell with lpsGex50 for 5s\nheat stimWell50 at 37c for 480m\n\n// ------------------------------------------------------------\n// STEP 10: Lyse cells and prepare RNA for qPCR.\n//   RNALysisBuffer added to each well; RNA reverse-transcribed\n//   and cDNA pre-amplified. Modelled as mix steps.\n//   geneExpressionDetection abstracts Fluidigm qPCR readout\n//   (48.48 dynamic array; normalization to GAPDH).\n// ------------------------------------------------------------\n\nlysate500       = dispense 1 units of RNALysisBuffer\nlysate50        = dispense 1 units of RNALysisBuffer\nprimers500      = dispense 1 units of cDNA_Primers\nprimers50       = dispense 1 units of cDNA_Primers\ngapdh500        = dispense 1 units of GAPDH_Primer\ngapdh50         = dispense 1 units of GAPDH_Primer\n\n// Lysis and cDNA prep.\nrna500          = mix stimWell500 with lysate500 for 5m\ncdna500         = mix rna500 with primers500 for 30m\ncdnaNorm500     = mix cdna500 with gapdh500 for 5s\n\nrna50           = mix stimWell50 with lysate50 for 5m\ncdna50          = mix rna50 with primers50 for 30m\ncdnaNorm50      = mix cdna50 with gapdh50 for 5s\n\n// Fluidigm qPCR: detect gene expression signal.\n// geneExpressionDetection module abstracts 48.48 dynamic array\n// qPCR with technical duplicates. Signal > 0 indicates\n// detectable expression above GAPDH-normalized baseline.\ngexSignal500    = detect geneExpressionDetection on cdnaNorm500 for 60m\ngexSignal50     = detect geneExpressionDetection on cdnaNorm50 for 60m\n\n// ============================================================\n// BB14 / BB15: Gene expression QC gate\n// Pass (BB14): gexSignal500 > 0 -> detectable NF-kB-dependent\n//              gene expression at high dose; dispose readouts.\n// Fail (BB15): gexSignal500 <= 0 -> no expression detected\n//              (RT-PCR or Fluidigm failure); drain all.\n// Both branches converge at BB16 (finalCleanup).\n// ============================================================\n\nif (gexSignal500 > 0) {\n    dispose cdnaNorm500\n    dispose cdnaNorm50\n} else {\n    drain cdnaNorm500\n    drain cdnaNorm50\n}\n\n// ============================================================\n// BB16: finalCleanup (terminal)\n// Dispose all gene expression QC signals.\n// Experiment ends.\n// ============================================================\n\ndispose gexSignal500\ndispose gexSignal50\n\n// [terminal -- no further instructions; exit node for CFG]\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "kellogg_nfkb_digital_signaling_001",
+      "protocol_name": "Digital Signaling Decouples Activation Probability and Population Heterogeneity",
+      "category": "synthetic_biology",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Digital Signaling Decouples Activation Probability and Population Heterogeneity",
+      "publisher": "eLife 2015, Vol. 4, Article e08931",
+      "doi": "10.7554/eLife.08931",
+      "url": "https://elifesciences.org/articles/8931",
+      "platform": "Automated microfluidic cell culture (PDMS chip, Gomez-Sjoberg et al. 2007) +"
+    },
+    "bioscript": {
+      "manifests": [
+        "NIH3T3_NFkB_Cells",
+        "LPS_Stock",
+        "TNF_Stock",
+        "CompleteMedia",
+        "FibronectinSolution",
+        "LPS_PulseStock",
+        "TrypsinEDTA",
+        "RNALysisBuffer",
+        "cDNA_Primers",
+        "GAPDH_Primer"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "drain",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 72
       }
     },
-
-    "mathematical_model": {
-      "base_model": "IKK-NF-kB regulatory module from Tay et al. 2010 (Nature 466:267)",
-      "extensions_for_lps": ["LPS species", "TLR4 receptor", "TRAF6 activation"],
-      "cell_to_cell_variability_source": "TLR4 receptor number; lognormal distribution (mu=8.0, sigma=0.8); expected 4.1e3 receptors/cell",
-      "cooperative_activation": {
-        "mechanism": "Myddosome assembly and TRAF6 lattice clustering",
-        "hill_coefficient_n": 4,
-        "note": "Hill coefficient n=4 for IKK activation by TRAF6; distinct from population-level dose-response Hill coefficient of 2.3"
-      },
-      "lps_branch_modeled": "TLR4-MyD88-dependent branch only (early response); TLR4-TRIF-dependent branch removed for simplification",
-      "cd14_simplification": "CD14 removed (assumed in excess); LPS binds TLR4 directly in model",
-      "parameter_estimation": "Iterative automatic (L2-norm, log-scale sampling) + manual approach; 200 simulations per parameter set"
-    },
-
-    "image_analysis": {
-      "cell_tracking_software": "CellProfiler (www.cellprofiler.org) + custom Matlab",
-      "nfkb_quantification": "Mean nuclear DsRed fluorescence normalized to mean cytoplasm intensity",
-      "peak_analysis": "Matlab smooth() + mspeaks(); manual verification via custom Matlab interface",
-      "peak_area_integration": "Matlab trapz(); baseline-corrected from LPS stimulation to first minimum",
-      "statistical_test": "Unpaired two-sample T-test (Matlab ttest2())",
-      "mitotic_cells": "Excluded from analysis"
-    },
-
     "cfg": {
-      "compiler": "lilott8/BioScript (ANTLR4-based)",
-      "bioscript_file": "kellogg_nfkb_digital_signaling.bs",
-      "ir_file": "kellogg_nfkb_digital_signaling.ir",
-      "dag_file": "kellogg_nfkb_digital_signaling_main_dag.dot",
       "basic_blocks": [
-        { "id": "BB1",  "ir_label": "main",          "type": "entry",        "content": "fibronectin coat, cell seed (1440m), LL LPS dispense, llHighChamber and llLowChamber stimulation (250m), detect NF-kB translocation, if-gate on llHighSignal" },
-        { "id": "BB2",  "ir_label": "bsbbif_2_t",    "type": "branch_true",  "condition": "llHighSignal > 0",   "action": "dispose(llHighChamber), dispose(llLowChamber)" },
-        { "id": "BB3",  "ir_label": "bsbbif_3_f",    "type": "branch_false", "condition": "llHighSignal <= 0",  "action": "dispose(llHighChamber), dispose(llLowChamber); jump bsbbif_4_j" },
-        { "id": "BB4",  "ir_label": "bsbbif_4_j",    "type": "join",         "content": "dispose llHighSignal, llLowSignal; seed SS cells (1440m); 1s and 40s LPS pulses + media wash; detect NF-kB; if-gate on ss40sSignal" },
-        { "id": "BB5",  "ir_label": "bsbbif_5_t",    "type": "branch_true",  "condition": "ss40sSignal > 0",    "action": "dispose(ss1sWashed), dispose(ss40sWashed)" },
-        { "id": "BB6",  "ir_label": "bsbbif_6_f",    "type": "branch_false", "condition": "ss40sSignal <= 0",   "action": "dispose(ss1sWashed), dispose(ss40sWashed); jump bsbbif_7_j" },
-        { "id": "BB7",  "ir_label": "bsbbif_7_j",    "type": "join",         "content": "dispose ss1sSignal, ss40sSignal; seed bulk cells (1440m); stimulate 500 and 50 ng/mL (480m); lyse, RT-PCR, Fluidigm qPCR; if-gate on gexSignal500" },
-        { "id": "BB8",  "ir_label": "bsbbif_8_t",    "type": "branch_true",  "condition": "gexSignal500 > 0",   "action": "dispose(cdnaNorm500), dispose(cdnaNorm50)" },
-        { "id": "BB9",  "ir_label": "bsbbif_9_f",    "type": "branch_false", "condition": "gexSignal500 <= 0",  "action": "dispose(cdnaNorm500), dispose(cdnaNorm50); jump bsbbif_10_j" },
-        { "id": "BB10", "ir_label": "bsbbif_10_j",   "type": "terminal",     "content": "dispose gexSignal500, gexSignal50; NOP" }
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "join"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "7",
+          "label": "bsbbif_7_j",
+          "type": "join"
+        },
+        {
+          "id": "8",
+          "label": "bsbbif_8_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "9",
+          "label": "bsbbif_9_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "10",
+          "label": "bsbbif_10_j",
+          "type": "terminal"
+        }
       ],
       "edges": [
-        ["BB1","BB2"], ["BB1","BB3"],
-        ["BB2","BB4"], ["BB3","BB4"],
-        ["BB4","BB5"], ["BB4","BB6"],
-        ["BB5","BB7"], ["BB6","BB7"],
-        ["BB7","BB8"], ["BB7","BB9"],
-        ["BB8","BB10"],["BB9","BB10"]
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ],
+        [
+          "7",
+          "8"
+        ],
+        [
+          "7",
+          "9"
+        ],
+        [
+          "8",
+          "10"
+        ],
+        [
+          "9",
+          "10"
+        ]
+      ]
+    },
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(llHighChamber1[0])\n\tdispose(llLowChamber1[0])\nbsbbif_3_f:\n\tdispose(llHighChamber1[0])\n\tdispose(llLowChamber1[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(llHighSignal1[0])\n\tdispose(llLowSignal1[0])\n\tssCells1[0] = dispense(NIH3T3_NFkB_Cells)\n\tssMedia1[0] = dispense(CompleteMedia)\n\tssChamber1[0] = mix(ssCells1[0], ssMedia1[0]) @ 2.0SECOND\n\theat(ssChamber1[0]) @ 37.0CELSIUS @ 86400.0SECOND\n\tssPulseHigh1[0] = dispense(LPS_PulseStock)\n\tssPulseLong401[0] = dispense(LPS_PulseStock)\n\tmediaWashShort1[0] = dispense(CompleteMedia)\n\tmediaWashLong1[0] = dispense(CompleteMedia)\n\tss1sPulsed1[0] = mix(ssChamber1[0], ssPulseHigh1[0]) @ 1.0SECOND\n\tss1sWashed1[0] = mix(ss1sPulsed1[0], mediaWashShort1[0]) @ 5.0SECOND\n\theat(ss1sWashed1[0]) @ 37.0CELSIUS @ 9000.0SECOND\n\tss1sSignal1[0] = detect(nfkbTranslocationDetection, ss1sWashed1[0]) @ 9000.0SECOND\n\tss40sPulsed1[0] = mix(ssChamber1[0], ssPulseLong401[0]) @ 40.0SECOND\n\tss40sWashed1[0] = mix(ss40sPulsed1[0], mediaWashLong1[0]) @ 5.0SECOND\n\theat(ss40sWashed1[0]) @ 37.0CELSIUS @ 9000.0SECOND\n\tss40sSignal1[0] = detect(nfkbTranslocationDetection, ss40sWashed1[0]) @ 9000.0SECOND\n\tif ss40sSignal1[0] > 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nmain:\n\tfibronectin1[0] = dispense(FibronectinSolution)\n\tmedia_prime1[0] = dispense(CompleteMedia)\n\tcoatedChamber1[0] = mix(fibronectin1[0], media_prime1[0]) @ 300.0SECOND\n\tseedCells1[0] = dispense(NIH3T3_NFkB_Cells)\n\tloadedChamber1[0] = mix(seedCells1[0], coatedChamber1[0]) @ 2.0SECOND\n\theat(loadedChamber1[0]) @ 37.0CELSIUS @ 86400.0SECOND\n\tlpsHighDose1[0] = dispense(LPS_Stock)\n\tlpsLowDose1[0] = dispense(LPS_Stock)\n\tllHighChamber1[0] = mix(loadedChamber1[0], lpsHighDose1[0]) @ 5.0SECOND\n\theat(llHighChamber1[0]) @ 37.0CELSIUS @ 15000.0SECOND\n\tllHighSignal1[0] = detect(nfkbTranslocationDetection, llHighChamber1[0]) @ 15000.0SECOND\n\tllLowChamber1[0] = mix(loadedChamber1[0], lpsLowDose1[0]) @ 5.0SECOND\n\theat(llLowChamber1[0]) @ 37.0CELSIUS @ 15000.0SECOND\n\tllLowSignal1[0] = detect(nfkbTranslocationDetection, llLowChamber1[0]) @ 15000.0SECOND\n\tif llHighSignal1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbif_5_t:\n\tdispose(ss1sWashed1[0])\n\tdispose(ss40sWashed1[0])\nbsbbif_6_f:\n\tdispose(ss1sWashed1[0])\n\tdispose(ss40sWashed1[0])\n\tjump: bsbbif_7_j\nbsbbif_7_j:\n\tdispose(ss1sSignal1[0])\n\tdispose(ss40sSignal1[0])\n\tbulkCells1[0] = dispense(NIH3T3_NFkB_Cells)\n\tbulkMedia1[0] = dispense(CompleteMedia)\n\tbulkWell1[0] = mix(bulkCells1[0], bulkMedia1[0]) @ 60.0SECOND\n\theat(bulkWell1[0]) @ 37.0CELSIUS @ 86400.0SECOND\n\tlpsGex5001[0] = dispense(LPS_Stock)\n\tstimWell5001[0] = mix(bulkWell1[0], lpsGex5001[0]) @ 5.0SECOND\n\theat(stimWell5001[0]) @ 37.0CELSIUS @ 28800.0SECOND\n\tlpsGex501[0] = dispense(LPS_Stock)\n\tstimWell501[0] = mix(bulkWell1[0], lpsGex501[0]) @ 5.0SECOND\n\theat(stimWell501[0]) @ 37.0CELSIUS @ 28800.0SECOND\n\tlysate5001[0] = dispense(RNALysisBuffer)\n\tlysate501[0] = dispense(RNALysisBuffer)\n\tprimers5001[0] = dispense(cDNA_Primers)\n\tprimers501[0] = dispense(cDNA_Primers)\n\tgapdh5001[0] = dispense(GAPDH_Primer)\n\tgapdh501[0] = dispense(GAPDH_Primer)\n\trna5001[0] = mix(stimWell5001[0], lysate5001[0]) @ 300.0SECOND\n\tcdna5001[0] = mix(rna5001[0], primers5001[0]) @ 1800.0SECOND\n\tcdnaNorm5001[0] = mix(cdna5001[0], gapdh5001[0]) @ 5.0SECOND\n\trna501[0] = mix(stimWell501[0], lysate501[0]) @ 300.0SECOND\n\tcdna501[0] = mix(rna501[0], primers501[0]) @ 1800.0SECOND\n\tcdnaNorm501[0] = mix(cdna501[0], gapdh501[0]) @ 5.0SECOND\n\tgexSignal5001[0] = detect(geneExpressionDetection, cdnaNorm5001[0]) @ 3600.0SECOND\n\tgexSignal501[0] = detect(geneExpressionDetection, cdnaNorm501[0]) @ 3600.0SECOND\n\tif gexSignal5001[0] > 0\t|\ttrue: jump bsbbif_8_t\t|\tfalse: jump bsbbif_9_f\nbsbbif_8_t:\n\tdispose(cdnaNorm5001[0])\n\tdispose(cdnaNorm501[0])\nbsbbif_9_f:\n\tdispose(cdnaNorm5001[0])\n\tdispose(cdnaNorm501[0])\n\tjump: bsbbif_10_j\nbsbbif_10_j:\n\tdispose(gexSignal5001[0])\n\tdispose(gexSignal501[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "NIH3T3_NFkB_Cells",
+          "source_quote": "Mitotic cells excluded.",
+          "source_location": "description.txt: DEVICE AND IMAGING"
+        },
+        {
+          "bs_chemical": "LPS_Stock",
+          "source_quote": "Manifests  : NIH3T3_NFkB_Cells, LPS_Stock, TNF_Stock, CompleteMedia,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "TNF_Stock",
+          "source_quote": "Manifests  : NIH3T3_NFkB_Cells, LPS_Stock, TNF_Stock, CompleteMedia,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "CompleteMedia",
+          "source_quote": "Reagents  : NIH3T3_NFkB_Cells, CompleteMedia",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "FibronectinSolution",
+          "source_quote": "FibronectinSolution, LPS_PulseStock, TrypsinEDTA,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "LPS_PulseStock",
+          "source_quote": "FibronectinSolution, LPS_PulseStock, TrypsinEDTA,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "TrypsinEDTA",
+          "source_quote": "FibronectinSolution, LPS_PulseStock, TrypsinEDTA,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "RNALysisBuffer",
+          "source_quote": "RNALysisBuffer, cDNA_Primers, GAPDH_Primer",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "cDNA_Primers",
+          "source_quote": "RNALysisBuffer, cDNA_Primers, GAPDH_Primer",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "GAPDH_Primer",
+          "source_quote": "with GAPDH normalization.",
+          "source_location": "description.txt: Abstraction notes"
+        }
       ],
-      "duration_conversions": {
-        "24h_cell_growth": "1440m -> 86400.0SECOND",
-        "250min_ll_imaging": "250m -> 15000.0SECOND",
-        "150min_ss_imaging": "150m -> 9000.0SECOND",
-        "8h_gex_stimulation": "480m -> 28800.0SECOND",
-        "60min_qpcr_detection": "60m -> 3600.0SECOND",
-        "note": "BioScript compiler accepts s and m only; all h values pre-converted to m in .bs file"
-      },
-      "modules": ["nfkbTranslocationDetection", "geneExpressionDetection"],
-      "manifests": ["NIH3T3_NFkB_Cells", "LPS_Stock", "TNF_Stock", "CompleteMedia", "FibronectinSolution", "LPS_PulseStock", "TrypsinEDTA", "RNALysisBuffer", "cDNA_Primers", "GAPDH_Primer"]
-    }
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "Load ~200 cells into coatedChamber for 2 s -> loadedChamber",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "Normalisation: mix cDNA + GAPDH_Primer for 5 s",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "heat",
+          "source_quote": "heat(bulkWell1[0]) @ 37.0CELSIUS @ 86400.0SECOND",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "DEVICE AND IMAGING",
+          "source_location": "description.txt"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "else -> dispose both (fail)",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "if/else gates  : 3 (llHighSignal, ss40sSignal, gexSignal500)",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 24 hour(s) vs BioScript encodes 1440m — converted hours to minutes for BioScript grammar compatibility."
+        },
+        {
+          "field": "reaction_temperature",
+          "note": "Description specifies room temperature vs BioScript encodes 37c — nominal ambient temperature encoding."
+        }
+      ]
+    },
+    "notes": "This protocol details Digital Signaling Decouples Activation Probability and Population Heterogeneity. The assay is performed on a Automated microfluidic cell culture (PDMS chip, Gomez-Sjoberg et al. 2007) + platform. Key reagents used in the assay include H2B-GFP and `heat` models incubator conditions."
   }
 }

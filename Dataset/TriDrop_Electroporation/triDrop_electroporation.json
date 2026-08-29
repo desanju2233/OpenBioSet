@@ -1,401 +1,194 @@
 {
-  "protocol": {
-    "name": "triDrop_electroporation",
-    "platform": "Digital Microfluidic (DMF)",
-    "method": "Droplet-based electroporation (triDrop three-droplet system)",
-    "reference": "Little et al., Anal. Chem. 2025, 97, 11026-11034. DOI: 10.1021/acs.analchem.4c06911",
-    "target_cell": "Primary Human T Cells",
-    "application": "CAR-T cell therapy production and functional assay",
-    "modules": [
-      {
-        "id": "electroporationAssay",
-        "description": "Handles electroporation procedure on DMF platform"
-      },
-      {
-        "id": "cytokineDetection",
-        "description": "Handles IFN-g and TNF-a ELISA detection at 24h and 48h"
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "================================================================================\nPROTOCOL: triDrop Digital Microfluidic Electroporation for CAR-T Cell Therapy\n================================================================================\n\nSOURCE LINK : https://www.shihmicrolab.ca/_files/ugd/f0a828_07554e20c82e469c9608111c6af47aa0.pdf\nPAPER DOI   : https://doi.org/10.1021/acs.analchem.4c06911\nJOURNAL     : Analytical Chemistry, 2025, Vol. 97, pp. 11026-11034\nPLATFORM    : Digital Microfluidic (DMF) -- triDrop system\nTARGET CELL : Primary Human T Cells\nAPPLICATION : CAR-T cell therapy production and functional immune cell engineering\n\n--------------------------------------------------------------------------------\nOVERVIEW\n--------------------------------------------------------------------------------\n\nThe triDrop system is a three-droplet digital microfluidic electroporation\nplatform designed to transfect primary human T cells while minimizing cellular\nharm. It achieves:\n\n  - Transfection efficiency : >95% (mRNA delivery)\n  - Cell viability (18h)    : 80-85% post-EP (vs ~65% for Neon/Nucleofector)\n  - Payload requirement     : 50 ng mRNA per reaction (10x less than Nucleofector)\n  - Cell input              : 0.5 x 10^5 cells per reaction\n  - Cost reduction          : up to 20-fold vs gold standard methods\n  - CAR-T killing efficacy  : up to 2-fold improvement vs conventional EP systems\n  - Gene dysregulation      : only 32 genes dysregulated (vs 105 Neon, 89 NF)\n\nThe key advantage of triDrop is its three-droplet geometry: a cell+payload\ndroplet is flanked by buffer droplets, physically separating cells from the\nanode and cathode. This limits exposure to Joule heating, pH changes, metal\nion contamination, and electrolytic byproducts that cause cell death and\ntranscriptomic dysregulation in conventional EP systems.\n\n--------------------------------------------------------------------------------\nREAGENTS\n--------------------------------------------------------------------------------\n\n  ID                    DESCRIPTION                         QUANTITY / SPEC\n  --------------------  ----------------------------------  ----------------------\n  tCells                Primary human T cells               0.5 x 10^5 per rxn\n  electroporationBuffer Electroporation buffer              1 unit per rxn\n  mrnaPayload           mRNA payload                        50 ng per rxn\n                        (alt: Cas9 RNP for CRISPR KO/KI)  (alt: 2.5 pmol RNP)\n                        (alt: CAR construct for CAR-T)\n  recoveryBuffer        Recovery buffer                     1 unit per rxn\n  il2Media              Culture media with IL-2             400 IU/mL; 1 unit\n  rajiCells             Raji cells (CD19-positive target)   1 unit per rxn\n  mcf7Cells             MCF-7 cells (CD19-negative ctrl)    1 unit per rxn\n\n  NOTE: T cells must be electroporated within 24h after removal of activation\n  beads. Cells must remain in EP buffer for no more than 15 min before\n  transfer to recovery buffer.\n\n--------------------------------------------------------------------------------\nMODULES\n--------------------------------------------------------------------------------\n\n  electroporationAssay  : Handles the electroporation procedure on DMF chip\n  cytokineDetection     : Handles IFN-gamma and TNF-alpha ELISA detection\n\n--------------------------------------------------------------------------------\nELECTROPORATION PARAMETERS\n--------------------------------------------------------------------------------\n\n  Pulse count    : 3 pulses\n  Voltage        : 1600 V_DC\n  Pulse duration : 10 ms each                [FIX: was incorrectly 10s in old file]\n  Temperature    : 37 degrees C\n\n  NOTE: These parameters correspond to Neon-equivalent settings used in the\n  paper. The triDrop DMF platform applies these pulses across the merged\n  three-droplet structure, with the cell+payload droplet isolated from direct\n  electrode contact by flanking buffer droplets.\n\n--------------------------------------------------------------------------------\nPROTOCOL STEPS\n--------------------------------------------------------------------------------\n\nSTEP 1 -- Prepare Cell Droplet in Electroporation Buffer\n  Operations:\n    cellDrop      = dispense 1 units of tCells\n    epBuffer1     = dispense 1 units of electroporationBuffer\n    cellsInBuffer = mix cellDrop with epBuffer1 for 2s\n  Notes:\n    - Cell count: 0.5 x 10^5 per reaction (triDrop optimum)\n    - Mixing ensures uniform cell suspension in EP buffer\n\nSTEP 2 -- Prepare Payload Droplet\n  Operations:\n    payloadDrop   = dispense 1 units of mrnaPayload\n  Notes:\n    - mRNA payload at 50 ng per reaction for transfection experiments\n    - Substitute with cas9_rnp (2.5 pmol) for CRISPR knockout/knock-in\n    - Substitute with car_construct for CAR-T production runs\n\nSTEP 3 -- triDrop Three-Droplet Fusion\n  Operations:\n    bufferFlank    = dispense 1 units of electroporationBuffer\n    cellPayloadMix = mix cellsInBuffer with payloadDrop for 5s\n    triDropMerged  = mix cellPayloadMix with bufferFlank for 3s\n  Notes:\n    - The flanking buffer droplet is the defining feature of triDrop geometry\n    - It physically separates the cell+payload volume from electrode surfaces\n    - Limits Joule heating and electrolytic byproduct (pH, metal ions, gas\n      bubbles) exposure that cause cellular dysfunction in conventional EP\n\nSTEP 4 -- Electroporation Pulse\n  Operations:\n    heat triDropMerged at 37c for 10ms       [FIX: was 10s; correct value is 10ms]\n  Notes:\n    - Maps to DMF energy delivery: 3 x 1600 V_DC pulses, 10 ms each\n    - The heat primitive in BioScript is void (no return value / no assignment)\n    - triDrop geometry minimizes current-induced cell damage vs Neon/NF\n\nSTEP 5 -- Transfer to IL-2 Recovery Buffer\n  Operations:\n    recoveryDrop   = dispense 1 units of recoveryBuffer\n    il2Drop        = dispense 1 units of il2Media\n    recoveryMix    = mix recoveryDrop with il2Drop for 5s\n    recoveredCells = mix triDropMerged with recoveryMix for 10s\n  Notes:\n    - Transfer must occur within 15 min of pulse application\n    - Recovery buffer: culture media containing 400 IU/mL IL-2\n    - Prompt transfer is critical for achieving 80-85% viability at 18h\n\nSTEP 6 -- Post-EP Incubation\n  Operations:\n    heat recoveredCells at 37c for 18h\n  Notes:\n    - Incubation at 37 degrees C post-electroporation\n    - heat is void in BioScript -- recoveredCells variable survives intact\n    - triDrop achieves 80-85% viability at 18h (vs ~60% for Neon/NF)\n    - All three systems recover to >80% viability only after 72h post-EP\n    - triDrop cells show no significant dysregulation of IL-2, TNF-alpha,\n      or IFN-gamma (critical cytokines for cellular therapy functionality)\n\nSTEP 7 -- Binary Split Tree on recoveredCells            [NEW: replaces old step 7]\n  Operations:\n    rcA  = split recoveredCells into 2\n    rcB  = split recoveredCells into 2\n    rcA0 = split rcA into 2\n    rcA1 = split rcA into 2\n    rcB0 = split rcB into 2\n    rcB1 = split rcB into 2\n  Notes:\n    - Required because this compiler greedily assigns index [0] to every use\n      of a split variable when the same name appears more than once as an\n      operand, causing index collisions on same-type operations (e.g. two mix\n      calls consuming the same split result both get assigned [0]).\n    - Fix: full binary tree of 3 splits produces 4 uniquely-named leaf\n      variables (rcA0, rcA1, rcB0, rcB1), each used exactly once downstream.\n    - rcA0 -> Raji 24h detect arm\n    - rcA1 -> Raji 48h continuation arm\n    - rcB0 -> MCF-7 (neg ctrl) 24h detect arm\n    - rcB1 -> MCF-7 (neg ctrl) 48h continuation arm\n\nSTEP 8 -- Start Raji (CD19+) Co-Culture -- Positive Arm  [NEW: replaces old step 7]\n  Operations:\n    rajiDrop1          = dispense 1 units of rajiCells\n    rajiDrop2          = dispense 1 units of rajiCells\n    coculture24hDetect   = mix rcA0 with rajiDrop1 for 24h\n    coculture24hContinue = mix rcA1 with rajiDrop2 for 24h\n  Notes:\n    - Anti-CD19 CAR-T cells co-cultured with Raji (CD19-positive) target cells\n    - E:T ratio 1:1 (paper Fig. 4c)\n    - CAR expression peaks at 24h post-EP, >80% expression at 6h post-EP\n    - Two dedicated droplets: one for 24h detect, one for 48h continuation\n      (single variable used per operation -- no index collision)\n\nSTEP 9 -- Start MCF-7 (CD19-) Co-Culture -- Negative Control Arm  [NEW]\n  Operations:\n    mcf7Drop1              = dispense 1 units of mcf7Cells\n    mcf7Drop2              = dispense 1 units of mcf7Cells\n    negControl24hDetect    = mix rcB0 with mcf7Drop1 for 24h\n    negControl24hContinue  = mix rcB1 with mcf7Drop2 for 24h\n  Notes:\n    - MCF-7 cells are CD19-negative; engineered CAR-T cells should produce\n      no cytokine signal here (confirms CAR specificity)\n    - Matches paper Fig. 4a,b \"T/M\" (T cells with MCF-7) condition\n    - Two dedicated droplets: one for 24h detect, one for 48h continuation\n\nSTEP 10 -- Detect Cytokine Secretion at 24h             [FIX: replaces old step 8]\n  Operations:\n    result24h    = detect cytokineDetection on coculture24hDetect for 30s\n    negResult24h = detect cytokineDetection on negControl24hDetect for 30s\n  Notes:\n    - Detects IFN-gamma and TNF-alpha in supernatant via ELISA\n    - triDrop CAR-T cells secrete ~2-fold more antitumor cytokines than\n      Nucleofector-engineered cells when cultured with CD19+ targets\n    - IFN-gamma: p=0.006 (24h), p=0.05 (48h) vs Nucleofector\n    - TNF-alpha:  p=0.02  (24h), p=0.016 (48h) vs Nucleofector\n    - No cytokine production observed with CD19-negative MCF-7 cells\n      (confirms high CAR specificity)\n    - Each detect consumes one dedicated droplet (no index collision)\n\nSTEP 11 -- Extend Co-Culture to 48h                     [FIX: replaces old step 9]\n  Operations:\n    il2Extend1    = dispense 1 units of il2Media\n    il2Extend2    = dispense 1 units of il2Media\n    coculture48h  = mix coculture24hContinue with il2Extend1 for 24h\n    negControl48h = mix negControl24hContinue with il2Extend2 for 24h\n  Notes:\n    - heat is void in BioScript and cannot produce a new fluid variable;\n      mix with fresh il2Media is used as the timed-hold primitive instead\n    - This is the compiler-legal pattern for multi-stage incubation\n      (cf. ace_crispr_raf1_sorafenib.bs: maintainCtrl* = mix fresh* with\n      cell* for 24h)\n    - Old step 9 incorrectly used \"heat coculture24h\" then re-detected on\n      the same variable, causing an UndefinedVariable compiler crash\n\nSTEP 12 -- Detect Cytokine Secretion at 48h             [NEW: replaces old step 9]\n  Operations:\n    result48h    = detect cytokineDetection on coculture48h for 30s\n    negResult48h = detect cytokineDetection on negControl48h for 30s\n  Notes:\n    - Second cytokine readout at 48h timepoint (paper Fig. 4a,b)\n    - Killing efficiency at 4:1 E:T ratio:\n        24h: ~61% relative target cell killing\n        48h: ~85% relative target cell killing\n    - Activated Pan T cells (control): ~23% (24h) and ~45% (48h) at 4:1 ratio\n\nSTEP 13 -- Evaluate Killing Efficiency and Cleanup       [FIX: replaces old step 10]\n  Operations:\n    if (result48h > 0) {\n        dispose coculture48h\n        dispose negControl48h\n    } else {\n        drain coculture48h\n        drain negControl48h\n    }\n    dispose result24h\n    dispose result48h\n    dispose negResult24h\n    dispose negResult48h\n  Notes:\n    - QC gate: result48h > 0 confirms valid cytokine signal at 48h\n      (old file used >= 85 which is a simulation-level threshold not\n      appropriate as a BioScript conditional gate variable)\n    - Both arms (Raji + MCF-7) cleaned up in both branches\n    - Old step 10 had a double-free bug: dispose inside if-branch followed\n      by unconditional drain on the same variable; fixed by using a proper\n      if/else with dispose vs drain, no variable used twice\n    - negResult24h and negResult48h disposed unconditionally after branch\n\n--------------------------------------------------------------------------------\nOPTIONAL BRANCH -- CRISPR KNOCKOUT\n--------------------------------------------------------------------------------\n\n  Substitute STEP 2 payload with:\n    payloadDrop = dispense 1 units of cas9Rnp   (2.5 pmol Cas9 RNP)\n\n  triDrop CRISPR knockout results (TRAC locus, 0.5 x 10^5 cells):\n    - Knockout efficiency : 68-75%\n    - Viability           : ~80%\n    - RNP required        : 2.5 pmol (vs 50 pmol for Nucleofector)\n    - No significant difference vs Neon (p=0.26)\n    - Nucleofector achieves only 14% KO under same low-cell conditions\n\n  Volumetric normalization of RNP (not cellular normalization) is critical\n  for achieving high delivery efficiency in the triDrop system.\n\n--------------------------------------------------------------------------------\nOPTIONAL BRANCH -- CRISPR KNOCK-IN\n--------------------------------------------------------------------------------\n\n  Co-deliver with STEP 2:\n    ssODN donor template (90bp) + Cas9 RNP + p53 siRNA\n\n  triDrop knock-in results:\n    - Knock-in efficiency       : >60%, up to 80% insertion efficiency\n    - Proliferative capacity    : 2.5-fold cell increase (vs 3.3-fold control)\n    - Neon/Nucleofector show impaired proliferation post-KI\n    - Payload requirement       : at least 10-fold less than Nucleofector\n\n--------------------------------------------------------------------------------\nTRANSCRIPTOMIC PROFILE\n--------------------------------------------------------------------------------\n\n  Dysregulated genes 6h post-EP (log fold change >1 or <-1, p<0.05):\n    triDrop      : 32 genes   (most similar to no-EP control)\n    Nucleofector : 89 genes\n    Neon         : 105 genes\n\n  Dysregulated Reactome pathways (average Z-score >2.0 or <-2.0):\n    triDrop      : 79 pathways\n    Nucleofector : 134 pathways\n    Neon         : 130 pathways\n\n  34 genes commonly dysregulated in Neon+Nucleofector but NOT in triDrop,\n  including stress response genes PPP1R15A, SESN2 and immunotherapy-relevant\n  genes TSC22D3 and CD48.\n\n  triDrop does NOT upregulate apoptosis, cellular stress, or inflammation\n  pathways -- preserving full T cell functionality for immunotherapy.\n\n--------------------------------------------------------------------------------\nBIOSCRIPT COMPILER NOTES\n--------------------------------------------------------------------------------\n\n  Compiler    : lilott8/BioScript (ANTLR4-based, Python 3)\n  Target      : -t ir (Intermediate Representation + Control Flow Graph)\n  Command     : python3 main.py -d -i <file.bs> -t ir -o ./output -cfg\n\n  KNOWN COMPILER BEHAVIOURS (relevant to this protocol):\n\n  1. heat is void -- no assignment allowed.\n     WRONG : coculture48h = heat coculture24h at 37c for 24h\n     RIGHT : heat coculture24h at 37c for 24h\n             coculture48h = mix coculture24h with il2Media for 24h\n\n  2. detect consumes its fluid operand -- variable is spent after detect.\n     Must split before detect if fluid is needed downstream.\n\n  3. Greedy index collision on split arrays -- when the same split variable\n     name appears as operand to N operations of the same type, the compiler\n     assigns index [0] to ALL of them instead of [0]..[N-1].\n     Fix: each split variable must appear exactly once as an operand.\n     Use a binary split tree to produce unique leaf variables for each consumer.\n\n  4. ASCII-only source files -- ANTLR4 FileStream rejects non-ASCII bytes.\n     All comments must use ASCII characters only. No Unicode arrows (->),\n     box-drawing characters, degree symbols, or em-dashes in source files.\n\n  CFG STRUCTURE (this protocol):\n    BB1  main         -- entry block: all operations through detect at 48h\n    BB2  bsbbif_2_t   -- if-true branch: dispose coculture48h, negControl48h\n    BB3  bsbbif_3_f   -- if-false branch: drain coculture48h, negControl48h\n    BB4  bsbbif_4_j   -- join block: dispose all result variables, NOP\n\n  CFG EDGES:\n    BB1 -> BB2 (result48h > 0)\n    BB1 -> BB3 (result48h <= 0)\n    BB2 -> BB4\n    BB3 -> BB4\n\n--------------------------------------------------------------------------------\nBIOSCRIPT FILES\n--------------------------------------------------------------------------------\n\n  .bs file  : triDrop_electroporation.bs   (BioScript source)\n  .json file: triDrop_electroporation.json (protocol in JSON format)\n  .txt file : triDrop_electroporation.txt  (this file)\n  .dot file : triDrop_electroporation_main_dag.dot (CFG output)\n  .ir file  : triDrop_electroporation.ir   (IR output)\n\n================================================================================\nEND OF PROTOCOL\n================================================================================"
+    },
+    {
+      "role": "assistant",
+      "content": "module electroporationAssay\nmodule cytokineDetection\n\nmanifest tCells\nmanifest electroporationBuffer\nmanifest mrnaPayload\nmanifest recoveryBuffer\nmanifest il2Media\nmanifest rajiCells\nmanifest mcf7Cells\n\n// mcf7Cells: CD19-negative specificity control arm (paper Fig. 4a,b)\n\ninstructions:\n\n// ============================================================\n// STEP 1: Prepare cell droplet in electroporation buffer\n// Cell count: 0.5 x 10^5 per reaction (triDrop optimum)\n// ============================================================\n\ncellDrop      = dispense 1 units of tCells\nepBuffer1     = dispense 1 units of electroporationBuffer\ncellsInBuffer = mix cellDrop with epBuffer1 for 2s\n\n// ============================================================\n// STEP 2: Prepare mRNA payload droplet (50 ng per reaction)\n// ============================================================\n\npayloadDrop = dispense 1 units of mrnaPayload\n\n// ============================================================\n// STEP 3: triDrop three-droplet fusion\n// Flanking buffer droplet limits electrolytic byproduct\n// exposure at electrodes (paper Fig. S8, Little et al. 2023)\n// ============================================================\n\nbufferFlank    = dispense 1 units of electroporationBuffer\ncellPayloadMix = mix cellsInBuffer with payloadDrop for 5s\ntriDropMerged  = mix cellPayloadMix with bufferFlank for 3s\n\n// ============================================================\n// STEP 4: Electroporation pulse (3 x 1600 V_DC x 10 ms)\n// heat is a void statement -- no assignment (BioScript syntax).\n// Duration: 10ms (paper M&M: 10 ms in duration for the Neon).\n// ============================================================\n\nheat triDropMerged at 37c for 10ms\n\n// ============================================================\n// STEP 5: Transfer to IL-2 recovery buffer within 15 min\n// Recovery buffer: culture media containing 400 IU/mL IL-2\n// ============================================================\n\nrecoveryDrop   = dispense 1 units of recoveryBuffer\nil2Drop        = dispense 1 units of il2Media\nrecoveryMix    = mix recoveryDrop with il2Drop for 5s\nrecoveredCells = mix triDropMerged with recoveryMix for 10s\n\n// ============================================================\n// STEP 6: Post-EP incubation 18h at 37c\n// heat is void -- recoveredCells variable survives intact.\n// triDrop achieves 80-85% viability at 18h post-EP (Fig. 1c).\n// ============================================================\n\nheat recoveredCells at 37c for 18h\n\n// ============================================================\n// STEP 7: Full binary split tree -- 3 splits, 4 unique leaves\n//\n// The compiler assigns [0] to EVERY use of a variable when\n// multiple same-type operations consume the same split result.\n// The only fix: each variable name must appear exactly once\n// as an operand in the instructions block.\n//\n// Binary tree (3 splits -> 4 leaves, each used exactly once):\n//   recoveredCells\n//     split into 2 -> rcA (-> Raji arm), rcB (-> negCtrl arm)\n//       rcA split into 2 -> rcA0 (detect Raji), rcA1 (cont. Raji)\n//       rcB split into 2 -> rcB0 (detect neg),  rcB1 (cont. neg)\n//\n// rcA0, rcA1, rcB0, rcB1 each appear exactly once below.\n// ============================================================\n\nrcA  = split recoveredCells into 2\nrcB  = split recoveredCells into 2\n\nrcA0 = split rcA into 2\nrcA1 = split rcA into 2\n\nrcB0 = split rcB into 2\nrcB1 = split rcB into 2\n\n// ============================================================\n// STEP 7a: Raji (CD19+) co-culture -- positive arm\n// rcA0 -> 24h detect arm (used exactly once)\n// rcA1 -> 48h continuation arm (used exactly once)\n// ============================================================\n\nrajiDrop1 = dispense 1 units of rajiCells\nrajiDrop2 = dispense 1 units of rajiCells\n\ncoculture24hDetect   = mix rcA0 with rajiDrop1 for 24h\ncoculture24hContinue = mix rcA1 with rajiDrop2 for 24h\n\n// ============================================================\n// STEP 7b: MCF-7 (CD19-) co-culture -- negative control arm\n// rcB0 -> 24h detect arm (used exactly once)\n// rcB1 -> 48h continuation arm (used exactly once)\n// ============================================================\n\nmcf7Drop1 = dispense 1 units of mcf7Cells\nmcf7Drop2 = dispense 1 units of mcf7Cells\n\nnegControl24hDetect   = mix rcB0 with mcf7Drop1 for 24h\nnegControl24hContinue = mix rcB1 with mcf7Drop2 for 24h\n\n// ============================================================\n// STEP 8: Detect cytokine secretion at 24h\n// Each detect variable feeds exactly one dedicated droplet.\n// (IFN-g / TNF-a ELISA readout, paper Fig. 4a,b)\n// ============================================================\n\nresult24h    = detect cytokineDetection on coculture24hDetect for 30s\nnegResult24h = detect cytokineDetection on negControl24hDetect for 30s\n\n// ============================================================\n// STEP 9: Extend co-culture to 48h\n// Each mix consumes exactly one dedicated droplet.\n// ============================================================\n\nil2Extend1    = dispense 1 units of il2Media\nil2Extend2    = dispense 1 units of il2Media\n\ncoculture48h  = mix coculture24hContinue with il2Extend1 for 24h\nnegControl48h = mix negControl24hContinue with il2Extend2 for 24h\n\n// ============================================================\n// STEP 10: Detect cytokine secretion at 48h\n// ============================================================\n\nresult48h    = detect cytokineDetection on coculture48h for 30s\nnegResult48h = detect cytokineDetection on negControl48h for 30s\n\n// ============================================================\n// STEP 11: Evaluate 48h killing efficiency threshold\n// ~85% killing at 4:1 E:T ratio at 48h (paper Fig. 4c).\n// QC gate: result48h > 0 confirms valid cytokine signal.\n// Pass: dispose (clean experiment end).\n// Fail: drain (flag for review).\n// ============================================================\n\nif (result48h > 0) {\n    dispose coculture48h\n    dispose negControl48h\n} else {\n    drain coculture48h\n    drain negControl48h\n}\n\ndispose result24h\ndispose result48h\ndispose negResult24h\ndispose negResult48h\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "tridrop_electroporation_001",
+      "protocol_name": "triDrop_electroporation",
+      "category": "synthetic_biology",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "triDrop Digital Microfluidic Electroporation for CAR-T Cell Therapy",
+      "publisher": "Analytical Chemistry, 2025, Vol. 97, pp. 11026-11034",
+      "doi": "10.1021/acs.analchem.4c06911",
+      "url": "https://www.shihmicrolab.ca/_files/ugd/f0a828_07554e20c82e469c9608111c6af47aa0.pdf",
+      "platform": "Digital Microfluidic (DMF) -- triDrop system"
+    },
+    "bioscript": {
+      "manifests": [
+        "tCells",
+        "electroporationBuffer",
+        "mrnaPayload",
+        "recoveryBuffer",
+        "il2Media",
+        "rajiCells",
+        "mcf7Cells"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "drain",
+        "split",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": true,
+        "has_gradient": false,
+        "num_steps": 43
       }
-    ],
-    "reagents": [
-      {
-        "id": "tCells",
-        "description": "Primary human T cells",
-        "quantity": 50000,
-        "quantity_unit": "cells per reaction"
-      },
-      {
-        "id": "electroporationBuffer",
-        "description": "Electroporation buffer; cells kept in buffer max 15 min",
-        "quantity": 1,
-        "quantity_unit": "units"
-      },
-      {
-        "id": "mrnaPayload",
-        "description": "mRNA payload for transfection",
-        "quantity": 50,
-        "quantity_unit": "ng per reaction"
-      },
-      {
-        "id": "recoveryBuffer",
-        "description": "Recovery buffer; transferred promptly after pulse",
-        "quantity": 1,
-        "quantity_unit": "units"
-      },
-      {
-        "id": "il2Media",
-        "description": "Culture media containing IL-2 for recovery and co-culture extension",
-        "concentration": 400,
-        "concentration_unit": "IU/mL",
-        "quantity": 1,
-        "quantity_unit": "units"
-      },
-      {
-        "id": "rajiCells",
-        "description": "Raji cells (CD19-positive target cells) for CAR-T killing assay",
-        "quantity": 1,
-        "quantity_unit": "units"
-      },
-      {
-        "id": "mcf7Cells",
-        "description": "MCF-7 cells (CD19-negative) for specificity control co-culture arm",
-        "quantity": 1,
-        "quantity_unit": "units"
-      }
-    ],
-    "steps": [
-      {
-        "step": 1,
-        "name": "Prepare cell droplet in electroporation buffer",
-        "note": "Cell count: 0.5 x 10^5 per reaction (triDrop optimum)",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "tCells",
-            "output": "cellDrop"
-          },
-          {
-            "op": "dispense",
-            "reagent": "electroporationBuffer",
-            "output": "epBuffer1"
-          },
-          {
-            "op": "mix",
-            "inputs": ["cellDrop", "epBuffer1"],
-            "duration": "2s",
-            "output": "cellsInBuffer"
-          }
+    },
+    "cfg": {
+      "basic_blocks": [
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "terminal"
+        }
+      ],
+      "edges": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
         ]
-      },
-      {
-        "step": 2,
-        "name": "Prepare mRNA payload droplet",
-        "note": "50 ng per reaction; 10-fold less than Nucleofector requirement",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "mrnaPayload",
-            "output": "payloadDrop"
-          }
-        ]
-      },
-      {
-        "step": 3,
-        "name": "triDrop three-droplet fusion",
-        "note": "Flanking buffer droplet limits electrolytic byproduct exposure at electrodes (joule heating, pH change, metal ions)",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "electroporationBuffer",
-            "output": "bufferFlank"
-          },
-          {
-            "op": "mix",
-            "inputs": ["cellsInBuffer", "payloadDrop"],
-            "duration": "5s",
-            "output": "cellPayloadMix"
-          },
-          {
-            "op": "mix",
-            "inputs": ["cellPayloadMix", "bufferFlank"],
-            "duration": "3s",
-            "output": "triDropMerged"
-          }
-        ]
-      },
-      {
-        "step": 4,
-        "name": "Electroporation pulse",
-        "note": "3 x 1600 V_DC pulses, 10 ms duration each; heat primitive maps to DMF energy delivery step",
-        "operations": [
-          {
-            "op": "heat",
-            "input": "triDropMerged",
-            "temperature": "37c",
-            "duration": "10ms"
-          }
-        ]
-      },
-      {
-        "step": 5,
-        "name": "Transfer to IL-2 recovery buffer",
-        "note": "Cells transferred within 15 min post-pulse; recovery buffer contains 400 IU/mL IL-2",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "recoveryBuffer",
-            "output": "recoveryDrop"
-          },
-          {
-            "op": "dispense",
-            "reagent": "il2Media",
-            "output": "il2Drop"
-          },
-          {
-            "op": "mix",
-            "inputs": ["recoveryDrop", "il2Drop"],
-            "duration": "5s",
-            "output": "recoveryMix"
-          },
-          {
-            "op": "mix",
-            "inputs": ["triDropMerged", "recoveryMix"],
-            "duration": "10s",
-            "output": "recoveredCells"
-          }
-        ]
-      },
-      {
-        "step": 6,
-        "name": "Post-EP incubation",
-        "note": "triDrop achieves 80-85% viability at 18h post-EP (paper Fig. 1c); heat is void in BioScript",
-        "operations": [
-          {
-            "op": "heat",
-            "input": "recoveredCells",
-            "temperature": "37c",
-            "duration": "18h"
-          }
-        ]
-      },
-      {
-        "step": 7,
-        "name": "Binary split tree on recoveredCells for four independent co-culture arms",
-        "note": "Each leaf variable used exactly once as operand to avoid compiler greedy index-collision on split arrays. 3 splits produce 4 unique leaves: rcA0, rcA1, rcB0, rcB1.",
-        "operations": [
-          {
-            "op": "split",
-            "input": "recoveredCells",
-            "n": 2,
-            "output": "rcA"
-          },
-          {
-            "op": "split",
-            "input": "recoveredCells",
-            "n": 2,
-            "output": "rcB"
-          },
-          {
-            "op": "split",
-            "input": "rcA",
-            "n": 2,
-            "output": "rcA0"
-          },
-          {
-            "op": "split",
-            "input": "rcA",
-            "n": 2,
-            "output": "rcA1"
-          },
-          {
-            "op": "split",
-            "input": "rcB",
-            "n": 2,
-            "output": "rcB0"
-          },
-          {
-            "op": "split",
-            "input": "rcB",
-            "n": 2,
-            "output": "rcB1"
-          }
-        ]
-      },
-      {
-        "step": 8,
-        "name": "Start Raji (CD19+) co-culture -- positive arm",
-        "note": "E:T ratio 1:1 (paper Fig. 4c); rcA0 -> detect arm, rcA1 -> 48h continuation arm",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "rajiCells",
-            "output": "rajiDrop1"
-          },
-          {
-            "op": "dispense",
-            "reagent": "rajiCells",
-            "output": "rajiDrop2"
-          },
-          {
-            "op": "mix",
-            "inputs": ["rcA0", "rajiDrop1"],
-            "duration": "24h",
-            "output": "coculture24hDetect"
-          },
-          {
-            "op": "mix",
-            "inputs": ["rcA1", "rajiDrop2"],
-            "duration": "24h",
-            "output": "coculture24hContinue"
-          }
-        ]
-      },
-      {
-        "step": 9,
-        "name": "Start MCF-7 (CD19-) co-culture -- negative control arm",
-        "note": "Specificity control; should produce no cytokine signal (paper Fig. 4a,b T/M condition); rcB0 -> detect arm, rcB1 -> 48h continuation arm",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "mcf7Cells",
-            "output": "mcf7Drop1"
-          },
-          {
-            "op": "dispense",
-            "reagent": "mcf7Cells",
-            "output": "mcf7Drop2"
-          },
-          {
-            "op": "mix",
-            "inputs": ["rcB0", "mcf7Drop1"],
-            "duration": "24h",
-            "output": "negControl24hDetect"
-          },
-          {
-            "op": "mix",
-            "inputs": ["rcB1", "mcf7Drop2"],
-            "duration": "24h",
-            "output": "negControl24hContinue"
-          }
-        ]
-      },
-      {
-        "step": 10,
-        "name": "Detect cytokine secretion at 24h",
-        "note": "IFN-g and TNF-a ELISA readout (paper Fig. 4a,b); each detect consumes one dedicated droplet",
-        "operations": [
-          {
-            "op": "detect",
-            "module": "cytokineDetection",
-            "input": "coculture24hDetect",
-            "duration": "30s",
-            "output": "result24h"
-          },
-          {
-            "op": "detect",
-            "module": "cytokineDetection",
-            "input": "negControl24hDetect",
-            "duration": "30s",
-            "output": "negResult24h"
-          }
-        ]
-      },
-      {
-        "step": 11,
-        "name": "Extend co-culture to 48h",
-        "note": "mix with fresh il2Media used as timed hold primitive; heat is void in BioScript and cannot produce a new fluid variable",
-        "operations": [
-          {
-            "op": "dispense",
-            "reagent": "il2Media",
-            "output": "il2Extend1"
-          },
-          {
-            "op": "dispense",
-            "reagent": "il2Media",
-            "output": "il2Extend2"
-          },
-          {
-            "op": "mix",
-            "inputs": ["coculture24hContinue", "il2Extend1"],
-            "duration": "24h",
-            "output": "coculture48h"
-          },
-          {
-            "op": "mix",
-            "inputs": ["negControl24hContinue", "il2Extend2"],
-            "duration": "24h",
-            "output": "negControl48h"
-          }
-        ]
-      },
-      {
-        "step": 12,
-        "name": "Detect cytokine secretion at 48h",
-        "note": "IFN-g and TNF-a ELISA readout at 48h timepoint (paper Fig. 4a,b)",
-        "operations": [
-          {
-            "op": "detect",
-            "module": "cytokineDetection",
-            "input": "coculture48h",
-            "duration": "30s",
-            "output": "result48h"
-          },
-          {
-            "op": "detect",
-            "module": "cytokineDetection",
-            "input": "negControl48h",
-            "duration": "30s",
-            "output": "negResult48h"
-          }
-        ]
-      },
-      {
-        "step": 13,
-        "name": "Evaluate 48h killing efficiency and cleanup",
-        "note": "~85% killing at 4:1 E:T ratio at 48h (paper Fig. 4c); result48h > 0 confirms valid cytokine signal",
-        "operations": [
-          {
-            "op": "conditional",
-            "condition": "result48h > 0",
-            "if_true": [
-              {
-                "op": "dispose",
-                "input": "coculture48h"
-              },
-              {
-                "op": "dispose",
-                "input": "negControl48h"
-              }
-            ],
-            "if_false": [
-              {
-                "op": "drain",
-                "input": "coculture48h"
-              },
-              {
-                "op": "drain",
-                "input": "negControl48h"
-              }
-            ]
-          },
-          {
-            "op": "dispose",
-            "input": "result24h"
-          },
-          {
-            "op": "dispose",
-            "input": "result48h"
-          },
-          {
-            "op": "dispose",
-            "input": "negResult24h"
-          },
-          {
-            "op": "dispose",
-            "input": "negResult48h"
-          }
-        ]
-      }
-    ]
+      ]
+    },
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(coculture48h1[0])\n\tdispose(negControl48h1[0])\nbsbbif_3_f:\n\tdispose(coculture48h1[0])\n\tdispose(negControl48h1[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(result24h1[0])\n\tdispose(result48h1[0])\n\tdispose(negResult24h1[0])\n\tdispose(negResult48h1[0])\n\tNOP\nmain:\n\tcellDrop1[0] = dispense(tCells)\n\tepBuffer11[0] = dispense(electroporationBuffer)\n\tcellsInBuffer1[0] = mix(cellDrop1[0], epBuffer11[0]) @ 2.0SECOND\n\tpayloadDrop1[0] = dispense(mrnaPayload)\n\tbufferFlank1[0] = dispense(electroporationBuffer)\n\tcellPayloadMix1[0] = mix(cellsInBuffer1[0], payloadDrop1[0]) @ 5.0SECOND\n\ttriDropMerged1[0] = mix(cellPayloadMix1[0], bufferFlank1[0]) @ 3.0SECOND\n\theat(triDropMerged1[0]) @ 37.0CELSIUS @ 0.01SECOND\n\trecoveryDrop1[0] = dispense(recoveryBuffer)\n\til2Drop1[0] = dispense(il2Media)\n\trecoveryMix1[0] = mix(recoveryDrop1[0], il2Drop1[0]) @ 5.0SECOND\n\trecoveredCells1[0] = mix(triDropMerged1[0], recoveryMix1[0]) @ 10.0SECOND\n\theat(recoveredCells1[0]) @ 37.0CELSIUS @ 64800.0SECOND\n\trcA1[2] = split(recoveredCells1[0], 2)\n\trcB1[2] = split(recoveredCells1[0], 2)\n\trcA01[2] = split(rcA1, 2)\n\trcA11[2] = split(rcA1, 2)\n\trcB01[2] = split(rcB1, 2)\n\trcB11[2] = split(rcB1, 2)\n\trajiDrop11[0] = dispense(rajiCells)\n\trajiDrop21[0] = dispense(rajiCells)\n\tcoculture24hDetect1[0] = mix(rcA01[0], rajiDrop11[0]) @ 86400.0SECOND\n\tcoculture24hContinue1[0] = mix(rcA11[0], rajiDrop21[0]) @ 86400.0SECOND\n\tmcf7Drop11[0] = dispense(mcf7Cells)\n\tmcf7Drop21[0] = dispense(mcf7Cells)\n\tnegControl24hDetect1[0] = mix(rcB01[0], mcf7Drop11[0]) @ 86400.0SECOND\n\tnegControl24hContinue1[0] = mix(rcB11[0], mcf7Drop21[0]) @ 86400.0SECOND\n\tresult24h1[0] = detect(cytokineDetection, coculture24hDetect1[0]) @ 30.0SECOND\n\tnegResult24h1[0] = detect(cytokineDetection, negControl24hDetect1[0]) @ 30.0SECOND\n\til2Extend11[0] = dispense(il2Media)\n\til2Extend21[0] = dispense(il2Media)\n\tcoculture48h1[0] = mix(coculture24hContinue1[0], il2Extend11[0]) @ 86400.0SECOND\n\tnegControl48h1[0] = mix(negControl24hContinue1[0], il2Extend21[0]) @ 86400.0SECOND\n\tresult48h1[0] = detect(cytokineDetection, coculture48h1[0]) @ 30.0SECOND\n\tnegResult48h1[0] = detect(cytokineDetection, negControl48h1[0]) @ 30.0SECOND\n\tif result48h1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "tCells",
+          "source_quote": "cellDrop      = dispense 1 units of tCells",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_chemical": "electroporationBuffer",
+          "source_quote": "epBuffer1     = dispense 1 units of electroporationBuffer",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_chemical": "mrnaPayload",
+          "source_quote": "payloadDrop   = dispense 1 units of mrnaPayload",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_chemical": "recoveryBuffer",
+          "source_quote": "recoveryDrop   = dispense 1 units of recoveryBuffer",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_chemical": "il2Media",
+          "source_quote": "il2Extend1    = dispense 1 units of il2Media",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_chemical": "rajiCells",
+          "source_quote": "rajiDrop1          = dispense 1 units of rajiCells",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_chemical": "mcf7Cells",
+          "source_quote": "mcf7Drop1              = dispense 1 units of mcf7Cells",
+          "source_location": "description.txt: Operations"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "cellDrop      = dispense 1 units of tCells",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "cellsInBuffer = mix cellDrop with epBuffer1 for 2s",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_operation": "heat",
+          "source_quote": "Temperature    : 37 degrees C",
+          "source_location": "description.txt: ELECTROPORATION PARAMETERS"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "- rcA0 -> Raji 24h detect arm",
+          "source_location": "description.txt: Notes"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "if/else with dispose vs drain, no variable used twice",
+          "source_location": "description.txt: Notes"
+        },
+        {
+          "bs_operation": "drain",
+          "source_quote": "if/else with dispose vs drain, no variable used twice",
+          "source_location": "description.txt: Notes"
+        },
+        {
+          "bs_operation": "split",
+          "source_quote": "rcA0 = split rcA into 2",
+          "source_location": "description.txt: Operations"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "if (result48h > 0) {",
+          "source_location": "description.txt: Operations"
+        }
+      ],
+      "numeric_mismatches": []
+    },
+    "notes": "This protocol details triDrop Digital Microfluidic Electroporation for CAR-T Cell Therapy. The assay is performed on a Digital Microfluidic (DMF) -- triDrop system platform. Key reagents used in the assay include Transfection efficiency : >95% and Cell viability."
   }
 }

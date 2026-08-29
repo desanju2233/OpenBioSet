@@ -1,276 +1,255 @@
 {
-  "protocol": {
-    "title": "One Cell, One Drop, One Click: Hybrid Microfluidics for Mammalian Single Cell Isolation",
-    "source": "Small 2020, 16, 2002400",
-    "doi": "10.1002/smll.202002400",
-    "platform": "Hybrid DMF (digital microfluidics + droplet-in-channel microfluidics)",
-    "cell_lines": ["MCF-7 (breast cancer)", "NCI-H1299 (lung squamous cell carcinoma, eGFP+/Luciferase stable)"],
-    "objective": "Hydrodynamic single-cell trapping, deterministic in situ droplet encapsulation, on-demand droplet operations, cell viability assay, and CRISPR-Cas9 isoclone sorting and recovery",
-
-    "device": {
-      "layers": [
-        "Chromium electrodes on glass (layer i)",
-        "SU-8 5 dielectric layer, 7 um thick (layer ii)",
-        "PDMS channel layer, 35 um height, 50-75 um width (layer iii)"
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "PROTOCOL DESCRIPTION\n====================\n\nTitle        : One Cell, One Drop, One Click: Hybrid Microfluidics for Mammalian Single Cell Isolation\nSource Link  : https://www.shihmicrolab.ca/_files/ugd/f0a828_20644bba5a194fc0966d7bba24bbc451.pdf\nPaper DOI    : https://doi.org/10.1002/smll.202002400\nJournal      : Small, 2020, Vol. 16, Article 2002400\nPlatform     : Hybrid DMF (digital microfluidics + droplet-in-channel microfluidics) on EWOD/electrode array\n\n\nOVERVIEW\n--------\nThis protocol describes a hybrid microfluidics method for deterministic single-cell isolation,\nencapsulation, on-demand droplet manipulation, and isoclonal recovery for mammalian gene-editing\nworkflows. The device integrates a bottom digital microfluidic (DMF) layer (chromium co-planar\nelectrodes on glass + 7 um SU-8 5 dielectric) with a top PDMS channel layer (35 um height,\n50-75 um width), enabling individual electrode-addressable control of droplets flowing inside\nmicrofluidic channels -- a configuration referred to as \"hybrid\" microfluidics.\n\nThe protocol is divided into four functional phases:\n  1. Hydrodynamic single-cell trapping in serpentine channel traps (8 um constrictions)\n  2. In situ deterministic single-cell encapsulation by phase change (no Poisson statistics)\n  3. On-demand droplet operations: forward/reverse release, keep, on-demand generation, and merge\n  4. CRISPR-Cas9 gene-editing pipeline: transfection, on-chip fluorescence screening,\n     isoclone sorting, capillary recovery, and clonal expansion in a 96-well plate\n\nThe complete trap-to-recovery workflow takes approximately 45 minutes, compared to hours\nor days required by standard FACS or limited dilution methods.\n\n\nDEVICE ARCHITECTURE\n-------------------\nLayer i   : Chromium electrodes patterned on glass (50 x 75 mm); electrode size ~100 um,\n            area 0.06 mm2; co-planar ground and activated electrodes on same plate.\nLayer ii  : SU-8 5 dielectric, 7 um thick; spin-coated and hard-baked to 180 C.\nLayer iii : PDMS channel layer; channel height 35 um, main channel width 50 um,\n            bypass channel width ~50 um; fabricated by soft lithography on SU-8 2035 master.\n\nDevice sections:\n  - T-junction on-demand droplet generator (2 T-junctions, multiple sub-electrodes)\n  - Serpentine single-cell trapping array: 12 traps total, 6 electrode-equipped;\n    each trap has 4 co-planar electrodes (2 below main channel, 2 below trap)\n\nInlets  : I1 (oil + droplets), I2 (cells + priming), I3 (PBS/media for generator),\n          I4 (HFE7500 for generator)\nOutlets : O1 (waste), O2 (sample recovery / flow reversal), O3 (bridge to encapsulation)\n\nActuation: 15 kHz AC, 126 Vrms applied via optocoupler switches controlled through\n           an in-house Python-based GUI automation framework.\n\n\nCELL LINES\n----------\n- MCF-7 (human breast cancer): model cell line for trapping, encapsulation, and viability assays.\n  Cultured in DMEM + 10% FBS, no antibiotics, 37 C, 5% CO2.\n- NCI-H1299 (human lung squamous cell carcinoma, eGFP+/Luciferase dual-labelled stable line):\n  used for gene-editing, isoclone sorting, and expansion.\n  Cultured in RPMI-1640 + 10% FBS, no antibiotics, 37 C, 5% CO2.\n\n\nPROTOCOL STEPS\n--------------\n\nStep 1 | Device Priming\n  Reagents : PBS (Ca2+/Mg2+ free), Pluronics F-127\n  Mix      : 2% Pluronics F-127 in PBS\n  Duration : 5 min at 0.8-8 nL/s via inlet I1\n  Purpose  : Reduces MCF-7 cell adhesion to PDMS channel walls.\n\nStep 2 | Hydrodynamic Single-Cell Trapping\n  Cell line      : MCF-7\n  Concentration  : 1e5-1e6 cells/mL in PBS (Ca2+/Mg2+ free), stirred continuously in syringe\n  Flow rate      : 1-4 nL/s (optimal); 5 nL/s tested at ~88.3% single-cell efficiency\n  Trap design    : 8 um constriction (smaller than MCF-7 cell diameter); positioned at\n                   curvature of serpentine channel so Qtrap > Qbypass when trap is empty.\n                   Slanted overhang along main channel steers flow into trap.\n  Multi-occupancy: >54 consecutive single-cell events confirmed; second cell does not enter\n                   occupied trap (increased Rtrap reduces Qtrap).\n  Filtering      : Cells passed through 40 um cell strainer before loading to remove clumps.\n\nStep 3 | In Situ Deterministic Single-Cell Encapsulation\n  Method         : Phase change from single-phase (aqueous) to two-phase (water-in-oil) flow.\n  Oil            : HFE7500 + 2% w/v PEG fluoro-surfactant (Ran Biotechnologies), 4 nL/s\n  Electrode      : 15 kHz, 126 Vrms; electric field density ~5x10^6 V/m between main channel\n                   and trap; electrostatic force pulls aqueous phase into trap when oil shears.\n  Droplet volume : 150.3 +/- 5.6 pL (N=11); monodisperse, no Poisson-based encapsulation.\n  Frame sequence : Frame I: trap electrode activated, oil enters main channel.\n                   Frame II: trap electrode active, other electrodes grounded; oil cuts aqueous\n                             phase at both trap ends; cell remains inside.\n                   Frame III: all potentials grounded; oil continues to next trap.\n\nStep 4 | On-Demand Droplet Operations\n  Forward release : Actuate electrodes below trap then main channel (15 kHz, 126 Vrms).\n                    Flow rate <1 nL/s → >95% release probability.\n                    Without actuation: droplet never released at any flow rate.\n  Reverse release : Same actuation sequence under reverse oil flow.\n                    Hydrodynamic only: >10.92 nL/s needed; with actuation: 100% at any rate.\n  Keep            : 4 electrodes activated; field centred at trap opening.\n                    Flow rates <45.4 nL/s → >95% keep probability (Ph < Felec).\n                    Above 45.4 nL/s: Ph > Felec; droplet escapes.\n  On-demand gen.  : T-junction; oil 2-2.5 nL/s, aqueous 0.6 nL/s; 15 kHz 126 Vrms.\n                    Droplet volume 250.9 +/- 39 pL.\n  Merge           : Incoming droplets merged with trapped droplets on demand; no stream\n                    synchronisation required.\n\nStep 5 | Cell Viability Assay\n  Cells          : MCF-7 (fresh trap), PBS (Ca2+/Mg2+ free)\n  Actuation      : 15 kHz, 126 Vrms for 30 s total (two top electrodes 10 s each,\n                   ground electrode 10 s, two bottom electrodes 10 s)\n  Stain          : FDA/PI 1X; 10 uL PI stock (2 ug/mL) + 2.5 uL FDA stock (5 ug/mL)\n                   FDA: ex 490 nm / em 526 nm (live cells, green)\n                   PI : ex 488 nm / em 617 nm (dead cells, red)\n  Incubation     : 10 min on device in dark; imaged at 4x or 10x on inverted fluorescence\n                   microscope (Olympus IX73)\n  Results        : Control 87.5 +/- 7.2% viability; potentiated 82.5 +/- 8.1% viability\n                   (p = 0.6687, unpaired t-test, N=3). No significant difference.\n                   ~18% loss attributed to pre-processing handling outside culture environment.\n\nStep 6 | Off-Chip CRISPR-Cas9 Transfection (eGFP KO arm)\n  Cell line      : NCI-H1299 (eGFP+/Luciferase stable)\n  Plasmid        : pCRISPR_eGFP_314 (Cas9 + mCherry reporter + eGFP sgRNA)\n                   eGFP sgRNA sequence: GCAACTACAAGACCCGCGCCG\n  Reagent        : Lipofectamine 3000, 5 ug DNA/well\n  Format         : 24-well plate; Day 0: subculture; Day 1: transfect; Day 3: harvest\n  Incubation     : 48 h at 37 C, 5% CO2 (= 2880 min = 172800 s)\n  Results        : ~25.3% transfection efficiency (mCherry+); ~4.95% KO efficiency (GCD assay)\n  KO confirm     : Genomic Cleavage Detection assay (GeneArt GCD kit, Thermo Scientific);\n                   ~500 bp PCR fragments re-annealed and cleaved; resolved on 2% LAB gel at 220 V.\n  Note           : RAF1 KO is an independent parallel experiment (pCRISPR_RAF1_94;\n                   RAF1 sgRNA: GCCGCCCGAGAGTCTTAATCG; 13.7% transfection, 8.3% KO efficiency).\n\nStep 7 | On-Chip Isoclone Trapping, Screening, and Encapsulation\n  Cells          : Transfected NCI-H1299, resuspended in PBS (Ca2+/Mg2+ free)\n  Trapping rate  : 4 nL/s\n  Screening      : Fluorescence microscopy\n                   mCherry (ex ~565 nm): positive = successful transfection\n                   eGFP   (ex ~460 nm): loss of signal = eGFP knocked out\n  Expected hits  : ~1 in 6 traps (~16.7%) contain a mCherry+ isoclone\n  Re-trapping    : If trap contains no transfected clone, increase forward flow rate to\n                   squeeze cell through trap and load a new cell iteratively.\n  Encapsulation  : HFE7500 + 2% fluorosurfactant at 4 nL/s; 15 kHz, 126 Vrms\n  Detection      : mCherryGFPDetection module; 30 s fluorescence read\n  Sorting        : Positive clone released on-demand toward outlet (forward release)\n  Total time     : ~45 min from trapping to release\n\nStep 8 | Isoclone Recovery and Clonal Expansion\n  Recovery method:\n    1. Positive droplet forward-released on demand to outlet\n    2. Loaded into glass capillary pre-filled with HFE7500 2% fluorosurfactant\n    3. Capillary tip placed onto 20 uL conditioned media on hydrophobic PTFE membrane\n       (0.22 um) on custom 3D-printed holder at 37 C\n    4. Capillary flushed with 10 uL FC-40 oil; oil absorbs HFE7500, releasing aqueous droplet\n    5. 1 min incubation; isoclone released into conditioned media droplet\n    6. Transferred to 96-well plate with 50 uL conditioned media/well at 37 C\n\n  Conditioned media: 50% RPMI-1640 10% FBS 1% pen/strep collected from 1-day 80%-confluent\n                     H1299 cells + 50% fresh complete growth media; filter-sterilised; -80 C storage.\n  Expansion        : 37 C, 5% CO2; 7 days (= 10080 min = 604800 s)\n                     Day 1   : Single adherent clones visible\n                     Day 2-3 : mCherry reporter lost (transient transfection, plasmid diluted)\n                     Day 5   : Image eGFP-negative clones (460 nm channel)\n                     Day 7   : Confirm clonal expansion; media changed with fresh complete media\n  Format           : 96-well plate; expand to 50% confluency\n\n\nBIOSCRIPT COMPILER NOTES\n-------------------------\nBioScript file : samlali_hybrid_microfluidics_isoclone.bs\nCompiler       : lilott8/BioScript (ANTLR4-based)\nIR output      : 10 basic blocks (BB1-BB10), 3 if/else gates, 12 CFG edges\nDAG            : samlali_hybrid_microfluidics_isoclone_main_dag.dot\nDuration units : All durations converted to minutes (m) for compiler compatibility\n                 (BioScript supports s and m only; h token not supported)\n                 48h  -> 2880m  (transfection incubation; IR: 172800.0 SECOND)\n                 168h -> 10080m (expansion; IR: 604800.0 SECOND)\nModules        : viabilityDetection, dropletReleaseDetection,\n                 mCherryGFPDetection, genomicCleavageDetection\nBiological scope note: This .bs file encodes the eGFP KO arm only.\n                 The RAF1 KO arm requires a separate .bs file with Cas9_RAF1_sgRNA_Plasmid.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module viabilityDetection\nmodule dropletReleaseDetection\nmodule mCherryGFPDetection\nmodule genomicCleavageDetection\n\nmanifest MCF7_Cells\nmanifest H1299_Cells\nmanifest PluronicF127\nmanifest PBS\nmanifest HFE7500_Surfactant\nmanifest CompleteMedia\nmanifest FDA_PI_Stain\nmanifest Cas9_eGFP_sgRNA_Plasmid\nmanifest Cas9_RAF1_sgRNA_Plasmid\nmanifest Lipofectamine3000\nmanifest TrypsinEDTA\nmanifest ConditionedMedia\nmanifest FC40_Oil\n\ninstructions:\n\n// ============================================================\n// One Cell, One Drop, One Click: Hybrid Microfluidics for\n// Mammalian Single Cell Isolation\n// Samlali, Ahmadi, Quach, Soffer, Shih - Small 2020, 16, 2002400\n//\n// Protocol: hydrodynamic single-cell trapping, in situ\n// deterministic droplet encapsulation, on-demand droplet\n// release/keep operations, cell viability assay, and a\n// gene-editing pipeline (CRISPR knockout of eGFP in\n// NCI-H1299 cells) with isoclone sorting, recovery, and\n// expansion.\n//\n// NOTE ON BIOLOGICAL SCOPE: The paper performs two separate,\n// independent knockout experiments -- eGFP KO and RAF1 KO --\n// each transfected with a single plasmid and evaluated\n// independently (Fig 6A/B, separate flow cytometry plots).\n// This BioScript file encodes the eGFP knockout arm as the\n// representative protocol. A separate .bs file should be\n// used for the RAF1 knockout arm with Cas9_RAF1_sgRNA_Plasmid.\n// Pooling both plasmids into one transfectionMix would imply\n// co-transfection, which does not reflect the paper's design.\n//\n// NOTE ON TRAPPING ABSTRACTION: Steps 2 and 7 use `mix` to\n// represent cell loading into the serpentine trapping channel.\n// This is a BioScript abstraction for a flow-through\n// hydrodynamic trapping event (cells loaded at 1-4 nL/s\n// through 8 um constriction traps, ~88.3% efficiency).\n// There is no reagent mixing in the DMF sense at these steps.\n//\n// CFG STRUCTURE:\n//   BB1  main              -- entry: device priming, cell trapping,\n//                             phase change, in situ encapsulation,\n//                             on-demand release characterisation\n//   BB2  releasePass       -- releaseSignal > 0: droplet successfully\n//                             released (characterisation run), dispose\n//   BB3  releaseFail       -- releaseSignal <= 0: release failed, drain\n//   BB4  releaseJoin       -- join: viability assay branch begins\n//   BB5  viabilityPass     -- viabilitySignal > 0: cells viable (>80%), dispose\n//   BB6  viabilityFail     -- viabilitySignal <= 0: low viability, drain\n//   BB7  viabilityJoin     -- join: gene-editing branch begins\n//   BB8  knockoutPass      -- knockoutSignal > 0: recover & expand isoclone\n//   BB9  knockoutFail      -- knockoutSignal <= 0: drain sorted isoclone\n//   BB10 finalCleanup      -- terminal: dispose QC signal, experiment ends\n// ============================================================\n\n// ============================================================\n// BB1: main\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 1: Prime device with 2% Pluronics F-127 in PBS for 5 min\n//         to decrease cell adhesion to PDMS.\n// ------------------------------------------------------------\n\nprimingPBS      = dispense 1 units of PBS\nprimingPluronic = dispense 1 units of PluronicF127\nprimingMix      = mix primingPBS with primingPluronic for 5m\n\n// ------------------------------------------------------------\n// STEP 2: Load MCF-7 cells (1e5-1e6 cells/mL in PBS) into the\n//         trapping device at 1-4 nL/s. Single cells are\n//         hydrodynamically trapped (~88.3% efficiency) in\n//         8 um constriction traps.\n//         NOTE: `mix` here abstracts a channel flow-through\n//         trapping event, not a DMF electrode mixing step.\n// ------------------------------------------------------------\n\nmcf7Cells    = dispense 1 units of MCF7_Cells\ntrappedCells = mix mcf7Cells with primingMix for 2s\n\n// ------------------------------------------------------------\n// STEP 3: Phase change - flow HFE7500 + 2% surfactant at\n//         4 nL/s through the main channel while actuating\n//         trap electrodes (15 kHz, 126 Vrms) to shear off\n//         the aqueous phase and generate an in situ droplet\n//         around the trapped single cell (deterministic\n//         encapsulation, no Poisson statistics).\n//         Average droplet volume: 150.3 +/- 5.6 pL.\n// ------------------------------------------------------------\n\noilPhase         = dispense 1 units of HFE7500_Surfactant\nencapsulatedCell = mix trappedCells with oilPhase for 4s\n\n// ------------------------------------------------------------\n// STEP 4: On-demand droplet release characterisation.\n//         Droplet released toward outlet under forward oil\n//         flow (<1 nL/s gives >95% release probability) via\n//         electrode actuation sequence (15 kHz, 126 Vrms).\n//         NOTE: This block characterises release efficiency\n//         (Fig 4A/B in paper) using a dedicated detection\n//         module. This is separate from the sorting run in\n//         STEP 7. The released droplet is disposed after\n//         detection; it is not the isoclone being recovered.\n// ------------------------------------------------------------\n\n// FIX #1 (was viabilityDetection): release characterisation\n// uses dropletReleaseDetection, not the FDA/PI viability\n// module. viabilityDetection is reserved for STEP 5.\nreleasedDroplet = mix encapsulatedCell with oilPhase for 1s\nreleaseSignal   = detect dropletReleaseDetection on releasedDroplet for 10s\n\n// ============================================================\n// BB2 / BB3: Release characterisation QC gate\n// Pass (BB2): releaseSignal > 0 -> droplet successfully\n//             released; dispose (characterisation run only).\n// Fail (BB3): releaseSignal <= 0 -> release failed\n//             (droplet retained/lost); drain.\n// Both branches converge at BB4 (releaseJoin).\n// ============================================================\n\nif (releaseSignal > 0) {\n    dispose releasedDroplet\n} else {\n    drain releasedDroplet\n}\n\n// ============================================================\n// BB4: releaseJoin\n// Dispose release QC signal droplet. Control falls into the\n// viability assay branch (BB5/BB6).\n// ============================================================\n\ndispose releaseSignal\n\n// ------------------------------------------------------------\n// STEP 5 (Viability assay): Trap fresh MCF-7 cells, actuate\n//         electrodes for 30 s (15 kHz, 126 Vrms) to simulate\n//         encapsulation conditions, then flow FDA/PI viability\n//         stain and incubate for 10 min.\n//         FDA labels live cells (ex 490 nm / em 526 nm).\n//         PI labels dead cells (ex 488 nm / em 617 nm).\n//         Result: no significant viability difference between\n//         potentiated (82.5+/-8.1%) and control (87.5+/-7.2%)\n//         cells (p=0.6687, N=3). (Fig 5, paper Section 2.3)\n// ------------------------------------------------------------\n\nviabilityCells  = dispense 1 units of MCF7_Cells\nviabilityPriming = dispense 1 units of PBS\nviabilityTrapped = mix viabilityCells with viabilityPriming for 2s\n\n// Electrode actuation (15 kHz, 126 Vrms for 30 s) modelled\n// as a heat step at room temperature (25 C) for 30 s.\nheat viabilityTrapped at 25c for 30s\n\nfdaPiStain   = dispense 1 units of FDA_PI_Stain\nstainedCells = mix viabilityTrapped with fdaPiStain for 10m\n\nviabilitySignal = detect viabilityDetection on stainedCells for 30s\n\n// ============================================================\n// BB5 / BB6: Viability QC gate\n// Pass (BB5): viabilitySignal > 0 -> cells viable (>80%), dispose\n// Fail (BB6): viabilitySignal <= 0 -> low viability, drain\n// Both branches converge at BB7 (viabilityJoin).\n// ============================================================\n\nif (viabilitySignal > 0) {\n    dispose stainedCells\n} else {\n    drain stainedCells\n}\n\n// ============================================================\n// BB7: viabilityJoin\n// Dispose viability QC signal. Control falls into the\n// gene-editing / isoclone sorting branch (BB8/BB9).\n// ============================================================\n\ndispose viabilitySignal\n\n// ------------------------------------------------------------\n// STEP 6 (Gene editing - eGFP KO arm): Transient lipid-\n//         mediated transfection of NCI-H1299 cells with\n//         Cas9/mCherry/sgRNA plasmid targeting eGFP (off-chip),\n//         generating a heterozygous knockout population\n//         (~25.3% transfection efficiency, ~4.95% KO efficiency\n//         by genomic cleavage detection assay). Incubated\n//         48 h at 37 C / 5% CO2 before on-chip sorting.\n//\n// FIX #2 (was: mix egfpPlasmid with raf1Plasmid): The paper\n//         runs eGFP KO and RAF1 KO as two independent\n//         experiments. Only the eGFP plasmid is used here.\n//         48 h incubation = 2880 min.\n// FIX #3 (was: heat ... for 48h): BioScript duration tokens\n//         are s / m only. 48 h converted to 2880m.\n// ------------------------------------------------------------\n\nh1299Cells      = dispense 1 units of H1299_Cells\negfpPlasmid     = dispense 1 units of Cas9_eGFP_sgRNA_Plasmid\nlipofectamine   = dispense 1 units of Lipofectamine3000\n\ntransfectionMix  = mix egfpPlasmid with lipofectamine for 5s\ntransfectedCells = mix h1299Cells with transfectionMix for 1m\n\n// 48 h post-transfection incubation at 37 C (= 2880 min).\nheat transfectedCells at 37c for 2880m\n\n// ------------------------------------------------------------\n// STEP 7: Trap transfected H1299 cells on-chip and screen by\n//         fluorescence for mCherry expression (transfection\n//         reporter) and eGFP loss (knockout signal) using the\n//         mCherryGFPDetection module.\n//         Successful isoclones predicted in ~1 of 6 traps\n//         (~16.7%). Successful clones are encapsulated in situ\n//         and released on-demand toward the outlet (~45 min\n//         total trap-to-recovery time).\n//         NOTE: `mix` steps abstract channel-based hydrodynamic\n//         trapping and oil-phase encapsulation events.\n// ------------------------------------------------------------\n\nprimingPBS2       = dispense 1 units of PBS\nchipTrappedClones = mix transfectedCells with primingPBS2 for 2s\n\noilPhase2         = dispense 1 units of HFE7500_Surfactant\nencapsulatedClone = mix chipTrappedClones with oilPhase2 for 4s\nsortedIsoclone    = mix encapsulatedClone with oilPhase2 for 1s\n\n// Fluorescence detection: mCherry+ / eGFP-loss identifies\n// successfully transfected and knocked-out isoclones.\nknockoutSignal = detect mCherryGFPDetection on sortedIsoclone for 30s\n\n// ============================================================\n// BB8 / BB9: Knockout sorting QC gate\n// Pass (BB8): knockoutSignal > 0 -> successful eGFP knockout\n//             isoclone detected (mCherry+ / GFP-loss);\n//             carry forward into capillary recovery and\n//             96-well expansion.\n// Fail (BB9): knockoutSignal <= 0 -> no edited clone in trap;\n//             drain sortedIsoclone and re-trap at higher\n//             forward flow rate (off-chip iterative step).\n// Both branches converge at BB10 (finalCleanup). Only the\n// pass branch produces a non-empty recoveredClone droplet.\n// ============================================================\n\nif (knockoutSignal > 0) {\n    // ------------------------------------------------------------\n    // Recovery and expansion (pass path only):\n    // The isoclone-containing droplet is transferred via capillary\n    // onto a hydrophobic PTFE membrane. FC-40 oil wash removes\n    // HFE7500 and surfactant. The aqueous isoclone droplet is\n    // released into conditioned media and transferred to a 96-well\n    // plate at 37 C. Clonal expansion monitored at Day 5 and Day 7.\n    // Media replaced with fresh complete growth media after Day 5.\n    //\n    // FIX #4 (was: heat ... for 168h): 7 days = 10080 min.\n    // ------------------------------------------------------------\n    conditionedMedia = dispense 1 units of ConditionedMedia\n    fc40Wash         = dispense 1 units of FC40_Oil\n\n    membraneWash   = mix sortedIsoclone with fc40Wash for 1m\n    recoveredClone = mix membraneWash with conditionedMedia for 1m\n\n    // 7-day clonal expansion at 37 C / 5% CO2 (= 10080 min).\n    // Day 5: image eGFP-negative clones; Day 7: confirm expansion.\n    // mCherry reporter lost by Day 2-3 (transient transfection).\n    heat recoveredClone at 37c for 10080m\n\n    dispose recoveredClone\n} else {\n    drain sortedIsoclone\n}\n\n// ============================================================\n// BB10: finalCleanup (terminal)\n// Dispose the knockout QC signal droplet; experiment ends.\n// ============================================================\n\ndispose knockoutSignal\n\n// [terminal -- no instructions; exit node for CFG]\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "samlali_hybrid_microfluidics_isoclone_001",
+      "protocol_name": "One Cell, One Drop, One Click: Hybrid Microfluidics for Mammalian Single Cell Isolation",
+      "category": "synthetic_biology",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "One Cell, One Drop, One Click: Hybrid Microfluidics for Mammalian Single Cell Isolation",
+      "publisher": "Small, 2020, Vol. 16, Article 2002400",
+      "doi": "10.1002/smll.202002400",
+      "url": "https://www.shihmicrolab.ca/_files/ugd/f0a828_20644bba5a194fc0966d7bba24bbc451.pdf",
+      "platform": "Hybrid DMF (digital microfluidics + droplet-in-channel microfluidics) on EWOD/electrode array"
+    },
+    "bioscript": {
+      "manifests": [
+        "MCF7_Cells",
+        "H1299_Cells",
+        "PluronicF127",
+        "PBS",
+        "HFE7500_Surfactant",
+        "CompleteMedia",
+        "FDA_PI_Stain",
+        "Cas9_eGFP_sgRNA_Plasmid",
+        "Cas9_RAF1_sgRNA_Plasmid",
+        "Lipofectamine3000",
+        "TrypsinEDTA",
+        "ConditionedMedia",
+        "FC40_Oil"
       ],
-      "sections": ["T-junction on-demand droplet generator", "Serpentine single-cell trapping array"],
-      "traps": {
-        "total": 12,
-        "electrode_equipped": 6,
-        "constriction_width_um": 8
-      },
-      "electrodes": {
-        "size_um": 100,
-        "area_mm2": 0.06,
-        "count_per_trap": 4,
-        "actuation_frequency_kHz": 15,
-        "actuation_voltage_Vrms": 126
-      },
-      "inlets": {
-        "I1": "Oil and droplets",
-        "I2": "Cells and priming",
-        "I3": "PBS or media (droplet generator)",
-        "I4": "HFE7500 oil (droplet generator)"
-      },
-      "outlets": {
-        "O1": "Waste",
-        "O2": "Sample recovery and flow reversal",
-        "O3": "Bridge to encapsulation inlet"
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "drain",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 42
       }
     },
-
-    "reagents": {
-      "carrier_oil": "3M Novec HFE7500",
-      "surfactant": "PEG fluoro-surfactant (Ran Biotechnologies) 2% w/v in HFE7500",
-      "wash_oil": "Fluorinert FC-40",
-      "priming_agent": "Pluronics F-127 2% in PBS (Ca2+/Mg2+ free)",
-      "cell_media": {
-        "MCF7": "DMEM + 10% FBS, no antibiotics",
-        "H1299": "RPMI-1640 + 10% FBS, no antibiotics"
-      },
-      "viability_stains": {
-        "FDA": { "concentration_ug_mL": 5, "ex_nm": 490, "em_nm": 526, "labels": "live cells" },
-        "PI":  { "concentration_ug_mL": 2, "ex_nm": 488, "em_nm": 617, "labels": "dead cells" }
-      },
-      "transfection_reagent": "Lipofectamine 3000",
-      "plasmids": {
-        "eGFP_KO": "pCRISPR_eGFP_314 (Cas9 + mCherry reporter + eGFP sgRNA: GCAACTACAAGACCCGCGCCG)",
-        "RAF1_KO": "pCRISPR_RAF1_94 (Cas9 + mCherry reporter + RAF1 sgRNA: GCCGCCCGAGAGTCTTAATCG)"
-      },
-      "recovery_membrane": "0.22 um hydrophobic PTFE membrane",
-      "capillary": "Glass capillary pre-filled with HFE7500 2% fluorosurfactant"
-    },
-
-    "steps": [
-      {
-        "id": "S1",
-        "name": "Device priming",
-        "bb": "BB1",
-        "inputs": ["PBS", "Pluronics F-127"],
-        "operation": "mix",
-        "duration_s": 300,
-        "flow_rate_nL_s": "0.8-8",
-        "inlet": "I1",
-        "notes": "2% Pluronics F-127 in PBS; reduces cell adhesion to PDMS channel walls"
-      },
-      {
-        "id": "S2",
-        "name": "Hydrodynamic single-cell trapping",
-        "bb": "BB1",
-        "cell_line": "MCF-7",
-        "cell_concentration_cells_mL": "1e5-1e6",
-        "suspension_buffer": "PBS (Ca2+/Mg2+ free)",
-        "operation": "flow-through trap (abstracted as mix in BioScript)",
-        "flow_rate_nL_s": "1-4",
-        "optimal_flow_rate_nL_s": 5,
-        "trapping_efficiency_pct": 88.3,
-        "inlet": "I1",
-        "notes": "8 um constriction prevents multi-cell occupancy; slanted overhang steers flow into trap; Qtrap > Qbypass when trap is empty"
-      },
-      {
-        "id": "S3",
-        "name": "In situ deterministic single-cell encapsulation",
-        "bb": "BB1",
-        "operation": "phase change + electrode actuation",
-        "oil": "HFE7500 + 2% fluorosurfactant",
-        "oil_flow_rate_nL_s": 4,
-        "electrode_frequency_kHz": 15,
-        "electrode_voltage_Vrms": 126,
-        "droplet_volume_pL": { "mean": 150.3, "sd": 5.6, "n": 11 },
-        "electric_field_density_V_m": "~5e6",
-        "inlet": "I3/I4 via bridge",
-        "notes": "Deterministic encapsulation; no Poisson statistics. Electric field pulls aqueous phase into trap when oil flow shears both ends."
-      },
-      {
-        "id": "S4",
-        "name": "On-demand droplet release characterisation",
-        "bb": "BB1",
-        "operation": "electrode actuation + forward flow",
-        "oil_flow_rate_nL_s": "<1",
-        "release_probability_pct": ">95",
-        "electrode_frequency_kHz": 15,
-        "electrode_voltage_Vrms": 126,
-        "detection_module": "dropletReleaseDetection",
-        "detection_duration_s": 10,
-        "branch": {
-          "pass": { "condition": "releaseSignal > 0", "action": "dispose", "bb": "BB2" },
-          "fail": { "condition": "releaseSignal <= 0", "action": "drain",   "bb": "BB3" }
-        },
-        "notes": "Characterisation run only (Fig 4A/B). Electrostatic force (Felec) must exceed hydrodynamic pressure (Ph). Without actuation, droplet is never released at any flow rate."
-      },
-      {
-        "id": "S5",
-        "name": "Cell viability assay",
-        "bb": "BB4",
-        "cell_line": "MCF-7",
-        "operation": "electrode actuation + fluorescence staining",
-        "actuation_duration_s": 30,
-        "electrode_frequency_kHz": 15,
-        "electrode_voltage_Vrms": 126,
-        "stain": "FDA/PI 1X (10 uL PI stock + 2.5 uL FDA stock)",
-        "incubation_temperature_C": 25,
-        "incubation_duration_s": 600,
-        "detection_module": "viabilityDetection",
-        "detection_duration_s": 30,
-        "results": {
-          "control_viability_pct": { "mean": 87.5, "sd": 7.2 },
-          "potentiated_viability_pct": { "mean": 82.5, "sd": 8.1 },
-          "p_value": 0.6687,
-          "n": 3,
-          "conclusion": "No significant difference; electrode actuation does not alter viability"
-        },
-        "branch": {
-          "pass": { "condition": "viabilitySignal > 0", "action": "dispose", "bb": "BB5" },
-          "fail": { "condition": "viabilitySignal <= 0", "action": "drain",   "bb": "BB6" }
-        }
-      },
-      {
-        "id": "S6",
-        "name": "Off-chip CRISPR-Cas9 transfection (eGFP KO arm)",
-        "bb": "BB7",
-        "cell_line": "NCI-H1299",
-        "plasmid": "pCRISPR_eGFP_314",
-        "dna_per_well_ug": 5,
-        "transfection_reagent": "Lipofectamine 3000",
-        "plate_format": "24-well",
-        "incubation_temperature_C": 37,
-        "co2_pct": 5,
-        "incubation_duration_s": 172800,
-        "transfection_efficiency_pct": 25.3,
-        "knockout_efficiency_pct": 4.95,
-        "ko_confirmation_method": "Genomic Cleavage Detection assay (GCD)",
-        "notes": "Day 0: subculture to 24-well. Day 1: transfect. Day 3: harvest or subculture to 6-well. RAF1 KO is a separate independent experiment (13.7% transfection, 8.3% KO efficiency)."
-      },
-      {
-        "id": "S7",
-        "name": "On-chip isoclone trapping, fluorescence screening, and encapsulation",
-        "bb": "BB7",
-        "cell_line": "NCI-H1299 (post-transfection)",
-        "suspension_buffer": "PBS (Ca2+/Mg2+ free)",
-        "trapping_flow_rate_nL_s": 4,
-        "screening_method": "Fluorescence microscopy",
-        "screening_channels": {
-          "mCherry": { "ex_nm": 565, "em_nm": null, "indicates": "successful transfection" },
-          "eGFP":   { "ex_nm": 460, "em_nm": null, "indicates": "GFP loss = knockout confirmed" }
-        },
-        "expected_positive_traps_pct": 16.7,
-        "encapsulation_oil": "HFE7500 + 2% fluorosurfactant",
-        "encapsulation_flow_rate_nL_s": 4,
-        "electrode_frequency_kHz": 15,
-        "electrode_voltage_Vrms": 126,
-        "detection_module": "mCherryGFPDetection",
-        "detection_duration_s": 30,
-        "total_workflow_duration_min": 45,
-        "branch": {
-          "pass": { "condition": "knockoutSignal > 0", "action": "recover and expand", "bb": "BB8" },
-          "fail": { "condition": "knockoutSignal <= 0", "action": "drain; re-trap at higher flow rate", "bb": "BB9" }
-        }
-      },
-      {
-        "id": "S8",
-        "name": "Isoclone recovery and clonal expansion",
-        "bb": "BB8",
-        "condition": "knockoutSignal > 0 only",
-        "recovery_steps": [
-          "Forward-release droplet on-demand toward outlet",
-          "Load droplet into glass capillary pre-filled with HFE7500 2% fluorosurfactant",
-          "Transfer capillary onto 20 uL conditioned media on hydrophobic PTFE membrane at 37 C",
-          "Flush capillary with 10 uL FC-40 oil to remove HFE7500 and surfactant",
-          "Incubate 1 min; aqueous isoclone released into conditioned media droplet",
-          "Transfer to 96-well plate with 50 uL conditioned media per well at 37 C"
-        ],
-        "conditioned_media": "50% collected RPMI-1640 10% FBS 1% pen/strep (from 1-day 80%-confluent H1299) + 50% fresh complete media",
-        "expansion": {
-          "incubation_temperature_C": 37,
-          "co2_pct": 5,
-          "incubation_duration_s": 604800,
-          "imaging_checkpoints_days": [5, 7],
-          "media_change_day": 5,
-          "mCherry_reporter_lost_by_day": "2-3 (transient transfection)"
-        }
-      }
-    ],
-
-    "droplet_operations": {
-      "keep": {
-        "flow_direction": "reverse",
-        "max_flow_rate_nL_s": 45.4,
-        "keep_probability_pct": ">95",
-        "electrode_frequency_kHz": 15,
-        "electrode_voltage_Vrms": 126,
-        "actuation_duration_s": 10,
-        "notes": "4 electrodes activated; field centred at trap opening. Above 45.4 nL/s Ph > Felec and droplet escapes."
-      },
-      "forward_release": {
-        "flow_direction": "forward",
-        "optimal_flow_rate_nL_s": "<1",
-        "release_probability_pct": ">95",
-        "electrode_frequency_kHz": 15,
-        "electrode_voltage_Vrms": 126
-      },
-      "reverse_release": {
-        "flow_direction": "reverse",
-        "hydrodynamic_threshold_nL_s": ">10.92",
-        "on_demand": true,
-        "electrode_frequency_kHz": 15,
-        "electrode_voltage_Vrms": 126,
-        "notes": "With actuation: 100% release at any reverse flow rate tested."
-      },
-      "on_demand_generation": {
-        "configuration": "T-junction",
-        "oil_flow_rate_nL_s": "2-2.5",
-        "aqueous_flow_rate_nL_s": 0.6,
-        "droplet_volume_pL": { "mean": 250.9, "sd": 39 },
-        "electrode_frequency_kHz": 15,
-        "electrode_voltage_Vrms": 126
-      },
-      "merge": {
-        "type": "on-demand",
-        "notes": "Incoming droplets merged with trapped droplets on demand; no stream synchronisation required."
-      }
-    },
-
     "cfg": {
       "basic_blocks": [
-        { "id": "BB1",  "label": "main",          "type": "entry" },
-        { "id": "BB2",  "label": "bsbbif_2_t",    "type": "branch_true",  "condition": "releaseSignal > 0",   "action": "dispose(releasedDroplet)" },
-        { "id": "BB3",  "label": "bsbbif_3_f",    "type": "branch_false", "condition": "releaseSignal <= 0",  "action": "drain(releasedDroplet)" },
-        { "id": "BB4",  "label": "bsbbif_4_j",    "type": "join" },
-        { "id": "BB5",  "label": "bsbbif_5_t",    "type": "branch_true",  "condition": "viabilitySignal > 0", "action": "dispose(stainedCells)" },
-        { "id": "BB6",  "label": "bsbbif_6_f",    "type": "branch_false", "condition": "viabilitySignal <= 0","action": "drain(stainedCells)" },
-        { "id": "BB7",  "label": "bsbbif_7_j",    "type": "join" },
-        { "id": "BB8",  "label": "bsbbif_8_t",    "type": "branch_true",  "condition": "knockoutSignal > 0",  "action": "recover and expand isoclone" },
-        { "id": "BB9",  "label": "bsbbif_9_f",    "type": "branch_false", "condition": "knockoutSignal <= 0", "action": "drain(sortedIsoclone)" },
-        { "id": "BB10", "label": "bsbbif_10_j",   "type": "terminal" }
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "join"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "7",
+          "label": "bsbbif_7_j",
+          "type": "join"
+        },
+        {
+          "id": "8",
+          "label": "bsbbif_8_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "9",
+          "label": "bsbbif_9_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "10",
+          "label": "bsbbif_10_j",
+          "type": "terminal"
+        }
       ],
       "edges": [
-        ["BB1","BB2"], ["BB1","BB3"],
-        ["BB2","BB4"], ["BB3","BB4"],
-        ["BB4","BB5"], ["BB4","BB6"],
-        ["BB5","BB7"], ["BB6","BB7"],
-        ["BB7","BB8"], ["BB7","BB9"],
-        ["BB8","BB10"],["BB9","BB10"]
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ],
+        [
+          "7",
+          "8"
+        ],
+        [
+          "7",
+          "9"
+        ],
+        [
+          "8",
+          "10"
+        ],
+        [
+          "9",
+          "10"
+        ]
       ]
-    }
+    },
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(releasedDroplet1[0])\nbsbbif_3_f:\n\tdispose(releasedDroplet1[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(releaseSignal1[0])\n\tviabilityCells1[0] = dispense(MCF7_Cells)\n\tviabilityPriming1[0] = dispense(PBS)\n\tviabilityTrapped1[0] = mix(viabilityCells1[0], viabilityPriming1[0]) @ 2.0SECOND\n\theat(viabilityTrapped1[0]) @ 25.0CELSIUS @ 30.0SECOND\n\tfdaPiStain1[0] = dispense(FDA_PI_Stain)\n\tstainedCells1[0] = mix(viabilityTrapped1[0], fdaPiStain1[0]) @ 600.0SECOND\n\tviabilitySignal1[0] = detect(viabilityDetection, stainedCells1[0]) @ 30.0SECOND\n\tif viabilitySignal1[0] > 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nmain:\n\tprimingPBS1[0] = dispense(PBS)\n\tprimingPluronic1[0] = dispense(PluronicF127)\n\tprimingMix1[0] = mix(primingPBS1[0], primingPluronic1[0]) @ 300.0SECOND\n\tmcf7Cells1[0] = dispense(MCF7_Cells)\n\ttrappedCells1[0] = mix(mcf7Cells1[0], primingMix1[0]) @ 2.0SECOND\n\toilPhase1[0] = dispense(HFE7500_Surfactant)\n\tencapsulatedCell1[0] = mix(trappedCells1[0], oilPhase1[0]) @ 4.0SECOND\n\treleasedDroplet1[0] = mix(encapsulatedCell1[0], oilPhase1[0]) @ 1.0SECOND\n\treleaseSignal1[0] = detect(dropletReleaseDetection, releasedDroplet1[0]) @ 10.0SECOND\n\tif releaseSignal1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbif_5_t:\n\tdispose(stainedCells1[0])\nbsbbif_6_f:\n\tdispose(stainedCells1[0])\n\tjump: bsbbif_7_j\nbsbbif_7_j:\n\tdispose(viabilitySignal1[0])\n\th1299Cells1[0] = dispense(H1299_Cells)\n\tegfpPlasmid1[0] = dispense(Cas9_eGFP_sgRNA_Plasmid)\n\tlipofectamine1[0] = dispense(Lipofectamine3000)\n\ttransfectionMix1[0] = mix(egfpPlasmid1[0], lipofectamine1[0]) @ 5.0SECOND\n\ttransfectedCells1[0] = mix(h1299Cells1[0], transfectionMix1[0]) @ 60.0SECOND\n\theat(transfectedCells1[0]) @ 37.0CELSIUS @ 172800.0SECOND\n\tprimingPBS21[0] = dispense(PBS)\n\tchipTrappedClones1[0] = mix(transfectedCells1[0], primingPBS21[0]) @ 2.0SECOND\n\toilPhase21[0] = dispense(HFE7500_Surfactant)\n\tencapsulatedClone1[0] = mix(chipTrappedClones1[0], oilPhase21[0]) @ 4.0SECOND\n\tsortedIsoclone1[0] = mix(encapsulatedClone1[0], oilPhase21[0]) @ 1.0SECOND\n\tknockoutSignal1[0] = detect(mCherryGFPDetection, sortedIsoclone1[0]) @ 30.0SECOND\n\tif knockoutSignal1[0] > 0\t|\ttrue: jump bsbbif_8_t\t|\tfalse: jump bsbbif_9_f\nbsbbif_8_t:\n\tconditionedMedia1[0] = dispense(ConditionedMedia)\n\tfc40Wash1[0] = dispense(FC40_Oil)\n\tmembraneWash1[0] = mix(sortedIsoclone1[0], fc40Wash1[0]) @ 60.0SECOND\n\trecoveredClone1[0] = mix(membraneWash1[0], conditionedMedia1[0]) @ 60.0SECOND\n\theat(recoveredClone1[0]) @ 37.0CELSIUS @ 604800.0SECOND\n\tdispose(recoveredClone1[0])\nbsbbif_9_f:\n\tdispose(sortedIsoclone1[0])\n\tjump: bsbbif_10_j\nbsbbif_10_j:\n\tdispose(knockoutSignal1[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "MCF7_Cells",
+          "source_quote": "PI : ex 488 nm / em 617 nm (dead cells, red)",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "H1299_Cells",
+          "source_quote": "PI : ex 488 nm / em 617 nm (dead cells, red)",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "PBS",
+          "source_quote": "Mix      : 2% Pluronics F-127 in PBS",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "HFE7500_Surfactant",
+          "source_quote": "I4 (HFE7500 for generator)",
+          "source_location": "description.txt: Device sections"
+        },
+        {
+          "bs_chemical": "FDA_PI_Stain",
+          "source_quote": "Stain          : FDA/PI 1X; 10 uL PI stock (2 ug/mL) + 2.5 uL FDA stock (5 ug/mL)",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "Cas9_eGFP_sgRNA_Plasmid",
+          "source_quote": "eGFP sgRNA sequence: GCAACTACAAGACCCGCGCCG",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "Cas9_RAF1_sgRNA_Plasmid",
+          "source_quote": "eGFP sgRNA sequence: GCAACTACAAGACCCGCGCCG",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "squeeze cell through trap and load a new cell iteratively.",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "Mix      : 2% Pluronics F-127 in PBS",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "Screening      : Fluorescence microscopy",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "Outlets : O1 (waste), O2 (sample recovery / flow reversal), O3 (bridge to encapsulation)",
+          "source_location": "description.txt: Device sections"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "Positive droplet forward-released on demand to outlet",
+          "source_location": "description.txt: Recovery method"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 48 hour(s) vs BioScript encodes 2880m — converted hours to minutes for BioScript grammar compatibility."
+        },
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 48 hour(s) vs BioScript encodes 2880m — converted hours to minutes for BioScript grammar compatibility."
+        }
+      ]
+    },
+    "notes": "This protocol details One Cell, One Drop, One Click: Hybrid Microfluidics for Mammalian Single Cell Isolation. The assay is performed on a Hybrid DMF (digital microfluidics + droplet-in-channel microfluidics) on EWOD/electrode array platform. Key reagents used in the assay include T-junction on-demand droplet generator and MCF-7."
   }
 }

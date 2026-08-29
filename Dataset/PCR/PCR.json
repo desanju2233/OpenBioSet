@@ -1,140 +1,201 @@
 {
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "Source link: https://openwetware.org/wiki/BE.109:Systems_engineering/Measuring_DNA,_RNA,_protein\nPaper doi: N/A\nProtocol details: \nPerform cDNA synthesis followed by quantitative PCR (qPCR). First, mix the RNA template, random primers, dNTPs, and RNase-free water to a final volume of 20 uL. Incubate the mixture at 65 degrees C for 5 minutes, then cool to 4 degrees C. Add 20 uL of cDNA synthesis cocktail. Split this reaction into two equal 20 uL aliquots. To the main reaction, add 1 uL of reverse transcriptase and mix. To the control reaction, add 1 uL of water and mix. Incubate both reactions sequentially at 25 degrees C for 10 minutes, 50 degrees C for 50 minutes, and 85 degrees C for 5 minutes. Add 1 uL of RNaseH to each and incubate at 37 degrees C for 20 minutes. For the qPCR phase, prepare a master mix consisting of 2X reaction buffer, forward primers, reverse primers, and water. Dispense 24 uL of this master mix and combine it with 1 uL of the synthesized cDNA. Perform an initial thermal denaturation at 94 degrees C for 3 minutes. Next, repeat the following sequence 35 times: heat at 94 degrees C for 15 seconds, anneal at 53 degrees C for 30 seconds, extend at 72 degrees C for 30 seconds, and perform an optical plate read to detect fluorescence. Finally, conduct a melting curve analysis from 65 to 95 degrees C before disposing of the samples.\n\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest rna_template\nmanifest random_primers\nmanifest dntps\nmanifest rnase_free_water\nmanifest cdna_synthesis_cocktail\nmanifest reverse_transcriptase\nmanifest rnaseh\nmanifest reaction_buffer\nmanifest forward_primers\nmanifest reverse_primers\n\ninstructions:\n\nrna = dispense rna_template\nprimers = dispense random_primers\ndn = dispense dntps\nw1 = dispense rnase_free_water\n\nt1 = mix rna with primers for 5s\nt2 = mix t1 with dn for 5s\nanneal_mix = mix t2 with w1 for 5s\n\nheat anneal_mix at 65c for 5m\nheat anneal_mix at 4c for 1m\n\ncocktail = dispense cdna_synthesis_cocktail\nreaction = mix anneal_mix with cocktail for 5s\n\nparts = split reaction into 2\n\nrt = dispense reverse_transcriptase\nrt_reaction = mix parts[0] with rt for 5s\n\nw2 = dispense rnase_free_water\ncontrol_reaction = mix parts[1] with w2 for 5s\n\nheat rt_reaction at 25c for 10m\nheat rt_reaction at 50c for 50m\nheat rt_reaction at 85c for 5m\n\nheat control_reaction at 25c for 10m\nheat control_reaction at 50c for 50m\nheat control_reaction at 85c for 5m\n\nrnh1 = dispense rnaseh\nrt_cdna = mix rt_reaction with rnh1 for 5s\nheat rt_cdna at 37c for 20m\n\nrnh2 = dispense rnaseh\ncontrol_cdna = mix control_reaction with rnh2 for 5s\nheat control_cdna at 37c for 20m\n\n\nrb = dispense reaction_buffer\nfp = dispense forward_primers\nrp = dispense reverse_primers\nw3 = dispense rnase_free_water\n\nm1 = mix rb with fp for 5s\nm2 = mix m1 with rp for 5s\nmastermix = mix m2 with w3 for 5s\n\nqpcr = mix mastermix with rt_cdna for 5s\n\nheat qpcr at 94c for 3m\n\nrepeat 35 times {\n    heat qpcr at 94c for 15s\n    heat qpcr at 53c for 30s\n    heat qpcr at 72c for 30s\n    plate_read = detect fluorescence on qpcr for 1s\n}\n\nheat qpcr at 65c for 10s\nmelt_1 = detect fluorescence on qpcr for 1s\nheat qpcr at 75c for 10s\nmelt_2 = detect fluorescence on qpcr for 1s\nheat qpcr at 85c for 10s\nmelt_3 = detect fluorescence on qpcr for 1s\nheat qpcr at 95c for 10s\nmelt_4 = detect fluorescence on qpcr for 1s\n\ndispose qpcr\ndispose control_cdna\n"
+    }
+  ],
   "metadata": {
-    "protocol_id": "assay_pcr_001",
-    "bs_file": "tests/test_cases/assays/PCR.bs",
-    "protocol_name": "cDNA Synthesis and Quantitative PCR (qPCR)",
-    "source": "OpenWetWare",
-    "url": "https://openwetware.org/wiki/BE.109:Systems_engineering/Measuring_DNA,_RNA,_protein",
-    "paper_doi": "N/A",
-    "category": "assays",
-    "adaptation_status": "adapted_authored",
-    "validation_status": "pending_v2",
-    "validated": false,
-    "validation_score": 0.0,
-    "notes": "The natural language protocol specifies precise microliter volumes (e.g., 20 uL, 1 uL, 24 uL), but the .bs code abstracts these into unit-less discrete droplet dispenses. Additionally, the text describes a continuous melting curve ('from 65 to 95 degrees C'), which the .bs code adapts into four discrete 10-second heating and detection steps (65C, 75C, 85C, 95C) for DMFB execution.",
-    "chemicals": [
-      "rna_template",
-      "random_primers",
-      "dntps",
-      "rnase_free_water",
-      "cdna_synthesis_cocktail",
-      "reverse_transcriptase",
-      "rnaseh",
-      "reaction_buffer",
-      "forward_primers",
-      "reverse_primers"
-    ],
-    "operations": [
-      "dispense",
-      "mix",
-      "split",
-      "heat",
-      "repeat",
-      "detect",
-      "dispose"
-    ]
-  },
-  "nl_extracted_evidence": {
-    "chemical_evidence": [
-      {
-        "bs_chemical": "rna_template",
-        "source_quote": "RNA template",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_chemical": "random_primers",
-        "source_quote": "random primers",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_chemical": "dntps",
-        "source_quote": "dNTPs",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_chemical": "rnase_free_water",
-        "source_quote": "RNase-free water",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_chemical": "cdna_synthesis_cocktail",
-        "source_quote": "cDNA synthesis cocktail",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_chemical": "reverse_transcriptase",
-        "source_quote": "reverse transcriptase",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_chemical": "rnaseh",
-        "source_quote": "RNaseH",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_chemical": "reaction_buffer",
-        "source_quote": "2X reaction buffer",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_chemical": "forward_primers",
-        "source_quote": "forward primers",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_chemical": "reverse_primers",
-        "source_quote": "reverse primers",
-        "source_location": "Protocol details"
+    "identity": {
+      "protocol_id": "assay_pcr_001",
+      "protocol_name": "cDNA Synthesis and Quantitative PCR (qPCR)",
+      "category": "nucleic_acid_amplification",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Protocol details:",
+      "publisher": null,
+      "doi": null,
+      "url": "https://openwetware.org/wiki/BE.109:Systems_engineering/Measuring_DNA,_RNA,_protein",
+      "platform": "qPCR Thermocycler"
+    },
+    "bioscript": {
+      "manifests": [
+        "rna_template",
+        "random_primers",
+        "dntps",
+        "rnase_free_water",
+        "cdna_synthesis_cocktail",
+        "reverse_transcriptase",
+        "rnaseh",
+        "reaction_buffer",
+        "forward_primers",
+        "reverse_primers"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "repeat",
+        "split"
+      ],
+      "complexity": {
+        "has_repeat": true,
+        "has_branch": false,
+        "has_split": true,
+        "has_gradient": false,
+        "num_steps": 51
       }
-    ],
-    "operation_evidence": [
-      {
-        "bs_operation": "mix (RNA template + primers + dNTPs + water)",
-        "source_quote": "mix the RNA template, random primers, dNTPs, and RNase-free water",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_operation": "heat at 65c for 5m",
-        "source_quote": "Incubate the mixture at 65 degrees C for 5 minutes",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_operation": "split reaction into 2",
-        "source_quote": "Split this reaction into two equal 20 uL aliquots",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_operation": "heat at 25c, 50c, 85c",
-        "source_quote": "Incubate both reactions sequentially at 25 degrees C for 10 minutes, 50 degrees C for 50 minutes, and 85 degrees C for 5 minutes",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_operation": "repeat 35 times",
-        "source_quote": "repeat the following sequence 35 times",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_operation": "detect fluorescence",
-        "source_quote": "optical plate read to detect fluorescence",
-        "source_location": "Protocol details"
-      },
-      {
-        "bs_operation": "dispose",
-        "source_quote": "disposing of the samples",
-        "source_location": "Protocol details"
-      }
-    ],
-    "numeric_mismatches": [
-      {
-        "bs_value": "unit-less dispense (1 droplet)",
-        "source_value": "20 uL, 1 uL, 24 uL",
-        "matched": false
-      },
-      {
-        "bs_value": "heat at 65c, 75c, 85c, 95c for 10s each",
-        "source_value": "melting curve analysis from 65 to 95 degrees C",
-        "matched": false
-      }
-    ]
+    },
+    "cfg": {
+      "basic_blocks": [
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbr_2_h",
+          "type": "sequential"
+        },
+        {
+          "id": "3",
+          "label": "3",
+          "type": "sequential"
+        },
+        {
+          "id": "4",
+          "label": "4",
+          "type": "terminal"
+        }
+      ],
+      "edges": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "2",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "2"
+        ]
+      ]
+    },
+    "ir": {
+      "content": "main:\n\trna1[0] = dispense(rna_template)\n\tprimers1[0] = dispense(random_primers)\n\tdn1[0] = dispense(dntps)\n\tw11[0] = dispense(rnase_free_water)\n\tt11[0] = mix(rna1[0], primers1[0]) @ 5.0SECOND\n\tt21[0] = mix(t11[0], dn1[0]) @ 5.0SECOND\n\tanneal_mix1[0] = mix(t21[0], w11[0]) @ 5.0SECOND\n\theat(anneal_mix1[0]) @ 65.0CELSIUS @ 300.0SECOND\n\theat(anneal_mix1[0]) @ 4.0CELSIUS @ 60.0SECOND\n\tcocktail1[0] = dispense(cdna_synthesis_cocktail)\n\treaction1[0] = mix(anneal_mix1[0], cocktail1[0]) @ 5.0SECOND\n\tparts1[2] = split(reaction1[0], 2)\n\trt1[0] = dispense(reverse_transcriptase)\n\trt_reaction1[0] = mix(parts1[0], rt1[0]) @ 5.0SECOND\n\tw21[0] = dispense(rnase_free_water)\n\tcontrol_reaction1[0] = mix(parts1[1], w21[0]) @ 5.0SECOND\n\theat(rt_reaction1[0]) @ 25.0CELSIUS @ 600.0SECOND\n\theat(rt_reaction1[0]) @ 50.0CELSIUS @ 3000.0SECOND\n\theat(rt_reaction1[0]) @ 85.0CELSIUS @ 300.0SECOND\n\theat(control_reaction1[0]) @ 25.0CELSIUS @ 600.0SECOND\n\theat(control_reaction1[0]) @ 50.0CELSIUS @ 3000.0SECOND\n\theat(control_reaction1[0]) @ 85.0CELSIUS @ 300.0SECOND\n\trnh11[0] = dispense(rnaseh)\n\trt_cdna1[0] = mix(rt_reaction1[0], rnh11[0]) @ 5.0SECOND\n\theat(rt_cdna1[0]) @ 37.0CELSIUS @ 1200.0SECOND\n\trnh21[0] = dispense(rnaseh)\n\tcontrol_cdna1[0] = mix(control_reaction1[0], rnh21[0]) @ 5.0SECOND\n\theat(control_cdna1[0]) @ 37.0CELSIUS @ 1200.0SECOND\n\trb1[0] = dispense(reaction_buffer)\n\tfp1[0] = dispense(forward_primers)\n\trp1[0] = dispense(reverse_primers)\n\tw31[0] = dispense(rnase_free_water)\n\tm11[0] = mix(rb1[0], fp1[0]) @ 5.0SECOND\n\tm21[0] = mix(m11[0], rp1[0]) @ 5.0SECOND\n\tmastermix1[0] = mix(m21[0], w31[0]) @ 5.0SECOND\n\tqpcr1[0] = mix(mastermix1[0], rt_cdna1[0]) @ 5.0SECOND\n\theat(qpcr1[0]) @ 94.0CELSIUS @ 180.0SECOND\nbsbbr_2_h:\n\tPHI REPEAT_351 = {REPEAT_350,REPEAT_352}\n\tPHI plate_read1 = {plate_read0,plate_read2}\n\tPHI qpcr2 = {qpcr1,qpcr2}\n\tif REPEAT_351[0] > 0\t|\ttrue: jump bsbbr_3_t\t|\tfalse: jump bsbbr_4_f\nbsbbr_3_t:\n\theat(qpcr2[0]) @ 94.0CELSIUS @ 15.0SECOND\n\theat(qpcr2[0]) @ 53.0CELSIUS @ 30.0SECOND\n\theat(qpcr2[0]) @ 72.0CELSIUS @ 30.0SECOND\n\tplate_read2[0] = detect(fluorescence, qpcr2[0]) @ 1.0SECOND\n\tREPEAT_352[0] = REPEAT_351[0] - 1\nbsbbr_4_f:\n\theat(qpcr2[0]) @ 65.0CELSIUS @ 10.0SECOND\n\tmelt_11[0] = detect(fluorescence, qpcr2[0]) @ 1.0SECOND\n\theat(qpcr2[0]) @ 75.0CELSIUS @ 10.0SECOND\n\tmelt_21[0] = detect(fluorescence, qpcr2[0]) @ 1.0SECOND\n\theat(qpcr2[0]) @ 85.0CELSIUS @ 10.0SECOND\n\tmelt_31[0] = detect(fluorescence, qpcr2[0]) @ 1.0SECOND\n\theat(qpcr2[0]) @ 95.0CELSIUS @ 10.0SECOND\n\tmelt_41[0] = detect(fluorescence, qpcr2[0]) @ 1.0SECOND\n\tdispose(qpcr2[0])\n\tdispose(control_cdna1[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "rna_template",
+          "source_quote": "First, mix the RNA template, random primers, dNTPs, and RNase-free water to a final volume of 20 uL.",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_chemical": "random_primers",
+          "source_quote": "First, mix the RNA template, random primers, dNTPs, and RNase-free water to a final volume of 20 uL.",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_chemical": "dntps",
+          "source_quote": "First, mix the RNA template, random primers, dNTPs, and RNase-free water to a final volume of 20 uL.",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_chemical": "rnase_free_water",
+          "source_quote": "To the control reaction, add 1 uL of water and mix.",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_chemical": "cdna_synthesis_cocktail",
+          "source_quote": "Add 20 uL of cDNA synthesis cocktail.",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_chemical": "reverse_transcriptase",
+          "source_quote": "To the main reaction, add 1 uL of reverse transcriptase and mix.",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_chemical": "rnaseh",
+          "source_quote": "Add 1 uL of RNaseH to each and incubate at 37 degrees C for 20 minutes.",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_chemical": "reaction_buffer",
+          "source_quote": "Split this reaction into two equal 20 uL aliquots.",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_chemical": "forward_primers",
+          "source_quote": "First, mix the RNA template, random primers, dNTPs, and RNase-free water to a final volume of 20 uL.",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_chemical": "reverse_primers",
+          "source_quote": "To the main reaction, add 1 uL of reverse transcriptase and mix.",
+          "source_location": "description.txt: Protocol details"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "Add 20 uL of cDNA synthesis cocktail.",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "To the control reaction, add 1 uL of water and mix.",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_operation": "heat",
+          "source_quote": "repeat the following sequence 35 times",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "repeat the following sequence 35 times",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_operation": "repeat",
+          "source_quote": "repeat the following sequence 35 times",
+          "source_location": "description.txt: Protocol details"
+        },
+        {
+          "bs_operation": "split",
+          "source_quote": "Split this reaction into two equal 20 uL aliquots.",
+          "source_location": "description.txt: Protocol details"
+        }
+      ],
+      "numeric_mismatches": []
+    },
+    "notes": "This protocol details Protocol details:. The assay is performed on a qPCR Thermocycler platform. The protocol enables reliable sample processing for nucleic acid amplification."
   }
 }

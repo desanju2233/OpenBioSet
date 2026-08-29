@@ -1,66 +1,249 @@
 {
+  "_schema": "biogpt-v4",
   "messages": [
-    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
-    { "role": "user", "content": "ASSAY TYPE: Digital Microfluidic Droplet-Based Method (ENTRAP) for High-Throughput Conjugal DNA Transfer Between Bacillus subtilis Strains\n\nREAGENTS USED:\n  - B. subtilis Donor Strain JAB981 (XPORT donor, engineered with a modified integrative conjugative element (ICE), GFPmut2 reporter, xylose-inducible conjugation machinery)\n  - B. subtilis Recipient Strain JAB545 (cured of ICEBs1, chloramphenicol-resistance marker)\n  - LB Miller Broth/Agar with selection antibiotics (tetracycline, D-alanine, chloramphenicol)\n  - Xylose Inducer (1% final concentration, induces donor conjugation machinery)\n  - Phosphate Buffered Saline (PBS) Wash Buffer\n  - Tris-Spizizen Salts (TSS) Buffer (resuspension/co-incubation media)\n  - Carrier Oil/Surfactant Phase (Novec 7500 with 1.25% v/v PicoSurf)\n  - Selection Agar (LB agar + 10 ug/mL tetracycline for transconjugant selection; control plates with D-alanine+tetracycline or no antibiotic)\n  - IPTG Induction Reagent (1 mM, induces GFPmut2 reporter expression post-conjugation)\n\nSTEPS:\n1. Culture donor (JAB981) and recipient (JAB545) strains separately in selective LB media to OD600 0.8-1.2, then subculture into fresh selective media.\n2. Grow the donor strain to OD600 0.2, then add xylose to a final concentration of 1% to induce the conjugation machinery (critical step - no conjugation occurs without this).\n3. Continue culturing both donor and recipient strains to OD600 0.8-1.0.\n4. Pellet both cultures by centrifugation, wash twice with PBS, and resuspend in TSS buffer (or LB + D-alanine) to a final OD600 of 0.6.\n5. Combine donor and recipient cells at a 1:1 ratio.\n6. Load the cell mixture and the oil/surfactant carrier phase into separate syringes and infuse them into the ENTRAP microfluidic droplet-generator chip (cell suspension at 400 uL/h, carrier phase at 2000 uL/h) to encapsulate donor-recipient pairs in monodisperse droplets.\n7. Flow the generated droplets into a downstream micro-vessel chip and co-incubate for at least 1 h at ambient temperature or 37 C to allow conjugation to occur within droplets.\n8. Flow droplets out of the micro-vessel chip and plate an aliquot onto tetracycline selection agar (spreading/breaking the droplets with a sterile L-spreader) to select for transconjugants; also plate control aliquots onto D-alanine+tetracycline agar (donors+transconjugants) and non-selective agar (recipients+transconjugants) for conjugation-efficiency calculations.\n9. Incubate all plates ~16 h at 37 C, then inspect for transconjugant colonies on the tetracycline selection plates.\n10. Pick transconjugant colonies, culture in tetracycline-supplemented media, induce with 1 mM IPTG at OD600 ~0.2, and quantify GFPmut2 expression by flow cytometry or plate-reader fluorescence (normalized to OD600) to confirm successful DNA transfer.\n\nINTERPRETATION: Successful conjugation is confirmed by colony growth specifically on the tetracycline selection plates (indicating transconjugants), a conjugation efficiency calculated as the ratio of transconjugant CFUs to donor CFUs across at least three biological replicates, and elevated GFPmut2 fluorescence (relative to uninduced/negative controls) in IPTG-induced transconjugant cultures, with the droplet-based ENTRAP method yielding higher conjugation efficiency than traditional free-culture co-incubation." },
-    { "role": "assistant", "content": "module fluorescence\n\nmanifest donor_cells\nmanifest recipient_cells\nmanifest xylose_inducer\nmanifest wash_buffer\nmanifest tss_buffer\nmanifest oil_surfactant\nmanifest selection_agar\nmanifest iptg\n\ninstructions:\n\n// Cell culture preparation: donor strain grown to OD600 ~0.2, then xylose added\n// to induce the conjugation machinery (Critical step, section B6), followed by\n// continued growth to OD600 0.8-1.0 (section B7)\ndonor = dispense 50 units of donor_cells\nxylose = dispense 10 units of xylose_inducer\ninduced_donor = mix donor with xylose for 30s\nheat induced_donor at 37c for 60m\n\n// Recipient strain cultured in parallel to OD600 0.8-1.0 (section B4-B7)\nrecipient = dispense 50 units of recipient_cells\nheat recipient at 37c for 60m\n\n// Wash both pellets with PBS (2x, section B9), then resuspend in TSS buffer\n// to a final OD600 of 0.6 (section B10)\nwash1 = dispense 20 units of wash_buffer\nwashed_donor = mix induced_donor with wash1 for 30s\n\nwash2 = dispense 20 units of wash_buffer\nwashed_recipient = mix recipient with wash2 for 30s\n\nbuffer1 = dispense 50 units of tss_buffer\nresuspended_donor = mix washed_donor with buffer1 for 30s\n\nbuffer2 = dispense 50 units of tss_buffer\nresuspended_recipient = mix washed_recipient with buffer2 for 30s\n\n// Combine donor and recipient at a 1:1 ratio (section C2)\ncell_mix = mix resuspended_donor with resuspended_recipient for 30s\n\n// Droplet generation on the ENTRAP chip: cell suspension co-flowed with the\n// oil/surfactant carrier phase (Novec 7500/PicoSurf) to encapsulate the\n// donor-recipient mixture in droplets (section C3-C8)\noil = dispense 200 units of oil_surfactant\ndroplet = mix cell_mix with oil for 10s\n\n// Co-incubation of droplets for conjugation, >=1 h at 37C (section C11)\nheat droplet at 37c for 60m\n\n// Plate droplets onto tetracycline selection agar for transconjugant\n// selection, ~16 h incubation at 37C (section C13-C15)\nagar = dispense 50 units of selection_agar\nplated = mix droplet with agar for 30s\nheat plated at 37c for 960m\n\n// Screen plates for transconjugant colony growth (section D1)\ntransconjugant_signal = detect fluorescence on plated for 30s\n\nif (transconjugant_signal < 50) {\n    dispose plated\n}\n\n// Transconjugant evaluation: pick colonies, induce with IPTG, and quantify\n// GFPmut2 expression by flow cytometry / plate reader fluorescence\n// (section D2-D4), repeated across biological replicates\nrepeat 3 times {\n    colony = dispense 10 units of recipient_cells\n    inducer = dispense 5 units of iptg\n    induced_colony = mix colony with inducer for 30s\n    heat induced_colony at 37c for 60m\n\n    expression_signal = detect fluorescence on induced_colony for 30s\n\n    if (expression_signal < 50) {\n        dispose induced_colony\n    }\n}" }
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "Source link: https://bio-protocol.org/en/bpdetail?id=5120\nPaper DOI: https://doi.org/10.21769/BioProtoc.5120\n\nProtocol details:\n\nASSAY TYPE: Digital Microfluidic Droplet-Based Method (ENTRAP) for High-Throughput Conjugal DNA Transfer Between Bacillus subtilis Strains\n\nREAGENTS USED:\n  - B. subtilis Donor Strain JAB981 (XPORT donor, engineered with a modified integrative conjugative element (ICE), GFPmut2 reporter, xylose-inducible conjugation machinery)\n  - B. subtilis Recipient Strain JAB545 (cured of ICEBs1, chloramphenicol-resistance marker)\n  - LB Miller Broth/Agar with selection antibiotics (tetracycline, D-alanine, chloramphenicol)\n  - Xylose Inducer (1% final concentration, induces donor conjugation machinery)\n  - Phosphate Buffered Saline (PBS) Wash Buffer\n  - Tris-Spizizen Salts (TSS) Buffer (resuspension/co-incubation media)\n  - Carrier Oil/Surfactant Phase (Novec 7500 with 1.25% v/v PicoSurf)\n  - Selection Agar (LB agar + 10 ug/mL tetracycline for transconjugant selection; control plates with D-alanine+tetracycline or no antibiotic)\n  - IPTG Induction Reagent (1 mM, induces GFPmut2 reporter expression post-conjugation)\n\nSTEPS:\n1. Culture donor (JAB981) and recipient (JAB545) strains separately in selective LB media to OD600 0.8-1.2, then subculture into fresh selective media.\n2. Grow the donor strain to OD600 0.2, then add xylose to a final concentration of 1% to induce the conjugation machinery (critical step - no conjugation occurs without this).\n3. Continue culturing both donor and recipient strains to OD600 0.8-1.0.\n4. Pellet both cultures by centrifugation, wash twice with PBS, and resuspend in TSS buffer (or LB + D-alanine) to a final OD600 of 0.6.\n5. Combine donor and recipient cells at a 1:1 ratio.\n6. Load the cell mixture and the oil/surfactant carrier phase into separate syringes and infuse them into the ENTRAP microfluidic droplet-generator chip (cell suspension at 400 uL/h, carrier phase at 2000 uL/h) to encapsulate donor-recipient pairs in monodisperse droplets.\n7. Flow the generated droplets into a downstream micro-vessel chip and co-incubate for at least 1 h at ambient temperature or 37 C to allow conjugation to occur within droplets.\n8. Flow droplets out of the micro-vessel chip and plate an aliquot onto tetracycline selection agar (spreading/breaking the droplets with a sterile L-spreader) to select for transconjugants; also plate control aliquots onto D-alanine+tetracycline agar (donors+transconjugants) and non-selective agar (recipients+transconjugants) for conjugation-efficiency calculations.\n9. Incubate all plates ~16 h at 37 C, then inspect for transconjugant colonies on the tetracycline selection plates.\n10. Pick transconjugant colonies, culture in tetracycline-supplemented media, induce with 1 mM IPTG at OD600 ~0.2, and quantify GFPmut2 expression by flow cytometry or plate-reader fluorescence (normalized to OD600) to confirm successful DNA transfer.\n\nINTERPRETATION: Successful conjugation is confirmed by colony growth specifically on the tetracycline selection plates (indicating transconjugants), a conjugation efficiency calculated as the ratio of transconjugant CFUs to donor CFUs across at least three biological replicates, and elevated GFPmut2 fluorescence (relative to uninduced/negative controls) in IPTG-induced transconjugant cultures, with the droplet-based ENTRAP method yielding higher conjugation efficiency than traditional free-culture co-incubation.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest donor_cells\nmanifest recipient_cells\nmanifest xylose_inducer\nmanifest wash_buffer\nmanifest tss_buffer\nmanifest oil_surfactant\nmanifest selection_agar\nmanifest iptg\n\ninstructions:\n\n// Cell culture preparation: donor strain grown to OD600 ~0.2, then xylose added\n// to induce the conjugation machinery (Critical step, section B6), followed by\n// continued growth to OD600 0.8-1.0 (section B7)\ndonor = dispense 50 units of donor_cells\nxylose = dispense 10 units of xylose_inducer\ninduced_donor = mix donor with xylose for 30s\nheat induced_donor at 37c for 60m\n\n// Recipient strain cultured in parallel to OD600 0.8-1.0 (section B4-B7)\nrecipient = dispense 50 units of recipient_cells\nheat recipient at 37c for 60m\n\n// Wash both pellets with PBS (2x, section B9), then resuspend in TSS buffer\n// to a final OD600 of 0.6 (section B10)\nwash1 = dispense 20 units of wash_buffer\nwashed_donor = mix induced_donor with wash1 for 30s\n\nwash2 = dispense 20 units of wash_buffer\nwashed_recipient = mix recipient with wash2 for 30s\n\nbuffer1 = dispense 50 units of tss_buffer\nresuspended_donor = mix washed_donor with buffer1 for 30s\n\nbuffer2 = dispense 50 units of tss_buffer\nresuspended_recipient = mix washed_recipient with buffer2 for 30s\n\n// Combine donor and recipient at a 1:1 ratio (section C2)\ncell_mix = mix resuspended_donor with resuspended_recipient for 30s\n\n// Droplet generation on the ENTRAP chip: cell suspension co-flowed with the\n// oil/surfactant carrier phase (Novec 7500/PicoSurf) to encapsulate the\n// donor-recipient mixture in droplets (section C3-C8)\noil = dispense 200 units of oil_surfactant\ndroplet = mix cell_mix with oil for 10s\n\n// Co-incubation of droplets for conjugation, >=1 h at 37C (section C11)\nheat droplet at 37c for 60m\n\n// Plate droplets onto tetracycline selection agar for transconjugant\n// selection, ~16 h incubation at 37C (section C13-C15)\nagar = dispense 50 units of selection_agar\nplated = mix droplet with agar for 30s\nheat plated at 37c for 960m\n\n// Screen plates for transconjugant colony growth (section D1)\ntransconjugant_signal = detect fluorescence on plated for 30s\n\nif (transconjugant_signal < 50) {\n    dispose plated\n}\n\n// Transconjugant evaluation: pick colonies, induce with IPTG, and quantify\n// GFPmut2 expression by flow cytometry / plate reader fluorescence\n// (section D2-D4), repeated across biological replicates\nrepeat 3 times {\n    colony = dispense 10 units of recipient_cells\n    inducer = dispense 5 units of iptg\n    induced_colony = mix colony with inducer for 30s\n    heat induced_colony at 37c for 60m\n\n    expression_signal = detect fluorescence on induced_colony for 30s\n\n    if (expression_signal < 50) {\n        dispose induced_colony\n    }\n}\n"
+    }
   ],
   "metadata": {
-    "protocol_id": "dmf_entrap_bacillus_conjugation_001",
-    "bs_file": "tests/test_cases/entrap_conjugation/entrap_conjugation.bs",
-    "protocol_name": "A High-Throughput Droplet-based Method to Facilitate Microbial Conjugation (Chu et al. 2024)",
-    "category": "microbial_conjugation_assay",
-    "chemicals": [
-      "donor_cells",
-      "recipient_cells",
-      "xylose_inducer",
-      "wash_buffer",
-      "tss_buffer",
-      "oil_surfactant",
-      "selection_agar",
-      "iptg"
-    ],
-    "operations": [
-      "dispense",
-      "mix",
-      "heat",
-      "detect",
-      "repeat",
-      "if",
-      "dispose"
-    ],
-    "validation_score": 0.0,
-    "validated": false,
-    "validation_status": "pending_v2",
-    "adaptation_status": "adapted_authored",
-    "sources": [
-      { "type": "original_protocol", "title": "A High-Throughput Droplet-based Method to Facilitate Microbial Conjugation", "publisher": "Bio-protocol", "url": "https://bio-protocol.org/en/bpdetail?id=5120", "doi": "10.21769/BioProtoc.5120" }
-    ],
-    "notes": "The authored BioScript code is a direct translation of the paper's core wet-lab workflow (sections B: Cell culture preparation, C: Conjugation of cells in the ENTRAP device, and D: Transconjugant selection and evaluation), covering xylose-induced donor conjugation-machinery activation, PBS wash/TSS resuspension, 1:1 donor-recipient combination, oil/surfactant droplet encapsulation, co-incubation, selection-agar plating, and IPTG-induced GFPmut2 confirmation. Incubation temperatures (37C) are taken directly from the protocol; several durations (donor/recipient growth-to-OD, IPTG induction shake time) are OD600-triggered or open-ended in the source rather than fixed-duration, so illustrative durations (60m) are used as authored approximations. Because BioScript has no primitive for microfluidic flow (syringe pump flow rates, droplet-generator geometry, plasma-bonded chip fabrication), droplet formation is represented as a single 'mix' of the cell suspension with the oil/surfactant carrier reagent rather than a literal co-flow/pinch-off process. Section A (photolithography/two-photon device fabrication, PDMS casting, plasma bonding) is a one-time hardware-fabrication procedure, not a per-run reagent protocol, and is not modeled. Because BioScript exposes only a single generic 'detect fluorescence' module, it is reused as a stand-in for two distinct paper readouts: qualitative colony-growth inspection on the tetracycline selection plate (not a fluorescence signal, section D1), and literal GFPmut2 fluorescence quantification by flow cytometry/plate reader (section D4b). The if-threshold values (transconjugant_signal < 50, expression_signal < 50) are illustrative pass/fail cutoffs standing in for the paper's qualitative 'inspect for colonies' criterion and its normalized-RFU comparison against an uninduced control, not literal numeric thresholds stated in the source text. The 'repeat 3 times' block reflects the paper's explicit requirement of at least three biological replicates for flow cytometry analysis (Data analysis, note 3) and matches that count directly. Colony PCR, whole-genome sequencing confirmation, and the CFU-ratio conjugation-efficiency calculation (Data analysis, note 1) are downstream bioinformatics/verification steps with no corresponding BioScript primitive and are intentionally not modeled.",
+    "identity": {
+      "protocol_id": "dmf_entrap_bacillus_conjugation_001",
+      "protocol_name": "A High-Throughput Droplet-based Method to Facilitate Microbial Conjugation (Chu et al. 2024)",
+      "category": "sample_preparation",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Digital Microfluidic Droplet-Based Method (ENTRAP) for High-Throughput Conjugal DNA Transfer Between Bacillus subtilis Strains",
+      "publisher": null,
+      "doi": "10.21769/BioProtoc.5120",
+      "url": "https://bio-protocol.org/en/bpdetail?id=5120",
+      "platform": "Digital Microfluidics (DMF)"
+    },
+    "bioscript": {
+      "manifests": [
+        "donor_cells",
+        "recipient_cells",
+        "xylose_inducer",
+        "wash_buffer",
+        "tss_buffer",
+        "oil_surfactant",
+        "selection_agar",
+        "iptg"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "repeat",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": true,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 29
+      }
+    },
+    "cfg": {
+      "basic_blocks": [
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbr_4_h",
+          "type": "sequential"
+        },
+        {
+          "id": "5",
+          "label": "5",
+          "type": "sequential"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "7",
+          "label": "bsbbif_7_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "8",
+          "label": "8",
+          "type": "terminal"
+        }
+      ],
+      "edges": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "3"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "8"
+        ],
+        [
+          "5",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ],
+        [
+          "7",
+          "4"
+        ]
+      ]
+    },
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(plated1[0])\nbsbbif_3_f:\n\tPHI plated2 = {plated1,plated}\nmain:\n\tdonor1[0] = dispense(donor_cells)\n\txylose1[0] = dispense(xylose_inducer)\n\tinduced_donor1[0] = mix(donor1[0], xylose1[0]) @ 30.0SECOND\n\theat(induced_donor1[0]) @ 37.0CELSIUS @ 3600.0SECOND\n\trecipient1[0] = dispense(recipient_cells)\n\theat(recipient1[0]) @ 37.0CELSIUS @ 3600.0SECOND\n\twash11[0] = dispense(wash_buffer)\n\twashed_donor1[0] = mix(induced_donor1[0], wash11[0]) @ 30.0SECOND\n\twash21[0] = dispense(wash_buffer)\n\twashed_recipient1[0] = mix(recipient1[0], wash21[0]) @ 30.0SECOND\n\tbuffer11[0] = dispense(tss_buffer)\n\tresuspended_donor1[0] = mix(washed_donor1[0], buffer11[0]) @ 30.0SECOND\n\tbuffer21[0] = dispense(tss_buffer)\n\tresuspended_recipient1[0] = mix(washed_recipient1[0], buffer21[0]) @ 30.0SECOND\n\tcell_mix1[0] = mix(resuspended_donor1[0], resuspended_recipient1[0]) @ 30.0SECOND\n\toil1[0] = dispense(oil_surfactant)\n\tdroplet1[0] = mix(cell_mix1[0], oil1[0]) @ 10.0SECOND\n\theat(droplet1[0]) @ 37.0CELSIUS @ 3600.0SECOND\n\tagar1[0] = dispense(selection_agar)\n\tplated1[0] = mix(droplet1[0], agar1[0]) @ 30.0SECOND\n\theat(plated1[0]) @ 37.0CELSIUS @ 57600.0SECOND\n\ttransconjugant_signal1[0] = detect(fluorescence, plated1[0]) @ 30.0SECOND\n\tif transconjugant_signal1[0] < 50\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbr_4_h:\n\tPHI REPEAT_31 = {REPEAT_30,REPEAT_32}\n\tPHI expression_signal1 = {expression_signal0,expression_signal2}\n\tPHI inducer1 = {inducer0,inducer2}\n\tPHI colony1 = {colony0,colony2}\n\tPHI induced_colony1 = {induced_colony0,induced_colony3}\n\tif REPEAT_31[0] > 0\t|\ttrue: jump bsbbr_5_t\t|\tfalse: jump bsbbr_8_f\nbsbbr_5_t:\n\tcolony2[0] = dispense(recipient_cells)\n\tinducer2[0] = dispense(iptg)\n\tinduced_colony2[0] = mix(colony2[0], inducer2[0]) @ 30.0SECOND\n\theat(induced_colony2[0]) @ 37.0CELSIUS @ 3600.0SECOND\n\texpression_signal2[0] = detect(fluorescence, induced_colony2[0]) @ 30.0SECOND\n\tif expression_signal2[0] < 50\t|\ttrue: jump bsbbif_6_t\t|\tfalse: jump bsbbif_7_f\nbsbbif_6_t:\n\tdispose(induced_colony2[0])\nbsbbif_7_f:\n\tPHI induced_colony3 = {induced_colony2,induced_colony}\n\tREPEAT_32[0] = REPEAT_31[0] - 1\n\tjump: bsbbr_4_h\nbsbbr_8_f:\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
     "evidence": {
       "chemical_evidence": [
-        { "bs_chemical": "donor_cells", "source_quote": "Donor strain JAB981 (from Brophy et al. [1]), B. subtilis JH642 Δ(ydcS-yddM)::[(Pspank-GFPmut2) tet(M) cat]", "source_location": "Materials and reagents: Biological materials" },
-        { "bs_chemical": "recipient_cells", "source_quote": "Recipient strain JAB545 (from Brophy et al. [1]), B. subtilis PY79 cured of ICEBs1, ΔcomC:: aphA-3", "source_location": "Materials and reagents: Biological materials" },
-        { "bs_chemical": "xylose_inducer", "source_quote": "Allow the donor strain to grow to an OD600 of 0.2; at this point, xylose should be added to the culture to a final concentration of 1%", "source_location": "Procedure B: Cell culture preparation, step 6" },
-        { "bs_chemical": "wash_buffer", "source_quote": "Wash pellets with 1 mL of PBS and re-centrifuge at 3,000× g for 3 min. Repeat twice", "source_location": "Procedure B: Cell culture preparation, step 9" },
-        { "bs_chemical": "tss_buffer", "source_quote": "Resuspend both pellets in either TSS media (Recipe 1) or LB media supplemented with D-alanine (100 μg/mL) to a final OD600 of 0.6", "source_location": "Procedure B: Cell culture preparation, step 10" },
-        { "bs_chemical": "oil_surfactant", "source_quote": "Load 5 mL of the carrier oil/surfactant mixture (Novec 7500/PicoSurf) into a 5 mL BD plastic syringe", "source_location": "Procedure C: Conjugation of cells in the ENTRAP device, step 6" },
-        { "bs_chemical": "selection_agar", "source_quote": "Pipette 50 μL of the droplets ... onto a selection agar plate ... supplemented with 10 μg/mL tetracycline", "source_location": "Procedure C: Conjugation of cells in the ENTRAP device, step 13" },
-        { "bs_chemical": "iptg", "source_quote": "induce cells with 1 mM IPTG, then shake for 1 h at 37 °C", "source_location": "Procedure D: Transconjugant selection and evaluation, step 3" }
+        {
+          "bs_chemical": "donor_cells",
+          "source_quote": "Donor strain JAB981 (from Brophy et al. [1]), B. subtilis JH642 Δ(ydcS-yddM)::[(Pspank-GFPmut2) tet(M) cat]",
+          "source_location": "Materials and reagents: Biological materials"
+        },
+        {
+          "bs_chemical": "recipient_cells",
+          "source_quote": "Recipient strain JAB545 (from Brophy et al. [1]), B. subtilis PY79 cured of ICEBs1, ΔcomC:: aphA-3",
+          "source_location": "Materials and reagents: Biological materials"
+        },
+        {
+          "bs_chemical": "xylose_inducer",
+          "source_quote": "Allow the donor strain to grow to an OD600 of 0.2; at this point, xylose should be added to the culture to a final concentration of 1%",
+          "source_location": "Procedure B: Cell culture preparation, step 6"
+        },
+        {
+          "bs_chemical": "wash_buffer",
+          "source_quote": "Wash pellets with 1 mL of PBS and re-centrifuge at 3,000× g for 3 min. Repeat twice",
+          "source_location": "Procedure B: Cell culture preparation, step 9"
+        },
+        {
+          "bs_chemical": "tss_buffer",
+          "source_quote": "Resuspend both pellets in either TSS media (Recipe 1) or LB media supplemented with D-alanine (100 μg/mL) to a final OD600 of 0.6",
+          "source_location": "Procedure B: Cell culture preparation, step 10"
+        },
+        {
+          "bs_chemical": "oil_surfactant",
+          "source_quote": "Load 5 mL of the carrier oil/surfactant mixture (Novec 7500/PicoSurf) into a 5 mL BD plastic syringe",
+          "source_location": "Procedure C: Conjugation of cells in the ENTRAP device, step 6"
+        },
+        {
+          "bs_chemical": "selection_agar",
+          "source_quote": "Pipette 50 μL of the droplets ... onto a selection agar plate ... supplemented with 10 μg/mL tetracycline",
+          "source_location": "Procedure C: Conjugation of cells in the ENTRAP device, step 13"
+        },
+        {
+          "bs_chemical": "iptg",
+          "source_quote": "induce cells with 1 mM IPTG, then shake for 1 h at 37 °C",
+          "source_location": "Procedure D: Transconjugant selection and evaluation, step 3"
+        }
       ],
       "operation_evidence": [
-        { "bs_operation": "heat droplet at 37c for 60m", "source_quote": "Incubate droplets for at least 1 h at ambient temperatures or 37 °C", "source_location": "Procedure C: Conjugation of cells in the ENTRAP device, step 11" },
-        { "bs_operation": "heat plated at 37c for 960m", "source_quote": "Incubate the plates (~16 h) in a 37 °C stationary incubator", "source_location": "Procedure C: Conjugation of cells in the ENTRAP device, step 15" },
-        { "bs_operation": "transconjugant_signal = detect fluorescence on plated / if (transconjugant_signal < 50) dispose", "source_quote": "inspect the transconjugant plates (plates with 10 μg/mL tetracycline) for colonies", "source_location": "Procedure D: Transconjugant selection and evaluation, step 1" },
-        { "bs_operation": "heat induced_colony at 37c for 60m / expression_signal = detect fluorescence", "source_quote": "induce cells with 1 mM IPTG, then shake for 1 h at 37 °C ... Divide the relative fluorescence units (RFUs) by the absorbance at 600 nm of the same sample", "source_location": "Procedure D: Transconjugant selection and evaluation, steps 3-4b" },
-        { "bs_operation": "repeat 3 times { ... }", "source_quote": "be sure to run at least three biological replicates and strive to induce all samples at the same point in their growth phase", "source_location": "Data analysis, note 3" }
+        {
+          "bs_operation": "heat droplet at 37c for 60m",
+          "source_quote": "Incubate droplets for at least 1 h at ambient temperatures or 37 °C",
+          "source_location": "Procedure C: Conjugation of cells in the ENTRAP device, step 11"
+        },
+        {
+          "bs_operation": "heat plated at 37c for 960m",
+          "source_quote": "Incubate the plates (~16 h) in a 37 °C stationary incubator",
+          "source_location": "Procedure C: Conjugation of cells in the ENTRAP device, step 15"
+        },
+        {
+          "bs_operation": "transconjugant_signal = detect fluorescence on plated / if (transconjugant_signal < 50) dispose",
+          "source_quote": "inspect the transconjugant plates (plates with 10 μg/mL tetracycline) for colonies",
+          "source_location": "Procedure D: Transconjugant selection and evaluation, step 1"
+        },
+        {
+          "bs_operation": "heat induced_colony at 37c for 60m / expression_signal = detect fluorescence",
+          "source_quote": "induce cells with 1 mM IPTG, then shake for 1 h at 37 °C ... Divide the relative fluorescence units (RFUs) by the absorbance at 600 nm of the same sample",
+          "source_location": "Procedure D: Transconjugant selection and evaluation, steps 3-4b"
+        },
+        {
+          "bs_operation": "repeat 3 times { ... }",
+          "source_quote": "be sure to run at least three biological replicates and strive to induce all samples at the same point in their growth phase",
+          "source_location": "Data analysis, note 3"
+        }
       ],
       "numeric_mismatches": [
-        { "field": "heat induced_donor / heat recipient at 37c for 60m", "note": "The paper's growth steps to OD600 0.2 and OD600 0.8-1.0 are OD-triggered endpoints, not fixed-duration incubations; no explicit growth time is given, so 60m is an authored illustrative approximation." },
-        { "field": "droplet generation folded into 'mix'", "note": "BioScript has no primitive for microfluidic co-flow, syringe pump flow rates (400 uL/h cells, 2,000 uL/h carrier phase), or droplet pinch-off geometry. The 'droplet = mix cell_mix with oil' step stands in for the actual continuous-flow droplet generator." },
-        { "field": "detect fluorescence (two reuses)", "note": "BioScript exposes only one generic detect module. It is reused here for the qualitative tetracycline-plate colony inspection (not a fluorescence signal) and for the literal GFPmut2 fluorescence quantification, since no dedicated colorimetric/colony-count detect module exists in the grammar." },
-        { "field": "if-threshold values (both set to 50)", "note": "These pass/fail cutoffs are illustrative placeholders standing in for the paper's qualitative colony-inspection criterion and its normalized-RFU-vs-control comparison; the paper does not state a numeric detection threshold for either step." },
-        { "field": "device fabrication (Section A), syringe pump flow rates, plasma bonding, colony PCR, whole-genome sequencing, CFU-ratio conjugation-efficiency calculation", "note": "Not modeled. These are one-time hardware-fabrication steps, flow-control parameters, or downstream sequencing/quantification analyses with no corresponding BioScript primitive, and fall outside the scope of this translation." }
+        {
+          "field": "heat induced_donor / heat recipient at 37c for 60m",
+          "note": "The paper's growth steps to OD600 0.2 and OD600 0.8-1.0 are OD-triggered endpoints, not fixed-duration incubations; no explicit growth time is given, so 60m is an authored illustrative approximation."
+        },
+        {
+          "field": "droplet generation folded into 'mix'",
+          "note": "BioScript has no primitive for microfluidic co-flow, syringe pump flow rates (400 uL/h cells, 2,000 uL/h carrier phase), or droplet pinch-off geometry. The 'droplet = mix cell_mix with oil' step stands in for the actual continuous-flow droplet generator."
+        },
+        {
+          "field": "detect fluorescence (two reuses)",
+          "note": "BioScript exposes only one generic detect module. It is reused here for the qualitative tetracycline-plate colony inspection (not a fluorescence signal) and for the literal GFPmut2 fluorescence quantification, since no dedicated colorimetric/colony-count detect module exists in the grammar."
+        },
+        {
+          "field": "if-threshold values (both set to 50)",
+          "note": "These pass/fail cutoffs are illustrative placeholders standing in for the paper's qualitative colony-inspection criterion and its normalized-RFU-vs-control comparison; the paper does not state a numeric detection threshold for either step."
+        },
+        {
+          "field": "device fabrication (Section A), syringe pump flow rates, plasma bonding, colony PCR, whole-genome sequencing, CFU-ratio conjugation-efficiency calculation",
+          "note": "Not modeled. These are one-time hardware-fabrication steps, flow-control parameters, or downstream sequencing/quantification analyses with no corresponding BioScript primitive, and fall outside the scope of this translation."
+        }
       ]
-    }
+    },
+    "notes": "This protocol details Digital Microfluidic Droplet-Based Method (ENTRAP) for High-Throughput Conjugal DNA Transfer Between Bacillus subtilis Strains. The assay is performed on a Digital Microfluidics (DMF) platform. Key reagents used in the assay include B. subtilis Donor Strain JAB981 and B. subtilis Recipient Strain JAB545."
   }
 }

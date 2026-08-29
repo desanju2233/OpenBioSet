@@ -1,4 +1,5 @@
 {
+  "_schema": "biogpt-v4",
   "messages": [
     {
       "role": "system",
@@ -6,47 +7,134 @@
     },
     {
       "role": "user",
-      "content": "Perform a droplet-scale estrogen assay including sample lysis, liquid-liquid extraction using methanol and isooctane with pooling loops, extract reconstitution, and ELISA fluorescence readout."
+      "content": "Source link: http://microfluidics.utoronto.ca/papers/estrogen_assays.pdf[cite: 40]\nPaper DOI: https://doi.org/10.1126/scitranslmed.3000105[cite: 40]\n\nProtocol details:\n\nASSAY TYPE: Droplet-Scale Estrogen Assays in Breast Tissue, Blood, and Serum (Liquid-Liquid Extraction and ELISA Readout)\n\nREAGENTS USED:\n  - Raw Sample (whole blood, serum, or breast tissue homogenate)\n  - Lysing Solvent (DCM/acetone, 80:20 v/v)\n  - Methanol (polar extraction and reconstitution solvent)\n  - Isooctane (nonpolar extracting solvent)\n  - ELISA Reagent\n\nSTEPS:\n1. Sample Loading: Load 1 unit of raw sample into the sample reservoir and let it dry on the surface[cite: 45].\n2. Lysis: Dispense lysing solvent, mix with the sample for 60s, heat at 23C for 1m, and dispose of the solvent; repeat this cycle 5 times[cite: 45].\n3. Primary Extraction: Dispense methanol to dissolve the dried, lysed steroid residue and mix for 30s[cite: 45]. Deliver a unit droplet into the isooctane reservoir, mix for 20s for liquid-liquid extraction, and dispose of the isooctane[cite: 45].\n4. Re-Extraction Pooling: Repeat the methanol extraction and isooctane clean-up cycle 4 times, pooling the extract droplets into the output reservoir[cite: 45].\n5. Reconstitution: Dry the pooled extract by heating at 25C for 10m, then reconstitute with a unit of methanol and mix for 30s[cite: 45].\n6. Detection: Dispense ELISA reagent, mix with the final extract for 60s, and detect fluorescence/readout for 5m before disposing of the mixture[cite: 45].\n\nINTERPRETATION: Quantifies the concentration of estradiol extracted from biological samples via liquid-liquid extraction followed by an ELISA-based readout.\n"
     },
     {
       "role": "assistant",
-      "content": "module fluorescence\n\nmanifest raw_sample\nmanifest lysing_solvent\nmanifest methanol\nmanifest isooctane\nmanifest elisa_reagent\n\ninstructions:\n\nsample = dispense 1 units of raw_sample\n\nrepeat 5 times {\n    lyse = dispense 2 units of lysing_solvent\n    sample = mix sample with lyse for 60s\n    heat sample at 23c for 1m\n    dispose lyse\n}\n\nmeoh = dispense 2 units of methanol\nlysate = mix sample with meoh for 30s\n\noctane = dispense 5 units of isooctane\nextraction = mix lysate with octane for 20s\ndispose octane\n\nrepeat 4 times {\n    meoh = dispense 2 units of methanol\n    lysate = mix sample with meoh for 30s\n    octane = dispense 5 units of isooctane\n    extraction = mix extraction with octane for 20s\n    dispose octane\n}\n\nheat extraction at 25c for 10m\nrecon = dispense 1 units of methanol\nfinal_extract = mix extraction with recon for 30s\n\nelisa = dispense 1 units of elisa_reagent\nreadout_mix = mix final_extract with elisa for 60s\nestradiol_reading = detect fluorescence on readout_mix for 5m\n\ndispose readout_mix"
+      "content": "module fluorescence\n\nmanifest raw_sample\nmanifest lysing_solvent\nmanifest methanol\nmanifest isooctane\nmanifest elisa_reagent\n\ninstructions:\n\n// Step 1: load 1 uL of sample (whole blood, serum, or breast tissue\n// homogenate) into the sample reservoir and let it dry on the surface\nsample = dispense 1 units of raw_sample\n\n// Step 2: dropwise delivery of lysing solvent (DCM/acetone, 80:20 v/v)\n// to the dried sample, with an incubation/dry period between each\n// unit droplet (paper uses 9 x 1.1 uL or 5 x 2.2 uL)\nrepeat 5 times {\n    lyse = dispense 2 units of lysing_solvent\n    sample = mix sample with lyse for 60s\n    heat sample at 23c for 1m\n    dispose lyse\n}\n\n// Step 3: dispense methanol (polar extraction solvent) to dissolve\n// the dried, lysed steroid residue\nmeoh = dispense 2 units of methanol\nlysate = mix sample with meoh for 30s\n\n// Step 4: deliver a unit droplet of the dissolved sample into the\n// isooctane (nonpolar extracting solvent) reservoir; circulate for\n// ~20 s to perform liquid-liquid extraction, then split the two\n// phases and carry the extract droplet to the collection reservoir\noctane = dispense 5 units of isooctane\nextraction = mix lysate with octane for 20s\ndispose octane\n\n// Step 5: repeat methanol re-extraction of the sample reservoir to\n// recover all remaining free estradiol (paper repeats for a total of\n// 9 x 1.1 uL or 5 x 2.2 uL of methanol), pooling extract droplets\n// into the output reservoir each cycle\nrepeat 4 times {\n    meoh = dispense 2 units of methanol\n    lysate = mix sample with meoh for 30s\n    octane = dispense 5 units of isooctane\n    extraction = mix extraction with octane for 20s\n    dispose octane\n}\n\n// Step 6: dry the pooled extract, then reconstitute for downstream\n// analysis (LC-MS/MS or ELISA)\nheat extraction at 25c for 10m\nrecon = dispense 1 units of methanol\nfinal_extract = mix extraction with recon for 30s\n\n// Step 7: ELISA-based readout (percent recovery / quantification of\n// estradiol); modeled here as a detect step on the reconstituted\n// extract\nelisa = dispense 1 units of elisa_reagent\nreadout_mix = mix final_extract with elisa for 60s\nestradiol_reading = detect fluorescence on readout_mix for 5m\n\ndispose readout_mix\n"
     }
   ],
   "metadata": {
-    "protocol_id": "dmf_estrogen_extraction_assay_001",
-    "bs_file": "tests/test_cases/protocols/DMF_Estrogen_Extraction_Assay.bs",
-    "protocol_name": "Droplet-Scale Estrogen Assays in Breast Tissue, Blood, and Serum (Extraction Protocol)",
-    "category": "assays",
-    "chemicals": [
-      "raw_sample",
-      "lysing_solvent",
-      "methanol",
-      "isooctane",
-      "elisa_reagent"
-    ],
-    "operations": [
-      "dispense",
-      "mix",
-      "heat",
-      "repeat",
-      "detect",
-      "dispose"
-    ],
-    "validation_score": 0.0,
-    "validated": false,
-    "validation_status": "pending_v2",
-    "adaptation_status": "exact_match",
-    "sources": [
-      {
-        "type": "original_protocol",
-        "title": "Droplet-Scale Estrogen Assays in Breast Tissue, Blood, and Serum",
-        "publisher": "Science Translational Medicine",
-        "url": "http://microfluidics.utoronto.ca/papers/estrogen_assays.pdf",
-        "doi": "10.1126/scitranslmed.3000105"
+    "identity": {
+      "protocol_id": "dmf_estrogen_extraction_assay_001",
+      "protocol_name": "Droplet-Scale Estrogen Assays in Breast Tissue, Blood, and Serum (Extraction Protocol)",
+      "category": "immunoassay",
+      "adaptation_status": "exact_match",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Droplet-Scale Estrogen Assays in Breast Tissue, Blood, and Serum (Liquid-Liquid Extraction and ELISA Readout)",
+      "publisher": null,
+      "doi": "10.1126/scitranslmed.3000105[cite:",
+      "url": "http://microfluidics.utoronto.ca/papers/estrogen_assays.pdf[cite:",
+      "platform": "Microwell Plate Reader"
+    },
+    "bioscript": {
+      "manifests": [
+        "raw_sample",
+        "lysing_solvent",
+        "methanol",
+        "isooctane",
+        "elisa_reagent"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "repeat",
+        "split"
+      ],
+      "complexity": {
+        "has_repeat": true,
+        "has_branch": false,
+        "has_split": true,
+        "has_gradient": false,
+        "num_steps": 22
       }
-    ],
-    "notes": "Translated from Mousa et al. Science Translational Medicine protocol for droplet-scale estrogen sample preparation and extraction.",
+    },
+    "cfg": {
+      "basic_blocks": [
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbr_2_h",
+          "type": "sequential"
+        },
+        {
+          "id": "3",
+          "label": "3",
+          "type": "sequential"
+        },
+        {
+          "id": "4",
+          "label": "4",
+          "type": "sequential"
+        },
+        {
+          "id": "5",
+          "label": "bsbbr_5_h",
+          "type": "sequential"
+        },
+        {
+          "id": "6",
+          "label": "6",
+          "type": "sequential"
+        },
+        {
+          "id": "7",
+          "label": "7",
+          "type": "terminal"
+        }
+      ],
+      "edges": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "2",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "2"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "5",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "5"
+        ]
+      ]
+    },
+    "ir": {
+      "content": "main:\n\tsample1[0] = dispense(raw_sample)\nbsbbr_2_h:\n\tPHI lyse1 = {lyse0,lyse2}\n\tPHI REPEAT_51 = {REPEAT_50,REPEAT_52}\n\tPHI sample2 = {sample1,sample3}\n\tif REPEAT_51[0] > 0\t|\ttrue: jump bsbbr_3_t\t|\tfalse: jump bsbbr_4_f\nbsbbr_3_t:\n\tlyse2[0] = dispense(lysing_solvent)\n\tsample3[0] = mix(sample2[0], lyse2[0]) @ 60.0SECOND\n\theat(sample3[0]) @ 23.0CELSIUS @ 60.0SECOND\n\tdispose(lyse2[0])\n\tREPEAT_52[0] = REPEAT_51[0] - 1\nbsbbr_4_f:\n\tmeoh1[0] = dispense(methanol)\n\tlysate1[0] = mix(sample2[0], meoh1[0]) @ 30.0SECOND\n\toctane1[0] = dispense(isooctane)\n\textraction1[0] = mix(lysate1[0], octane1[0]) @ 20.0SECOND\n\tdispose(octane1[0])\nbsbbr_5_h:\n\tPHI REPEAT_41 = {REPEAT_42,REPEAT_4}\n\tPHI lysate2 = {lysate3,lysate}\n\tPHI extraction2 = {extraction3,extraction}\n\tPHI meoh2 = {meoh3,meoh}\n\tPHI octane2 = {octane3,octane}\n\tif REPEAT_41[0] > 0\t|\ttrue: jump bsbbr_6_t\t|\tfalse: jump bsbbr_7_f\nbsbbr_6_t:\n\tmeoh3[0] = dispense(methanol)\n\tlysate3[0] = mix(sample2[0], meoh3[0]) @ 30.0SECOND\n\toctane3[0] = dispense(isooctane)\n\textraction3[0] = mix(extraction2[0], octane3[0]) @ 20.0SECOND\n\tdispose(octane3[0])\n\tREPEAT_42[0] = REPEAT_41[0] - 1\nbsbbr_7_f:\n\theat(extraction2[0]) @ 25.0CELSIUS @ 600.0SECOND\n\trecon1[0] = dispense(methanol)\n\tfinal_extract1[0] = mix(extraction2[0], recon1[0]) @ 30.0SECOND\n\telisa1[0] = dispense(elisa_reagent)\n\treadout_mix1[0] = mix(final_extract1[0], elisa1[0]) @ 60.0SECOND\n\testradiol_reading1[0] = detect(fluorescence, readout_mix1[0]) @ 300.0SECOND\n\tdispose(readout_mix1[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
     "evidence": {
       "chemical_evidence": [
         {
@@ -68,6 +156,7 @@
         }
       ],
       "numeric_mismatches": []
-    }
+    },
+    "notes": "This protocol details Droplet-Scale Estrogen Assays in Breast Tissue, Blood, and Serum (Liquid-Liquid Extraction and ELISA Readout). The assay is performed on a Microwell Plate Reader platform. Key reagents used in the assay include Raw Sample and Lysing Solvent."
   }
 }

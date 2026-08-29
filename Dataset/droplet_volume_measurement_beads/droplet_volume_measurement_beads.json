@@ -1,126 +1,152 @@
 {
-  "protocol": {
-    "title": "Measuring Droplet Volume in Home-Made Microfluidic Devices",
-    "source": "protocols.io, v1",
-    "source_link": "https://www.protocols.io/view/measuring-droplet-volume-in-home-made-microfluidic-3byl46drgo5d/v1",
-    "doi": "https://dx.doi.org/10.17504/protocols.io.mj5c4q6",
-    "platform": "Home-made droplet microfluidic device (droplet-in-channel; EWOD/DMF-adjacent)",
-    "objective": "Determine droplet volume in a home-made microfluidic device using monodisperse polystyrene beads as a volumetric calibration standard via Poisson-statistics-based droplet occupancy measurement",
-
-    "reagents": {
-      "beads": {
-        "type": "Monodisperse carboxylated polystyrene beads",
-        "diameter_um": 10,
-        "coating": "Hydrophilic (carboxylated)",
-        "catalog_standard": "Bangs Labs PC06N-11355",
-        "catalog_fluorescent": "Bangs Labs FC06F-10163",
-        "suspension_buffer": "Drop-seq lysis buffer",
-        "concentration_beads_per_uL": 1000,
-        "notes": "Fluorescent beads recommended for easier identification in droplets under microscopy"
-      },
-      "pbs": {
-        "role": "Cell-channel syringe fluid (co-flow with bead syringe)",
-        "notes": "Loaded into the syringe intended for cells; no cells present in this calibration run"
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "PROTOCOL DESCRIPTION\n====================\n\nTitle        : Measuring Droplet Volume in Home-Made Microfluidic Devices\nSource Link  : https://www.protocols.io/view/measuring-droplet-volume-in-home-made-microfluidic-3byl46drgo5d/v1\nDOI Link     : https://dx.doi.org/10.17504/protocols.io.mj5c4q6\nPlatform     : Home-made droplet microfluidic device (droplet-in-channel; EWOD/DMF-adjacent)\n\n\nOVERVIEW\n--------\nThis protocol describes a bead-based volumetric calibration procedure for determining droplet\nvolume in home-made microfluidic devices. Monodisperse polystyrene beads suspended at a known\nconcentration are co-flowed with PBS through the device to generate droplets. The number of\nbeads per droplet (droplet occupancy) is measured by microscopy over several hundred droplets,\nand the droplet volume is calculated from the occupancy and the known bead concentration in\nthe combined aqueous phase.\n\nThis is a device characterisation/calibration protocol, not a cell biology assay. It is\napplicable to any home-made droplet microfluidic chip prior to biological experiments, providing\na ground-truth volume estimate without requiring dedicated optical volume sensors.\n\n\nPRINCIPLE\n---------\nBeads (10 um carboxylated polystyrene) are resuspended in Drop-seq lysis buffer at\n1000 beads/uL and loaded into the bead syringe. PBS is loaded into the cell-channel syringe.\nWhen both syringes co-flow into the microfluidic device at equal rates, the combined aqueous\nphase has an effective bead concentration of:\n\n    1000 beads/uL (bead syringe) / 2 (co-flow dilution) = 500 beads/uL in droplet fluid\n\nAfter generating droplets, beads inside droplets are counted under microscopy to compute:\n\n    Droplet occupancy  = total beads counted / total droplets counted\n    Droplet volume     = droplet occupancy / 500 beads/uL   [units: uL per droplet]\n\nA minimum of several hundred droplets should be counted to obtain a statistically sound estimate.\n\n\nREAGENTS\n--------\nPolyBeads_LysisBuffer:\n  - Monodisperse carboxylated polystyrene beads, ~10 um diameter\n  - Standard (non-fluorescent): Bangs Labs catalog PC06N-11355\n  - Fluorescent (recommended): Bangs Labs catalog FC06F-10163\n  - Suspension buffer: Drop-seq lysis buffer\n  - Concentration: 1000 beads/uL\n  - Loaded in syringe with magnetic mixer (as per standard barcoded-bead protocol)\n\nPBS:\n  - Phosphate-buffered saline (standard, no additives required)\n  - Loaded into the syringe intended for cells (no cells present in calibration run)\n  - Co-flow with bead syringe; halves bead concentration to 500 beads/uL in droplet fluid\n\n\nPROTOCOL STEPS\n--------------\n\nStep 1 | Prepare Bead Suspension\n  Reagent      : PolyBeads_LysisBuffer\n  Operation    : dispense (BioScript abstraction for syringe loading)\n  Details      : Wash and resuspend 10 um carboxylated polystyrene beads in Drop-seq lysis\n                 buffer at 1000 beads/uL. Draw into syringe equipped with a magnetic mixer\n                 to prevent bead settling during the run.\n\nStep 2 | Load PBS into Cell-Channel Syringe\n  Reagent      : PBS\n  Operation    : dispense (BioScript abstraction for syringe loading)\n  Details      : Load the syringe intended for cells with regular PBS. No cells are present\n                 in this calibration run. The co-flow of bead suspension and PBS at equal\n                 volumetric rates gives an effective bead concentration of 500 beads/uL\n                 in the combined droplet fluid.\n\nStep 3 | Co-Flow and Droplet Generation\n  Inputs       : beadSuspension, pbsFlow\n  Operation    : mix (BioScript abstraction for co-flow junction merging)\n  Duration     : 30 s (stabilisation period before droplet collection begins)\n  Details      : Connect all tubing to the appropriate channels in the microfluidic device.\n                 Start both syringe pumps. The bead syringe and PBS syringe co-flow into the\n                 aqueous inlet; the carrier oil generates droplets at the T-junction or\n                 flow-focus nozzle.\n  Note         : mix here models the co-flow merging of two aqueous streams at the chip inlet\n                 junction, not a DMF electrode-merging event.\n\nStep 4 | Bead Counting Detection (Droplet Occupancy Measurement)\n  Input        : combinedFluid\n  Operation    : detect (beadCountDetection module)\n  Duration     : 60 s (image acquisition and counting window)\n  Details      : Image several hundred droplets under microscopy (fluorescence channel if\n                 fluorescent beads; brightfield otherwise). Count total beads inside all\n                 imaged droplets and the number of droplets counted. Compute:\n                   Droplet occupancy = total_beads / total_droplets\n                   Droplet volume    = occupancy / 500 beads/uL\n  Minimum      : >= 200 droplets recommended for a statistically sound estimate\n\n  QC Gate:\n    Pass (beadSignal > 0): Beads detected in droplets; valid droplet population; volume\n                           estimate obtained; dispose combinedFluid.\n    Fail (beadSignal <= 0): No beads detected; device failure path (check tubing connections,\n                            nozzle, oil flow rate, and bead resuspension quality); drain\n                            combinedFluid.\n\n\nCFG STRUCTURE\n-------------\nBB1  main         -- entry: dispense beads, dispense PBS, co-flow mix (30 s),\n                     detect bead occupancy (60 s)\nBB2  bsbbif_2_t   -- beadSignal > 0: valid droplet population; dispose(combinedFluid)\nBB3  bsbbif_3_f   -- beadSignal <= 0: device failure; drain(combinedFluid)\nBB4  bsbbif_4_j   -- terminal join: dispose(beadSignal); experiment ends\n\nEdges: BB1->BB2, BB1->BB3, BB2->BB4, BB3->BB4\nTotal blocks: 4 | Total edges: 4 | if/else gates: 1\n\n\nBIOSCRIPT COMPILER NOTES\n-------------------------\nBioScript file : droplet_volume_measurement_beads.bs\nCompiler       : lilott8/BioScript (ANTLR4-based)\nIR output      : 4 basic blocks (BB1-BB4), 1 if/else gate, 4 CFG edges\nDAG file       : droplet_volume_measurement_beads_main_dag.dot\nDuration units : All durations in seconds (s); no h tokens used; no conversion required\nModules        : beadCountDetection\nManifests      : PolyBeads_LysisBuffer, PBS\n\nKnown compiler behaviors (not source errors):\n  - drain->dispose lowering: drain in .bs source is correctly lowered to dispose in IR\n    (bsbbif_3_f); this is universal compiler behavior documented across all protocols\n    in this dataset.\n  - Missing true-branch jump: bsbbif_2_t lacks an unconditional jump to bsbbif_4_j in\n    the IR text; this is a known compiler-side emission limitation. The DOT graph edge\n    BB2->BB4 is correct and reflects the true CFG structure.\n\nOwnership audit:\n  - beadSuspension consumed once by mix; no reuse.\n  - pbsFlow consumed once by mix; no reuse.\n  - combinedFluid consumed once by detect; no reuse.\n  - beadSignal disposed at terminal join; no reuse.\n  - No fluid ownership violations.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module beadCountDetection\n\nmanifest PolyBeads_LysisBuffer\nmanifest PBS\n\n// ============================================================\n// Measuring Droplet Volume in Home-Made Microfluidic Devices\n// Protocol Source: Drop-seq / home-made microfluidic device\n// calibration procedure (Harvard / McCarroll Lab style).\n// DOI / Reference: standard lab protocol (no primary paper DOI).\n//\n// Purpose: Determine droplet volume in a home-made droplet-\n// microfluidic device using monodisperse polystyrene beads as\n// a volumetric calibration standard (Poisson-statistics-based\n// droplet occupancy method).\n//\n// Reagents:\n//   PolyBeads_LysisBuffer : durable, monodisperse polystyrene\n//     beads (~10 um, carboxylated, e.g. Bangs Labs PC06N-11355\n//     or fluorescent FC06F-10163) washed and resuspended in\n//     Drop-seq lysis buffer at 1000 beads/uL. Loaded in syringe\n//     with magnetic mixer as per standard barcoded-bead protocol.\n//   PBS : phosphate-buffered saline loaded in the syringe\n//     intended for cells. Co-flowing beads with PBS gives an\n//     estimated bead concentration of 500 beads/uL in the\n//     combined droplet fluid.\n//\n// Key calculation (post-detection):\n//   Droplet occupancy  = (total beads counted) / (droplets counted)\n//   Droplet volume     = occupancy / 500 beads per uL\n//                      = # uL per droplet\n//\n// Device/Method scope:\n//   This protocol is encoded for a DMF-adjacent or electrode-\n//   actuated droplet-generation device. The syringe pump flows\n//   are abstracted as dispense operations; the microfluidic\n//   chip junction (where beads + PBS co-flow and generate\n//   droplets) is abstracted as the first mix step. The bead-\n//   counting step (several hundred droplets imaged under\n//   microscope, beads counted per droplet) is abstracted as the\n//   beadCountDetection module.\n//\n// CFG STRUCTURE (3 basic blocks):\n//   BB1  main          -- dispense beads + PBS, co-flow and\n//                         generate droplets, detect bead count\n//                         occupancy signal\n//   BB2  validDrop     -- beadSignal > 0: valid droplet\n//                         population generated; dispose\n//   BB3  invalidDrop   -- beadSignal <= 0: no detectable beads\n//                         in droplets (device failure or zero\n//                         droplet generation); drain\n// ============================================================\n\ninstructions:\n\n// ============================================================\n// BB1: main\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 1: Dispense polystyrene bead suspension.\n//   Beads (10 um carboxylated polystyrene, e.g. Bangs Labs\n//   PC06N-11355 / fluorescent FC06F-10163) resuspended in\n//   Drop-seq lysis buffer at 1000 beads/uL. Loaded into a\n//   syringe with a magnetic mixer and drawn into syringe pump.\n//   1 unit represents the bead-loaded syringe volume committed\n//   to the droplet-generation run.\n// ------------------------------------------------------------\n\nbeadSuspension  = dispense 1 units of PolyBeads_LysisBuffer\n\n// ------------------------------------------------------------\n// STEP 2: Dispense PBS (cell-channel syringe).\n//   The syringe intended for cells is loaded with regular PBS.\n//   When co-flowing with the bead suspension at equal volume\n//   ratio, the bead concentration in the combined aqueous phase\n//   is halved: 1000 / 2 = 500 beads/uL in the droplet fluid.\n//   1 unit represents the PBS syringe volume committed to the\n//   same run.\n// ------------------------------------------------------------\n\npbsFlow         = dispense 1 units of PBS\n\n// ------------------------------------------------------------\n// STEP 3: Co-flow and droplet generation.\n//   Connect all tubing to the appropriate channels in the\n//   microfluidic device. Both syringe pumps are started:\n//   the bead syringe and the PBS syringe co-flow into the\n//   aqueous inlet; the oil phase (carrier) generates droplets\n//   at the T-junction or flow-focus nozzle.\n//\n//   NOTE ON ABSTRACTION: `mix` here models the co-flow\n//   merging of the two aqueous streams at the chip inlet\n//   junction, not a DMF electrode-merging event. The result\n//   is a homogeneous bead-containing aqueous phase at\n//   500 beads/uL that is subsequently broken into droplets\n//   by the oil phase at the nozzle. Duration of 30s models\n//   the stabilisation period before droplet collection begins.\n// ------------------------------------------------------------\n\ncombinedFluid   = mix beadSuspension with pbsFlow for 30s\n\n// ------------------------------------------------------------\n// STEP 4: Bead-counting detection (droplet occupancy).\n//   Several hundred droplets are imaged under microscopy\n//   (fluorescence if fluorescent beads are used; brightfield\n//   otherwise). The total number of beads inside all counted\n//   droplets is divided by the number of droplets counted to\n//   yield the droplet occupancy (mean beads per droplet).\n//\n//   beadCountDetection module abstracts:\n//     (a) image acquisition across >= several hundred droplets,\n//     (b) bead segmentation and per-droplet counting,\n//     (c) occupancy calculation: occupancy = total_beads /\n//         total_droplets counted,\n//     (d) volume calculation: droplet volume (uL) =\n//         occupancy / 500 beads/uL.\n//\n//   Detection duration: 60s models the image acquisition\n//   and automated counting window for a statistically\n//   sound estimate (>= 200 droplets recommended).\n//\n//   beadSignal > 0 : beads detected in droplets; valid\n//                    droplet population; occupancy and\n//                    volume calculated successfully.\n//   beadSignal <= 0 : no beads detected (device failure,\n//                     clogged nozzle, or empty syringe);\n//                     drain and troubleshoot.\n// ------------------------------------------------------------\n\nbeadSignal      = detect beadCountDetection on combinedFluid for 60s\n\n// ============================================================\n// BB2 / BB3: Droplet generation QC gate\n// Pass (BB2): beadSignal > 0 -> beads detected in droplets;\n//             valid droplet population and volume estimate\n//             obtained; dispose combined fluid.\n// Fail (BB3): beadSignal <= 0 -> no bead signal detected;\n//             drain combined fluid (device failure path:\n//             check tubing connections, nozzle, oil flow\n//             rate, and bead resuspension quality).\n// Both branches terminate after their respective operation.\n// ============================================================\n\nif (beadSignal > 0) {\n    dispose combinedFluid\n} else {\n    drain combinedFluid\n}\n\n// ============================================================\n// finalCleanup (terminal)\n// Dispose the bead detection QC signal. Experiment ends.\n// Calculated droplet volume is available from the\n// beadCountDetection module output log.\n// ============================================================\n\ndispose beadSignal\n\n// [terminal -- no further instructions; exit node for CFG]\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "droplet_volume_measurement_beads_001",
+      "protocol_name": "Measuring Droplet Volume in Home-Made Microfluidic Devices",
+      "category": "synthetic_biology",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Measuring Droplet Volume in Home-Made Microfluidic Devices",
+      "publisher": null,
+      "doi": "10.17504/protocols.io.mj5c4q6",
+      "url": "https://www.protocols.io/view/measuring-droplet-volume-in-home-made-microfluidic-3byl46drgo5d/v1",
+      "platform": "Home-made droplet microfluidic device (droplet-in-channel; EWOD/DMF-adjacent)"
+    },
+    "bioscript": {
+      "manifests": [
+        "PolyBeads_LysisBuffer",
+        "PBS"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "detect",
+        "dispose",
+        "drain",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 7
       }
     },
-
-    "bead_concentration_in_droplet": {
-      "bead_stock_concentration_per_uL": 1000,
-      "co_flow_dilution_factor": 2,
-      "effective_concentration_per_uL": 500,
-      "explanation": "Co-flowing beads with PBS at equal volume ratio halves the bead concentration from 1000 to 500 beads/uL in the combined aqueous droplet fluid"
-    },
-
-    "volume_calculation": {
-      "formula": "droplet_volume_uL = droplet_occupancy / 500",
-      "droplet_occupancy_definition": "Total beads counted inside droplets / number of droplets counted",
-      "denominator_beads_per_uL": 500,
-      "minimum_droplets_to_count": 200,
-      "notes": "Count beads inside several hundred droplets to ensure a statistically sound occupancy estimate"
-    },
-
-    "steps": [
-      {
-        "id": "S1",
-        "name": "Prepare bead suspension",
-        "bb": "BB1",
-        "inputs": ["PolyBeads_LysisBuffer"],
-        "operation": "dispense",
-        "details": "Purchase durable monodisperse 10 um carboxylated polystyrene beads (Bangs Labs PC06N-11355 or fluorescent FC06F-10163). Wash and resuspend in Drop-seq lysis buffer at 1000 beads/uL. Draw into a syringe equipped with a magnetic mixer as per standard barcoded-bead protocol.",
-        "concentration_beads_per_uL": 1000,
-        "syringe_type": "Bead syringe with magnetic mixer"
-      },
-      {
-        "id": "S2",
-        "name": "Load PBS into cell-channel syringe",
-        "bb": "BB1",
-        "inputs": ["PBS"],
-        "operation": "dispense",
-        "details": "Load the syringe intended for cells with regular PBS. When co-flowed with the bead syringe, the bead concentration in the combined droplet fluid is estimated at 500 beads/uL.",
-        "syringe_type": "Cell-channel syringe (no cells; PBS only)"
-      },
-      {
-        "id": "S3",
-        "name": "Co-flow and droplet generation",
-        "bb": "BB1",
-        "inputs": ["beadSuspension", "pbsFlow"],
-        "operation": "mix",
-        "duration_s": 30,
-        "details": "Connect all tubing to the appropriate channels in the microfluidic device. Start both syringe pumps; bead suspension and PBS co-flow into the aqueous inlet. The carrier oil generates droplets at the T-junction or flow-focus nozzle. Duration models the stabilisation period before droplet collection begins.",
-        "abstraction_note": "mix abstracts the co-flow merging of two aqueous streams at the chip inlet junction; not a DMF electrode-merging event. Effective bead concentration in resulting droplets: 500 beads/uL."
-      },
-      {
-        "id": "S4",
-        "name": "Bead counting and occupancy detection",
-        "bb": "BB1",
-        "inputs": ["combinedFluid"],
-        "operation": "detect",
-        "module": "beadCountDetection",
-        "duration_s": 60,
-        "details": "Image several hundred droplets under microscopy (fluorescence if fluorescent beads; brightfield otherwise). Count total beads inside all imaged droplets. Compute occupancy = total_beads / total_droplets. Compute volume = occupancy / 500 beads/uL.",
-        "minimum_droplets": 200,
-        "branch": {
-          "pass": { "condition": "beadSignal > 0", "action": "dispose", "bb": "BB2",
-                    "meaning": "Beads detected in droplets; valid droplet population; volume estimate obtained" },
-          "fail": { "condition": "beadSignal <= 0", "action": "drain", "bb": "BB3",
-                    "meaning": "No bead signal; device failure (check tubing, nozzle, oil flow rate, bead resuspension)" }
-        }
-      }
-    ],
-
     "cfg": {
       "basic_blocks": [
-        { "id": "BB1", "label": "main",       "type": "entry",
-          "operations": ["dispense(PolyBeads_LysisBuffer)", "dispense(PBS)", "mix(beadSuspension, pbsFlow)@30s", "detect(beadCountDetection, combinedFluid)@60s"] },
-        { "id": "BB2", "label": "bsbbif_2_t", "type": "branch_true",
-          "condition": "beadSignal > 0", "action": "dispose(combinedFluid)" },
-        { "id": "BB3", "label": "bsbbif_3_f", "type": "branch_false",
-          "condition": "beadSignal <= 0", "action": "drain(combinedFluid)" },
-        { "id": "BB4", "label": "bsbbif_4_j", "type": "terminal",
-          "action": "dispose(beadSignal)" }
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "terminal"
+        }
       ],
       "edges": [
-        ["BB1", "BB2"], ["BB1", "BB3"],
-        ["BB2", "BB4"], ["BB3", "BB4"]
-      ],
-      "total_blocks": 4,
-      "total_edges": 4,
-      "if_else_gates": 1
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ]
+      ]
     },
-
-    "bioscript_compiler_notes": {
-      "bs_file": "droplet_volume_measurement_beads.bs",
-      "compiler": "lilott8/BioScript (ANTLR4-based)",
-      "ir_output": "4 basic blocks (BB1-BB4), 1 if/else gate, 4 CFG edges",
-      "dag_file": "droplet_volume_measurement_beads_main_dag.dot",
-      "duration_units": "All durations in seconds (s); no conversion needed (no h tokens used)",
-      "modules": ["beadCountDetection"],
-      "manifests": ["PolyBeads_LysisBuffer", "PBS"],
-      "known_compiler_behaviors": {
-        "drain_to_dispose_lowering": "drain in .bs source correctly lowered to dispose in IR (bsbbif_3_f); expected compiler behavior",
-        "missing_true_branch_jump": "bsbbif_2_t lacks unconditional jump to bsbbif_4_j in IR; known compiler-side emission limitation; DOT edge BB2->BB4 is correct"
-      },
-      "ownership_audit": "beadSuspension and pbsFlow each consumed once by mix; combinedFluid consumed once by detect; no fluid variable reused after consumption; no ownership violations"
-    }
+    "ir": {
+      "content": "bsbbif_2_t:\n\tdispose(combinedFluid1[0])\nbsbbif_3_f:\n\tdispose(combinedFluid1[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(beadSignal1[0])\n\tNOP\nmain:\n\tbeadSuspension1[0] = dispense(PolyBeads_LysisBuffer)\n\tpbsFlow1[0] = dispense(PBS)\n\tcombinedFluid1[0] = mix(beadSuspension1[0], pbsFlow1[0]) @ 30.0SECOND\n\tbeadSignal1[0] = detect(beadCountDetection, combinedFluid1[0]) @ 60.0SECOND\n\tif beadSignal1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "PolyBeads_LysisBuffer",
+          "source_quote": "Reagent      : PolyBeads_LysisBuffer",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "PBS",
+          "source_quote": "Reagent      : PBS",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "Step 2 | Load PBS into Cell-Channel Syringe",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "- pbsFlow consumed once by mix; no reuse.",
+          "source_location": "description.txt: Ownership audit"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "detect bead occupancy (60 s)",
+          "source_location": "description.txt: CFG STRUCTURE"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "estimate obtained; dispose combinedFluid.",
+          "source_location": "description.txt: QC Gate"
+        },
+        {
+          "bs_operation": "drain",
+          "source_quote": "nozzle, oil flow rate, and bead resuspension quality); drain",
+          "source_location": "description.txt: QC Gate"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "Total blocks: 4 | Total edges: 4 | if/else gates: 1",
+          "source_location": "description.txt: CFG STRUCTURE"
+        }
+      ],
+      "numeric_mismatches": []
+    },
+    "notes": "This protocol details Measuring Droplet Volume in Home-Made Microfluidic Devices. The assay is performed on a Home-made droplet microfluidic device (droplet-in-channel; EWOD/DMF-adjacent) platform. Key reagents used in the assay include Standard and Fluorescent."
   }
 }

@@ -1,47 +1,115 @@
 {
+  "_schema": "biogpt-v4",
   "messages": [
-    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
-    { "role": "user", "content": "ASSAY TYPE: EXACT2-Formalized Worked Example Protocol Fragment (\"Adjust to 10% TCA. Incubate at 30 C overnight.\")\n\nREAGENTS/OBJECTS USED:\n  - Sample (the biochemical entity being adjusted/incubated; left unspecified in the paper's own worked example -- Figure 3's output explicitly records \"Biochemical entity: not found\")\n  - TCA Solution (10% Trichloroacetic acid, NCBI PubChem CID 6421)\n\nSTEPS (as identified and disambiguated by the EXACT2 Translator engine, Figures 2-3):\n1. Sentence 1 / Adjust: adjust the sample to 10% Trichloroacetic acid (TCA is recognized as an abbreviation and normalized to \"Trichloroacetic acid\", assigned NCBI PubChem ID CID 6421).\n2. Sentence 2 / Incubate: incubate the (adjusted) sample at 30 C. The descriptor temperature is recognized directly from the \"30 C\" clue in the text (assigned Units Ontology ID UO:0000027). The descriptor period is disambiguated from the ambiguous term \"overnight\" to a concrete value of 16 hours, per the framework's lab-specific default settings (ON = 16 hours). The descriptors biochemical entity and condition are noted by the Translator engine's own output as \"not found\" -- i.e., essential information missing from the original text that the framework would prompt a human user to supply." },
-    { "role": "assistant", "content": "module fluorescence\n\n// NOTE: this paper is an ontology paper (EXACT2), not itself a full step-by-step wet-lab\n// protocol. The only fully parameterized, concrete example it gives is the worked\n// \"Adjust to 10% TCA. Incubate at 30C overnight.\" fragment (Figures 2-3), where the paper\n// itself walks through disambiguating 'TCA' -> Trichloroacetic acid and 'overnight' -> 16\n// hours. That fragment is translated below. The paper's other example (the Physarum\n// polycephalum streak/transfer Petri net fragment, Figure 4) is NOT modeled: the paper\n// explicitly states this workflow is incomplete as formalized (it lacks a 'time point'\n// descriptor and gives no concrete temperature/duration values), so there is nothing\n// executable to translate from it.\n//\n// EXACT2's <adjust> experimental action has no BioScript equivalent, so it is mapped to\n// 'mix' (combining the sample with the TCA solution), the nearest available primitive.\n// The biochemical entity being incubated is left unspecified in the paper's own example --\n// Figure 3's output explicitly records \"Biochemical entity: not found\" -- and is modeled\n// generically as 'sample'. The ambiguous 'overnight' duration is resolved to the paper's own\n// disambiguated default value of 16 hours (960 minutes), per its Figure 3 worked output.\n\nmanifest sample\nmanifest tca_solution\n\ninstructions:\n\n// \"Adjust to 10% TCA\" -- combine the sample with 10% Trichloroacetic acid solution\ns = dispense sample\ntca = dispense 10 units of tca_solution\nadjusted = mix s with tca\n\n// \"Incubate at 30C overnight\" -- disambiguated by EXACT2's own worked example to 30 C, 16 h\nheat adjusted at 30c for 960m\n\ndispose adjusted" }
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "Source link: https://ncbi.nlm.nih.gov/pmc/articles/PMC4255744\nPaper DOI: https://doi.org/10.1186/1471-2105-15-S14-S5\n\nProtocol details:\n\nASSAY TYPE: EXACT2-Formalized Worked Example Protocol Fragment (\"Adjust to 10% TCA. Incubate at 30 C overnight.\")\n\nREAGENTS/OBJECTS USED:\n  - Sample (the biochemical entity being adjusted/incubated; left unspecified in the paper's own worked example -- Figure 3's output explicitly records \"Biochemical entity: not found\")\n  - TCA Solution (10% Trichloroacetic acid, NCBI PubChem CID 6421)\n\nSTEPS (as identified and disambiguated by the EXACT2 Translator engine, Figures 2-3):\n1. Sentence 1 / Adjust: adjust the sample to 10% Trichloroacetic acid (TCA is recognized as an abbreviation and normalized to \"Trichloroacetic acid\", assigned NCBI PubChem ID CID 6421).\n2. Sentence 2 / Incubate: incubate the (adjusted) sample at 30 C. The descriptor temperature is recognized directly from the \"30 C\" clue in the text (assigned Units Ontology ID UO:0000027). The descriptor period is disambiguated from the ambiguous term \"overnight\" to a concrete value of 16 hours, per the framework's lab-specific default settings (ON = 16 hours). The descriptors biochemical entity and condition are noted by the Translator engine's own output as \"not found\" -- i.e., essential information missing from the original text that the framework would prompt a human user to supply.\n\nINTERPRETATION: This worked example is used by the paper to demonstrate the EXACT2-based translation framework converting an ambiguous natural-language protocol sentence pair into a semantically defined, machine-processable representation. It illustrates two of EXACT2's core capabilities: (1) resolving lab-specific abbreviations and ambiguous time expressions (TCA, \"overnight\") into disambiguated, ID-linked values, and (2) explicitly flagging essential descriptors (here, the biochemical entity being incubated and the incubation condition) that are missing from the original text and must be supplied by a user or inferred from context (e.g., from a preceding \"yeast growth culture\" step) for the protocol to be reproducible.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\n// NOTE: this paper is an ontology paper (EXACT2), not itself a full step-by-step wet-lab\n// protocol. The only fully parameterized, concrete example it gives is the worked\n// \"Adjust to 10% TCA. Incubate at 30C overnight.\" fragment (Figures 2-3), where the paper\n// itself walks through disambiguating 'TCA' -> Trichloroacetic acid and 'overnight' -> 16\n// hours. That fragment is translated below. The paper's other example (the Physarum\n// polycephalum streak/transfer Petri net fragment, Figure 4) is NOT modeled: the paper\n// explicitly states this workflow is incomplete as formalized (it lacks a 'time point'\n// descriptor and gives no concrete temperature/duration values), so there is nothing\n// executable to translate from it.\n//\n// EXACT2's <adjust> experimental action has no BioScript equivalent, so it is mapped to\n// 'mix' (combining the sample with the TCA solution), the nearest available primitive.\n// The biochemical entity being incubated is left unspecified in the paper's own example --\n// Figure 3's output explicitly records \"Biochemical entity: not found\" -- and is modeled\n// generically as 'sample'. The ambiguous 'overnight' duration is resolved to the paper's own\n// disambiguated default value of 16 hours (960 minutes), per its Figure 3 worked output.\n\nmanifest sample\nmanifest tca_solution\n\ninstructions:\n\n// \"Adjust to 10% TCA\" -- combine the sample with 10% Trichloroacetic acid solution\ns = dispense sample\ntca = dispense 10 units of tca_solution\nadjusted = mix s with tca\n\n// \"Incubate at 30C overnight\" -- disambiguated by EXACT2's own worked example to 30 C, 16 h\nheat adjusted at 30c for 960m\n\ndispose adjusted\n"
+    }
   ],
   "metadata": {
-    "protocol_id": "exact2_tca_adjust_incubate_001",
-    "bs_file": "tests/test_cases/exact2/exact2_tca_incubate.bs",
-    "protocol_name": "EXACT2 Formalized Worked Example: Adjust to 10% TCA / Incubate at 30C Overnight (Soldatova, Nadis, King, Basu, Haddi, Baumle, Saunders, Marwan, and Rudkin, 2014)",
-    "category": "general_lab_protocol_formalization",
-    "chemicals": [
-      "sample",
-      "tca_solution"
-    ],
-    "operations": [
-      "dispense",
-      "mix",
-      "heat",
-      "dispose"
-    ],
-    "validation_score": 0.0,
-    "validated": false,
-    "validation_status": "pending_v2",
-    "adaptation_status": "adapted_authored",
-    "sources": [
-      { "type": "original_protocol", "title": "EXACT2: the semantics of biomedical protocols", "publisher": "BMC Bioinformatics", "url": "https://ncbi.nlm.nih.gov/pmc/articles/PMC4255744", "doi": "10.1186/1471-2105-15-S14-S5" }
-    ],
-    "notes": "This paper, like the earlier EXACT paper in this test set, is an ontology paper rather than a full wet-lab protocol; its only fully parameterized, concrete example is the worked 'Adjust to 10% TCA. Incubate at 30C overnight.' sentence pair used to illustrate the EXACT2 Translator engine (Figures 2-3), and only this fragment is translated. The paper's other example, a Petri-net-formalized fragment of a Physarum polycephalum streak/transfer procedure (Figure 4), is intentionally not modeled: the paper itself states this workflow representation is incomplete (it lacks a 'time point' descriptor and provides no concrete temperature or duration values), so there is no executable content to translate from it. EXACT2's <adjust> experimental action has no BioScript equivalent and is mapped to 'mix' (combining the sample with the TCA solution) as the nearest available primitive. The biochemical entity being incubated is left generic ('sample') because the paper's own worked example explicitly flags this descriptor as missing ('Biochemical entity: not found' in Figure 3's Translator output) -- it is not an assumption introduced by this translation, but a gap the source paper itself documents. The ambiguous term 'overnight' is resolved to the paper's own stated default disambiguation of 16 hours (960 minutes) rather than a value invented for this translation.",
+    "identity": {
+      "protocol_id": "exact2_tca_adjust_incubate_001",
+      "protocol_name": "EXACT2 Formalized Worked Example: Adjust to 10% TCA / Incubate at 30C Overnight (Soldatova, Nadis, King, Basu, Haddi, Baumle, Saunders, Marwan, and Rudkin, 2014)",
+      "category": "sample_preparation",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "EXACT2-Formalized Worked Example Protocol Fragment (\"Adjust to 10% TCA. Incubate at 30 C overnight.\")",
+      "publisher": null,
+      "doi": "10.1186/1471-2105-15-S14-S5",
+      "url": "https://ncbi.nlm.nih.gov/pmc/articles/PMC4255744",
+      "platform": null
+    },
+    "bioscript": {
+      "manifests": [
+        "sample",
+        "tca_solution"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "dispose"
+      ],
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": false,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 5
+      }
+    },
+    "cfg": {
+      "basic_blocks": [
+        {
+          "id": "1",
+          "label": "main",
+          "type": "terminal"
+        }
+      ],
+      "edges": []
+    },
+    "ir": {
+      "content": "main:\n\ts1[0] = dispense(sample)\n\ttca1[0] = dispense(tca_solution)\n\tadjusted1[0] = mix(s1[0], tca1[0])\n\theat(adjusted1[0]) @ 30.0CELSIUS @ 57600.0SECOND\n\tdispose(adjusted1[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
     "evidence": {
       "chemical_evidence": [
-        { "bs_chemical": "tca_solution", "source_quote": "TCA will be found in the text ... replaced by the term Trichloroacetic acid and assigned with the ID NCBI Pubchem: CID 6421", "source_location": "Use case: translation of biomedical protocols to a machine-amenable format" },
-        { "bs_chemical": "sample", "source_quote": "Biochemical entity: not found", "source_location": "Figure 3: The identification of descriptors of experimental actions in the text" }
+        {
+          "bs_chemical": "tca_solution",
+          "source_quote": "TCA will be found in the text ... replaced by the term Trichloroacetic acid and assigned with the ID NCBI Pubchem: CID 6421",
+          "source_location": "Use case: translation of biomedical protocols to a machine-amenable format"
+        },
+        {
+          "bs_chemical": "sample",
+          "source_quote": "Biochemical entity: not found",
+          "source_location": "Figure 3: The identification of descriptors of experimental actions in the text"
+        }
       ],
       "operation_evidence": [
-        { "bs_operation": "adjusted = mix s with tca", "source_quote": "Adjust to 10% TCA and incubate at 30C overnight", "source_location": "Use case: translation of biomedical protocols to a machine-amenable format" },
-        { "bs_operation": "heat adjusted at 30c for 960m", "source_quote": "Temperature: 30 C, UO:0000027 ... Period: 16h", "source_location": "Figure 3: The identification of descriptors of experimental actions in the text" }
+        {
+          "bs_operation": "adjusted = mix s with tca",
+          "source_quote": "Adjust to 10% TCA and incubate at 30C overnight",
+          "source_location": "Use case: translation of biomedical protocols to a machine-amenable format"
+        },
+        {
+          "bs_operation": "heat adjusted at 30c for 960m",
+          "source_quote": "Temperature: 30 C, UO:0000027 ... Period: 16h",
+          "source_location": "Figure 3: The identification of descriptors of experimental actions in the text"
+        }
       ],
       "numeric_mismatches": [
-        { "field": "adjust mapped to mix", "note": "BioScript has no dedicated concentration-adjustment primitive corresponding to EXACT2's <adjust> experimental action, so combining the sample with the TCA solution is represented with 'mix', the nearest available operation." },
-        { "field": "sample manifest left generic", "note": "The paper's own worked example explicitly reports the biochemical entity being incubated as not found in the source text; this is a documented gap in the original protocol fragment, not an assumption added by this translation." },
-        { "field": "heat ... for 960m (16 hours)", "note": "The source text says only 'overnight', which is inherently ambiguous (the paper notes it can mean 12-18+ hours depending on lab). The value used here (16 hours) is the paper's own stated default disambiguation for the abbreviation ON, not an independently chosen figure." },
-        { "field": "Physarum streak/transfer Petri net fragment (Figure 4) not modeled", "note": "Not modeled. The paper explicitly states this workflow representation is incomplete, lacking a needed 'time point' descriptor and any concrete temperature/duration values, so no executable BioScript could be derived from it." }
+        {
+          "field": "adjust mapped to mix",
+          "note": "BioScript has no dedicated concentration-adjustment primitive corresponding to EXACT2's <adjust> experimental action, so combining the sample with the TCA solution is represented with 'mix', the nearest available operation."
+        },
+        {
+          "field": "sample manifest left generic",
+          "note": "The paper's own worked example explicitly reports the biochemical entity being incubated as not found in the source text; this is a documented gap in the original protocol fragment, not an assumption added by this translation."
+        },
+        {
+          "field": "heat ... for 960m (16 hours)",
+          "note": "The source text says only 'overnight', which is inherently ambiguous (the paper notes it can mean 12-18+ hours depending on lab). The value used here (16 hours) is the paper's own stated default disambiguation for the abbreviation ON, not an independently chosen figure."
+        },
+        {
+          "field": "Physarum streak/transfer Petri net fragment (Figure 4) not modeled",
+          "note": "Not modeled. The paper explicitly states this workflow representation is incomplete, lacking a needed 'time point' descriptor and any concrete temperature/duration values, so no executable BioScript could be derived from it."
+        }
       ]
-    }
+    },
+    "notes": "This protocol details EXACT2-Formalized Worked Example Protocol Fragment (\"Adjust to 10% TCA. Incubate at 30 C overnight.\"). The assay is performed using an automated microfluidic setup. Key reagents used in the assay include Sample and TCA Solution."
   }
 }

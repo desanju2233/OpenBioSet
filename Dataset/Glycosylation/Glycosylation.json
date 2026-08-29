@@ -1,59 +1,235 @@
 {
+  "_schema": "biogpt-v4",
   "messages": [
-    { "role": "system", "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip." },
-    { "role": "user", "content": "ASSAY TYPE: Cell-Free Glycoprotein Biosynthesis Protocol on Digital Microfluidic Chips (Flow-Based Microfluidic System for Cell-Free Glycoprotein Biosynthesis)\n\nREAGENTS USED:\n  - Plasmid DNA Stream (pJL1-sfGFP-DQNAT-6xHis acceptor protein plasmid, energy mix, salts, and metabolites)\n  - S30 Cell-Free Extract Stream (E. coli BL21 Star (DE3) S30 crude extract plus T7 RNA polymerase)\n  - CjLLOs Reagent (C. jejuni lipid-linked oligosaccharides bearing the GalNAc5(Glc)Bac heptasaccharide, glycan donor for the surface-tethered CjPglB oligosaccharyltransferase)\n  - Wash Buffer (PBS with 10 mM imidazole, for IMAC resin washing)\n  - Elution Buffer (PBS with 300 mM imidazole, for IMAC product recovery)\n\nSTEPS:\n1. Protein Synthesis Module: A plasmid/energy/salts/metabolites stream and an S30 extract/T7 RNA polymerase stream are combined at the inlet of a serpentine microfluidic chip and mixed by diffusion as they travel through the channel; each chip provides a 30 min reaction residence time, and multiple chips are linked in series (up to four chips for a 2 h total residence time) to continuously synthesize sfGFP-DQNAT-6xHis.\n2. Protein Glycosylation Module: The synthesized protein stream is continuously flowed over CjPglB oligosaccharyltransferase that is site-specifically biotinylated and tethered to the channel surface (via silane-PEG5000-biotin/NeutrAvidin/biotin chemistry), together with CjLLO glycan donor; the device is held at 30 C and the reaction proceeds across a series of chips at 30 min residence time per chip, achieving up to 100% glycosylation efficiency within 2 h.\n3. Protein Purification Module (Loading/Flowthrough): The glycosylated protein stream is passed through a channel packed with Ni2+-charged affinity resin held in place by an array of posts at the outlet; hexahistidine-tagged glycoprotein binds the resin while unbound material exits as the flowthrough fraction.\n4. Protein Purification Module (Wash): The inlet stream is switched to wash buffer (PBS + 10 mM imidazole) at 2 uL/min to remove non-specifically bound proteins and cellular debris from the resin bed; the wash fraction is collected.\n5. Protein Purification Module (Elution): The inlet stream is switched to elution buffer (PBS + 300 mM imidazole) at 2 uL/min to recover the purified hexahistidine-tagged glycoprotein product as the elution fraction; the resin-bound flowthrough droplet is then discarded.\n\nINTERPRETATION: Successful glycoprotein biosynthesis is confirmed by significantly increased sfGFP titers under continuous flow relative to batch/off-chip CFPS (Figure 2A), immunoblot detection of the monoglycosylated (g1) product with anti-His and hR6 (anti-heptasaccharide) antibodies confirming efficient on-chip glycosylation comparable to off-chip untethered reactions (Figure 3C), and recovery of purified glycoprotein product at 78 +/- 10% purity with 45 +/- 14% capture efficiency via the on-chip IMAC module (Figure 4), together demonstrating a first-in-kind modular glycosylation-on-a-chip platform for continuous, decentralized glycoprotein biomanufacturing." },
-    { "role": "assistant", "content": "module fluorescence\n\nmanifest plasmid_dna\nmanifest s30_extract\nmanifest cjllos_reagent\nmanifest wash_buffer\nmanifest elution_buffer\n\ninstructions:\n\n// ==================================================================\n// Module 1: Continuous-flow cell-free protein synthesis (CFPS)\n// Two streams - plasmid/energy/salts/metabolites and S30 extract/T7\n// RNAP - meet at the inlet and mix by diffusion along the serpentine\n// channel; each chip gives a 30 min residence time, chips are linked\n// in series for a 2 h total reaction (four-chip system in the paper).\n// ==================================================================\nplasmid = dispense plasmid_dna\nextract = dispense s30_extract\n\ncfps_mix = mix plasmid with extract for 30m\n\nrepeat 3 times {\n    cfps_mix = mix cfps_mix with cfps_mix for 30m\n}\n\nsfgfp_reading = detect fluorescence on cfps_mix for 30s\n\n// ==================================================================\n// Module 2: On-chip glycosylation\n// The sfGFP-containing stream is flowed over CjPglB tethered to the\n// channel surface (via silane-PEG5000-biotin/NeutrAvidin/biotin) in\n// the presence of CjLLO glycan donor; the device is held at 30c and\n// components are continuously flowed across a series of chips at\n// 30 min residence time per chip.\n// ==================================================================\nllo = dispense cjllos_reagent\nglyco_mix = mix cfps_mix with llo for 30m\nheat glyco_mix at 30c for 30m\n\nrepeat 3 times {\n    glyco_mix = mix glyco_mix with glyco_mix for 30m\n    heat glyco_mix at 30c for 30m\n}\n\nglyco_reading = detect fluorescence on glyco_mix for 30s\n\n// ==================================================================\n// Module 3: On-chip IMAC purification\n// The glycoprotein-containing stream is passed over Ni2+-charged\n// beads packed against posts at the channel outlet; hexahistidine-\n// tagged sfGFP binds the resin, unbound material is washed away,\n// and product is recovered by elution with high-imidazole buffer.\n// ==================================================================\nflowthrough = mix glyco_mix with glyco_mix for 1s\nflowthrough_reading = detect fluorescence on flowthrough for 30s\n\nwash = dispense wash_buffer\nwash_mix = mix flowthrough with wash for 2m\nwash_reading = detect fluorescence on wash_mix for 30s\ndispose wash_mix\n\neluent = dispense elution_buffer\nproduct = mix flowthrough with eluent for 2m\nproduct_reading = detect fluorescence on product for 30s\n\nif (product_reading <= 0) {\n    dispose product\n}\n\ndispose flowthrough" }
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "Source link: https://www.frontiersin.org/journals/molecular-biosciences/articles/10.3389/fmolb.2021.782905/pdf\nPaper DOI: https://doi.org/10.3389/fmolb.2021.782905\n\nProtocol details:\n\nASSAY TYPE: Cell-Free Glycoprotein Biosynthesis Protocol on Digital Microfluidic Chips (Flow-Based Microfluidic System for Cell-Free Glycoprotein Biosynthesis)\n\nREAGENTS USED:\n  - Plasmid DNA Stream (pJL1-sfGFP-DQNAT-6xHis acceptor protein plasmid, energy mix, salts, and metabolites)\n  - S30 Cell-Free Extract Stream (E. coli BL21 Star (DE3) S30 crude extract plus T7 RNA polymerase)\n  - CjLLOs Reagent (C. jejuni lipid-linked oligosaccharides bearing the GalNAc5(Glc)Bac heptasaccharide, glycan donor for the surface-tethered CjPglB oligosaccharyltransferase)\n  - Wash Buffer (PBS with 10 mM imidazole, for IMAC resin washing)\n  - Elution Buffer (PBS with 300 mM imidazole, for IMAC product recovery)\n\nSTEPS:\n1. Protein Synthesis Module: A plasmid/energy/salts/metabolites stream and an S30 extract/T7 RNA polymerase stream are combined at the inlet of a serpentine microfluidic chip and mixed by diffusion as they travel through the channel; each chip provides a 30 min reaction residence time, and multiple chips are linked in series (up to four chips for a 2 h total residence time) to continuously synthesize sfGFP-DQNAT-6xHis.\n2. Protein Glycosylation Module: The synthesized protein stream is continuously flowed over CjPglB oligosaccharyltransferase that is site-specifically biotinylated and tethered to the channel surface (via silane-PEG5000-biotin/NeutrAvidin/biotin chemistry), together with CjLLO glycan donor; the device is held at 30 C and the reaction proceeds across a series of chips at 30 min residence time per chip, achieving up to 100% glycosylation efficiency within 2 h.\n3. Protein Purification Module (Loading/Flowthrough): The glycosylated protein stream is passed through a channel packed with Ni2+-charged affinity resin held in place by an array of posts at the outlet; hexahistidine-tagged glycoprotein binds the resin while unbound material exits as the flowthrough fraction.\n4. Protein Purification Module (Wash): The inlet stream is switched to wash buffer (PBS + 10 mM imidazole) at 2 uL/min to remove non-specifically bound proteins and cellular debris from the resin bed; the wash fraction is collected.\n5. Protein Purification Module (Elution): The inlet stream is switched to elution buffer (PBS + 300 mM imidazole) at 2 uL/min to recover the purified hexahistidine-tagged glycoprotein product as the elution fraction; the resin-bound flowthrough droplet is then discarded.\n\nINTERPRETATION: Successful glycoprotein biosynthesis is confirmed by significantly increased sfGFP titers under continuous flow relative to batch/off-chip CFPS (Figure 2A), immunoblot detection of the monoglycosylated (g1) product with anti-His and hR6 (anti-heptasaccharide) antibodies confirming efficient on-chip glycosylation comparable to off-chip untethered reactions (Figure 3C), and recovery of purified glycoprotein product at 78 +/- 10% purity with 45 +/- 14% capture efficiency via the on-chip IMAC module (Figure 4), together demonstrating a first-in-kind modular glycosylation-on-a-chip platform for continuous, decentralized glycoprotein biomanufacturing.\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module fluorescence\n\nmanifest plasmid_dna\nmanifest s30_extract\nmanifest cjllos_reagent\nmanifest wash_buffer\nmanifest elution_buffer\n\ninstructions:\n\n// ==================================================================\n// Module 1: Continuous-flow cell-free protein synthesis (CFPS)\n// Two streams - plasmid/energy/salts/metabolites and S30 extract/T7\n// RNAP - meet at the inlet and mix by diffusion along the serpentine\n// channel; each chip gives a 30 min residence time, chips are linked\n// in series for a 2 h total reaction (four-chip system in the paper).\n// ==================================================================\nplasmid = dispense plasmid_dna\nextract = dispense s30_extract\n\ncfps_mix = mix plasmid with extract for 30m\n\nrepeat 3 times {\n    cfps_mix = mix cfps_mix with cfps_mix for 30m\n}\n\nsfgfp_reading = detect fluorescence on cfps_mix for 30s\n\n// ==================================================================\n// Module 2: On-chip glycosylation\n// The sfGFP-containing stream is flowed over CjPglB tethered to the\n// channel surface (via silane-PEG5000-biotin/NeutrAvidin/biotin) in\n// the presence of CjLLO glycan donor; the device is held at 30c and\n// components are continuously flowed across a series of chips at\n// 30 min residence time per chip.\n// ==================================================================\nllo = dispense cjllos_reagent\nglyco_mix = mix cfps_mix with llo for 30m\nheat glyco_mix at 30c for 30m\n\nrepeat 3 times {\n    glyco_mix = mix glyco_mix with glyco_mix for 30m\n    heat glyco_mix at 30c for 30m\n}\n\nglyco_reading = detect fluorescence on glyco_mix for 30s\n\n// ==================================================================\n// Module 3: On-chip IMAC purification\n// The glycoprotein-containing stream is passed over Ni2+-charged\n// beads packed against posts at the channel outlet; hexahistidine-\n// tagged sfGFP binds the resin, unbound material is washed away,\n// and product is recovered by elution with high-imidazole buffer.\n// ==================================================================\nflowthrough = mix glyco_mix with glyco_mix for 1s\nflowthrough_reading = detect fluorescence on flowthrough for 30s\n\nwash = dispense wash_buffer\nwash_mix = mix flowthrough with wash for 2m\nwash_reading = detect fluorescence on wash_mix for 30s\ndispose wash_mix\n\neluent = dispense elution_buffer\nproduct = mix flowthrough with eluent for 2m\nproduct_reading = detect fluorescence on product for 30s\n\nif (product_reading <= 0) {\n    dispose product\n}\n\ndispose flowthrough\n"
+    }
   ],
   "metadata": {
-    "protocol_id": "dmf_glycosylation_on_a_chip_001",
-    "bs_file": "tests/test_cases/glycosylation_on_a_chip/glycosylation_on_a_chip.bs",
-    "protocol_name": "Glycosylation-on-a-Chip: A Flow-Based Microfluidic System for Cell-Free Glycoprotein Biosynthesis (Aquino et al. 2021)",
-    "category": "biomanufacturing_assay",
-    "chemicals": [
-      "plasmid_dna",
-      "s30_extract",
-      "cjllos_reagent",
-      "wash_buffer",
-      "elution_buffer"
-    ],
-    "operations": [
-      "dispense",
-      "mix",
-      "heat",
-      "detect",
-      "repeat",
-      "if",
-      "dispose"
-    ],
-    "validation_score": 0.0,
-    "validated": false,
-    "validation_status": "pending_v2",
-    "adaptation_status": "adapted_authored",
-    "sources": [
-      { "type": "original_protocol", "title": "Glycosylation-on-a-Chip: A Flow-Based Microfluidic System for Cell-Free Glycoprotein Biosynthesis", "publisher": "Frontiers in Molecular Biosciences", "url": "https://www.frontiersin.org/journals/molecular-biosciences/articles/10.3389/fmolb.2021.782905/pdf", "doi": "10.3389/fmolb.2021.782905" }
-    ],
-    "notes": "The authored BioScript code is a direct translation of the paper's three-module continuous-flow architecture (Figure 1): protein synthesis (module 1), glycosylation (module 2), and IMAC purification (module 3). Because BioScript's grammar has no primitives for flow rate, serially-linked chip chaining, or surface-tethered enzymes/resin (all central to this paper's design), several structural approximations were made. The four-chip, 2 h CFPS residence time (Figure 2C) is modeled as one initial mix plus a repeat-3 loop of 30 min mixes (four total 30 min stages). The surface-tethered CjPglB enzyme is not itself a dispensable manifest -- since BioScript cannot represent an immobilized catalyst distinct from the reaction volume -- so glycosylation is modeled as mixing the CFPS product with the cjllos_reagent manifest at 30c, repeated to approximate the multi-chip flow-through described for the tethered-enzyme system. Likewise, the Ni2+-charged IMAC resin bed is a fixed solid phase within the device (Figure 4A) with no corresponding manifest; only the wash_buffer and elution_buffer streams that flow over it are dispensed, and binding/flowthrough is represented as a self-mix step rather than a true solid-phase capture operation. The detection modality in the paper is fluorescence imaging and immunoblotting of sfGFP (Figures 2, 3), so 'detect fluorescence' is used directly and is not a stand-in for a different modality, unlike in some other translated protocols.",
+    "identity": {
+      "protocol_id": "dmf_glycosylation_on_a_chip_001",
+      "protocol_name": "Glycosylation-on-a-Chip: A Flow-Based Microfluidic System for Cell-Free Glycoprotein Biosynthesis (Aquino et al. 2021)",
+      "category": "protein_assay",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "Cell-Free Glycoprotein Biosynthesis Protocol on Digital Microfluidic Chips (Flow-Based Microfluidic System for Cell-Free Glycoprotein Biosynthesis)",
+      "publisher": null,
+      "doi": "10.3389/fmolb.2021.782905",
+      "url": "https://www.frontiersin.org/journals/molecular-biosciences/articles/10.3389/fmolb.2021.782905/pdf",
+      "platform": "Digital Microfluidics (DMF)"
+    },
+    "bioscript": {
+      "manifests": [
+        "plasmid_dna",
+        "s30_extract",
+        "cjllos_reagent",
+        "wash_buffer",
+        "elution_buffer"
+      ],
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "repeat",
+        "if"
+      ],
+      "complexity": {
+        "has_repeat": true,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 22
+      }
+    },
+    "cfg": {
+      "basic_blocks": [
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbr_2_h",
+          "type": "sequential"
+        },
+        {
+          "id": "3",
+          "label": "3",
+          "type": "sequential"
+        },
+        {
+          "id": "4",
+          "label": "4",
+          "type": "sequential"
+        },
+        {
+          "id": "5",
+          "label": "bsbbr_5_h",
+          "type": "sequential"
+        },
+        {
+          "id": "6",
+          "label": "6",
+          "type": "sequential"
+        },
+        {
+          "id": "7",
+          "label": "7",
+          "type": "sequential"
+        },
+        {
+          "id": "8",
+          "label": "bsbbif_8_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "9",
+          "label": "bsbbif_9_f",
+          "type": "terminal"
+        }
+      ],
+      "edges": [
+        [
+          "1",
+          "2"
+        ],
+        [
+          "2",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "2"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "5",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "5"
+        ],
+        [
+          "7",
+          "8"
+        ],
+        [
+          "7",
+          "9"
+        ],
+        [
+          "8",
+          "9"
+        ]
+      ]
+    },
+    "ir": {
+      "content": "main:\n\tplasmid1[0] = dispense(plasmid_dna)\n\textract1[0] = dispense(s30_extract)\n\tcfps_mix1[0] = mix(plasmid1[0], extract1[0]) @ 1800.0SECOND\nbsbbr_2_h:\n\tPHI REPEAT_31 = {REPEAT_30,REPEAT_32}\n\tPHI cfps_mix2 = {cfps_mix1,cfps_mix3}\n\tif REPEAT_31[0] > 0\t|\ttrue: jump bsbbr_3_t\t|\tfalse: jump bsbbr_4_f\nbsbbr_3_t:\n\tcfps_mix3[0] = mix(cfps_mix2[0], cfps_mix2[0]) @ 1800.0SECOND\n\tREPEAT_32[0] = REPEAT_31[0] - 1\nbsbbr_4_f:\n\tsfgfp_reading1[0] = detect(fluorescence, cfps_mix2[0]) @ 30.0SECOND\n\tllo1[0] = dispense(cjllos_reagent)\n\tglyco_mix1[0] = mix(cfps_mix2[0], llo1[0]) @ 1800.0SECOND\n\theat(glyco_mix1[0]) @ 30.0CELSIUS @ 1800.0SECOND\nbsbbr_5_h:\n\tPHI glyco_mix2 = {glyco_mix1,glyco_mix3}\n\tPHI REPEAT_33 = {REPEAT_31,REPEAT_34}\n\tif REPEAT_33[0] > 0\t|\ttrue: jump bsbbr_6_t\t|\tfalse: jump bsbbr_7_f\nbsbbr_6_t:\n\tglyco_mix3[0] = mix(glyco_mix2[0], glyco_mix2[0]) @ 1800.0SECOND\n\theat(glyco_mix3[0]) @ 30.0CELSIUS @ 1800.0SECOND\n\tREPEAT_34[0] = REPEAT_33[0] - 1\nbsbbr_7_f:\n\tglyco_reading1[0] = detect(fluorescence, glyco_mix2[0]) @ 30.0SECOND\n\tflowthrough1[0] = mix(glyco_mix2[0], glyco_mix2[0]) @ 1.0SECOND\n\tflowthrough_reading1[0] = detect(fluorescence, flowthrough1[0]) @ 30.0SECOND\n\twash1[0] = dispense(wash_buffer)\n\twash_mix1[0] = mix(flowthrough1[0], wash1[0]) @ 120.0SECOND\n\twash_reading1[0] = detect(fluorescence, wash_mix1[0]) @ 30.0SECOND\n\tdispose(wash_mix1[0])\n\teluent1[0] = dispense(elution_buffer)\n\tproduct1[0] = mix(flowthrough1[0], eluent1[0]) @ 120.0SECOND\n\tproduct_reading1[0] = detect(fluorescence, product1[0]) @ 30.0SECOND\n\tif product_reading1[0] <= 0\t|\ttrue: jump bsbbif_8_t\t|\tfalse: jump bsbbif_9_f\nbsbbif_8_t:\n\tdispose(product1[0])\nbsbbif_9_f:\n\tPHI product2 = {product1,product}\n\tdispose(flowthrough1[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
     "evidence": {
       "chemical_evidence": [
-        { "bs_chemical": "plasmid_dna", "source_quote": "one stream containing E. coli cell-free extract and a second stream containing plasmid DNA encoding the acceptor protein are combined at the inlet", "source_location": "Figure 1 caption" },
-        { "bs_chemical": "s30_extract", "source_quote": "S30 crude extracts for CFPS reactions were prepared using a simple sonication-based method", "source_location": "MATERIALS AND METHODS, Cell-Free Protein Synthesis" },
-        { "bs_chemical": "cjllos_reagent", "source_quote": "CjLLOs comprised of undecaprenol-pyrophosphate-linked heptasaccharide from C. jejuni as the glycan donor", "source_location": "Figure 1 caption" },
-        { "bs_chemical": "wash_buffer", "source_quote": "the device was rinsed with PBS containing 10 mM imidazole at a flowrate of 2 uL/min", "source_location": "MATERIALS AND METHODS, On-Chip Purification" },
-        { "bs_chemical": "elution_buffer", "source_quote": "the target protein was eluted from the resin with PBS containing 300 mM imidazole at a flow rate of 2 uL/min", "source_location": "MATERIALS AND METHODS, On-Chip Purification" }
+        {
+          "bs_chemical": "plasmid_dna",
+          "source_quote": "one stream containing E. coli cell-free extract and a second stream containing plasmid DNA encoding the acceptor protein are combined at the inlet",
+          "source_location": "Figure 1 caption"
+        },
+        {
+          "bs_chemical": "s30_extract",
+          "source_quote": "S30 crude extracts for CFPS reactions were prepared using a simple sonication-based method",
+          "source_location": "MATERIALS AND METHODS, Cell-Free Protein Synthesis"
+        },
+        {
+          "bs_chemical": "cjllos_reagent",
+          "source_quote": "CjLLOs comprised of undecaprenol-pyrophosphate-linked heptasaccharide from C. jejuni as the glycan donor",
+          "source_location": "Figure 1 caption"
+        },
+        {
+          "bs_chemical": "wash_buffer",
+          "source_quote": "the device was rinsed with PBS containing 10 mM imidazole at a flowrate of 2 uL/min",
+          "source_location": "MATERIALS AND METHODS, On-Chip Purification"
+        },
+        {
+          "bs_chemical": "elution_buffer",
+          "source_quote": "the target protein was eluted from the resin with PBS containing 300 mM imidazole at a flow rate of 2 uL/min",
+          "source_location": "MATERIALS AND METHODS, On-Chip Purification"
+        }
       ],
       "operation_evidence": [
-        { "bs_operation": "cfps_mix = mix plasmid with extract for 30m / repeat 3 times", "source_quote": "the reaction residence within each chip was 30 min... four chips were linked together for a two-hour reaction residence time", "source_location": "Figure 2C-D caption / RESULTS, Continuous-Flow CFPS Module" },
-        { "bs_operation": "heat glyco_mix at 30c for 30m", "source_quote": "the reaction was heated by placing the microfluidic chip on a hot plate to maintain the internal temperature of the device at 30C", "source_location": "MATERIALS AND METHODS, On- and Off-Chip Glycosylation" },
-        { "bs_operation": "wash_mix = mix flowthrough with wash for 2m", "source_quote": "the device was rinsed with PBS containing 10 mM imidazole... and any unbound protein was collected and analyzed as the wash fraction", "source_location": "MATERIALS AND METHODS, On-Chip Purification" },
-        { "bs_operation": "product = mix flowthrough with eluent for 2m; detect fluorescence on product", "source_quote": "the target protein was eluted... the fluorescence of each fraction was analyzed using a microplate reader to determine the GFP concentration", "source_location": "MATERIALS AND METHODS, On-Chip Purification" }
+        {
+          "bs_operation": "cfps_mix = mix plasmid with extract for 30m / repeat 3 times",
+          "source_quote": "the reaction residence within each chip was 30 min... four chips were linked together for a two-hour reaction residence time",
+          "source_location": "Figure 2C-D caption / RESULTS, Continuous-Flow CFPS Module"
+        },
+        {
+          "bs_operation": "heat glyco_mix at 30c for 30m",
+          "source_quote": "the reaction was heated by placing the microfluidic chip on a hot plate to maintain the internal temperature of the device at 30C",
+          "source_location": "MATERIALS AND METHODS, On- and Off-Chip Glycosylation"
+        },
+        {
+          "bs_operation": "wash_mix = mix flowthrough with wash for 2m",
+          "source_quote": "the device was rinsed with PBS containing 10 mM imidazole... and any unbound protein was collected and analyzed as the wash fraction",
+          "source_location": "MATERIALS AND METHODS, On-Chip Purification"
+        },
+        {
+          "bs_operation": "product = mix flowthrough with eluent for 2m; detect fluorescence on product",
+          "source_quote": "the target protein was eluted... the fluorescence of each fraction was analyzed using a microplate reader to determine the GFP concentration",
+          "source_location": "MATERIALS AND METHODS, On-Chip Purification"
+        }
       ],
       "numeric_mismatches": [
-        { "field": "tethered CjPglB enzyme not modeled as a manifest", "note": "CjPglB is site-specifically biotinylated and immobilized on the channel surface via silane-PEG5000-biotin/NeutrAvidin/biotin chemistry (Figure 3A); it is a persistent surface catalyst, not a per-reaction dispensed reagent, so BioScript's dispense/mix primitives cannot represent it distinctly from the flowing reaction volume." },
-        { "field": "Ni2+-charged IMAC resin bed not modeled as a manifest", "note": "The resin is packed against 25 um posts at the channel outlet as a fixed solid phase (Figure 4A); only the buffers flowed over it (wash_buffer, elution_buffer) are represented as dispensable manifests, and the binding/capture step itself is approximated with a self-mix rather than a true solid-phase-capture primitive." },
-        { "field": "flow rate and serial chip-linking not modeled", "note": "The paper's design relies on fixed flow rates (e.g., 2 uL/min for wash/elution) and physically linking multiple discrete chips in series via tubing to extend residence time; BioScript has no flow-rate or multi-device primitives, so residence time is approximated with repeated mix/heat durations on a single continuous droplet." },
-        { "field": "if (product_reading <= 0) { dispose product }", "note": "This is a placeholder conditional gate to fit BioScript's if/dispose pattern seen in other translated protocols; the paper does not describe a numeric discard threshold on the eluted product's fluorescence reading." },
-        { "field": "quantitative titers, purity, and capture-efficiency figures (11.9, 9.4, 38.3 ug/mL sfGFP; 78 +/- 10% purity; 45 +/- 14% capture efficiency)", "note": "These outcome measurements (Figures 2A, 4C) describe assay results, not protocol steps, and have no corresponding BioScript operation; they are reported in the INTERPRETATION but are not encoded as instructions." }
+        {
+          "field": "tethered CjPglB enzyme not modeled as a manifest",
+          "note": "CjPglB is site-specifically biotinylated and immobilized on the channel surface via silane-PEG5000-biotin/NeutrAvidin/biotin chemistry (Figure 3A); it is a persistent surface catalyst, not a per-reaction dispensed reagent, so BioScript's dispense/mix primitives cannot represent it distinctly from the flowing reaction volume."
+        },
+        {
+          "field": "Ni2+-charged IMAC resin bed not modeled as a manifest",
+          "note": "The resin is packed against 25 um posts at the channel outlet as a fixed solid phase (Figure 4A); only the buffers flowed over it (wash_buffer, elution_buffer) are represented as dispensable manifests, and the binding/capture step itself is approximated with a self-mix rather than a true solid-phase-capture primitive."
+        },
+        {
+          "field": "flow rate and serial chip-linking not modeled",
+          "note": "The paper's design relies on fixed flow rates (e.g., 2 uL/min for wash/elution) and physically linking multiple discrete chips in series via tubing to extend residence time; BioScript has no flow-rate or multi-device primitives, so residence time is approximated with repeated mix/heat durations on a single continuous droplet."
+        },
+        {
+          "field": "if (product_reading <= 0) { dispose product }",
+          "note": "This is a placeholder conditional gate to fit BioScript's if/dispose pattern seen in other translated protocols; the paper does not describe a numeric discard threshold on the eluted product's fluorescence reading."
+        },
+        {
+          "field": "quantitative titers, purity, and capture-efficiency figures (11.9, 9.4, 38.3 ug/mL sfGFP; 78 +/- 10% purity; 45 +/- 14% capture efficiency)",
+          "note": "These outcome measurements (Figures 2A, 4C) describe assay results, not protocol steps, and have no corresponding BioScript operation; they are reported in the INTERPRETATION but are not encoded as instructions."
+        }
       ]
-    }
+    },
+    "notes": "This protocol details Cell-Free Glycoprotein Biosynthesis Protocol on Digital Microfluidic Chips (Flow-Based Microfluidic System for Cell-Free Glycoprotein Biosynthesis). The assay is performed on a Digital Microfluidics (DMF) platform. Key reagents used in the assay include Plasmid DNA Stream and S30 Cell-Free Extract Stream."
   }
 }

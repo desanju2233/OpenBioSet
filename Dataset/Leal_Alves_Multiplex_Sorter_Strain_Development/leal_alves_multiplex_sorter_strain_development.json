@@ -1,374 +1,308 @@
 {
-  "protocol": {
-    "title": "A Microfluidic Multiplex Sorter for Strain Development",
-    "source": "Adv. Mater. Technol. 2025, 10, 2401209",
-    "doi": "10.1002/admt.202401209",
-    "platform": "Droplet-digital microfluidics with multiplex electrostatic sorting",
-    "organism": ["S. cerevisiae var. diastaticus IDY1", "S. cerevisiae var. diastaticus IDY2"],
-    "objective": "Multiplex droplet-based high-throughput screening and sorting of genome-shuffled diastatic yeast by two fluorescence thresholds of glucoamylase activity, followed by maltodextrin growth screening and beverage fermentation evaluation",
-
-    "device": {
-      "layers": [
-        "Chromium co-planar electrode layer on glass (layer i)",
-        "SU-8 5 dielectric layer, 7 um thick (layer ii)",
-        "PDMS channel layer, 75 um height, 100 um width for 30 pL droplets (layer iii)"
+  "_schema": "biogpt-v4",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are BioGPT, an expert compiler architect. Translate the provided natural language biological protocol into valid, deterministic BioScript code for execution on a microfluidic biochip."
+    },
+    {
+      "role": "user",
+      "content": "PROTOCOL DESCRIPTION\n====================\n\nTitle        : A Microfluidic Multiplex Sorter for Strain Development\nSource Link  : https://advanced.onlinelibrary.wiley.com/doi/pdfdirect/10.1002/admt.202401209\nPaper DOI    : https://doi.org/10.1002/admt.202401209\nJournal      : Advanced Materials Technologies, 2025, Vol. 10, Article 2401209\nPlatform     : Droplet-digital microfluidics with multiplex co-planar electrostatic sorting\n\n\nOVERVIEW\n--------\nThis protocol describes a droplet-digital high-throughput screening (HTS) workflow for strain\nimprovement of Saccharomyces cerevisiae var. diastaticus, a diastatic yeast used in beverage\nfermentation for its ability to convert starch and dextrin into fermentable sugars via the\nsecreted glucoamylase enzyme encoded by the STA1 gene.\n\nThe core innovation is a multiplexed electrostatic droplet sorter capable of partitioning a\nsingle genome-shuffled yeast library into two fitness sub-populations simultaneously:\n  GT1 (high glucoamylase activity, SC1 channel, 95th fluorescence percentile)\n  GT2 (mid glucoamylase activity, SC2 channel, 85th fluorescence percentile)\n\nThis avoids the non-uniform sampling bias of binary sorting (which would target only the\ntop-performing population) and reduces the post-analysis sample size by approximately 14-fold\ncompared to a binary approach at equivalent 95% confidence. The key finding is that mid-level\nsorted strains (IDY1-M23, IDY2-M9) outperform high-level sorted strains in beverage\nfermentation, an outcome only discoverable through multiplex screening.\n\nThe protocol consists of four sequential phases:\n  1. Generation of a diversified genome-shuffled library (>10^7 variants) by self-mating\n  2. Single-cell encapsulation in 30 pL droplets, off-chip incubation, and multiplex sorting\n  3. Post-HTS colony recovery and maltodextrin growth screening\n  4. Beverage fermentation evaluation of selected strains in synthetic media\n\n\nDEVICE ARCHITECTURE\n-------------------\nLayer i   : Chromium co-planar electrodes patterned on 50 x 75 mm glass slide;\n            ground and activated electrodes on same plane (<25 um gap).\nLayer ii  : SU-8 5 dielectric, 7 um thick; spin-coated and hard-baked.\nLayer iii : PDMS channel layer fabricated by soft lithography;\n            channel height 75 um, 100 um width for 30 pL droplet sorting.\n            Additional channel heights: 35 um (for 30 pL), 50 um (for 110 pL).\n\nSorter design:\n  - Symmetrical co-planar electrode geometry with three outlets:\n      SC1: sorting channel 1 (high-fitness, GT1, SE1 actuation)\n      SC2: sorting channel 2 (mid-fitness, GT2, SE2 actuation)\n      WC:  central waste channel (non-selected droplets)\n  - Two sorting electrodes: SE1 (lateral deflection to SC1) and SE2 (lateral deflection to SC2)\n  - No pressure rebalancing or device redesign required for droplet volumes 30-1000 pL\n  - Droplet and plug morphologies both sortable (co-planar field intersects both)\n\nDroplet generator: T-junction with 2% fluorosurfactant in HFE7500 oil\n\nActuation: 15 kHz AC sine wave, 105 Vrms, applied via in-house automation\n           software and graphical user interface (Python-based, previously described)\n           Software repository: https://bitbucket.org/shihmicrolab/f_ahmadi_2023_uflowcontrol\n\n\nORGANISMS\n---------\n- S. cerevisiae var. diastaticus IDY1: isolated from high-sugar, high-alcohol beverage\n  industry setting. More robust and better suited for elevated sugar levels. Grows well\n  in all droplet volumes (30, 110, 1000 pL). Peak glucoamylase fluorescence ~3 a.u. at 48 h.\n- S. cerevisiae var. diastaticus IDY2: isolated from low-sugar, low-alcohol beverage\n  setting. Less adaptable to high sugar; only 30 pL droplets show significant growth.\n  Peak glucoamylase fluorescence ~1 a.u. at 48 h.\n- IY1: non-diastatic S. cerevisiae (STA1-); negative control; does not secrete glucoamylase.\n- IRY1: recombinant S. cerevisiae with heterologous glucoamylase gene; positive control.\n\nBoth strains sourced from Lallemand Inc. (Montreal, QC, Canada).\n\n\nFLUORESCENT SUBSTRATE\n---------------------\nSubstrate : 4-methylumbelliferyl-alpha-D-glucopyranoside (4-MUG-a)\n            Validated using commercial Aspergillus niger glucoamylase at pH 7.5 and 11.\n            Fluorescent signal distinguishable at neutral pH (pH 7.5) between IDY1/IDY2\n            and negative control IY1.\n            Previous substrate candidates 4-NPM (absorbance) and 4-NPG rejected:\n              4-NPM requires pH >10 (reduces cell viability); absorbance less sensitive.\n              4-NPG showed no distinguishable signal for diastatic strains.\nStock     : 4 mM in 0.1 M phosphate buffer pH 7.5\nFinal     : 2 mM per droplet (1:1 co-encapsulation with cell suspension)\nExcitation: 360 nm (ex) / 450 nm (em); measured on CLARIOstar Plus (BMG LABTECH)\nBSA       : 10% (w/w) bovine serum albumin added to cell suspension to reduce\n            protein adsorption to droplet interface and PDMS walls\n\n\nPROTOCOL STEPS\n--------------\n\nStep 1 | Genome Shuffling Library Generation\n  Strains        : IDY1 and IDY2 (independent libraries)\n  Method         : Sporulation and self-mating (genome shuffling)\n  Sporulation    : Inoculate saturated cultures into sporulation medium (1 g/L yeast\n                   extract, 10 g/L KOAc, 0.5 g/L glucose); OD600 start = 0.3\n                   Incubate 5 days at 23 C, 150 rpm\n  Spore prep     : Ether-zymolyase ascospore technique\n  Germination    : ~50 uL YPD 2% glucose, 30 C overnight; then 5 mL 2% YPD, 30 C overnight\n  Library size   : >10^7 variants\n  Freezer stocks : 25% glycerol (final) added to saturated YPD culture; multiple single-use vials\n  Notes          : Non-GMO technique; compliant with agro-food regulatory requirements.\n                   IDY2 starts with enhanced growth phenotype in maltodextrin relative to IDY1.\n\nStep 2 | Cell Suspension Preparation\n  Preculture     : Overnight YPD broth at 30 C, 200 rpm\n  Wash           : Sonicate and wash 3x with PBS by centrifugation\n  Resuspend      : 2x YPD broth buffered at pH 7.5\n  Cell density   : Adjusted for Poisson lambda=0.3 per droplet size:\n                     30 pL  -> 2x10^7 cells/mL\n                     110 pL -> 5x10^6 cells/mL\n                     1 nL   -> 6x10^5 cells/mL\n  BSA            : 10% (w/w) added to cell solution before encapsulation\n\nStep 3 | Single-Cell Encapsulation in 30 pL Droplets\n  Generator      : T-junction droplet generator\n  Oil            : HFE7500 + 2% PEG fluorosurfactant\n  Encapsulation  : 1:1 cell suspension : substrate solution co-flow\n  Droplet size   : 30 pL (D = 40 um channel)\n  Collection     : PCR tube with 50 uL 2% fluorosurfactant in HFE7500\n  Monitoring     : Droplet generation monitored by Fiji (ImageJ) for size verification\n\nStep 4 | Off-Chip Incubation (48 h at 30 C)\n  Temperature    : 30 C in the dark\n  Duration       : 48 h (= 2880 min = 172800 s)\n  Imaging        : Fluorescence + bright-field every 24 h\n  Cell growth    : Counted by in-droplet cell counting (Fiji ROI)\n  Fluorescence   : CTDF (corrected total droplet fluorescence) quantified per droplet:\n                     CTDF = DF/(DA x Mean_BR) - DF_t0/(DA_t0 x Mean_BR_t0)\n                     where DF = integrated density, DA = droplet area, BR = background reading\n  Optimal volume : 30 pL selected for highest fluorescence and fastest throughput\n  Results        : IDY1 peak ~3 a.u. at 48 h (30 pL); IDY2 peak ~1 a.u. at 48 h (30 pL)\n\nStep 5 | Droplet Re-injection and Fluorescence Histogram Gating\n  Re-injection   : 3 nL/s droplet flow rate; 300 nL/s spacer oil flow rate\n  Tubing         : 1/32\" OD, 0.381 mm ID PEEK (re-injection syringe)\n  Throughput     : 160 Hz for 30 pL droplets\n  Detection      : In-line optical fiber (ex: 470 nm LED, em: 450 nm bandpass filter)\n                   Spectrometer: FLAME-S UV-VIS (Ocean Insight)\n  Droplets screened: ~720,000 total\n  Histogram      : Gaussian fluorescence distribution plotted; gates set as:\n                     GT1 (gate-SC1): high fluorescence 95th percentile\n                     GT2 (gate-SC2): mid fluorescence 85th percentile\n\nStep 6 | Multiplex Electrostatic Sorting\n  Mechanism      : Co-planar electrode actuation laterally deflects droplets into SC1 or SC2.\n                   Without actuation: all droplets flow to WC (central waste channel).\n  GT1 (SC1)      : SE1 actuated at 15 kHz, 105 Vrms -> high-fitness droplets deflect to SC1\n  GT2 (SC2)      : SE2 actuated at 15 kHz, 105 Vrms -> mid-fitness droplets deflect to SC2\n  WC (waste)     : Neither electrode actuated; droplet flows undeflected to central channel\n  Sorting efficiency: >90.2% true positive; ~3% false negative; no significant difference\n                      between SC1 and SC2 channels\n  Multiplex efficiency at 30 pL:\n    1 mM fluorescein: 100% (SC1), ~3% FN\n    0.1 mM fluorescein: 98.6% (SC2), ~3% FN\n  Droplets sorted : ~108,000 total (from ~720,000 screened)\n  Sorted strains:\n    IDY1 GT1 (high): H2, H3\n    IDY1 GT2 (mid):  M2, M23\n    IDY2 GT1 (high): H13, H23\n    IDY2 GT2 (mid):  M9, M22\n\nStep 7 | Colony Recovery and Plating\n  Recovery       : Pipette top layer of oil emulsion from pipette tip at SC1 or SC2 outlet\n  Aliquot        : 5 uL from sorted population diluted into 50 uL YPD broth\n  Plating        : YPD agar plates; incubate 30 C for 48 h\n  Colony count   : 24 single colonies picked per gate (GT1 and GT2)\n  Glycerol stocks: Remaining emulsion pipetted into YPD broth; grow overnight;\n                   add 25% glycerol (final); store at -80 C\n\nStep 8 | Post-HTS Maltodextrin Growth Screening\n  Preculture     : Colonies grown in YPD broth, 48 h at 30 C / 300 rpm\n  Inoculation    : 5 uL into 1 mL maltodextrin media per well (96-well plate)\n  Media          : 2 g/L yeast extract, 4 g/L bacto peptone, 20 g/L maltodextrin\n  Incubation     : 30 C, 48 h; OD600 measured at 24 h and 48 h (Tecan Sunrise microplate reader)\n  Metric         : Maltodextrin growth fold improvement = Mutant OD600 / Wild type OD600\n  Results:\n    IDY1 GT1 (high): only H2 showed significant improvement (~2.5x at 48 h)\n    IDY1 GT2 (mid):  M2 ~1.4x improvement\n    IDY2 GT1 (high): average 2.2x growth improvement vs WT\n    IDY2 GT2 (mid):  average 1.7x growth improvement vs WT\n  Notes          : IDY2 genome-shuffled populations show enhanced growth baseline vs IDY1\n                   in maltodextrin due to starting phenotype advantage.\n\nStep 9 | Enzyme Activity Measurement (parallel to maltodextrin screening)\n  Preculture     : 48 h in YPD broth, 30 C, 300 rpm\n  Substrate      : 4-MUG-a, 2 mM final concentration\n  Protocol       : 20 uL culture + 150 uL YPD broth + 30 uL 4-MUG-a (2 mM);\n                   incubate 30 C, 200 rpm; measure fluorescence every 1 h for 15 h\n                   (CLARIOstar Plus, ex 360 nm / em 450 nm)\n  End-point      : 96-well plate; 50 uL enzyme substrate (2 mM) + 50 uL supernatant;\n                   incubate 30 C for 2 h; stop buffer pH 11; read fluorescence\n  Metric         : Enzyme activity fold improvement = Mutant Activity (U/mL OD) / WT Activity (U/mL OD)\n  Results:\n    IDY1 GT1: ~3.7x fold improvement (average) vs WT; only H2 statistically significant (~3x)\n    IDY1 GT2: ~1.2x fold improvement (average)\n    IDY2 GT1: ~2x fold improvement (7 high strains showed improvement)\n    IDY2 GT2: ~2x fold improvement (13 mid strains showed improvement at 24 h and 48 h)\n\nStep 10 | Beverage Fermentation Evaluation\n  Preculture     : YPD broth 48 h at 30 C, 300 rpm\n  Inoculum       : 100 uL into 3 mL synthetic beverage media\n  Synthetic media: 125 g/L maltose, 60 g/L maltodextrin, 1 mL ethanol,\n                   1.25 mL 50% glycerol (in water), 3 mL 85% lactic acid,\n                   2 g/L yeast extract, 6.4 g/L bactopeptone,\n                   pH 5.9, 25 mg/mL chloramphenicol\n  Vials          : 6 mL mini vials sealed with rubber caps; needles for gas exchange\n  Mixing         : 180 rpm for 5 min; then without agitation\n  Temperature    : Phase 1: 20 C for 22 h; Phase 2: 30 C until 72 h endpoint\n  Weight loss    : Measured at 0, 18, 24, 42, 48, 66, 72 h (precision scale)\n  Fermentation complete: 72 h (final mass loss point)\n  Dry biomass    : Pellet cells; dry at 60 C overnight; weigh\n  Metrics:\n    CO2 released per mg dry biomass (mg CO2/mg yeast)\n    Ethanol content normalised to dry biomass (mg ethanol/mL per mg yeast)\n    Fermentation rate (mass loss rate h^-1)\n  Statistical    : One-way ANOVA at 95% CI, N=3; p-values vs WT:\n                   ns: p=0.1234, *: p=0.0332, **: p=0.0021, ***: p=0.0002, ****: p<0.0001\n  Key results:\n    IDY1-M23 (GT2/mid): highest CO2 mass loss ~7.8 mg CO2/mg biomass at 72 h\n                         (vs ~5.01 mg CO2/mg biomass for WT IDY1)\n                         Only IDY1 strain to show significant ethanol content improvement\n    IDY2-M9  (GT2/mid): mass loss rate ~0.128 h^-1; highest CO2 and ethanol yield for IDY2\n    IDY2-H13 (GT1/high): mass loss rate ~0.105 h^-1; second best for IDY2\n    Top ethanol producers: IDY1-M23, IDY2-M9 (both mid-level sorted)\n  Key finding    : Mid-level sorted strains outperform high-level sorted strains in fermentation.\n                   Hypothesised mechanism: high-level strains incur increased metabolic burden\n                   from elevated glucoamylase expression (higher ATP demand, amino acid\n                   consumption for protein synthesis, diversion from fermentation).\n                   Mid-level strains balance enzyme secretion with metabolic load, maintaining\n                   fermentation efficiency. This is consistent with metabolic burden literature\n                   in heterologous protein production.\n\n\nBIOSCRIPT COMPILER NOTES\n-------------------------\nBioScript file : leal_alves_multiplex_sorter_strain_development.bs\nCompiler       : lilott8/BioScript (ANTLR4-based)\nIR output      : 13 basic blocks (BB1-BB13), 4 if/else gates, 16 CFG edges\nDAG            : leal_alves_multiplex_sorter_strain_development_main_dag.dot\nDuration units : All durations converted to minutes (m) for compiler compatibility\n                 (BioScript supports s and m only; h token not supported)\n                 48 h incubation    -> 2880m  (IR: 172800.0 SECOND)\n                 22 h ferment ph1   -> 1320m  (IR: 79200.0 SECOND)\n                 50 h ferment ph2   -> 3000m  (IR: 180000.0 SECOND)\n                 48 h preculture    -> 2880m  (IR: 172800.0 SECOND)\n                 5 min mixing       -> 5m     (IR: 300.0 SECOND)\nModules        : glucoamylaseDetection, maltodextrinGrowthDetection, fermentationDetection\nManifests      : IDY1_Cells, IDY2_Cells, YPD_Media, MUG_Alpha_Substrate,\n                 PhosphateBuffer_pH7_5, BSA_Solution, HFE7500_Surfactant, SpacerOil,\n                 MaltodextrinMedia, SyntheticBeverageMedia\nBiological scope note : This .bs file encodes the IDY1 arm as representative.\n                 The IDY2 arm requires a separate .bs file with IDY2_Cells manifest.\n                 Sorter parameters, droplet conditions, and assay protocol are identical.\nIR verified    : All 13 BBs present; all fluid variables consumed (no stranded variables);\n                 two-phase fermentation heat modelled as sequential heat statements on same\n                 fluid variable; drain normalised to dispose in IR (compiler behaviour).\nDAG verified   : Correct diamond-pattern topology; 4 gates; single terminal node (BB13/NOP).\n"
+    },
+    {
+      "role": "assistant",
+      "content": "module glucoamylaseDetection\nmodule maltodextrinGrowthDetection\nmodule fermentationDetection\n\nmanifest IDY1_Cells\nmanifest IDY2_Cells\nmanifest YPD_Media\nmanifest MUG_Alpha_Substrate\nmanifest PhosphateBuffer_pH7_5\nmanifest BSA_Solution\nmanifest HFE7500_Surfactant\nmanifest SpacerOil\nmanifest MaltodextrinMedia\nmanifest SyntheticBeverageMedia\n\n// ============================================================\n// A Microfluidic Multiplex Sorter for Strain Development\n// Leal-Alves, Dumont, Deng, Alkhaldi, Leung, Oeser, Shih\n// Adv. Mater. Technol. 2025, 10, 2401209\n// DOI: 10.1002/admt.202401209\n//\n// Protocol: Droplet-digital multiplex electrostatic sorting\n// of genome-shuffled diastatic yeast (S. cerevisiae var.\n// diastaticus) based on two fluorescence thresholds of\n// glucoamylase activity, followed by post-HTS strain\n// recovery and beverage fermentation evaluation.\n//\n// BIOLOGICAL OVERVIEW:\n//   Two diastatic yeast strains (IDY1 and IDY2), isolated\n//   from the beverage industry, are genome-shuffled via\n//   self-mating to generate libraries of >10^7 variants.\n//   Single cells are encapsulated in 30 pL droplets with\n//   YPD media and the fluorescent glucoamylase substrate\n//   4-methylumbelliferyl-alpha-D-glucopyranoside (4-MUG-a).\n//   After 48 h incubation off-chip at 30 C, droplets are\n//   re-injected into the multiplex electrostatic sorter\n//   (15 kHz, 105 Vrms) and partitioned into two gates:\n//     GT1 (gate-SC1): high fluorescence (top 95th percentile)\n//     GT2 (gate-SC2): mid fluorescence (85th percentile)\n//   Non-selected waste droplets flow to the central channel.\n//   Recovered colonies are screened on maltodextrin and the\n//   best performers are selected for beverage fermentation.\n//\n// SUBSTRATE NOTE:\n//   4-MUG-a (4-methylumbelliferyl-alpha-D-glucopyranoside)\n//   was validated for glucoamylase detection at pH 7.5 with\n//   a fluorescence readout (ex 360 nm / em 450 nm). This\n//   substrate is used in preference to 4-NPM (absorbance)\n//   because fluorescence detection is more sensitive and\n//   compatible with droplet path lengths at 30 pL volume.\n//   All droplets contain 2 mM 4-MUG-a in 0.1 M phosphate\n//   buffer pH 7.5 and 10% BSA to reduce surface adsorption.\n//\n// DROPLET GENERATION NOTE:\n//   Cells are co-encapsulated with substrate at a Poisson\n//   ratio (lambda = 0.3) for single-cell occupancy:\n//     30 pL -> 2x10^7 cells/mL\n//   Droplets are generated at T-junction generators in\n//   HFE7500 oil with 2% fluorosurfactant and collected\n//   into PCR tubes for off-chip incubation.\n//\n// SORTER DESIGN NOTE:\n//   Co-planar electrostatic electrodes (SE1 and SE2) are\n//   activated at 15 kHz / 105 Vrms to laterally displace\n//   droplets from the central waste channel (WC) into\n//   sorting channels SC1 (high) or SC2 (mid). Sorting\n//   throughput: 160 Hz for 30 pL droplets. False negative\n//   rate: ~3%. No pressure rebalancing or redesign is\n//   required when switching droplet sizes (30-1000 pL).\n//   `mix` steps below abstract electrode-actuated droplet\n//   merging and flow-through sorting events.\n//\n// CFG STRUCTURE:\n//   BB1  main               -- entry: cell prep, genome shuffling,\n//                              droplet encapsulation, off-chip\n//                              incubation, sorter re-injection\n//   BB2  highGatePass       -- gt1Signal > 0: high-fitness droplet\n//                              sorted into SC1; recover colonies\n//   BB3  highGateFail       -- gt1Signal <= 0: not high-fitness;\n//                              continue to mid-gate check\n//   BB4  highGateJoin       -- join: mid-gate branch begins\n//   BB5  midGatePass        -- gt2Signal > 0: mid-fitness droplet\n//                              sorted into SC2; recover colonies\n//   BB6  midGateFail        -- gt2Signal <= 0: waste; drain\n//   BB7  midGateJoin        -- join: post-HTS recovery branch\n//   BB8  maltodextrinPass   -- growthSignal > 0: improved growth;\n//                              select for fermentation assay\n//   BB9  maltodextrinFail   -- growthSignal <= 0: no improvement;\n//                              drain\n//   BB10 fermentationPass   -- fermentSignal > 0: improved\n//                              fermentation; dispose (strain banked)\n//   BB11 fermentationFail   -- fermentSignal <= 0: no fermentation\n//                              improvement; drain\n//   BB12 finalCleanup       -- terminal: dispose all QC signals\n// ============================================================\n\ninstructions:\n\n// ============================================================\n// BB1: main\n// ============================================================\n\n// ------------------------------------------------------------\n// STEP 1: Prepare diastatic yeast cell suspension.\n//   IDY1 or IDY2 parental strains grown overnight in YPD\n//   broth at 30 C / 200 rpm. Cultures sonicated and washed\n//   3x with PBS by centrifugation. Final pellet resuspended\n//   in 2x YPD broth (buffered at pH 7.5).\n//   Cell concentration adjusted for Poisson lambda = 0.3:\n//     30 pL droplets -> 2x10^7 cells/mL\n//   10% (w/w) BSA added to reduce surface adsorption.\n//\n//   NOTE: This .bs file encodes the IDY1 arm as the\n//   representative protocol. A separate file should be\n//   used for IDY2 with IDY2_Cells as the manifest entry.\n//   Both arms use identical sorter parameters and assay\n//   conditions; only the parental strain differs.\n// ------------------------------------------------------------\n\ncellSuspension   = dispense 1 units of IDY1_Cells\nbsaAdditive      = dispense 1 units of BSA_Solution\ncellsWithBSA     = mix cellSuspension with bsaAdditive for 2s\n\n// ------------------------------------------------------------\n// STEP 2: Prepare fluorescent glucoamylase substrate.\n//   4-MUG-a prepared at 4 mM in 0.1 M phosphate buffer\n//   pH 7.5. Co-encapsulated 1:1 with cell suspension to\n//   yield a final droplet concentration of 2 mM 4-MUG-a.\n//   Phosphate buffer keeps pH neutral for cell viability\n//   while providing sufficient glucoamylase signal at 30 C.\n// ------------------------------------------------------------\n\nphosphateBuffer  = dispense 1 units of PhosphateBuffer_pH7_5\nmugSubstrate     = dispense 1 units of MUG_Alpha_Substrate\nassayMix         = mix mugSubstrate with phosphateBuffer for 5s\n\n// ------------------------------------------------------------\n// STEP 3: Co-encapsulate single cells with substrate in 30 pL\n//   droplets at T-junction generator.\n//   Cell solution mixed 1:1 with substrate solution; droplets\n//   formed in HFE7500 oil + 2% fluorosurfactant.\n//   Droplet size set by T-junction geometry (40 um channel,\n//   30 pL target volume, D = 40 um diameter).\n//   `mix` abstracts the T-junction co-flow encapsulation\n//   event; this is a pressure-driven droplet generation step,\n//   not a DMF electrode mixing operation.\n// ------------------------------------------------------------\n\noilCarrier          = dispense 1 units of HFE7500_Surfactant\nencapsulatedDroplets = mix cellsWithBSA with assayMix for 5s\ndropletsInOil        = mix encapsulatedDroplets with oilCarrier for 2s\n\n// ------------------------------------------------------------\n// STEP 4: Off-chip incubation for 48 h at 30 C.\n//   Droplets collected into PCR tubes with 50 uL of 2%\n//   fluorosurfactant in HFE7500 and incubated in the dark\n//   at 30 C. Fluorescence and bright-field images taken\n//   every 24 h to monitor cell growth and glucoamylase\n//   activity. 48 h selected based on optimisation data\n//   showing peak fluorescence at this timepoint for 30 pL\n//   droplets (IDY1: ~3 a.u.; IDY2: ~1 a.u.).\n//   48 h = 2880 min.\n// ------------------------------------------------------------\n\nheat dropletsInOil at 30c for 2880m\n\n// ------------------------------------------------------------\n// STEP 5: Re-inject incubated droplets into multiplex sorter.\n//   Droplets re-injected through 1/32\" OD PEEK tubing at:\n//     Re-injection flow rate: 3 nL/s\n//     Spacer oil flow rate: 300 nL/s\n//   Fluorescence population measured and displayed as a\n//   histogram (Gaussian distribution, n ~= 720,000 droplets\n//   screened at 160 Hz) to set sorting gate thresholds:\n//     gate-SC1 (GT1): high fluorescence, 95th percentile\n//     gate-SC2 (GT2): mid fluorescence, 85th percentile\n//   `mix` abstracts the re-injection and flow-through\n//   fluorescence interrogation event at the sorter inlet.\n// ------------------------------------------------------------\n\nspacerOil           = dispense 1 units of SpacerOil\nreinjectedDroplets  = mix dropletsInOil with spacerOil for 1s\n\n// ------------------------------------------------------------\n// STEP 6: Fluorescence detection for multiplex gate assignment.\n//   glucoamylaseDetection module abstracts in-line optical\n//   fiber fluorescence measurement (ex 470 nm LED, emission\n//   collected at 450 nm via bandpass filter). Signal measured\n//   by in-house automation software and used to determine\n//   which sorting electrode (SE1 or SE2) to actuate.\n//   Detection window: 0.4 ms travel time at 160 Hz.\n//   GT1 signal > 0: high fluorescence (SC1 sort)\n//   GT2 signal > 0: mid fluorescence (SC2 sort)\n//   Waste: neither threshold exceeded (central WC channel)\n// ------------------------------------------------------------\n\ngt1Signal = detect glucoamylaseDetection on reinjectedDroplets for 1s\n\n// ============================================================\n// BB2 / BB3: High-fitness gate (GT1 / SC1)\n// Pass (BB2): gt1Signal > 0 -> high-glucoamylase droplet\n//   detected above 95th percentile; actuate SE1 (15 kHz,\n//   105 Vrms) to deflect into SC1. Recover into pipette tip.\n// Fail (BB3): gt1Signal <= 0 -> not high-fitness; do not\n//   actuate SE1; proceed to mid-gate evaluation (BB4).\n// Both branches converge at BB4 (highGateJoin).\n// ============================================================\n\nif (gt1Signal > 0) {\n    // --------------------------------------------------------\n    // HIGH-FITNESS RECOVERY (GT1 / SC1):\n    //   Droplet deflected to SC1 by SE1 electrode actuation.\n    //   Sorted droplets collected by pipetting the top layer\n    //   of the oil emulsion from pipette tips at the SC1\n    //   outlet. Aliquots (5 uL) diluted into 50 uL YPD broth,\n    //   plated on YPD agar plates, and incubated at 30 C for\n    //   48 h. Several colonies selected for post-HTS analysis.\n    //   High-sorted IDY1 strains labelled H2, H3 (paper).\n    //   High-sorted IDY2 strains labelled H13, H23 (paper).\n    // --------------------------------------------------------\n    highFitnessDroplet = mix reinjectedDroplets with spacerOil for 1s\n    dispose highFitnessDroplet\n} else {\n    drain reinjectedDroplets\n}\n\n// ============================================================\n// BB4: highGateJoin\n// Dispose GT1 QC signal. Control falls into mid-gate\n// evaluation branch (BB5/BB6).\n// ============================================================\n\ndispose gt1Signal\n\n// ------------------------------------------------------------\n// STEP 7: Mid-fitness gate evaluation (GT2 / SC2).\n//   For droplets that did not exceed the GT1 threshold,\n//   the automation software evaluates whether the signal\n//   exceeds the GT2 (mid, 85th percentile) threshold.\n//   If yes, SE2 is actuated (15 kHz, 105 Vrms) to deflect\n//   the droplet into SC2. If no, the droplet flows to the\n//   central waste channel (WC) undeflected.\n//   `detect` here abstracts the second threshold evaluation\n//   performed on the same re-injected droplet population\n//   (the sorter evaluates GT1 then GT2 sequentially per drop).\n// ------------------------------------------------------------\n\ngt2Signal = detect glucoamylaseDetection on spacerOil for 1s\n\n// ============================================================\n// BB5 / BB6: Mid-fitness gate (GT2 / SC2)\n// Pass (BB5): gt2Signal > 0 -> mid-glucoamylase droplet\n//   detected above 85th percentile; actuate SE2 (15 kHz,\n//   105 Vrms) to deflect into SC2. Recover into pipette tip.\n// Fail (BB6): gt2Signal <= 0 -> below both thresholds;\n//   droplet flows undeflected into WC (waste). Drain.\n// Both branches converge at BB7 (midGateJoin).\n// ============================================================\n\nif (gt2Signal > 0) {\n    // --------------------------------------------------------\n    // MID-FITNESS RECOVERY (GT2 / SC2):\n    //   Droplet deflected to SC2 by SE2 electrode actuation.\n    //   Recovery, plating, and incubation identical to GT1.\n    //   Mid-sorted IDY1 strains labelled M2, M23 (paper).\n    //   Mid-sorted IDY2 strains labelled M9, M22 (paper).\n    //   KEY FINDING: Mid-selected strains (IDY1-M23, IDY2-M9)\n    //   showed superior fermentation performance vs high-selected\n    //   strains, attributed to lower metabolic burden from\n    //   balanced glucoamylase expression.\n    // --------------------------------------------------------\n    midFitnessDroplet = mix spacerOil with spacerOil for 1s\n    dispose midFitnessDroplet\n} else {\n    drain spacerOil\n}\n\n// ============================================================\n// BB7: midGateJoin\n// Dispose GT2 QC signal. Control falls into post-HTS\n// maltodextrin growth screening branch (BB8/BB9).\n// ============================================================\n\ndispose gt2Signal\n\n// ============================================================\n// POST-HTS STEP 1: Maltodextrin growth screening (Step 3\n// of paper's 4-step workflow).\n// Recovered colonies (both GT1 and GT2 populations, 24\n// colonies each) grown for 48 h at 30 C / 300 rpm in\n// maltodextrin media (2 g/L yeast extract, 4 g/L bacto\n// peptone, 20 g/L maltodextrin). Optical density at 600 nm\n// measured at 24 h and 48 h. Growth fold improvement\n// calculated relative to wild-type parental strain.\n// Maltodextrin growth evaluates starch-utilisation capacity,\n// an industrially relevant parameter for beverage fermentation.\n//\n// NOTE: In the paper, all 24 colonies per gate are screened\n// simultaneously in parallel wells. The BioScript abstraction\n// below models a single representative colony going through\n// sequential evaluation steps (growth -> fermentation).\n// ============================================================\n\n// ------------------------------------------------------------\n// Inoculate recovered colony into maltodextrin media.\n//   5 uL from sorted population plated; overnight glycerol\n//   stocks prepared; then 5 uL inoculated into 1 mL\n//   maltodextrin media for growth measurement.\n// ------------------------------------------------------------\n\nmaltodextrinMedia   = dispense 1 units of MaltodextrinMedia\nypd_preculture      = dispense 1 units of YPD_Media\nrecoveredColony     = mix maltodextrinMedia with ypd_preculture for 5s\n\n// Incubation at 30 C for 48 h (= 2880 min).\n// OD600 measured at 24 h and 48 h via plate reader.\nheat recoveredColony at 30c for 2880m\n\n// Maltodextrin growth QC signal: OD600 at 48 h vs wild type.\ngrowthSignal = detect maltodextrinGrowthDetection on recoveredColony for 30s\n\n// ============================================================\n// BB8 / BB9: Maltodextrin growth QC gate\n// Pass (BB8): growthSignal > 0 -> improved growth vs WT;\n//   strain carries forward to fermentation assay.\n// Fail (BB9): growthSignal <= 0 -> no growth improvement;\n//   drain (strain not selected for fermentation).\n// Both branches converge at BB10/BB11 (fermentation branch).\n// ============================================================\n\nif (growthSignal > 0) {\n    // --------------------------------------------------------\n    // IMPROVED GROWTH:\n    //   Strain exhibits statistically significant growth\n    //   improvement in maltodextrin vs wild type.\n    //   IDY2 GT1 and GT2 strains showed on average 2.2x and\n    //   1.7x more growth respectively (paper Figure 5C).\n    //   IDY1-H2 and IDY1-M2 showed ~2.5x and ~1.4x improvement\n    //   respectively (paper Figure 5A).\n    //   Strain selected for fermentation evaluation (STEP 3->4).\n    // --------------------------------------------------------\n    dispose recoveredColony\n} else {\n    drain recoveredColony\n}\n\n// ============================================================\n// BB10 / BB11: Fermentation evaluation in synthetic beverage\n// media (Step 4 of paper's 4-step workflow).\n// Selected mutant strains evaluated in lab-scale fermentation\n// assay mimicking industrial beverage conditions.\n// Media (3 mL synthetic medium per vial):\n//   125 g/L maltose, 60 g/L maltodextrin, 1 mL ethanol,\n//   1.25 mL 50% glycerol, 3 mL 85% lactic acid,\n//   2 g/L yeast extract, 6.4 g/L bactopeptone,\n//   pH 5.9, 25 mg/mL chloramphenicol.\n// Inoculation: 100 uL preculture into 3 mL synthetic media.\n// Temperature: 20 C for 22 h, then 30 C until 72 h endpoint.\n// Monitoring: CO2 release by weight loss at 0, 18, 24, 42,\n//   48, 66, 72 h. Fermentation complete at 72 h (final mass\n//   loss point). Dry biomass weight by pelleting at 60 C.\n// Metric: CO2 released per mg biomass; ethanol yield normalised\n//   to dry biomass.\n//\n// KEY RESULT: Mid-level sorted strains (IDY1-M23, IDY2-M9)\n//   outperformed high-level sorted strains in fermentation\n//   efficiency, producing more CO2 per mg biomass and higher\n//   ethanol yields. IDY1-M23 showed the highest CO2 mass loss\n//   (~7.8 mg CO2/mg biomass vs ~5.01 for WT at 72 h).\n//   IDY2-M9 and IDY2-H13 showed improved CO2 mass loss rates\n//   (~0.128 and ~0.105 h^-1 respectively vs WT).\n//\n// NOTE ON TEMPERATURE SEQUENCE:\n//   The fermentation protocol uses a two-phase temperature\n//   profile: 20 C for 22 h then 30 C for the remaining 50 h.\n//   BioScript `heat` statements are used sequentially to\n//   model this ramp; the compiler treats them as serial\n//   heating events on the same fluid variable.\n//   22 h = 1320 min; 50 h = 3000 min; total = 72 h.\n// ============================================================\n\nsyntheticMedia      = dispense 1 units of SyntheticBeverageMedia\nypd_ferment_pre     = dispense 1 units of YPD_Media\n\n// Preculture: 48 h at 30 C / 300 rpm in YPD before inoculation.\n// 48 h = 2880 min.\nheat ypd_ferment_pre at 30c for 2880m\n\n// Inoculate 100 uL preculture into synthetic beverage media.\nfermentationMix     = mix syntheticMedia with ypd_ferment_pre for 5m\n\n// Phase 1: 20 C for 22 h (= 1320 min). Initial fermentation phase.\nheat fermentationMix at 20c for 1320m\n\n// Phase 2: 30 C for 50 h (= 3000 min). Main fermentation phase.\nheat fermentationMix at 30c for 3000m\n\n// Detect fermentation performance: CO2 release, ethanol yield.\n// fermentationDetection abstracts CO2 weight-loss measurement\n// and end-point ethanol determination from dried biomass.\nfermentSignal = detect fermentationDetection on fermentationMix for 30s\n\n// ============================================================\n// BB10 / BB11: Fermentation performance QC gate\n// Pass (BB10): fermentSignal > 0 -> improved CO2 release\n//   and/or ethanol yield vs WT parental strain; strain\n//   banked as a superior industrial candidate.\n// Fail (BB11): fermentSignal <= 0 -> no fermentation\n//   improvement; drain (strain not selected).\n// Both branches converge at BB12 (finalCleanup).\n// ============================================================\n\nif (fermentSignal > 0) {\n    // --------------------------------------------------------\n    // FERMENTATION IMPROVEMENT CONFIRMED:\n    //   Strain shows statistically significant improvement in\n    //   CO2 release and/or ethanol yield relative to WT.\n    //   Top producers: IDY1-M23 (mid-gate), IDY2-M9 (mid-gate).\n    //   Both would have been missed by a binary (GT1-only)\n    //   screening approach, validating the multiplex strategy.\n    //   Hypothesised mechanism: balanced glucoamylase expression\n    //   in mid-level strains avoids metabolic burden from\n    //   high-level enzyme overproduction, maintaining resources\n    //   for growth and fermentation.\n    //   Strain disposed (banked for industrial use).\n    // --------------------------------------------------------\n    dispose fermentationMix\n} else {\n    drain fermentationMix\n}\n\n// ============================================================\n// BB12: finalCleanup (terminal)\n// Dispose all remaining QC signal droplets.\n// Dispose growth and fermentation signals.\n// Experiment ends.\n// ============================================================\n\ndispose growthSignal\ndispose fermentSignal\n\n// [terminal -- no further instructions; exit node for CFG]\n"
+    }
+  ],
+  "metadata": {
+    "identity": {
+      "protocol_id": "leal_alves_multiplex_sorter_strain_development_001",
+      "protocol_name": "A Microfluidic Multiplex Sorter for Strain Development",
+      "category": "synthetic_biology",
+      "adaptation_status": "adapted_authored",
+      "authored_by": null
+    },
+    "source": {
+      "title": "A Microfluidic Multiplex Sorter for Strain Development",
+      "publisher": "Advanced Materials Technologies, 2025, Vol. 10, Article 2401209",
+      "doi": "10.1002/admt.202401209",
+      "url": "https://advanced.onlinelibrary.wiley.com/doi/pdfdirect/10.1002/admt.202401209",
+      "platform": "Droplet-digital microfluidics with multiplex co-planar electrostatic sorting"
+    },
+    "bioscript": {
+      "manifests": [
+        "IDY1_Cells",
+        "IDY2_Cells",
+        "YPD_Media",
+        "MUG_Alpha_Substrate",
+        "PhosphateBuffer_pH7_5",
+        "BSA_Solution",
+        "HFE7500_Surfactant",
+        "SpacerOil",
+        "MaltodextrinMedia",
+        "SyntheticBeverageMedia"
       ],
-      "sections": [
-        "T-junction droplet generator",
-        "Multiplex electrostatic sorter with three outlets (SC1, SC2, WC)"
+      "operations": [
+        "dispense",
+        "mix",
+        "heat",
+        "detect",
+        "dispose",
+        "drain",
+        "if"
       ],
-      "sorter_geometry": {
-        "sorting_channels": 2,
-        "waste_channel": 1,
-        "electrode_gap_um": "<25",
-        "electrode_configuration": "co-planar activated and ground electrodes",
-        "channel_droplet_volumes_pL": [30, 110, 1000]
-      },
-      "electrodes": {
-        "sorting_electrode_1": "SE1 (deflects to SC1, high-fitness gate GT1)",
-        "sorting_electrode_2": "SE2 (deflects to SC2, mid-fitness gate GT2)",
-        "actuation_frequency_kHz": 15,
-        "actuation_voltage_Vrms": 105,
-        "waveform": "sine wave",
-        "electric_field_V_m": ">4e5"
-      },
-      "inlets": {
-        "I1": "Re-injected droplets",
-        "I2": "Spacer oil"
-      },
-      "outlets": {
-        "SC1": "High-fitness sorted droplets (GT1, 95th percentile)",
-        "SC2": "Mid-fitness sorted droplets (GT2, 85th percentile)",
-        "WC":  "Waste channel (non-selected droplets)"
+      "complexity": {
+        "has_repeat": false,
+        "has_branch": true,
+        "has_split": false,
+        "has_gradient": false,
+        "num_steps": 40
       }
     },
-
-    "reagents": {
-      "carrier_oil": "3M Novec HFE7500",
-      "surfactant": "PEG fluoro-surfactant (Ran Biotechnologies) 2% w/v in HFE7500",
-      "cell_media": "YPD broth (yeast peptone dextrose), 2x concentration buffered at pH 7.5",
-      "fluorescent_substrate": {
-        "name": "4-methylumbelliferyl-alpha-D-glucopyranoside (4-MUG-a)",
-        "stock_concentration_mM": 4,
-        "final_droplet_concentration_mM": 2,
-        "buffer": "0.1 M phosphate buffer pH 7.5",
-        "ex_nm": 360,
-        "em_nm": 450,
-        "notes": "Validated for glucoamylase activity at neutral pH; distinguishable signal vs negative control IY1 at pH 7.5"
-      },
-      "surface_blocker": {
-        "reagent": "Bovine serum albumin (BSA)",
-        "concentration_pct_w_w": 10,
-        "purpose": "Reduce protein adsorption to droplet interface and PDMS walls"
-      },
-      "maltodextrin_media": {
-        "composition": "2 g/L yeast extract, 4 g/L bacto peptone, 20 g/L maltodextrin",
-        "purpose": "Post-HTS growth screening; evaluates starch utilisation capacity"
-      },
-      "synthetic_beverage_media": {
-        "composition": "125 g/L maltose, 60 g/L maltodextrin, 1 mL ethanol, 1.25 mL 50% glycerol (in water), 3 mL 85% lactic acid, 2 g/L yeast extract, 6.4 g/L bactopeptone, pH 5.9, 25 mg/mL chloramphenicol",
-        "volume_per_vial_mL": 3,
-        "inoculum_uL": 100,
-        "purpose": "Lab-scale beverage fermentation evaluation mimicking industrial conditions"
-      },
-      "negative_control": "IY1 (non-diastatic S. cerevisiae STA1-, does not secrete glucoamylase)",
-      "positive_control": "IRY1 (recombinant S. cerevisiae with heterologous glucoamylase gene)"
-    },
-
-    "genome_shuffling": {
-      "method": "Self-mating (genome shuffling via sporulation and mating)",
-      "library_size_variants": ">1e7",
-      "sporulation_medium": "1 g/L yeast extract, 10 g/L potassium acetate, 0.5 g/L glucose",
-      "sporulation_OD600_start": 0.3,
-      "sporulation_temperature_C": 23,
-      "sporulation_duration_days": 5,
-      "sporulation_rpm": 150,
-      "spore_preparation": "ether-zymolyase ascospore technique",
-      "incubation_after_spores": "50 uL YPD 2% glucose, 30 C overnight; then 5 mL 2% YPD, 30 C overnight",
-      "freezer_stocks": "25% glycerol (final) in saturated YPD culture",
-      "regulatory_note": "Non-GMO mutagenesis technique; compliant with agro-food industry regulatory requirements"
-    },
-
-    "droplet_generation": {
-      "generator_type": "T-junction",
-      "oil": "HFE7500 + 2% fluorosurfactant",
-      "cell_encapsulation_ratio": "1:1 cell suspension to substrate solution",
-      "poisson_lambda": 0.3,
-      "cell_concentrations_cells_mL": {
-        "30pL": "2e7",
-        "110pL": "5e6",
-        "1nL": "6e5"
-      },
-      "droplet_sizes": [
-        { "volume_pL": 30,   "diameter_um": 40,  "throughput_Hz": 160, "selected_for_screening": true,  "reason": "Highest glucoamylase fluorescence signal (~3 a.u. for IDY1 at 48h) and fastest throughput" },
-        { "volume_pL": 110,  "diameter_um": 60,  "throughput_Hz": 50 },
-        { "volume_pL": 1000, "diameter_um": 100, "throughput_Hz": 20 }
-      ],
-      "collection": "PCR tube with 50 uL of 2% fluorosurfactant in HFE7500"
-    },
-
-    "steps": [
-      {
-        "id": "S1",
-        "name": "Cell suspension preparation",
-        "bb": "BB1",
-        "organism": "IDY1 or IDY2 (this file encodes IDY1 arm)",
-        "inputs": ["IDY1_Cells", "BSA_Solution"],
-        "operation": "mix",
-        "duration_s": 2,
-        "preculture": "Overnight in YPD broth at 30 C / 200 rpm",
-        "wash_steps": "3x PBS wash by centrifugation; resuspend in 2x YPD broth pH 7.5",
-        "bsa_concentration_pct_w_w": 10,
-        "notes": "OD600 adjusted for Poisson lambda=0.3 for each droplet size. BSA added to reduce surface adsorption."
-      },
-      {
-        "id": "S2",
-        "name": "Fluorescent substrate preparation",
-        "bb": "BB1",
-        "inputs": ["MUG_Alpha_Substrate", "PhosphateBuffer_pH7_5"],
-        "operation": "mix",
-        "duration_s": 5,
-        "substrate_stock_mM": 4,
-        "final_concentration_mM": 2,
-        "buffer": "0.1 M phosphate buffer pH 7.5",
-        "notes": "Co-encapsulated 1:1 with cell suspension to yield 2 mM 4-MUG-a per droplet. Neutral pH preserves cell viability."
-      },
-      {
-        "id": "S3",
-        "name": "Single-cell encapsulation in 30 pL droplets",
-        "bb": "BB1",
-        "inputs": ["cellsWithBSA", "assayMix", "HFE7500_Surfactant"],
-        "operation": "T-junction co-flow encapsulation (abstracted as mix in BioScript)",
-        "droplet_volume_pL": 30,
-        "channel_diameter_um": 40,
-        "oil": "HFE7500 + 2% fluorosurfactant",
-        "bsa_concentration_pct_w_w": 10,
-        "notes": "Poisson-based single-cell encapsulation (lambda=0.3). Droplet generation monitored by Fiji (ImageJ)."
-      },
-      {
-        "id": "S4",
-        "name": "Off-chip incubation for glucoamylase activity development",
-        "bb": "BB1",
-        "inputs": ["dropletsInOil"],
-        "operation": "heat",
-        "temperature_C": 30,
-        "duration_h": 48,
-        "duration_s": 172800,
-        "collection_tube": "PCR tube with 50 uL 2% fluorosurfactant in HFE7500",
-        "imaging_interval_h": 24,
-        "imaging_purpose": "Cell growth (bright-field cell counting) and glucoamylase activity (4-MUG-a fluorescence)",
-        "fluorescence_metric": "CTDF (corrected total droplet fluorescence) calculated from Fiji ROI density integration",
-        "peak_signal_IDY1_au": "~3",
-        "peak_signal_IDY2_au": "~1",
-        "notes": "48 h selected as optimal: highest fluorescence and cell growth plateau for 30 pL droplets. Incubation in the dark."
-      },
-      {
-        "id": "S5",
-        "name": "Droplet re-injection and flow-through fluorescence detection",
-        "bb": "BB1",
-        "inputs": ["dropletsInOil", "SpacerOil"],
-        "operation": "re-injection into sorter (abstracted as mix in BioScript)",
-        "reinjection_flow_rate_nL_s": 3,
-        "spacer_oil_flow_rate_nL_s": 300,
-        "travel_time_ms": 0.4,
-        "droplets_screened": "~720000",
-        "throughput_Hz": 160,
-        "detection_module": "glucoamylaseDetection",
-        "detection_method": "In-line optical fiber fluorescence (ex 470 nm LED, em 450 nm bandpass)",
-        "histogram_gating": "Gaussian fluorescence distribution used to set GT1 and GT2 thresholds",
-        "notes": "Fluorescence intensity measured by in-house automation software to route each droplet to SE1, SE2, or WC."
-      },
-      {
-        "id": "S6",
-        "name": "Multiplex sorting - high-fitness gate (GT1)",
-        "bb": "BB1",
-        "inputs": ["reinjectedDroplets"],
-        "operation": "electrostatic sorting (abstracted as detect + if/else in BioScript)",
-        "gate": "GT1",
-        "threshold": "95th percentile of fluorescence distribution",
-        "electrode": "SE1",
-        "actuation_frequency_kHz": 15,
-        "actuation_voltage_Vrms": 105,
-        "sorting_channel": "SC1",
-        "detection_module": "glucoamylaseDetection",
-        "detection_duration_s": 1,
-        "sorting_efficiency_pct": ">90.2",
-        "false_negative_rate_pct": "~3",
-        "sorted_IDY1_strains": ["H2", "H3"],
-        "sorted_IDY2_strains": ["H13", "H23"],
-        "droplets_sorted_total": "~108000",
-        "branch": {
-          "pass": { "condition": "gt1Signal > 0", "action": "deflect to SC1; recover", "bb": "BB2" },
-          "fail": { "condition": "gt1Signal <= 0", "action": "proceed to GT2 evaluation", "bb": "BB3" }
-        }
-      },
-      {
-        "id": "S7",
-        "name": "Multiplex sorting - mid-fitness gate (GT2)",
-        "bb": "BB4",
-        "inputs": ["spacerOil"],
-        "operation": "electrostatic sorting - second threshold evaluation",
-        "gate": "GT2",
-        "threshold": "85th percentile of fluorescence distribution",
-        "electrode": "SE2",
-        "actuation_frequency_kHz": 15,
-        "actuation_voltage_Vrms": 105,
-        "sorting_channel": "SC2",
-        "detection_module": "glucoamylaseDetection",
-        "detection_duration_s": 1,
-        "sorted_IDY1_strains": ["M2", "M23"],
-        "sorted_IDY2_strains": ["M9", "M22"],
-        "key_finding": "Mid-level sorted strains (IDY1-M23, IDY2-M9) showed superior fermentation performance vs high-level sorted strains; would have been missed by binary screening",
-        "branch": {
-          "pass": { "condition": "gt2Signal > 0", "action": "deflect to SC2; recover", "bb": "BB5" },
-          "fail": { "condition": "gt2Signal <= 0", "action": "drain to WC (waste)", "bb": "BB6" }
-        }
-      },
-      {
-        "id": "S8",
-        "name": "Colony recovery and plating",
-        "bb": "BB7",
-        "condition": "gt1Signal > 0 OR gt2Signal > 0",
-        "recovery_steps": [
-          "Pipette top layer of oil emulsion from pipette tips at SC1 or SC2 outlets",
-          "Take 5 uL aliquots from sorted population",
-          "Dilute into 50 uL YPD broth",
-          "Plate on YPD agar plates",
-          "Incubate at 30 C for 48 h",
-          "Pick 24 single colonies per gate (GT1 and GT2) for post-HTS analysis",
-          "Prepare glycerol freezer stocks from remaining emulsion (YPD broth overnight)"
-        ],
-        "colonies_per_gate": 24,
-        "agar_media": "YPD agar",
-        "incubation_temperature_C": 30,
-        "incubation_duration_h": 48
-      },
-      {
-        "id": "S9",
-        "name": "Post-HTS maltodextrin growth screening",
-        "bb": "BB7",
-        "inputs": ["MaltodextrinMedia", "YPD_Media"],
-        "operation": "mix + heat + detect",
-        "preculture": "YPD broth 48 h at 30 C / 300 rpm",
-        "inoculum_uL": 5,
-        "media_volume_mL": 1,
-        "maltodextrin_media_composition": "2 g/L yeast extract, 4 g/L bacto peptone, 20 g/L maltodextrin",
-        "incubation_temperature_C": 30,
-        "incubation_duration_h": 48,
-        "incubation_duration_s": 172800,
-        "measurement": "OD600 at 24 h and 48 h (Tecan Sunrise microplate reader)",
-        "metric": "Maltodextrin growth fold improvement = Mutant OD / Wild type OD",
-        "detection_module": "maltodextrinGrowthDetection",
-        "detection_duration_s": 30,
-        "results": {
-          "IDY1_GT1_avg_fold_improvement_48h": "~1 (not significant except H2: ~2.5x)",
-          "IDY1_GT2_avg_fold_improvement_48h": "~1.4x (M2)",
-          "IDY2_GT1_avg_fold_improvement": "2.2x average",
-          "IDY2_GT2_avg_fold_improvement": "1.7x average"
-        },
-        "branch": {
-          "pass": { "condition": "growthSignal > 0", "action": "select for fermentation assay", "bb": "BB8" },
-          "fail": { "condition": "growthSignal <= 0", "action": "drain (not selected)", "bb": "BB9" }
-        }
-      },
-      {
-        "id": "S10",
-        "name": "Fermentation evaluation in synthetic beverage media",
-        "bb": "BB10",
-        "inputs": ["SyntheticBeverageMedia", "YPD_Media"],
-        "operation": "heat (two-phase temperature profile) + detect",
-        "preculture": {
-          "media": "YPD broth",
-          "temperature_C": 30,
-          "duration_h": 48,
-          "duration_s": 172800,
-          "rpm": 300
-        },
-        "inoculum_uL": 100,
-        "media_volume_mL": 3,
-        "vial": "6 mL mini vials sealed with rubber caps pierced with needles for gas exchange",
-        "synthetic_media_composition": "125 g/L maltose, 60 g/L maltodextrin, 1 mL ethanol, 1.25 mL 50% glycerol, 3 mL 85% lactic acid, 2 g/L yeast extract, 6.4 g/L bactopeptone, pH 5.9, 25 mg/mL chloramphenicol",
-        "temperature_phase_1": { "temperature_C": 20, "duration_h": 22, "duration_s": 79200 },
-        "temperature_phase_2": { "temperature_C": 30, "duration_h": 50, "duration_s": 180000 },
-        "total_duration_h": 72,
-        "mixing": "180 rpm for 5 min at start; then without agitation",
-        "weight_loss_timepoints_h": [0, 18, 24, 42, 48, 66, 72],
-        "fermentation_complete_at_h": 72,
-        "dry_biomass": "Pellet cells; dry at 60 C overnight",
-        "metrics": {
-          "primary": "CO2 released per mg dry biomass (mg CO2/mg yeast)",
-          "secondary": "Ethanol content normalised to dry biomass (mg ethanol/mL per mg yeast)",
-          "rate": "Fermentation rate (mass loss rate h^-1)"
-        },
-        "detection_module": "fermentationDetection",
-        "detection_duration_s": 30,
-        "results": {
-          "IDY1_M23_CO2_mg_per_mg_biomass_72h": "~7.8 (vs ~5.01 WT)",
-          "IDY2_M9_mass_loss_rate_h": "~0.128",
-          "IDY2_H13_mass_loss_rate_h": "~0.105",
-          "top_ethanol_producers": ["IDY1-M23 (GT2)", "IDY2-M9 (GT2)"],
-          "key_finding": "Mid-level sorted strains outperformed high-level sorted strains in fermentation; attributed to balanced glucoamylase expression avoiding metabolic burden"
-        },
-        "branch": {
-          "pass": { "condition": "fermentSignal > 0", "action": "dispose (strain banked as industrial candidate)", "bb": "BB11" },
-          "fail": { "condition": "fermentSignal <= 0", "action": "drain", "bb": "BB12" }
-        }
-      }
-    ],
-
-    "sorter_characterisation": {
-      "design_efficiency_without_actuation": {
-        "spacer_oil_flow_rate_threshold_nL_s": ">200",
-        "result": "100% droplets directed to WC regardless of droplet volume",
-        "droplet_volumes_tested_pL": [30, 110, 1000]
-      },
-      "sorting_efficiency_with_actuation": {
-        "voltage_threshold_Vrms": 105,
-        "spacer_oil_flow_rate_nL_s": ">200",
-        "true_positive_pct": ">90.2",
-        "false_negative_pct": "~3",
-        "false_positive_pct": "not significant",
-        "channel_difference": "no significant difference between SC1 and SC2 efficiency"
-      },
-      "multiplex_sorting_efficiency_30pL": {
-        "high_concentration_1mM_pct": 100,
-        "mid_concentration_0_1mM_pct": 98.6,
-        "false_negative_pct": "~3",
-        "n_replicates": 7
-      },
-      "binary_vs_multiplex_comparison": {
-        "binary_probability_high_or_mid": "~65% mid, ~35% high (non-uniform)",
-        "sampling_overhead_vs_multiplex": "at least 14x more strains needed for equivalent 95% confidence",
-        "conclusion": "Multiplex reduces sample size ~14x for post-analysis; avoids non-uniform exploration of fitness landscape"
-      }
-    },
-
     "cfg": {
       "basic_blocks": [
-        { "id": "BB1",  "label": "main",          "type": "entry",         "description": "Cell prep, genome shuffling, encapsulation, 48h incubation, re-injection, detection" },
-        { "id": "BB2",  "label": "bsbbif_2_t",    "type": "branch_true",   "condition": "gt1Signal > 0",      "action": "mix + dispose(highFitnessDroplet) -> SC1 recovery" },
-        { "id": "BB3",  "label": "bsbbif_3_f",    "type": "branch_false",  "condition": "gt1Signal <= 0",     "action": "drain(reinjectedDroplets)" },
-        { "id": "BB4",  "label": "bsbbif_4_j",    "type": "join",          "description": "Dispose gt1Signal; evaluate GT2 threshold" },
-        { "id": "BB5",  "label": "bsbbif_5_t",    "type": "branch_true",   "condition": "gt2Signal > 0",      "action": "mix + dispose(midFitnessDroplet) -> SC2 recovery" },
-        { "id": "BB6",  "label": "bsbbif_6_f",    "type": "branch_false",  "condition": "gt2Signal <= 0",     "action": "drain(spacerOil) -> WC" },
-        { "id": "BB7",  "label": "bsbbif_7_j",    "type": "join",          "description": "Dispose gt2Signal; begin post-HTS maltodextrin screening" },
-        { "id": "BB8",  "label": "bsbbif_8_t",    "type": "branch_true",   "condition": "growthSignal > 0",   "action": "dispose(recoveredColony) -> fermentation branch" },
-        { "id": "BB9",  "label": "bsbbif_9_f",    "type": "branch_false",  "condition": "growthSignal <= 0",  "action": "dispose(recoveredColony) -> fermentation branch" },
-        { "id": "BB10", "label": "bsbbif_10_j",   "type": "join",          "description": "Fermentation evaluation; two-phase heat; detect fermentSignal" },
-        { "id": "BB11", "label": "bsbbif_11_t",   "type": "branch_true",   "condition": "fermentSignal > 0",  "action": "dispose(fermentationMix) -> strain banked" },
-        { "id": "BB12", "label": "bsbbif_12_f",   "type": "branch_false",  "condition": "fermentSignal <= 0", "action": "dispose(fermentationMix) -> not selected" },
-        { "id": "BB13", "label": "bsbbif_13_j",   "type": "terminal",      "description": "Dispose growthSignal, fermentSignal; NOP; experiment ends" }
+        {
+          "id": "1",
+          "label": "main",
+          "type": "entry"
+        },
+        {
+          "id": "2",
+          "label": "bsbbif_2_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "3",
+          "label": "bsbbif_3_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "4",
+          "label": "bsbbif_4_j",
+          "type": "join"
+        },
+        {
+          "id": "5",
+          "label": "bsbbif_5_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "6",
+          "label": "bsbbif_6_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "7",
+          "label": "bsbbif_7_j",
+          "type": "join"
+        },
+        {
+          "id": "8",
+          "label": "bsbbif_8_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "9",
+          "label": "bsbbif_9_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "10",
+          "label": "bsbbif_10_j",
+          "type": "join"
+        },
+        {
+          "id": "11",
+          "label": "bsbbif_11_t",
+          "type": "branch_true"
+        },
+        {
+          "id": "12",
+          "label": "bsbbif_12_f",
+          "type": "branch_false"
+        },
+        {
+          "id": "13",
+          "label": "bsbbif_13_j",
+          "type": "terminal"
+        }
       ],
       "edges": [
-        ["BB1","BB2"],  ["BB1","BB3"],
-        ["BB2","BB4"],  ["BB3","BB4"],
-        ["BB4","BB5"],  ["BB4","BB6"],
-        ["BB5","BB7"],  ["BB6","BB7"],
-        ["BB7","BB8"],  ["BB7","BB9"],
-        ["BB8","BB10"], ["BB9","BB10"],
-        ["BB10","BB11"],["BB10","BB12"],
-        ["BB11","BB13"],["BB12","BB13"]
+        [
+          "1",
+          "2"
+        ],
+        [
+          "1",
+          "3"
+        ],
+        [
+          "2",
+          "4"
+        ],
+        [
+          "3",
+          "4"
+        ],
+        [
+          "4",
+          "5"
+        ],
+        [
+          "4",
+          "6"
+        ],
+        [
+          "5",
+          "7"
+        ],
+        [
+          "6",
+          "7"
+        ],
+        [
+          "7",
+          "8"
+        ],
+        [
+          "7",
+          "9"
+        ],
+        [
+          "8",
+          "10"
+        ],
+        [
+          "9",
+          "10"
+        ],
+        [
+          "10",
+          "11"
+        ],
+        [
+          "10",
+          "12"
+        ],
+        [
+          "11",
+          "13"
+        ],
+        [
+          "12",
+          "13"
+        ]
       ]
-    }
+    },
+    "ir": {
+      "content": "bsbbif_2_t:\n\thighFitnessDroplet1[0] = mix(reinjectedDroplets1[0], spacerOil1[0]) @ 1.0SECOND\n\tdispose(highFitnessDroplet1[0])\nbsbbif_3_f:\n\tdispose(reinjectedDroplets1[0])\n\tjump: bsbbif_4_j\nbsbbif_4_j:\n\tdispose(gt1Signal1[0])\n\tgt2Signal1[0] = detect(glucoamylaseDetection, spacerOil1[0]) @ 1.0SECOND\n\tif gt2Signal1[0] > 0\t|\ttrue: jump bsbbif_5_t\t|\tfalse: jump bsbbif_6_f\nmain:\n\tcellSuspension1[0] = dispense(IDY1_Cells)\n\tbsaAdditive1[0] = dispense(BSA_Solution)\n\tcellsWithBSA1[0] = mix(cellSuspension1[0], bsaAdditive1[0]) @ 2.0SECOND\n\tphosphateBuffer1[0] = dispense(PhosphateBuffer_pH7_5)\n\tmugSubstrate1[0] = dispense(MUG_Alpha_Substrate)\n\tassayMix1[0] = mix(mugSubstrate1[0], phosphateBuffer1[0]) @ 5.0SECOND\n\toilCarrier1[0] = dispense(HFE7500_Surfactant)\n\tencapsulatedDroplets1[0] = mix(cellsWithBSA1[0], assayMix1[0]) @ 5.0SECOND\n\tdropletsInOil1[0] = mix(encapsulatedDroplets1[0], oilCarrier1[0]) @ 2.0SECOND\n\theat(dropletsInOil1[0]) @ 30.0CELSIUS @ 172800.0SECOND\n\tspacerOil1[0] = dispense(SpacerOil)\n\treinjectedDroplets1[0] = mix(dropletsInOil1[0], spacerOil1[0]) @ 1.0SECOND\n\tgt1Signal1[0] = detect(glucoamylaseDetection, reinjectedDroplets1[0]) @ 1.0SECOND\n\tif gt1Signal1[0] > 0\t|\ttrue: jump bsbbif_2_t\t|\tfalse: jump bsbbif_3_f\nbsbbif_5_t:\n\tmidFitnessDroplet1[0] = mix(spacerOil1[0], spacerOil1[0]) @ 1.0SECOND\n\tdispose(midFitnessDroplet1[0])\nbsbbif_6_f:\n\tdispose(spacerOil1[0])\n\tjump: bsbbif_7_j\nbsbbif_7_j:\n\tdispose(gt2Signal1[0])\n\tmaltodextrinMedia1[0] = dispense(MaltodextrinMedia)\n\typd_preculture1[0] = dispense(YPD_Media)\n\trecoveredColony1[0] = mix(maltodextrinMedia1[0], ypd_preculture1[0]) @ 5.0SECOND\n\theat(recoveredColony1[0]) @ 30.0CELSIUS @ 172800.0SECOND\n\tgrowthSignal1[0] = detect(maltodextrinGrowthDetection, recoveredColony1[0]) @ 30.0SECOND\n\tif growthSignal1[0] > 0\t|\ttrue: jump bsbbif_8_t\t|\tfalse: jump bsbbif_9_f\nbsbbif_8_t:\n\tdispose(recoveredColony1[0])\nbsbbif_9_f:\n\tdispose(recoveredColony1[0])\n\tjump: bsbbif_10_j\nbsbbif_10_j:\n\tsyntheticMedia1[0] = dispense(SyntheticBeverageMedia)\n\typd_ferment_pre1[0] = dispense(YPD_Media)\n\theat(ypd_ferment_pre1[0]) @ 30.0CELSIUS @ 172800.0SECOND\n\tfermentationMix1[0] = mix(syntheticMedia1[0], ypd_ferment_pre1[0]) @ 300.0SECOND\n\theat(fermentationMix1[0]) @ 20.0CELSIUS @ 79200.0SECOND\n\theat(fermentationMix1[0]) @ 30.0CELSIUS @ 180000.0SECOND\n\tfermentSignal1[0] = detect(fermentationDetection, fermentationMix1[0]) @ 30.0SECOND\n\tif fermentSignal1[0] > 0\t|\ttrue: jump bsbbif_11_t\t|\tfalse: jump bsbbif_12_f\nbsbbif_11_t:\n\tdispose(fermentationMix1[0])\nbsbbif_12_f:\n\tdispose(fermentationMix1[0])\n\tjump: bsbbif_13_j\nbsbbif_13_j:\n\tdispose(growthSignal1[0])\n\tdispose(fermentSignal1[0])\n\tNOP\n"
+    },
+    "validation": {
+      "validated": false,
+      "validation_score": 0.0,
+      "validation_status": "pending_v2"
+    },
+    "evidence": {
+      "chemical_evidence": [
+        {
+          "bs_chemical": "IDY1_Cells",
+          "source_quote": "IDY1 GT1 (high): H2, H3",
+          "source_location": "description.txt: Sorted strains"
+        },
+        {
+          "bs_chemical": "IDY2_Cells",
+          "source_quote": "IDY2 GT2 (mid):  M9, M22",
+          "source_location": "description.txt: Sorted strains"
+        },
+        {
+          "bs_chemical": "YPD_Media",
+          "source_quote": "MaltodextrinMedia, SyntheticBeverageMedia",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "MUG_Alpha_Substrate",
+          "source_quote": "FLUORESCENT SUBSTRATE",
+          "source_location": "description.txt"
+        },
+        {
+          "bs_chemical": "PhosphateBuffer_pH7_5",
+          "source_quote": "PhosphateBuffer_pH7_5, BSA_Solution, HFE7500_Surfactant, SpacerOil,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "BSA_Solution",
+          "source_quote": "PhosphateBuffer_pH7_5, BSA_Solution, HFE7500_Surfactant, SpacerOil,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "HFE7500_Surfactant",
+          "source_quote": "Oil            : HFE7500 + 2% PEG fluorosurfactant",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_chemical": "SpacerOil",
+          "source_quote": "PhosphateBuffer_pH7_5, BSA_Solution, HFE7500_Surfactant, SpacerOil,",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "MaltodextrinMedia",
+          "source_quote": "MaltodextrinMedia, SyntheticBeverageMedia",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_chemical": "SyntheticBeverageMedia",
+          "source_quote": "MaltodextrinMedia, SyntheticBeverageMedia",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        }
+      ],
+      "operation_evidence": [
+        {
+          "bs_operation": "dispense",
+          "source_quote": "add 25% glycerol (final); store at -80 C",
+          "source_location": "description.txt: Sorted strains"
+        },
+        {
+          "bs_operation": "mix",
+          "source_quote": "Resuspend      : 2x YPD broth buffered at pH 7.5",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "heat",
+          "source_quote": "Incubate 5 days at 23 C, 150 rpm",
+          "source_location": "description.txt: PROTOCOL STEPS"
+        },
+        {
+          "bs_operation": "detect",
+          "source_quote": "Peak glucoamylase fluorescence ~3 a.u.",
+          "source_location": "description.txt: ORGANISMS"
+        },
+        {
+          "bs_operation": "dispose",
+          "source_quote": "WC:  central waste channel (non-selected droplets)",
+          "source_location": "description.txt: Sorter design"
+        },
+        {
+          "bs_operation": "drain",
+          "source_quote": "fluid variable; drain normalised to dispose in IR (compiler behaviour).",
+          "source_location": "description.txt: BIOSCRIPT COMPILER NOTES"
+        },
+        {
+          "bs_operation": "if",
+          "source_quote": "and negative control IY1.",
+          "source_location": "description.txt: FLUORESCENT SUBSTRATE"
+        }
+      ],
+      "numeric_mismatches": [
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 48 hour(s) vs BioScript encodes 2880m — converted hours to minutes for BioScript grammar compatibility."
+        },
+        {
+          "field": "incubation_duration",
+          "note": "Description specifies 48 hour(s) vs BioScript encodes 2880m — converted hours to minutes for BioScript grammar compatibility."
+        }
+      ]
+    },
+    "notes": "This protocol details A Microfluidic Multiplex Sorter for Strain Development. The assay is performed on a Droplet-digital microfluidics with multiplex co-planar electrostatic sorting platform. Key reagents used in the assay include Two sorting electrodes: SE1 and IY1: non-diastatic S. cerevisiae."
   }
 }
